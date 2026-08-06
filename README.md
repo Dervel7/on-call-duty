@@ -8,13 +8,15 @@ Production-ready doctor on-call duty scheduling system for medium-sized hospital
 
 **Phase 2 — Auth & Authorization** is complete. This phase delivers JWT access tokens, httpOnly refresh cookies with rotation, login/logout, silent session restore on reload (the access token is never stored in `localStorage`/`sessionStorage`), profile + change-password, administrator user CRUD, and role-based access control (RBAC). The default seeded administrator can sign in immediately.
 
-Remaining business features (doctors, scheduling, reports) arrive in later phases.
+**Phase 3 — Doctor Management** is complete. This phase adds a `doctors` profile table linked 1:1 to doctor accounts, a combined admin flow that creates the account and profile atomically, an admin-only Doctors page (create / edit / disable / delete), and a read-only doctor self-view on the profile page. The only stored profile attribute is `max_monthly_duties` (1–7, default 7); other scheduling rules (max 1 consecutive duty, duty spans 07:00 → next day 15:00) live in `AGENTS.md`.
+
+Remaining business features (availability, scheduling, reports) arrive in later phases.
 
 ## Roadmap
 
 1. Foundation (complete)
 2. Auth & Authorization (complete)
-3. Doctor Management
+3. Doctor Management (complete)
 4. Availability Management
 5. Scheduling Engine
 6. Schedule Management UI
@@ -111,6 +113,7 @@ pnpm db:seed
 
 - Email: `admin@oncall.local`
 - Password: `changeme123`
+- Doctors: `dr1@oncall.local`, `dr2@oncall.local`, `dr3@oncall.local` — the initial password for each is the email itself (change on first login).
 
 This default password is documented and MUST be changed on first login
 (Profile → Change password). The seeded bcrypt hash (cost 12) lives in
@@ -188,8 +191,19 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - The web app provides a login page, a profile page with change-password, an admin users page, a router guard that redirects unauthenticated users to `/login`, and silent session restore on reload via the refresh cookie.
 - `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass from a clean clone.
 
+## Definition of Done (Phase 3)
+
+- `pnpm install`, `pnpm db:setup`, and `pnpm dev` succeed from a clean clone; the seeded admin and three doctors are present.
+- Admin can list/create/edit/disable/delete doctors; create produces a matching account + profile atomically; delete removes the account (cascade).
+- A doctor can `GET /doctors/me` (own profile, read-only); an admin gets 404 there.
+- The Doctors page is admin-only (doctors get 403 / are redirected); the Users page creates administrators only.
+- Duplicate doctor email → 409; out-of-range `maxMonthlyDuties` → 400.
+- `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.
+
 ## Documentation
 
 - Design: `docs/superpowers/specs/2026-08-06-phase1-foundation-design.md`
 - Implementation plan: `docs/superpowers/plans/2026-08-06-phase1-foundation-plan.md`
+- Phase 3 design: `docs/superpowers/specs/2026-08-06-phase3-doctors-design.md`
+- Phase 3 implementation plan: `docs/superpowers/plans/2026-08-06-phase3-doctors-plan.md`
 - Project conventions: `AGENTS.md`
