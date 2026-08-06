@@ -1,0 +1,114 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const query = vi.fn()
+vi.mock('../db/client', () => ({
+  query: (...a: unknown[]) => query(...a),
+  withTransaction: (work: (client: { query: typeof query }) => Promise<unknown>) =>
+    work({ query }),
+}))
+
+const hash = vi.fn(async (..._a: unknown[]) => 'HASH')
+vi.mock('bcrypt', () => ({ default: { hash: (...a: unknown[]) => hash(...a) } }))
+
+import {
+  create,
+  getByUserId,
+  list,
+  remove,
+  update,
+} from '../services/doctor.service'
+
+function doctorRow(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 1,
+    user_id: 10,
+    email: 'd@h.com',
+    first_name: 'Jane',
+    last_name: 'Roe',
+    is_active: true,
+    max_monthly_duties: 7,
+    created_at: new Date('2026-01-01'),
+    updated_at: new Date('2026-01-01'),
+    ...overrides,
+  }
+}
+
+beforeEach(() => {
+  query.mockReset()
+  hash.mockReset()
+  hash.mockResolvedValue('HASH')
+})
+
+describe('doctor.service', () => {
+  it('list maps joined rows to Doctor', async () => {
+    query.mockResolvedValue({ rows: [doctorRow(), doctorRow({ id: 2, email: 'x@y.z' })] })
+    const ds = await list()
+    expect(ds).toHaveLength(2)
+    expect(ds[0]?.firstName).toBe('Jane')
+    expect(typeof ds[0]?.createdAt).toBe('string')
+  })
+
+  it('getByUserId throws 404 when no profile (used by /me)', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await expect(getByUserId(9)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('create rejects duplicate email with 409', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: 9 }] })
+    await expect(
+      create({ email: 'd@h.com', password: 'secret1', firstName: 'J', lastName: 'R' }),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('create inserts user (role=doctor) + doctor in a transaction and returns the joined doctor', async () => {
+    let n = 0
+    query.mockImplementation(async () => {
+      n++
+      if (n === 1) return { rows: [] }
+      if (n === 2) return { rows: [{ id: 10 }] }
+      if (n === 3) return { rows: [] }
+      return { rows: [doctorRow({ user_id: 10, max_monthly_duties: 5 })] }
+    })
+    const d = await create({
+      email: 'd@h.com',
+      password: 'secret1',
+      firstName: 'Jane',
+      lastName: 'Roe',
+      maxMonthlyDuties: 5,
+    })
+    expect(d.userId).toBe(10)
+    expect(d.maxMonthlyDuties).toBe(5)
+    const insertUserSql = query.mock.calls[1]?.[0] as string
+    expect(insertUserSql).toContain("'doctor'")
+    expect((query.mock.calls[2]?.[1] as unknown[])).toEqual([10, 5])
+    expect(hash).toHaveBeenCalledWith('secret1', 12)
+  })
+
+  it('update writes users + doctors tables when both field groups are present', async () => {
+    query.mockResolvedValueOnce({ rows: [{ user_id: 5 }] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [doctorRow({ id: 1, user_id: 5, max_monthly_duties: 3 })] })
+    const d = await update(1, { firstName: 'Janet', maxMonthlyDuties: 3 })
+    expect(d.maxMonthlyDuties).toBe(3)
+    const updateUserSql = query.mock.calls[1]?.[0] as string
+    expect(updateUserSql).toContain('UPDATE users')
+    expect(updateUserSql).toContain('first_name')
+    const updateDoctorSql = query.mock.calls[2]?.[0] as string
+    expect(updateDoctorSql).toContain('UPDATE doctors')
+  })
+
+  it('remove deletes the underlying user row (cascade)', async () => {
+    query.mockResolvedValueOnce({ rows: [{ user_id: 7 }] })
+    query.mockResolvedValueOnce({ rows: [] })
+    await remove(2)
+    const del = query.mock.calls[1]?.[0] as string
+    expect(del).toContain('DELETE FROM users')
+    expect((query.mock.calls[1]?.[1] as unknown[])[0]).toBe(7)
+  })
+
+  it('remove throws 404 when doctor missing', async () => {
+    query.mockResolvedValueOnce({ rows: [] })
+    await expect(remove(99)).rejects.toMatchObject({ status: 404 })
+  })
+})
