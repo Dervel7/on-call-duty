@@ -30,12 +30,14 @@ Carry these verbatim into every task — they are non-negotiable project rules.
 
 ---
 
-## Architecture notes (deliberate simplifications from the spec)
+## Architecture notes (implementation choices for spec-silent details)
 
-1. **No `validators/` folder.** The `validate(schema, part)` middleware takes a zod schema directly; routes import schemas straight from `@oncall/shared`. The shared schemas ARE the validators (single source of truth). This removes a pure re-export layer with no behavioral change.
-2. **`asyncHandler` wrapper added** (`apps/api/src/lib/async-handler.ts`). Express 4 does not auto-catch async rejections; every async controller is wrapped at the route level.
-3. **`query` helper stays non-generic.** Services cast rows at the call site (`res.rows as unknown as UserRow[]`) to avoid churning Phase 1's `db/client.ts`.
-4. **Refresh-token "family" reuse defense = revoke all of the user's active tokens.** The spec's "revoke the entire family" is implemented as revoking every active refresh token for that user on detected reuse — simpler than walking the `replaced_by` chain, and at least as strict.
+These are not simplifications of the spec — they fill in details the spec leaves open, and follow the approved spec exactly where it speaks.
+
+1. **`validators/` folder** (spec §3). `apps/api/src/validators/{auth,user,index}.ts` re-export the shared zod schemas and define route-local param schemas (e.g. numeric `id`). Routes import validators from there, not directly from `@oncall/shared` — matching the spec's described indirection.
+2. **Async error bridging via `try/catch/next`** (spec-silent). Express 4 does not auto-forward async rejections to the error handler, so each async controller wraps its body in `try { ... } catch (err) { next(err) }`. No wrapper abstraction/file is introduced.
+3. **`query<T>` is generic** (`db/client.ts`). Services call `query<UserRow>(...)` and get typed rows directly — no `as unknown as Row[]` casts, no churn at call sites beyond the type argument.
+4. **Refresh-token "family" reuse defense walks the `replaced_by` chain** (spec §8.1). On detecting reuse of an already-revoked token, `revokeFamily` walks the chain (up to the root via `WHERE replaced_by = $1`, then down via each row's `replaced_by`) and revokes every still-active token in that chain.
 5. **`req.user` typed via global augmentation** on `express-serve-static-core` (robust across `@types/express` v4/v5).
 
 ---
@@ -366,20 +368,20 @@ git commit -m "feat(db): add users and refresh_tokens tables + seed admin"
 
 ---
 
-## T3 — Backend deps + env + http-error + async-handler + error-handler
+## T3 — Backend deps + env + http-error + generic query + error-handler
 
 **Files:**
 - Modify: `apps/api/package.json` (add `bcrypt`, `jsonwebtoken`, `cookie-parser` + types)
 - Modify: `apps/api/src/config/env.ts`
 - Modify: `apps/api/.env.example`
 - Modify: `apps/api/vitest.config.ts` (test env: `JWT_ACCESS_SECRET`)
+- Modify: `apps/api/src/db/client.ts` (make `query` generic)
 - Modify: `apps/api/src/middleware/error-handler.ts`
 - Create: `apps/api/src/lib/http-error.ts`
-- Create: `apps/api/src/lib/async-handler.ts`
 - Create: `apps/api/src/__tests__/error-handler.test.ts`
 
 **Interfaces:**
-- Produces: `HttpError` class (`new HttpError(status, message)`); `asyncHandler(fn)` Express wrapper; `env` now also exposes `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN`.
+- Produces: `HttpError` class (`new HttpError(status, message)`); `query<T extends QueryResultRow = QueryResultRow>(text, params?): Promise<QueryResult<T>>` (generic; later services pass row types like `query<UserRow>(...)`); `env` now also exposes `JWT_ACCESS_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN`.
 - Error handler now maps `ZodError` → 400 (first issue message) and respects `HttpError.status`.
 
 - [ ] **Step 1: Add backend dependencies**
@@ -478,20 +480,23 @@ export class HttpError extends Error {
 }
 ```
 
-- [ ] **Step 6: Create `lib/async-handler.ts`**
+- [ ] **Step 6: Make `db/client.ts` `query` generic**
 
-`apps/api/src/lib/async-handler.ts`:
+Replace `apps/api/src/db/client.ts` with:
 ```ts
-import type { NextFunction, Request, RequestHandler, Response } from 'express'
+import { type QueryResult, type QueryResultRow, Pool } from 'pg'
+import { env } from '../config/env'
 
-export function asyncHandler(
-  fn: (req: Request, res: Response, next: NextFunction) => Promise<void>,
-): RequestHandler {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next)
-  }
+export const pool = new Pool({ connectionString: env.DATABASE_URL })
+
+export function query<T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[],
+): Promise<QueryResult<T>> {
+  return pool.query(text, params) as Promise<QueryResult<T>>
 }
 ```
+The cast sidesteps `pg`'s overloaded `query` resolution; later services call e.g. `query<UserRow>('SELECT ...', [...])` and get `rows: UserRow[]`.
 
 - [ ] **Step 7: Extend the error handler**
 
@@ -522,7 +527,6 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 import express from 'express'
 import request from 'supertest'
 import { z } from 'zod'
-import { asyncHandler } from '../lib/async-handler'
 import { HttpError } from '../lib/http-error'
 import { errorHandler } from '../middleware/error-handler'
 
@@ -530,14 +534,11 @@ function build() {
   const app = express()
   app.use(express.json())
   app.get('/http', (_req, _res, next) => next(new HttpError(409, 'taken')))
-  app.post(
-    '/zod',
-    asyncHandler(async (req, _res, next) => {
-      const r = z.object({ x: z.string().min(3) }).safeParse(req.body)
-      if (!r.success) throw r.error
-      next()
-    }),
-  )
+  app.post('/zod', (req, _res, next) => {
+    const r = z.object({ x: z.string().min(3) }).safeParse(req.body)
+    if (!r.success) throw r.error
+    next()
+  })
   app.use(errorHandler)
   return app
 }
@@ -564,8 +565,8 @@ Expected: PASS (new tests + existing health test).
 - [ ] **Step 10: Commit**
 
 ```bash
-git add apps/api/package.json apps/api/.env.example apps/api/vitest.config.ts apps/api/src/config/env.ts apps/api/src/lib/http-error.ts apps/api/src/lib/async-handler.ts apps/api/src/middleware/error-handler.ts apps/api/src/__tests__/error-handler.test.ts
-git commit -m "feat(api): auth deps, env, HttpError, asyncHandler, zod error mapping"
+git add apps/api/package.json apps/api/.env.example apps/api/vitest.config.ts apps/api/src/config/env.ts apps/api/src/db/client.ts apps/api/src/lib/http-error.ts apps/api/src/middleware/error-handler.ts apps/api/src/__tests__/error-handler.test.ts
+git commit -m "feat(api): auth deps, env, generic query, HttpError, zod error mapping"
 ```
 
 ---
@@ -768,7 +769,6 @@ import express from 'express'
 import request from 'supertest'
 import { z } from 'zod'
 import { signAccessToken } from '../lib/jwt'
-import { asyncHandler } from '../lib/async-handler'
 import { errorHandler } from '../middleware/error-handler'
 import { validate } from '../middleware/validate'
 import { authenticate } from '../middleware/authenticate'
@@ -783,11 +783,8 @@ function build() {
   app.get('/me', authenticate, (req, res) =>
     res.status(200).json({ success: true, data: { id: req.user?.id, role: req.user?.role } }),
   )
-  app.get(
-    '/admin',
-    authenticate,
-    authorize('administrator'),
-    asyncHandler(async (_req, res) => res.status(200).json({ success: true, data: { ok: true } })),
+  app.get('/admin', authenticate, authorize('administrator'), (_req, res) =>
+    res.status(200).json({ success: true, data: { ok: true } }),
   )
   app.use(errorHandler)
   return app
@@ -840,8 +837,8 @@ git commit -m "feat(api): validate/authenticate/authorize middleware"
 - Test: `apps/api/src/__tests__/token.service.test.ts`
 
 **Interfaces:**
-- Consumes: `query` from `db/client`; `generateRefreshToken`, `hashToken` from `lib/token`; `env.JWT_REFRESH_EXPIRES_IN`.
-- Produces: `issueRefreshToken(userId): Promise<string>`; `rotateRefreshToken(oldToken): Promise<{ token: string; userId: number }>` (throws `HttpError(401)` if missing/expired/revoked; on reuse of a revoked token revokes all the user's active tokens); `revokeRefreshToken(token): Promise<void>`; `revokeAllForUser(userId): Promise<void>`; `refreshExpiryMs(): number` (exported, reused for cookie maxAge).
+- Consumes: `query<T>` from `db/client`; `generateRefreshToken`, `hashToken` from `lib/token`; `env.JWT_REFRESH_EXPIRES_IN`.
+- Produces: `issueRefreshToken(userId): Promise<string>`; `rotateRefreshToken(oldToken): Promise<{ token: string; userId: number }>` (throws `HttpError(401)` if missing/expired/revoked; on reuse of a revoked token walks the `replaced_by` chain and revokes the whole family); `revokeRefreshToken(token): Promise<void>`; `revokeAllForUser(userId): Promise<void>` (used by `changePassword`); `refreshExpiryMs(): number` (exported, reused for cookie maxAge).
 
 - [ ] **Step 1: Create `token.service.ts`**
 
@@ -885,12 +882,52 @@ async function insertToken(userId: number): Promise<string> {
 }
 
 async function getRow(token: string): Promise<TokenRow | undefined> {
-  const res = await query(
+  const res = await query<TokenRow>(
     `SELECT id, user_id, expires_at, revoked_at, replaced_by
      FROM refresh_tokens WHERE token_hash = $1`,
     [hashToken(token)],
   )
-  return (res.rows as unknown as TokenRow[])[0]
+  return res.rows[0]
+}
+
+async function collectFamily(startId: number): Promise<number[]> {
+  const ids: number[] = []
+  let rootId = startId
+  for (let i = 0; i < 1000; i++) {
+    const up = await query<{ id: number }>(
+      `SELECT id FROM refresh_tokens WHERE replaced_by = $1`,
+      [rootId],
+    )
+    const prev = up.rows[0]?.id
+    if (prev === undefined) break
+    rootId = prev
+  }
+  const seen = new Set<number>()
+  let cur: number | undefined = rootId
+  for (let i = 0; i < 1000 && cur !== undefined; i++) {
+    if (seen.has(cur)) break
+    seen.add(cur)
+    ids.push(cur)
+    const down = await query<{ id: number; replaced_by: number | null }>(
+      `SELECT id, replaced_by FROM refresh_tokens WHERE id = $1`,
+      [cur],
+    )
+    const row = down.rows[0]
+    if (!row) break
+    cur = row.replaced_by ?? undefined
+  }
+  return ids
+}
+
+async function revokeFamily(startId: number): Promise<void> {
+  const ids = await collectFamily(startId)
+  if (ids.length === 0) return
+  await query(
+    `UPDATE refresh_tokens
+     SET revoked_at = COALESCE(revoked_at, NOW())
+     WHERE id = ANY($1::int[]) AND revoked_at IS NULL`,
+    [ids],
+  )
 }
 
 export async function issueRefreshToken(userId: number): Promise<string> {
@@ -905,16 +942,16 @@ export async function rotateRefreshToken(
   const now = new Date()
   const expired = row.expires_at.getTime() < now.getTime()
   if (row.revoked_at || expired) {
-    if (row.revoked_at) await revokeAllForUser(row.user_id)
+    if (row.revoked_at) await revokeFamily(row.id)
     throw new HttpError(401, 'Invalid refresh token')
   }
   const newToken = generateRefreshToken()
-  const ins = await query(
+  const ins = await query<{ id: number }>(
     `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
      VALUES ($1, $2, $3) RETURNING id`,
     [row.user_id, hashToken(newToken), expiryDate()],
   )
-  const newId = (ins.rows as unknown as { id: number }[])[0]?.id
+  const newId = ins.rows[0]?.id
   await query(
     `UPDATE refresh_tokens SET revoked_at = $1, replaced_by = $2 WHERE id = $3`,
     [now, newId, row.id],
@@ -973,7 +1010,7 @@ describe('token.service', () => {
     await expect(rotateRefreshToken('nope')).rejects.toMatchObject({ status: 401 })
   })
 
-  it('rotateRefreshToken throws on revoked token and revokes the user family', async () => {
+  it('rotateRefreshToken throws on revoked token and revokes the family chain', async () => {
     let calls = 0
     query.mockImplementation(async () => {
       calls++
@@ -993,9 +1030,10 @@ describe('token.service', () => {
       return { rows: [] }
     })
     await expect(rotateRefreshToken('reused')).rejects.toMatchObject({ status: 401 })
-    const familySql = query.mock.calls[1]?.[0] as string
-    expect(familySql).toContain('UPDATE refresh_tokens SET revoked_at')
-    expect((query.mock.calls[1]?.[1] as unknown[])[0]).toBe(9)
+    const updateCall = query.mock.calls.find((c) => String(c[0]).includes('id = ANY'))
+    expect(updateCall).toBeDefined()
+    const arrayParam = (updateCall?.[1] as unknown[])[0] as number[]
+    expect(arrayParam).toContain(1)
   })
 
   it('rotateRefreshToken issues a new token and revokes the old row', async () => {
@@ -1094,13 +1132,13 @@ function toAuthUser(row: UserRow): AuthUser {
 const USER_COLUMNS = `id, email, password_hash, role, first_name, last_name, is_active, created_at`
 
 async function findUserByEmail(email: string): Promise<UserRow | undefined> {
-  const res = await query(`SELECT ${USER_COLUMNS} FROM users WHERE email = $1`, [email])
-  return (res.rows as unknown as UserRow[])[0]
+  const res = await query<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE email = $1`, [email])
+  return res.rows[0]
 }
 
 async function findUserById(id: number): Promise<UserRow | undefined> {
-  const res = await query(`SELECT ${USER_COLUMNS} FROM users WHERE id = $1`, [id])
-  return (res.rows as unknown as UserRow[])[0]
+  const res = await query<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE id = $1`, [id])
+  return res.rows[0]
 }
 
 export async function login(
@@ -1330,18 +1368,18 @@ function toUser(row: UserRow): User {
   }
 }
 
-function oneRow(res: { rows: unknown[] }): UserRow | undefined {
-  return (res.rows as unknown as UserRow[])[0]
+function oneRow(rows: UserRow[]): UserRow | undefined {
+  return rows[0]
 }
 
 export async function list(): Promise<User[]> {
-  const res = await query(`SELECT ${COLUMNS} FROM users ORDER BY created_at`, [])
-  return (res.rows as unknown as UserRow[]).map(toUser)
+  const res = await query<UserRow>(`SELECT ${COLUMNS} FROM users ORDER BY created_at`, [])
+  return res.rows.map(toUser)
 }
 
 export async function getById(id: number): Promise<User> {
-  const res = await query(`SELECT ${COLUMNS} FROM users WHERE id = $1`, [id])
-  const row = oneRow(res)
+  const res = await query<UserRow>(`SELECT ${COLUMNS} FROM users WHERE id = $1`, [id])
+  const row = oneRow(res.rows)
   if (!row) throw new HttpError(404, 'User not found')
   return toUser(row)
 }
@@ -1350,12 +1388,12 @@ export async function create(input: CreateUserRequest): Promise<User> {
   const existing = await query(`SELECT id FROM users WHERE email = $1`, [input.email])
   if (existing.rows.length > 0) throw new HttpError(409, 'Email already in use')
   const passwordHash = await bcrypt.hash(input.password, 12)
-  const res = await query(
+  const res = await query<UserRow>(
     `INSERT INTO users (email, password_hash, role, first_name, last_name)
      VALUES ($1, $2, $3, $4, $5) RETURNING ${COLUMNS}`,
     [input.email, passwordHash, input.role, input.firstName, input.lastName],
   )
-  const row = oneRow(res)
+  const row = oneRow(res.rows)
   if (!row) throw new HttpError(500, 'Failed to create user')
   return toUser(row)
 }
@@ -1380,11 +1418,11 @@ export async function update(id: number, input: UpdateUserRequest): Promise<User
   params.push(new Date())
   sets.push(`updated_at = $${params.length}`)
   params.push(id)
-  const res = await query(
+  const res = await query<UserRow>(
     `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING ${COLUMNS}`,
     params,
   )
-  const row = oneRow(res)
+  const row = oneRow(res.rows)
   if (!row) throw new HttpError(404, 'User not found')
   return toUser(row)
 }
@@ -1494,19 +1532,35 @@ git commit -m "feat(api): admin user service (CRUD + disable)"
 ## T9 — Auth controllers + routes + integration tests
 
 **Files:**
+- Create: `apps/api/src/validators/auth.ts`
+- Create: `apps/api/src/validators/index.ts`
 - Create: `apps/api/src/controllers/auth.controller.ts`
 - Create: `apps/api/src/routes/auth.routes.ts`
 - Test: `apps/api/src/__tests__/auth.routes.test.ts`
 
 **Interfaces:**
-- Consumes: `auth.service`; `validate`/`authenticate` middleware; `asyncHandler`; `env` + `refreshExpiryMs()` for cookie options; shared schemas.
-- Produces: `authRouter` mounted at `/auth` (T10). Cookie name `refresh_token`, path `/auth`, httpOnly, `SameSite=Lax`, `Secure=env.COOKIE_SECURE`, `Max-Age=refreshExpiryMs()`.
+- Consumes: `auth.service`; `validate`/`authenticate` middleware; `env` + `refreshExpiryMs()` for cookie options; `validators/auth` (re-exports shared schemas).
+- Produces: `authRouter` mounted at `/auth` (T10). Cookie name `refresh_token`, path `/auth`, httpOnly, `SameSite=Lax`, `Secure=env.COOKIE_SECURE`, `Max-Age=refreshExpiryMs()`. Async controllers bridge errors to the handler via `try/catch/next`.
 
-- [ ] **Step 1: Create `auth.controller.ts`**
+- [ ] **Step 1: Create `validators/auth.ts`**
+
+`apps/api/src/validators/auth.ts`:
+```ts
+export { changePasswordSchema, loginSchema } from '@oncall/shared'
+```
+
+`apps/api/src/validators/index.ts`:
+```ts
+export * from './auth'
+export * from './user'
+```
+> `validators/user.ts` is added in T10; its export is referenced from the barrel then.
+
+- [ ] **Step 2: Create `auth.controller.ts`**
 
 `apps/api/src/controllers/auth.controller.ts`:
 ```ts
-import type { CookieOptions, Request, Response } from 'express'
+import type { CookieOptions, NextFunction, Request, Response } from 'express'
 import { env } from '../config/env'
 import { ok } from '../lib/envelope'
 import { HttpError } from '../lib/http-error'
@@ -1535,63 +1589,78 @@ function clearRefreshCookie(res: Response): void {
 }
 
 export const authController = {
-  async login(req: Request, res: Response) {
-    const { user, accessToken, refreshToken } = await authService.login(req.body)
-    setRefreshCookie(res, refreshToken)
-    res.status(200).json(ok({ user, accessToken }))
+  async login(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { user, accessToken, refreshToken } = await authService.login(req.body)
+      setRefreshCookie(res, refreshToken)
+      res.status(200).json(ok({ user, accessToken }))
+    } catch (err) {
+      next(err)
+    }
   },
-  async refresh(req: Request, res: Response) {
-    const token = req.cookies?.[COOKIE_NAME]
-    if (!token) throw new HttpError(401, 'Invalid refresh token')
-    const { user, accessToken, refreshToken } = await authService.refresh(token)
-    setRefreshCookie(res, refreshToken)
-    res.status(200).json(ok({ user, accessToken }))
+  async refresh(req: Request, res: Response, next: NextFunction) {
+    try {
+      const token = req.cookies?.[COOKIE_NAME]
+      if (!token) throw new HttpError(401, 'Invalid refresh token')
+      const { user, accessToken, refreshToken } = await authService.refresh(token)
+      setRefreshCookie(res, refreshToken)
+      res.status(200).json(ok({ user, accessToken }))
+    } catch (err) {
+      next(err)
+    }
   },
-  async logout(req: Request, res: Response) {
-    const token = req.cookies?.[COOKIE_NAME]
-    if (token) await authService.logout(token)
-    clearRefreshCookie(res)
-    res.status(204).end()
+  async logout(req: Request, res: Response, next: NextFunction) {
+    try {
+      const token = req.cookies?.[COOKIE_NAME]
+      if (token) await authService.logout(token)
+      clearRefreshCookie(res)
+      res.status(204).end()
+    } catch (err) {
+      next(err)
+    }
   },
-  async me(req: Request, res: Response) {
-    if (!req.user) throw new HttpError(401, 'Unauthorized')
-    const user = await authService.getUser(req.user.id)
-    res.status(200).json(ok({ user }))
+  async me(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new HttpError(401, 'Unauthorized')
+      const user = await authService.getUser(req.user.id)
+      res.status(200).json(ok({ user }))
+    } catch (err) {
+      next(err)
+    }
   },
-  async changePassword(req: Request, res: Response) {
-    if (!req.user) throw new HttpError(401, 'Unauthorized')
-    const user = await authService.changePassword(req.user.id, req.body)
-    res.status(200).json(ok({ user }))
+  async changePassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new HttpError(401, 'Unauthorized')
+      const user = await authService.changePassword(req.user.id, req.body)
+      res.status(200).json(ok({ user }))
+    } catch (err) {
+      next(err)
+    }
   },
 }
 ```
 
-- [ ] **Step 2: Create `auth.routes.ts`**
+- [ ] **Step 3: Create `auth.routes.ts`**
 
 `apps/api/src/routes/auth.routes.ts`:
 ```ts
 import { Router } from 'express'
-import { changePasswordSchema, loginSchema } from '@oncall/shared'
 import { authController } from '../controllers/auth.controller'
-import { asyncHandler } from '../lib/async-handler'
 import { authenticate } from '../middleware/authenticate'
 import { validate } from '../middleware/validate'
+import { changePasswordSchema, loginSchema } from '../validators/auth'
 
 export const authRouter = Router()
 
-authRouter.post('/login', validate(loginSchema, 'body'), asyncHandler(authController.login))
-authRouter.post('/refresh', asyncHandler(authController.refresh))
-authRouter.post('/logout', asyncHandler(authController.logout))
-authRouter.get('/me', authenticate, asyncHandler(authController.me))
-authRouter.post(
-  '/change-password',
-  authenticate,
-  validate(changePasswordSchema, 'body'),
-  asyncHandler(authController.changePassword),
-)
+authRouter.post('/login', validate(loginSchema, 'body'), authController.login)
+authRouter.post('/refresh', authController.refresh)
+authRouter.post('/logout', authController.logout)
+authRouter.get('/me', authenticate, authController.me)
+authRouter.post('/change-password', authenticate, validate(changePasswordSchema, 'body'), authController.changePassword)
 ```
+> Controllers catch their own async errors and call `next(err)`, so they attach directly to the router without an async wrapper.
 
-- [ ] **Step 3: Write the failing integration test (db mocked at module level)**
+- [ ] **Step 4: Write the failing integration test (db mocked at module level)**
 
 `apps/api/src/__tests__/auth.routes.test.ts`:
 ```ts
@@ -1677,15 +1746,15 @@ describe('bcrypt sanity', () => {
 })
 ```
 
-- [ ] **Step 4: Run tests**
+- [ ] **Step 5: Run tests**
 
 Run: `pnpm --filter @oncall/api test`
 Expected: PASS (login integration uses real `bcrypt.compare`; the sanity test pins the seed hash).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add apps/api/src/controllers/auth.controller.ts apps/api/src/routes/auth.routes.ts apps/api/src/__tests__/auth.routes.test.ts
+git add apps/api/src/validators/auth.ts apps/api/src/validators/index.ts apps/api/src/controllers/auth.controller.ts apps/api/src/routes/auth.routes.ts apps/api/src/__tests__/auth.routes.test.ts
 git commit -m "feat(api): auth routes (login/refresh/logout/me/change-password)"
 ```
 
@@ -1694,70 +1763,96 @@ git commit -m "feat(api): auth routes (login/refresh/logout/me/change-password)"
 ## T10 — User controllers + routes + app wiring + integration tests
 
 **Files:**
+- Create: `apps/api/src/validators/user.ts`
 - Create: `apps/api/src/controllers/user.controller.ts`
 - Create: `apps/api/src/routes/user.routes.ts`
 - Modify: `apps/api/src/app.ts` (cookie-parser, `cors({ credentials: true })`, mount `/auth` + `/users`)
 - Create: `apps/api/src/__tests__/user.routes.test.ts`
 
 **Interfaces:**
-- Produces: `userRouter` mounted at `/users` behind `authenticate + authorize('administrator')`. `app` now wires cookie-parser + credentials + both auth routers. The full server is now auth-enabled.
+- Produces: `userRouter` mounted at `/users` behind `authenticate + authorize('administrator')`. `app` now wires cookie-parser + credentials + both auth routers. The full server is now auth-enabled. `validators/user.ts` re-exports the shared create/update schemas and defines the `idParams` route schema.
 
 - [ ] **Step 1: Create `user.controller.ts`**
 
 `apps/api/src/controllers/user.controller.ts`:
 ```ts
-import type { Request, Response } from 'express'
+import type { NextFunction, Request, Response } from 'express'
 import { ok } from '../lib/envelope'
 import * as userService from '../services/user.service'
 
 export const userController = {
-  async list(_req: Request, res: Response) {
-    const users = await userService.list()
-    res.status(200).json(ok({ users }))
+  async list(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const users = await userService.list()
+      res.status(200).json(ok({ users }))
+    } catch (err) {
+      next(err)
+    }
   },
-  async getById(req: Request, res: Response) {
-    const user = await userService.getById(Number(req.params.id))
-    res.status(200).json(ok({ user }))
+  async getById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await userService.getById(Number(req.params.id))
+      res.status(200).json(ok({ user }))
+    } catch (err) {
+      next(err)
+    }
   },
-  async create(req: Request, res: Response) {
-    const user = await userService.create(req.body)
-    res.status(201).json(ok({ user }))
+  async create(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await userService.create(req.body)
+      res.status(201).json(ok({ user }))
+    } catch (err) {
+      next(err)
+    }
   },
-  async update(req: Request, res: Response) {
-    const user = await userService.update(Number(req.params.id), req.body)
-    res.status(200).json(ok({ user }))
+  async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await userService.update(Number(req.params.id), req.body)
+      res.status(200).json(ok({ user }))
+    } catch (err) {
+      next(err)
+    }
   },
-  async remove(req: Request, res: Response) {
-    await userService.remove(Number(req.params.id))
-    res.status(204).end()
+  async remove(req: Request, res: Response, next: NextFunction) {
+    try {
+      await userService.remove(Number(req.params.id))
+      res.status(204).end()
+    } catch (err) {
+      next(err)
+    }
   },
 }
 ```
 
-- [ ] **Step 2: Create `user.routes.ts`**
+- [ ] **Step 2: Create `validators/user.ts` + `user.routes.ts`**
+
+`apps/api/src/validators/user.ts`:
+```ts
+import { z } from 'zod'
+
+export { createUserSchema, updateUserSchema } from '@oncall/shared'
+
+export const idParams = z.object({ id: z.coerce.number().int().positive() })
+```
 
 `apps/api/src/routes/user.routes.ts`:
 ```ts
 import { Router } from 'express'
-import { z } from 'zod'
-import { createUserSchema, updateUserSchema } from '@oncall/shared'
 import { userController } from '../controllers/user.controller'
-import { asyncHandler } from '../lib/async-handler'
 import { authenticate } from '../middleware/authenticate'
 import { authorize } from '../middleware/authorize'
 import { validate } from '../middleware/validate'
+import { createUserSchema, idParams, updateUserSchema } from '../validators/user'
 
 export const userRouter = Router()
 
 userRouter.use(authenticate, authorize('administrator'))
 
-const idParams = z.object({ id: z.coerce.number().int().positive() })
-
-userRouter.get('/', asyncHandler(userController.list))
-userRouter.get('/:id', validate(idParams, 'params'), asyncHandler(userController.getById))
-userRouter.post('/', validate(createUserSchema, 'body'), asyncHandler(userController.create))
-userRouter.patch('/:id', validate(idParams, 'params'), validate(updateUserSchema, 'body'), asyncHandler(userController.update))
-userRouter.delete('/:id', validate(idParams, 'params'), asyncHandler(userController.remove))
+userRouter.get('/', userController.list)
+userRouter.get('/:id', validate(idParams, 'params'), userController.getById)
+userRouter.post('/', validate(createUserSchema, 'body'), userController.create)
+userRouter.patch('/:id', validate(idParams, 'params'), validate(updateUserSchema, 'body'), userController.update)
+userRouter.delete('/:id', validate(idParams, 'params'), userController.remove)
 ```
 
 - [ ] **Step 3: Wire the app**
@@ -1888,7 +1983,7 @@ Expected: PASS (health, error-handler, jwt/token, middleware, token.service, aut
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/api/src/controllers/user.controller.ts apps/api/src/routes/user.routes.ts apps/api/src/app.ts apps/api/src/__tests__/user.routes.test.ts
+git add apps/api/src/validators/user.ts apps/api/src/controllers/user.controller.ts apps/api/src/routes/user.routes.ts apps/api/src/app.ts apps/api/src/__tests__/user.routes.test.ts
 git commit -m "feat(api): user routes (admin CRUD) + wire cookie-parser, cors credentials, routers"
 ```
 
@@ -3284,7 +3379,7 @@ Every spec section maps to at least one task:
 - §5 shared types & schemas → T1 (all 9 types + 5 zod schemas + zod dep).
 - §6.1 backend deps → T3 (bcrypt, jsonwebtoken, cookie-parser + types; `@oncall/shared` zod in T1; web zod in T11).
 - §6.2 env vars → T3 (`config/env.ts` + `.env.example` + vitest test env).
-- §6.3 lib → T3 (`http-error`, `async-handler`), T4 (`jwt`, `token`).
+- §6.3 lib → T3 (`http-error`, generic `query`), T4 (`jwt`, `token`).
 - §6.4 services → T6 (token.service), T7 (auth.service), T8 (user.service).
 - §6.5 middleware → T5 (validate/authenticate/authorize + `req.user` augmentation).
 - §6.6 error handler → T3 (ZodError→400, HttpError.status).
@@ -3300,7 +3395,7 @@ Every spec section maps to at least one task:
 
 - **Placeholder scan:** none. Every code step contains the actual file content; the seed hash and test bcrypt hashes are real, precomputed values. No "TODO"/"TBD".
 - **Type consistency:** `signAccessToken({ sub, role })` ↔ `verifyAccessToken(): JwtAccessPayload` ↔ `authenticate` sets `req.user = { id: payload.sub, role: payload.role }` (T4 ↔ T5). `rotateRefreshToken` returns `{ token, userId }` consumed by `auth.service.refresh` (T6 ↔ T7). `setRefreshHandler` / `setAccessToken` names match between `lib/http.ts`, `services/auth.ts`, and `stores/auth.ts` (T11 ↔ T12). `resolveGuard` signature matches its test (T13). `usersController.getById` etc. match `user.service` exports (T10 ↔ T8).
-- **Consistency of deviations:** the 5 simplifications in "Architecture notes" are each reflected in the tasks (no `validators/` folder; `asyncHandler` in T3; row casts in T6–T8; reuse = revoke-all-user in T6; `express-serve-static-core` augmentation in T5).
+- **Consistency with spec:** the approved spec is followed literally. The "Architecture notes" only fill spec-silent details: `validators/` folder present (T9/T10); async controllers bridge errors with `try/catch/next` (no wrapper file); `query<T>` generic in T3, consumed in T6–T8; refresh-token reuse revokes the `replaced_by` chain family (T6); `req.user` via `express-serve-static-core` augmentation (T5).
 - **One known soft spot, surfaced honestly:** T8 `user.service.update` builds the SET clause in camelCase→snake_case map order; the unit test only exercises `isActive`. An executor may add more cases — that is test depth, not a plan gap. The behavior itself (partial update, no password field, 404 when missing) is fully specified.
 - **Scope:** cohesive single phase; no spec section unowned; task boundaries each carry an independent test cycle.
 
