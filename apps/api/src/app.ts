@@ -7,6 +7,7 @@ import { errorHandler } from './middleware/error-handler'
 import { notFound } from './middleware/not-found'
 import { requestLogger } from './middleware/request-logger'
 import { authRouter } from './routes/auth.routes'
+import { doctorRouter } from './routes/doctor.routes'
 import { healthRouter } from './routes/health.routes'
 import { userRouter } from './routes/user.routes'
 
@@ -21,6 +22,7 @@ app.use(requestLogger)
 app.use('/health', healthRouter)
 app.use('/auth', authRouter)
 app.use('/users', userRouter)
+app.use('/doctors', doctorRouter)
 
 app.use(notFound)
 app.use(errorHandler)
