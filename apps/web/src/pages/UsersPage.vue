@@ -73,7 +73,7 @@ async function save() {
     const payload: CreateUserRequest = {
       email: edit.value.email,
       password: edit.value.email,
-      role: edit.value.role,
+      role: 'administrator',
       firstName: edit.value.firstName,
       lastName: edit.value.lastName,
     }
@@ -155,7 +155,7 @@ onMounted(load)
       </TableBody>
     </Table>
 
-    <Dialog v-model:open="edit.open" :title="edit.id === null ? 'New user' : 'Edit user'">
+    <Dialog v-model:open="edit.open" :title="edit.id === null ? 'New administrator' : 'Edit user'">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="save">
         <div class="flex flex-col gap-1">
           <Label for="e-email">Email</Label>
@@ -169,7 +169,7 @@ onMounted(load)
           <Label for="e-last">Last name</Label>
           <Input id="e-last" v-model="edit.lastName" />
         </div>
-        <div class="flex flex-col gap-1">
+        <div v-if="edit.id !== null" class="flex flex-col gap-1">
           <Label for="e-role">Role</Label>
           <select
             id="e-role"
@@ -181,7 +181,7 @@ onMounted(load)
           </select>
         </div>
         <p v-if="edit.id === null" class="text-xs text-muted-foreground">
-          Initial password equals the email. The user should change it on first login.
+          Initial password equals the email. The administrator should change it on first login.
         </p>
         <div class="flex justify-end gap-2">
           <Button type="submit">Save</Button>

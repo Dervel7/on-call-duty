@@ -54,3 +54,18 @@ describe('UsersPage', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
   })
 })
+
+describe('UsersPage create narrowing', () => {
+  it('create dialog is titled "New administrator" with no role selector for new users', async () => {
+    list.mockResolvedValue([])
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await wrapper.vm.$nextTick()
+    const openBtn = wrapper.findAll('button').find((b) => b.text().includes('New user'))
+    expect(openBtn).toBeTruthy()
+    await openBtn?.trigger('click')
+    await wrapper.vm.$nextTick()
+    // The Dialog teleports to document.body, so query the document, not wrapper.
+    expect(document.body.textContent).toContain('New administrator')
+    expect(document.querySelector('#e-role')).toBeNull()
+  })
+})

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import type { Doctor } from '@oncall/shared'
 import { changePasswordSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
+import * as doctorService from '@/services/doctor'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -22,6 +24,22 @@ const auth = useAuthStore()
 const heading = computed(() =>
   auth.user ? `${auth.user.firstName} ${auth.user.lastName}` : 'Profile',
 )
+
+const myDoctor = ref<Doctor | null>(null)
+const doctorError = ref('')
+const isDoctor = computed(() => auth.user?.role === 'doctor')
+
+async function loadMyDoctor() {
+  if (!isDoctor.value) return
+  doctorError.value = ''
+  try {
+    myDoctor.value = await doctorService.me()
+  } catch (e) {
+    doctorError.value = e instanceof Error ? e.message : 'Could not load profile'
+  }
+}
+
+onMounted(loadMyDoctor)
 
 async function onSubmit() {
   formError.value = ''
@@ -69,6 +87,23 @@ async function onSubmit() {
           <p v-if="success" class="text-sm text-accent-foreground">Password updated.</p>
           <Button type="submit" :disabled="submitting">Update password</Button>
         </form>
+      </CardContent>
+    </Card>
+    <Card v-if="isDoctor" class="mt-4">
+      <CardHeader>
+        <CardTitle>My on-call profile</CardTitle>
+        <CardDescription>Your doctor profile (read-only).</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p v-if="doctorError" class="text-sm text-destructive" role="alert">{{ doctorError }}</p>
+        <dl v-else-if="myDoctor" class="grid grid-cols-2 gap-y-2 text-sm">
+          <dt class="text-muted-foreground">Email</dt>
+          <dd>{{ myDoctor.email }}</dd>
+          <dt class="text-muted-foreground">Status</dt>
+          <dd>{{ myDoctor.isActive ? 'active' : 'disabled' }}</dd>
+          <dt class="text-muted-foreground">Max monthly duties</dt>
+          <dd>{{ myDoctor.maxMonthlyDuties }}</dd>
+        </dl>
       </CardContent>
     </Card>
   </div>
