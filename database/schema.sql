@@ -34,3 +34,14 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens (user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens (token_hash)
   WHERE revoked_at IS NULL;
+
+-- Phase 3: Doctor Management
+
+CREATE TABLE IF NOT EXISTS doctors (
+  id                 INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id            INTEGER NOT NULL UNIQUE REFERENCES users (id) ON DELETE CASCADE,
+  max_monthly_duties INTEGER NOT NULL DEFAULT 7
+                     CHECK (max_monthly_duties BETWEEN 1 AND 7),
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
