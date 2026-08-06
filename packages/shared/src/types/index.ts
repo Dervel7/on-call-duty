@@ -10,3 +10,4 @@ export type {
   CreateUserRequest,
   UpdateUserRequest,
 } from './auth'
+export type { Doctor, CreateDoctorRequest, UpdateDoctorRequest } from './doctor'

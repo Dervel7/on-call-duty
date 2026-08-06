@@ -5,3 +5,4 @@ export {
   createUserSchema,
   updateUserSchema,
 } from './auth'
+export { createDoctorSchema, updateDoctorSchema } from './doctor'

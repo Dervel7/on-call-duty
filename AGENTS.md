@@ -89,6 +89,14 @@ Roles:
 
 Never trust client-provided permissions.
 
+## Domain Rules
+
+- Regular weekday shift: **07:00–15:00**.
+- On-call duty spans **07:00 → next day 15:00** (overnight; hands off at next day's 15:00).
+- Max **7 on-call duties per month** per doctor (the cap on `doctors.max_monthly_duties`, 1–7).
+- Max **1 consecutive on-call duty** — a doctor cannot be assigned on back-to-back days. Fixed system rule consumed by the scheduling engine.
+- On-call duties can fall on **any day**, including weekends.
+
 ## Scheduling Engine Requirements
 Scheduling quality is the highest-priority business feature.
 

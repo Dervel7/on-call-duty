@@ -45,3 +45,43 @@ describe('auth schemas', () => {
     expect(updateUserSchema.safeParse({ email: 'nope' }).success).toBe(false)
   })
 })
+
+import { createDoctorSchema, updateDoctorSchema } from '../index'
+
+describe('doctor schemas', () => {
+  const valid = {
+    email: 'dr@h.com',
+    password: 'secret1',
+    firstName: 'Jane',
+    lastName: 'Roe',
+  }
+
+  it('createDoctorSchema applies default 7 and rejects out-of-range limits', () => {
+    const r = createDoctorSchema.safeParse(valid)
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.maxMonthlyDuties).toBe(7)
+
+    expect(
+      createDoctorSchema.safeParse({ ...valid, maxMonthlyDuties: 0 }).success,
+    ).toBe(false)
+    expect(
+      createDoctorSchema.safeParse({ ...valid, maxMonthlyDuties: 8 }).success,
+    ).toBe(false)
+    expect(
+      createDoctorSchema.safeParse({ ...valid, maxMonthlyDuties: 4 }).success,
+    ).toBe(true)
+  })
+
+  it('createDoctorSchema rejects missing names and short password', () => {
+    expect(createDoctorSchema.safeParse({ ...valid, firstName: '' }).success).toBe(false)
+    expect(
+      createDoctorSchema.safeParse({ ...valid, password: '12345' }).success,
+    ).toBe(false)
+  })
+
+  it('updateDoctorSchema accepts partials and enforces the range', () => {
+    expect(updateDoctorSchema.safeParse({ maxMonthlyDuties: 3 }).success).toBe(true)
+    expect(updateDoctorSchema.safeParse({ maxMonthlyDuties: 9 }).success).toBe(false)
+    expect(updateDoctorSchema.safeParse({ isActive: false }).success).toBe(true)
+  })
+})
