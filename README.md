@@ -4,12 +4,16 @@ Production-ready doctor on-call duty scheduling system for medium-sized hospital
 
 ## Status
 
-**Phase 1 — Foundation** is complete. This phase delivers the monorepo scaffold, shared packages, tooling, a minimal Express API (`GET /health`), a minimal Vue 3 app with the medical theme, and the database setup pipeline. Business features (auth, doctors, scheduling, reports) arrive in later phases.
+**Phase 1 — Foundation** is complete: monorepo scaffold, shared packages, tooling, a minimal Express API (`GET /health`), a minimal Vue 3 app with the medical theme, and the database setup pipeline.
+
+**Phase 2 — Auth & Authorization** is complete. This phase delivers JWT access tokens, httpOnly refresh cookies with rotation, login/logout, silent session restore on reload (the access token is never stored in `localStorage`/`sessionStorage`), profile + change-password, administrator user CRUD, and role-based access control (RBAC). The default seeded administrator can sign in immediately.
+
+Remaining business features (doctors, scheduling, reports) arrive in later phases.
 
 ## Roadmap
 
 1. Foundation (complete)
-2. Auth & Authorization
+2. Auth & Authorization (complete)
 3. Doctor Management
 4. Availability Management
 5. Scheduling Engine
@@ -101,6 +105,17 @@ This runs `schema.sql` then `seed.sql` (both idempotent). To re-apply seed data 
 pnpm db:seed
 ```
 
+### Default administrator
+
+`pnpm db:setup` seeds one administrator:
+
+- Email: `admin@oncall.local`
+- Password: `changeme123`
+
+This default password is documented and MUST be changed on first login
+(Profile → Change password). The seeded bcrypt hash (cost 12) lives in
+`database/seed.sql`; the plaintext exists only in documentation.
+
 ### 5. Start the development servers
 
 ```bash
@@ -141,6 +156,12 @@ Root scripts (run from the repository root):
 | `LOG_LEVEL` | `apps/api/.env` | Pino log level (default info) |
 | `NODE_ENV` | `apps/api/.env` | development / production / test |
 | `VITE_API_URL` | `apps/web/.env` | API base URL for the web client (default http://localhost:3000) |
+| `JWT_ACCESS_SECRET` | `apps/api/.env` | Access-token signing secret. Required in production; dev default in `.env.example`. |
+| `JWT_ACCESS_EXPIRES_IN` | `apps/api/.env` | Access-token lifetime (default `15m`) |
+| `JWT_REFRESH_EXPIRES_IN` | `apps/api/.env` | Refresh-token lifetime (default `7d`) |
+| `COOKIE_SECURE` | `apps/api/.env` | Refresh-cookie `Secure` flag (default true in production, false in dev) |
+| `COOKIE_SAMESITE` | `apps/api/.env` | Refresh-cookie `SameSite` (default `lax`) |
+| `COOKIE_DOMAIN` | `apps/api/.env` | Optional refresh-cookie domain |
 
 The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credentials live in a single place.
 
@@ -156,6 +177,16 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - The web app renders with the medical theme tokens (no hardcoded colors).
 - `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass.
 - Shared types (`@oncall/shared`) are imported successfully by both API and web.
+
+## Definition of Done (Phase 2)
+
+- `POST /auth/login` issues an access token (short-lived JWT) and sets a rotation-ready httpOnly `refresh_token` cookie; `POST /auth/refresh` rotates the refresh token and returns a new access token; `POST /auth/logout` clears the cookie.
+- `GET /auth/me` returns the signed-in user; `POST /auth/change-password` validates the current password, enforces the new-password policy, and re-hashes with bcrypt.
+- Administrators can list/get/create/update/delete users via the admin endpoints; doctors receive `403 Forbidden`.
+- RBAC middleware rejects unauthenticated (`401`) and unauthorized (`403`) access; validation errors return `422`; conflict errors (e.g. duplicate email) return `409`.
+- The refresh token is stored only in the in-memory token store (server side) and the httpOnly cookie; the access token is never persisted in the browser's `localStorage`/`sessionStorage`.
+- The web app provides a login page, a profile page with change-password, an admin users page, a router guard that redirects unauthenticated users to `/login`, and silent session restore on reload via the refresh cookie.
+- `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass from a clean clone.
 
 ## Documentation
 
