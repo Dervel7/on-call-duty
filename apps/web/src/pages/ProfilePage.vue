@@ -1,1 +1,75 @@
-<template><div></div></template>
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import { changePasswordSchema } from '@oncall/shared'
+import { ApiError } from '@/lib/http'
+import { useAuthStore } from '@/stores/auth'
+import Button from '@/components/ui/Button.vue'
+import Card from '@/components/ui/Card.vue'
+import CardContent from '@/components/ui/CardContent.vue'
+import CardDescription from '@/components/ui/CardDescription.vue'
+import CardHeader from '@/components/ui/CardHeader.vue'
+import CardTitle from '@/components/ui/CardTitle.vue'
+import Input from '@/components/ui/Input.vue'
+import Label from '@/components/ui/Label.vue'
+
+const currentPassword = ref('')
+const newPassword = ref('')
+const formError = ref('')
+const success = ref(false)
+const submitting = ref(false)
+
+const auth = useAuthStore()
+const heading = computed(() =>
+  auth.user ? `${auth.user.firstName} ${auth.user.lastName}` : 'Profile',
+)
+
+async function onSubmit() {
+  formError.value = ''
+  success.value = false
+  const parsed = changePasswordSchema.safeParse({
+    currentPassword: currentPassword.value,
+    newPassword: newPassword.value,
+  })
+  if (!parsed.success) {
+    formError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
+    return
+  }
+  submitting.value = true
+  try {
+    await auth.changePassword(parsed.data.currentPassword, parsed.data.newPassword)
+    success.value = true
+    currentPassword.value = ''
+    newPassword.value = ''
+  } catch (e) {
+    formError.value = e instanceof ApiError ? e.message : 'Could not change password'
+  } finally {
+    submitting.value = false
+  }
+}
+</script>
+
+<template>
+  <div class="mx-auto max-w-md">
+    <Card>
+      <CardHeader>
+        <CardTitle>{{ heading }}</CardTitle>
+        <CardDescription>Change your password. You will be signed out of other sessions.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
+          <div class="flex flex-col gap-2">
+            <Label for="current">Current password</Label>
+            <Input id="current" v-model="currentPassword" type="password" autocomplete="current-password" />
+          </div>
+          <div class="flex flex-col gap-2">
+            <Label for="new">New password</Label>
+            <Input id="new" v-model="newPassword" type="password" autocomplete="new-password" />
+          </div>
+          <p v-if="formError" class="text-sm text-destructive" role="alert">{{ formError }}</p>
+          <p v-if="success" class="text-sm text-accent-foreground">Password updated.</p>
+          <Button type="submit" :disabled="submitting">Update password</Button>
+        </form>
+      </CardContent>
+    </Card>
+  </div>
+</template>
