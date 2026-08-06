@@ -336,7 +336,8 @@ VALUES (
   '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi',
   'administrator',
   'System',
-  'Administrator'
+  'Administrator',
+  TRUE
 )
 ON CONFLICT (email) DO UPDATE SET
   password_hash = EXCLUDED.password_hash,
