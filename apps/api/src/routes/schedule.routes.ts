@@ -14,16 +14,20 @@ import {
 export const scheduleRouter = Router()
 
 scheduleRouter.use(authenticate)
-scheduleRouter.use(authorize('administrator'))
 
-scheduleRouter.get('/', validate(scheduleQuerySchema, 'query'), scheduleController.list)
-scheduleRouter.post('/preview', validate(createScheduleSchema, 'body'), scheduleController.preview)
-scheduleRouter.post('/', validate(createScheduleSchema, 'body'), scheduleController.generate)
-scheduleRouter.get('/:id', validate(idParams, 'params'), scheduleController.getById)
-scheduleRouter.post('/:id/publish', validate(idParams, 'params'), scheduleController.publish)
-scheduleRouter.post('/:id/unpublish', validate(idParams, 'params'), scheduleController.unpublish)
-scheduleRouter.delete('/:id', validate(idParams, 'params'), scheduleController.remove)
-scheduleRouter.post('/:id/duties', validate(idParams, 'params'), validate(createDutySchema, 'body'), scheduleController.addDuty)
+scheduleRouter.get(
+  '/',
+  authorize('administrator', 'doctor'),
+  validate(scheduleQuerySchema, 'query'),
+  scheduleController.list,
+)
+scheduleRouter.post('/preview', authorize('administrator'), validate(createScheduleSchema, 'body'), scheduleController.preview)
+scheduleRouter.post('/', authorize('administrator'), validate(createScheduleSchema, 'body'), scheduleController.generate)
+scheduleRouter.get('/:id', authorize('administrator', 'doctor'), validate(idParams, 'params'), scheduleController.getById)
+scheduleRouter.post('/:id/publish', authorize('administrator'), validate(idParams, 'params'), scheduleController.publish)
+scheduleRouter.post('/:id/unpublish', authorize('administrator'), validate(idParams, 'params'), scheduleController.unpublish)
+scheduleRouter.delete('/:id', authorize('administrator'), validate(idParams, 'params'), scheduleController.remove)
+scheduleRouter.post('/:id/duties', authorize('administrator'), validate(idParams, 'params'), validate(createDutySchema, 'body'), scheduleController.addDuty)
 
 export const dutyRouter = Router()
 
