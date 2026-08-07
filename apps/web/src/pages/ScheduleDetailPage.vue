@@ -196,7 +196,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <p v-if="isPublished" class="text-sm text-muted-foreground">
+      <p v-if="isPublished && auth.isAdmin" class="text-sm text-muted-foreground">
         Schedule is published and locked. Revert to draft to edit duties.
       </p>
 
