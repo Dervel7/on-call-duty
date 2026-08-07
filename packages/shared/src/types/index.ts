@@ -36,3 +36,14 @@ export type {
   CreateDutyRequest,
   ReassignDutyRequest,
 } from './schedule'
+export type {
+  StatsQuery,
+  AdminWorkloadItem,
+  AdminCoverage,
+  AdminFairness,
+  AdminStats,
+  MeCurrentMonth,
+  MeUpcomingDuty,
+  OnCallEntry,
+  MeStats,
+} from './stats'

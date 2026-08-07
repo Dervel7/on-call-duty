@@ -11,6 +11,7 @@ import { doctorRouter } from './routes/doctor.routes'
 import { healthRouter } from './routes/health.routes'
 import { holidayRouter } from './routes/holiday.routes'
 import { dutyRouter, scheduleRouter } from './routes/schedule.routes'
+import { statsRouter } from './routes/stats.routes'
 import { unavailabilityRouter } from './routes/unavailability.routes'
 import { userRouter } from './routes/user.routes'
 
@@ -30,6 +31,7 @@ app.use('/unavailability', unavailabilityRouter)
 app.use('/holidays', holidayRouter)
 app.use('/schedules', scheduleRouter)
 app.use('/duties', dutyRouter)
+app.use('/stats', statsRouter)
 
 app.use(notFound)
 app.use(errorHandler)

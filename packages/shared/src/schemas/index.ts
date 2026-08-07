@@ -21,3 +21,4 @@ export {
   createDutySchema,
   reassignDutySchema,
 } from './schedule'
+export { statsQuerySchema } from './stats'
