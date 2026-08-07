@@ -27,6 +27,7 @@ describe('DoctorsPage', () => {
         id: 1,
         userId: 10,
         email: 'dr@h.com',
+        username: 'dr1',
         firstName: 'Jane',
         lastName: 'Roe',
         isActive: true,

@@ -32,6 +32,7 @@ describe('UsersPage', () => {
       {
         id: 1,
         email: 'a@b.com',
+        username: 'admin',
         role: 'doctor',
         firstName: 'Jane',
         lastName: 'Roe',

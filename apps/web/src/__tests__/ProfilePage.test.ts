@@ -21,6 +21,7 @@ describe('ProfilePage doctor self-view', () => {
     auth.user = {
       id: 10,
       email: 'dr@h.com',
+      username: 'dr1',
       role: 'doctor',
       firstName: 'Jane',
       lastName: 'Roe',
@@ -29,6 +30,7 @@ describe('ProfilePage doctor self-view', () => {
       id: 1,
       userId: 10,
       email: 'dr@h.com',
+      username: 'dr1',
       firstName: 'Jane',
       lastName: 'Roe',
       isActive: true,

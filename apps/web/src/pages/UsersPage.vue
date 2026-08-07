@@ -7,6 +7,7 @@ import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
+import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -22,6 +23,7 @@ interface EditState {
   open: boolean
   id: number | null
   email: string
+  username: string
   firstName: string
   lastName: string
   role: 'administrator' | 'doctor'
@@ -32,6 +34,7 @@ const emptyEdit = (): EditState => ({
   open: false,
   id: null,
   email: '',
+  username: '',
   firstName: '',
   lastName: '',
   role: 'doctor',
@@ -60,6 +63,7 @@ function openUpdate(u: User) {
     open: true,
     id: u.id,
     email: u.email,
+    username: u.username,
     firstName: u.firstName,
     lastName: u.lastName,
     role: u.role,
@@ -72,6 +76,7 @@ async function save() {
   if (edit.value.id === null) {
     const payload: CreateUserRequest = {
       email: edit.value.email,
+      username: edit.value.username,
       password: edit.value.email,
       role: 'administrator',
       firstName: edit.value.firstName,
@@ -86,6 +91,7 @@ async function save() {
   } else {
     const payload: UpdateUserRequest = {
       email: edit.value.email,
+      username: edit.value.username,
       role: edit.value.role,
       firstName: edit.value.firstName,
       lastName: edit.value.lastName,
@@ -131,6 +137,7 @@ onMounted(load)
         <TableRow>
           <TableHead>Name</TableHead>
           <TableHead>Email</TableHead>
+          <TableHead>Username</TableHead>
           <TableHead>Role</TableHead>
           <TableHead>Status</TableHead>
           <TableHead class="text-right">Actions</TableHead>
@@ -140,6 +147,7 @@ onMounted(load)
         <TableRow v-for="u in users" :key="u.id">
           <TableCell>{{ u.firstName }} {{ u.lastName }}</TableCell>
           <TableCell>{{ u.email }}</TableCell>
+          <TableCell>{{ u.username }}</TableCell>
           <TableCell>{{ u.role }}</TableCell>
           <TableCell>{{ u.isActive ? 'active' : 'disabled' }}</TableCell>
           <TableCell class="text-right">
@@ -162,6 +170,10 @@ onMounted(load)
           <Input id="e-email" v-model="edit.email" type="email" />
         </div>
         <div class="flex flex-col gap-1">
+          <Label for="e-username">Username</Label>
+          <Input id="e-username" v-model="edit.username" autocomplete="username" />
+        </div>
+        <div class="flex flex-col gap-1">
           <Label for="e-first">First name</Label>
           <Input id="e-first" v-model="edit.firstName" />
         </div>
@@ -171,14 +183,10 @@ onMounted(load)
         </div>
         <div v-if="edit.id !== null" class="flex flex-col gap-1">
           <Label for="e-role">Role</Label>
-          <select
-            id="e-role"
-            v-model="edit.role"
-            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          >
+          <Select id="e-role" v-model="edit.role">
             <option value="doctor">doctor</option>
             <option value="administrator">administrator</option>
-          </select>
+          </Select>
         </div>
         <p v-if="edit.id === null" class="text-xs text-muted-foreground">
           Initial password equals the email. The administrator should change it on first login.

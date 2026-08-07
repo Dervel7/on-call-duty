@@ -11,8 +11,8 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => accessToken.value !== null)
   const isAdmin = computed(() => user.value?.role === 'administrator')
 
-  async function login(email: string, password: string): Promise<void> {
-    const data = await authService.login(email, password)
+  async function login(identifier: string, password: string): Promise<void> {
+    const data = await authService.login(identifier, password)
     user.value = data.user
     accessToken.value = data.accessToken
   }

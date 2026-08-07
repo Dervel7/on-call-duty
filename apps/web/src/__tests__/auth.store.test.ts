@@ -3,17 +3,18 @@ import { createPinia, setActivePinia } from 'pinia'
 
 vi.mock('@/services/auth', () => ({
   login: vi.fn(async () => ({
-    user: { id: 1, email: 'a@b.com', role: 'administrator', firstName: 'A', lastName: 'B' },
+    user: { id: 1, email: 'a@b.com', username: 'admin', role: 'administrator', firstName: 'A', lastName: 'B' },
     accessToken: 'AAA',
   })),
   refresh: vi.fn(async () => ({
-    user: { id: 1, email: 'a@b.com', role: 'doctor', firstName: 'A', lastName: 'B' },
+    user: { id: 1, email: 'a@b.com', username: 'admin', role: 'doctor', firstName: 'A', lastName: 'B' },
     accessToken: 'BBB',
   })),
   logout: vi.fn(async () => undefined),
   fetchMe: vi.fn(async () => ({
     id: 1,
     email: 'a@b.com',
+    username: 'admin',
     role: 'doctor',
     firstName: 'A',
     lastName: 'B',
@@ -21,6 +22,7 @@ vi.mock('@/services/auth', () => ({
   changePassword: vi.fn(async () => ({
     id: 1,
     email: 'a@b.com',
+    username: 'admin',
     role: 'doctor',
     firstName: 'A',
     lastName: 'B',

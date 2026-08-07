@@ -22,6 +22,7 @@ interface EditState {
   open: boolean
   id: number | null
   email: string
+  username: string
   firstName: string
   lastName: string
   maxMonthlyDuties: string
@@ -31,6 +32,7 @@ const emptyEdit = (): EditState => ({
   open: false,
   id: null,
   email: '',
+  username: '',
   firstName: '',
   lastName: '',
   maxMonthlyDuties: '7',
@@ -58,6 +60,7 @@ function openUpdate(d: Doctor) {
     open: true,
     id: d.id,
     email: d.email,
+    username: d.username,
     firstName: d.firstName,
     lastName: d.lastName,
     maxMonthlyDuties: String(d.maxMonthlyDuties),
@@ -69,6 +72,7 @@ async function save() {
   if (edit.value.id === null) {
     const payload: CreateDoctorRequest = {
       email: edit.value.email,
+      username: edit.value.username,
       password: edit.value.email,
       firstName: edit.value.firstName,
       lastName: edit.value.lastName,
@@ -83,6 +87,7 @@ async function save() {
   } else {
     const payload: UpdateDoctorRequest = {
       email: edit.value.email,
+      username: edit.value.username,
       firstName: edit.value.firstName,
       lastName: edit.value.lastName,
       maxMonthlyDuties: Number(edit.value.maxMonthlyDuties),
@@ -127,6 +132,7 @@ onMounted(load)
         <TableRow>
           <TableHead>Name</TableHead>
           <TableHead>Email</TableHead>
+          <TableHead>Username</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Max monthly duties</TableHead>
           <TableHead class="text-right">Actions</TableHead>
@@ -136,6 +142,7 @@ onMounted(load)
         <TableRow v-for="d in doctors" :key="d.id">
           <TableCell>{{ d.firstName }} {{ d.lastName }}</TableCell>
           <TableCell>{{ d.email }}</TableCell>
+          <TableCell>{{ d.username }}</TableCell>
           <TableCell>{{ d.isActive ? 'active' : 'disabled' }}</TableCell>
           <TableCell>{{ d.maxMonthlyDuties }}</TableCell>
           <TableCell class="text-right">
@@ -156,6 +163,10 @@ onMounted(load)
         <div class="flex flex-col gap-1">
           <Label for="d-email">Email</Label>
           <Input id="d-email" v-model="edit.email" type="email" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <Label for="d-username">Username</Label>
+          <Input id="d-username" v-model="edit.username" autocomplete="username" />
         </div>
         <div class="flex flex-col gap-1">
           <Label for="d-first">First name</Label>

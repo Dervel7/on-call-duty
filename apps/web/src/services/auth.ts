@@ -1,8 +1,8 @@
 import type { AuthUser, LoginResponse } from '@oncall/shared'
 import { apiGet, apiPost, setAccessToken } from '@/lib/http'
 
-export async function login(email: string, password: string): Promise<LoginResponse> {
-  const data = await apiPost<LoginResponse>('/auth/login', { email, password })
+export async function login(identifier: string, password: string): Promise<LoginResponse> {
+  const data = await apiPost<LoginResponse>('/auth/login', { identifier, password })
   setAccessToken(data.accessToken)
   return data
 }
