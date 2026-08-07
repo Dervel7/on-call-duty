@@ -85,3 +85,47 @@ describe('doctor schemas', () => {
     expect(updateDoctorSchema.safeParse({ isActive: false }).success).toBe(true)
   })
 })
+
+import {
+  createUnavailabilityAdminSchema,
+  createUnavailabilitySelfSchema,
+  unavailabilityQuerySchema,
+  updateUnavailabilitySchema,
+} from '../index'
+
+describe('unavailability schemas', () => {
+  const validSelf = { type: 'vacation', startDate: '2026-09-01', endDate: '2026-09-03' }
+
+  it('createUnavailabilityAdminSchema rejects bad type and bad date format', () => {
+    expect(
+      createUnavailabilityAdminSchema.safeParse({ ...validSelf, doctorId: 1, type: 'holiday' })
+        .success,
+    ).toBe(false)
+    expect(
+      createUnavailabilityAdminSchema.safeParse({
+        ...validSelf,
+        doctorId: 1,
+        startDate: '09-01-2026',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('createUnavailabilitySelfSchema rejects endDate before startDate', () => {
+    expect(
+      createUnavailabilitySelfSchema.safeParse({ ...validSelf, endDate: '2026-08-31' }).success,
+    ).toBe(false)
+    expect(createUnavailabilitySelfSchema.safeParse(validSelf).success).toBe(true)
+  })
+
+  it('updateUnavailabilitySchema accepts partials and null note', () => {
+    expect(updateUnavailabilitySchema.safeParse({ note: null }).success).toBe(true)
+    expect(updateUnavailabilitySchema.safeParse({ type: 'sick' }).success).toBe(true)
+    expect(updateUnavailabilitySchema.safeParse({ type: 'nap' }).success).toBe(false)
+  })
+
+  it('unavailabilityQuerySchema coerces doctorId from string', () => {
+    const r = unavailabilityQuerySchema.safeParse({ doctorId: '5', from: '2026-09-01' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.doctorId).toBe(5)
+  })
+})

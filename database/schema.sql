@@ -45,3 +45,19 @@ CREATE TABLE IF NOT EXISTS doctors (
   created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Phase 4: Availability Management
+
+CREATE TABLE IF NOT EXISTS unavailability (
+  id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  doctor_id  INTEGER NOT NULL REFERENCES doctors (id) ON DELETE CASCADE,
+  type       TEXT NOT NULL CHECK (type IN ('vacation','sick','conference','other')),
+  start_date DATE NOT NULL,
+  end_date   DATE NOT NULL,
+  note       TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (end_date >= start_date)
+);
+CREATE INDEX IF NOT EXISTS idx_unavailability_doctor ON unavailability (doctor_id, start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_unavailability_dates ON unavailability (start_date, end_date);

@@ -10,14 +10,16 @@ Production-ready doctor on-call duty scheduling system for medium-sized hospital
 
 **Phase 3 — Doctor Management** is complete. This phase adds a `doctors` profile table linked 1:1 to doctor accounts, a combined admin flow that creates the account and profile atomically, an admin-only Doctors page (create / edit / disable / delete), and a read-only doctor self-view on the profile page. The only stored profile attribute is `max_monthly_duties` (1–7, default 7); other scheduling rules (max 1 consecutive duty, duty spans 07:00 → next day 15:00) live in `AGENTS.md`.
 
-Remaining business features (availability, scheduling, reports) arrive in later phases.
+**Phase 4 — Availability Management** is complete. This phase adds a `unavailability` table of doctor exclusions (inclusive whole-day date ranges with a type of vacation / sick / conference / other and an optional note), an admin Availability page (manage any doctor's exclusions with optional doctor / date filters), and a doctor My Availability page (self-service). Doctors are available by default; overlapping records are rejected (409). The scheduling engine (Phase 5) consumes these exclusions.
+
+Remaining business features (scheduling, schedule UI, statistics, reports) arrive in later phases.
 
 ## Roadmap
 
 1. Foundation (complete)
 2. Auth & Authorization (complete)
 3. Doctor Management (complete)
-4. Availability Management
+4. Availability Management (complete)
 5. Scheduling Engine
 6. Schedule Management UI
 7. Statistics & Dashboard
@@ -200,10 +202,20 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - Duplicate doctor email → 409; out-of-range `maxMonthlyDuties` → 400.
 - `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.
 
+## Definition of Done (Phase 4)
+
+- `pnpm install`, `pnpm db:setup`, and `pnpm dev` succeed from a clean clone; sample unavailability rows are seeded.
+- A doctor can list/create/edit/delete their own exclusions on `/my-availability`; an admin gets 404 on `/unavailability/me`.
+- An admin can list all doctors' exclusions (optional `doctorId`/date filters), create for any doctor, and edit/delete any record; a doctor gets 403 on `GET /unavailability` and `POST /unavailability`.
+- Overlapping record → 409; `endDate < startDate` → 400; non-numeric `:id` → 400; unknown doctor → 404; a doctor editing another doctor's record → 403.
+- `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.
+
 ## Documentation
 
 - Design: `docs/superpowers/specs/2026-08-06-phase1-foundation-design.md`
 - Implementation plan: `docs/superpowers/plans/2026-08-06-phase1-foundation-plan.md`
 - Phase 3 design: `docs/superpowers/specs/2026-08-06-phase3-doctors-design.md`
 - Phase 3 implementation plan: `docs/superpowers/plans/2026-08-06-phase3-doctors-plan.md`
+- Phase 4 design: `docs/superpowers/specs/2026-08-07-phase4-availability-design.md`
+- Phase 4 implementation plan: `docs/superpowers/plans/2026-08-07-phase4-availability-plan.md`
 - Project conventions: `AGENTS.md`
