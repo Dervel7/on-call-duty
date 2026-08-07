@@ -61,3 +61,39 @@ CREATE TABLE IF NOT EXISTS unavailability (
 );
 CREATE INDEX IF NOT EXISTS idx_unavailability_doctor ON unavailability (doctor_id, start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_unavailability_dates ON unavailability (start_date, end_date);
+
+-- Phase 5: Scheduling Engine
+
+CREATE TABLE IF NOT EXISTS holidays (
+  id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name       TEXT NOT NULL,
+  date       DATE NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS schedules (
+  id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  year       INTEGER NOT NULL,
+  month      INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+  status     TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published')),
+  created_by INTEGER REFERENCES users (id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (year, month)
+);
+
+CREATE TABLE IF NOT EXISTS duties (
+  id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  schedule_id INTEGER NOT NULL REFERENCES schedules (id) ON DELETE CASCADE,
+  duty_date   DATE NOT NULL,
+  doctor_id   INTEGER NOT NULL REFERENCES doctors (id) ON DELETE RESTRICT,
+  is_weekend  BOOLEAN NOT NULL,
+  is_holiday  BOOLEAN NOT NULL,
+  reason      TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (schedule_id, duty_date)
+);
+CREATE INDEX IF NOT EXISTS idx_duties_schedule ON duties (schedule_id);
+CREATE INDEX IF NOT EXISTS idx_duties_doctor_date ON duties (doctor_id, duty_date);
+CREATE INDEX IF NOT EXISTS idx_duties_date ON duties (duty_date);
