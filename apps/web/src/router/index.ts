@@ -42,6 +42,24 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['administrator'] },
       },
       {
+        path: 'schedules',
+        name: 'schedules',
+        component: () => import('../pages/SchedulesPage.vue'),
+        meta: { roles: ['administrator'] },
+      },
+      {
+        path: 'schedules/:id',
+        name: 'schedule-detail',
+        component: () => import('../pages/ScheduleDetailPage.vue'),
+        meta: { roles: ['administrator'] },
+      },
+      {
+        path: 'holidays',
+        name: 'holidays',
+        component: () => import('../pages/HolidaysPage.vue'),
+        meta: { roles: ['administrator'] },
+      },
+      {
         path: 'my-availability',
         name: 'my-availability',
         component: () => import('../pages/MyAvailabilityPage.vue'),
