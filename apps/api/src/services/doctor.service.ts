@@ -123,5 +123,11 @@ export async function remove(id: number): Promise<void> {
   )
   const row = existing.rows[0]
   if (!row) throw new HttpError(404, 'Doctor not found')
+  const duties = await query('SELECT 1 FROM duties WHERE doctor_id = $1 LIMIT 1', [id])
+  if (duties.rows.length > 0)
+    throw new HttpError(
+      409,
+      'Cannot delete a doctor with scheduled duties; set them inactive instead',
+    )
   await query('DELETE FROM users WHERE id = $1', [row.user_id])
 }

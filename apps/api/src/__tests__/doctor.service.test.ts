@@ -98,13 +98,21 @@ describe('doctor.service', () => {
     expect(updateDoctorSql).toContain('UPDATE doctors')
   })
 
-  it('remove deletes the underlying user row (cascade)', async () => {
+  it('remove deletes the underlying user row (cascade) when no duties exist', async () => {
     query.mockResolvedValueOnce({ rows: [{ user_id: 7 }] })
     query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [] })
     await remove(2)
-    const del = query.mock.calls[1]?.[0] as string
+    const del = query.mock.calls[2]?.[0] as string
     expect(del).toContain('DELETE FROM users')
-    expect((query.mock.calls[1]?.[1] as unknown[])[0]).toBe(7)
+    expect((query.mock.calls[2]?.[1] as unknown[])[0]).toBe(7)
+  })
+
+  it('remove 409 when the doctor has scheduled duties', async () => {
+    query.mockResolvedValueOnce({ rows: [{ user_id: 7 }] })
+    query.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
+    await expect(remove(2)).rejects.toMatchObject({ status: 409 })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM users'))).toBe(false)
   })
 
   it('remove throws 404 when doctor missing', async () => {
