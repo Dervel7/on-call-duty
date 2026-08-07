@@ -24,6 +24,7 @@ export type {
   Holiday,
   ScheduleSummary,
   Duty,
+  DayInfo,
   AssignmentPlan,
   ConflictPlan,
   PreviewResult,

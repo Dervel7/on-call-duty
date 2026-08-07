@@ -46,14 +46,23 @@ export interface ConflictPlan {
   detail: string
 }
 
+export interface DayInfo {
+  date: string
+  isWeekend: boolean
+  isHoliday: boolean
+  eligibleDoctorIds: number[]
+}
+
 export interface PreviewResult {
   assignments: AssignmentPlan[]
   conflicts: ConflictPlan[]
+  days: DayInfo[]
 }
 
 export interface ScheduleDetail {
   schedule: ScheduleSummary
   duties: Duty[]
+  days: DayInfo[]
 }
 
 export interface CreateScheduleRequest {

@@ -7,7 +7,7 @@ import * as scheduleService from '../services/schedule.service'
 export const scheduleController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const schedules = await scheduleService.list(req.query as ScheduleQuery)
+      const schedules = await scheduleService.list(req.query as ScheduleQuery, req.user)
       res.status(200).json(ok({ schedules }))
     } catch (err) {
       next(err)
@@ -15,7 +15,7 @@ export const scheduleController = {
   },
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const detail = await scheduleService.getById(Number(req.params.id))
+      const detail = await scheduleService.getById(Number(req.params.id), req.user)
       res.status(200).json(ok(detail))
     } catch (err) {
       next(err)

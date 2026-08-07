@@ -1,6 +1,7 @@
 import type {
   AuthUser,
   CreateDutyRequest,
+  DayInfo,
   Duty,
   PreviewResult,
   ReassignDutyRequest,
@@ -140,10 +141,57 @@ async function buildContext(year: number, month: number): Promise<SchedulingCont
   return { year, month, days, doctors, unavailability, priorDayDoctorIds }
 }
 
+interface EligibilityInput {
+  doctors: DoctorSpec[]
+  unavailability: Map<number, Array<{ start: string; end: string }>>
+  days: { date: string; isWeekend: boolean; isHoliday: boolean }[]
+  dutiesByDate: Map<string, number>
+  dutyCountByDoctor: Map<number, number>
+}
+
+function computeEligibility(input: EligibilityInput): DayInfo[] {
+  const out: DayInfo[] = []
+  for (const day of input.days) {
+    const eligible: number[] = []
+    for (const doc of input.doctors) {
+      const ranges = input.unavailability.get(doc.id)
+      if (!isAvailable(doc.id, day.date, ranges).ok) continue
+      const assignedToday = input.dutiesByDate.get(day.date) === doc.id
+      const count = (input.dutyCountByDoctor.get(doc.id) ?? 0) - (assignedToday ? 1 : 0)
+      if (!underCap(count, doc.maxMonthlyDuties).ok) continue
+      const onDutyAdjacent =
+        input.dutiesByDate.get(prevDate(day.date)) === doc.id ||
+        input.dutiesByDate.get(nextDate(day.date)) === doc.id
+      if (!notConsecutive(onDutyAdjacent).ok) continue
+      eligible.push(doc.id)
+    }
+    out.push({
+      date: day.date,
+      isWeekend: day.isWeekend,
+      isHoliday: day.isHoliday,
+      eligibleDoctorIds: eligible,
+    })
+  }
+  return out
+}
+
 export async function preview(year: number, month: number): Promise<PreviewResult> {
   const ctx = await buildContext(year, month)
   const result = runEngine(ctx)
-  return { assignments: result.assignments, conflicts: result.conflicts }
+  const dutiesByDate = new Map<string, number>()
+  const dutyCountByDoctor = new Map<number, number>()
+  for (const a of result.assignments) {
+    dutiesByDate.set(a.date, a.doctorId)
+    dutyCountByDoctor.set(a.doctorId, (dutyCountByDoctor.get(a.doctorId) ?? 0) + 1)
+  }
+  const days = computeEligibility({
+    doctors: ctx.doctors,
+    unavailability: ctx.unavailability,
+    days: ctx.days,
+    dutiesByDate,
+    dutyCountByDoctor,
+  }).map((d) => ({ ...d, eligibleDoctorIds: [] }))
+  return { assignments: result.assignments, conflicts: result.conflicts, days }
 }
 
 export async function generate(
@@ -185,9 +233,16 @@ export async function generate(
   return getById(scheduleId)
 }
 
-export async function list(filters: ScheduleQuery = {}): Promise<ScheduleSummary[]> {
+export async function list(
+  filters: ScheduleQuery = {},
+  actor?: Actor,
+): Promise<ScheduleSummary[]> {
   const where: string[] = []
   const params: unknown[] = []
+  if (actor && actor.role !== 'administrator') {
+    params.push('published')
+    where.push(`status = $${params.length}`)
+  }
   if (filters.year !== undefined) {
     params.push(filters.year)
     where.push(`year = $${params.length}`)
@@ -204,14 +259,36 @@ export async function list(filters: ScheduleQuery = {}): Promise<ScheduleSummary
   return res.rows.map(toSchedule)
 }
 
-export async function getById(id: number): Promise<ScheduleDetail> {
+export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail> {
   const sres = await query<ScheduleRow>(`${SELECT_SCHEDULE} WHERE id = $1`, [id])
   const schedule = sres.rows[0]
   if (!schedule) throw new HttpError(404, 'Schedule not found')
+  const isAdmin = actor?.role === 'administrator'
+  if (actor && !isAdmin && schedule.status !== 'published') {
+    throw new HttpError(403, 'Schedule not published')
+  }
   const dres = await query<DutyRow>(`${SELECT_DUTY} WHERE du.schedule_id = $1 ORDER BY du.duty_date`, [
     id,
   ])
-  return { schedule: toSchedule(schedule), duties: dres.rows.map(toDuty) }
+  const duties = dres.rows.map(toDuty)
+  const ctx = await buildContext(schedule.year, schedule.month)
+  const dutiesByDate = new Map<string, number>()
+  const dutyCountByDoctor = new Map<number, number>()
+  for (const d of duties) {
+    dutiesByDate.set(d.dutyDate, d.doctorId)
+    dutyCountByDoctor.set(d.doctorId, (dutyCountByDoctor.get(d.doctorId) ?? 0) + 1)
+  }
+  let days = computeEligibility({
+    doctors: ctx.doctors,
+    unavailability: ctx.unavailability,
+    days: ctx.days,
+    dutiesByDate,
+    dutyCountByDoctor,
+  })
+  if (!isAdmin) {
+    days = days.map((d) => ({ ...d, eligibleDoctorIds: [] }))
+  }
+  return { schedule: toSchedule(schedule), duties, days }
 }
 
 export async function remove(id: number): Promise<void> {
