@@ -7,7 +7,6 @@ import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
-import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -183,10 +182,14 @@ onMounted(load)
         </div>
         <div v-if="edit.id !== null" class="flex flex-col gap-1">
           <Label for="e-role">Role</Label>
-          <Select id="e-role" v-model="edit.role">
+          <select
+            id="e-role"
+            v-model="edit.role"
+            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
             <option value="doctor">doctor</option>
             <option value="administrator">administrator</option>
-          </Select>
+          </select>
         </div>
         <p v-if="edit.id === null" class="text-xs text-muted-foreground">
           Initial password equals the email. The administrator should change it on first login.
