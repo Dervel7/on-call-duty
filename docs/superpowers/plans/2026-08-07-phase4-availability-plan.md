@@ -45,6 +45,37 @@ Carry these verbatim into every task — they are non-negotiable project rules.
 
 ---
 
+## Carried-over follow-ups from the Phase 3 final review (REQUIRED — do not skip)
+
+Two non-blocking findings from Phase 3's whole-branch review are owned by Phase 4 (its next natural touchpoint). Implement them as part of this phase — they are not optional polish.
+
+### Follow-up A — Harden the `;`-splitter in `database/scripts/setup-db.ts`
+
+**Why:** `runSqlFile` does `content.split(';')` with no comment/string awareness (`database/scripts/setup-db.ts:24-27`). A SQL comment containing `;` already broke `pnpm db:setup` in Phase 3 — the seed comment `(password = email; change on first login)` had to be reworded to `,`. Phase 4 adds richer seed SQL (`AND NOT EXISTS (...)`, subselects) on top of the same fragile splitter.
+
+**Required (retrofit — T2 has already landed without it):** Replace the naive split with a splitter that strips `--` line comments and respects single-quoted string literals **before** splitting on `;`. Keep public behavior identical (run each non-empty statement in order). Add a unit test covering: a `;` inside a `--` comment, and a `;` inside a single-quoted string literal, both splitting correctly. Run `pnpm db:setup` to confirm schema + seed still apply cleanly. Own commit: `fix(db): strip comments/strings before splitting SQL statements`.
+
+### Follow-up B — Admin-CRUD mutation error feedback (composable + retrofit)
+
+**Why:** The admin/CRUD pages call `service.*` mutation methods with **no try/catch**. On any API error the promise rejects as an unhandled rejection, `errorMsg` is never set, and the user gets **no feedback** — most notably the **409 duplicate/overlap** cases, which are headline scenarios. This originated in Phase 2 (`UsersPage.vue`), was cloned into Phase 3 (`DoctorsPage.vue`), and the T6/T7 templates below (`AvailabilityPage.vue`, `MyAvailabilityPage.vue`) reproduce the same gap in their `save()`/`remove()` handlers.
+
+**Affected handlers (all missing try/catch on the mutation call):**
+- `apps/web/src/pages/UsersPage.vue` — `save`, `toggleActive`, `remove`
+- `apps/web/src/pages/DoctorsPage.vue` — `save`, `toggleActive`, `remove`
+- `apps/web/src/pages/AvailabilityPage.vue` (T6) — `save`, `remove`
+- `apps/web/src/pages/MyAvailabilityPage.vue` (T7) — `save`, `remove`
+
+**Required (do this during T6, when the first new admin page is built):**
+1. Extract a small composable, e.g. `apps/web/src/composables/useAsyncError.ts` (or `useAsyncAction`): a reactive `errorMsg` ref + a `run(async () => …)` wrapper that sets `errorMsg` on failure (`e instanceof Error ? e.message : 'Something went wrong'`) and clears it on success. Reuse the existing `[role="alert"]` + `text-destructive` rendering.
+2. Build `AvailabilityPage.vue` (T6) and `MyAvailabilityPage.vue` (T7) with **all** mutation handlers routed through the composable — do NOT clone the bare `await service.*` pattern from the templates verbatim.
+3. Retrofit `UsersPage.vue` and `DoctorsPage.vue` to the same composable for their mutation handlers. Behavior is otherwise unchanged; only error feedback is added. Add/extend tests asserting a rejected mutation surfaces the message in `[role="alert"]` (the existing mock-reject pattern used for list-failure tests applies directly).
+
+**Why a composable:** three pages already need it and Phase 6 (Schedule Management UI) adds more; centralizing avoids four copies of the same try/catch.
+
+> The T6/T7 code blocks in this plan are written without the composable for clarity of the CRUD shape. Treat the missing error handling as a known gap to fix per this section — not a pattern to copy.
+
+---
+
 ## Task ordering & dependencies
 
 ```
@@ -465,6 +496,7 @@ describe('unavailability.service', () => {
       create(5, { type: 'vacation', startDate: '2026-09-08', endDate: '2026-09-09' }),
     ).rejects.toMatchObject({ status: 409 })
 
+    query.mockReset()
     let n = 0
     query.mockImplementation(async () => {
       n++
