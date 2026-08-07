@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>On-Call Duty — Administrator User Manual</title>
+<style>
+  :root {
+    --ink: #0f172a;
+    --body: #1f2937;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --primary: #0f766e;
+    --primary-dark: #115e59;
+    --primary-soft: #ccfbf1;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --info: #1d4ed8;
+    --info-soft: #dbeafe;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+    --bg-soft: #f8fafc;
+  }
+  @page {
+    size: A4;
+    margin: 20mm 15mm 20mm 15mm;
+  }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.5;
+    color: var(--body);
+    margin: 0;
+  }
+  /* ---------- Cover ---------- */
+  .cover {
+    page-break-after: always;
+    height: 257mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 6mm 2mm 0 2mm;
+  }
+  .cover .brand { color: var(--primary); font-weight: 700; letter-spacing: .12em; font-size: 12pt; text-transform: uppercase; }
+  .cover .rule { height: 6px; width: 64mm; background: var(--primary); border-radius: 4px; margin: 10mm 0; }
+  .cover h1 { font-size: 40pt; line-height: 1.05; color: var(--ink); margin: 0; letter-spacing: -.5px; }
+  .cover .sub { font-size: 15pt; color: var(--muted); margin-top: 4mm; font-weight: 500; }
+  .cover .manual-tag {
+    display: inline-block; margin-top: 10mm; background: var(--primary-soft); color: var(--primary-dark);
+    border: 1px solid #5eead4; padding: 3mm 6mm; border-radius: 8px; font-weight: 700; font-size: 13pt;
+  }
+  .cover .meta { color: var(--muted); font-size: 10.5pt; border-top: 1px solid var(--line); padding-top: 5mm; }
+  .cover .meta table { border: none; width: 100%; }
+  .cover .meta td { border: none; padding: 1.2mm 0; }
+  .cover .meta td.k { color: var(--muted); width: 38mm; font-weight: 600; }
+
+  /* ---------- TOC ---------- */
+  .toc { page-break-after: always; }
+  .toc h2 { color: var(--ink); font-size: 20pt; margin: 0 0 6mm 0; }
+  .toc ol { list-style: none; padding: 0; margin: 0; counter-reset: ch; }
+  .toc li { counter-increment: ch; padding: 2.2mm 0; border-bottom: 1px dotted var(--line); font-size: 11pt; }
+  .toc li::before { content: counter(ch); display: inline-block; width: 10mm; color: var(--primary); font-weight: 700; }
+  .toc li .d { color: var(--muted); font-size: 9.5pt; display: block; margin-left: 10mm; }
+
+  /* ---------- Chapters ---------- */
+  h1.chapter {
+    font-size: 19pt; color: var(--ink); margin: 0 0 2mm 0;
+    page-break-before: always; padding-top: 2mm;
+  }
+  h1.chapter .num { color: var(--primary); }
+  .chap-lead { color: var(--muted); font-size: 10.5pt; margin: 0 0 6mm 0; }
+  h2 { font-size: 13pt; color: var(--primary-dark); margin: 7mm 0 2mm 0; }
+  h3 { font-size: 11pt; color: var(--ink); margin: 5mm 0 1.5mm 0; }
+  p { margin: 0 0 3mm 0; }
+  ul, ol { margin: 0 0 4mm 0; padding-left: 6mm; }
+  li { margin: 0 0 1.6mm 0; }
+  strong { color: var(--ink); }
+  code { font-family: "Consolas", "Courier New", monospace; background: var(--bg-soft); padding: .4mm 1.4mm; border-radius: 3px; font-size: 9.3pt; color: var(--primary-dark); }
+
+  /* ---------- Figures ---------- */
+  figure { margin: 4mm 0 5mm 0; break-inside: avoid; text-align: center; }
+  figure img {
+    max-width: 100%;
+    max-height: 205mm;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(15,23,42,.12);
+  }
+  figcaption { font-size: 9pt; color: var(--muted); margin-top: 2mm; text-align: center; }
+  figcaption b { color: var(--ink); }
+
+  /* ---------- Callouts ---------- */
+  .note { break-inside: avoid; border-radius: 6px; padding: 3.5mm 4mm; margin: 3mm 0; font-size: 10pt; border: 1px solid; }
+  .note .t { font-weight: 700; display: block; margin-bottom: 1mm; }
+  .note.info { background: var(--info-soft); border-color: #bfdbfe; color: #1e3a8a; }
+  .note.tip  { background: var(--primary-soft); border-color: #5eead4; color: var(--primary-dark); }
+  .note.warn { background: var(--warn-soft); border-color: #fde68a; color: #92400e; }
+  .note.danger { background: var(--danger-soft); border-color: #fecaca; color: #991b1b; }
+
+  /* ---------- Steps ---------- */
+  ol.steps { padding-left: 8mm; }
+  ol.steps > li { margin-bottom: 2.4mm; padding-left: 1mm; }
+  ol.steps > li::marker { color: var(--primary); font-weight: 700; }
+
+  /* ---------- Tables ---------- */
+  table.grid { width: 100%; border-collapse: collapse; margin: 3mm 0 5mm 0; font-size: 9.6pt; }
+  table.grid th, table.grid td { border: 1px solid var(--line); padding: 2mm 3mm; text-align: left; vertical-align: top; }
+  table.grid th { background: #f1f5f9; color: var(--ink); font-weight: 700; }
+  table.grid tr:nth-child(even) td { background: #fafbfc; }
+  .kv th { width: 38mm; background: #f1f5f9; }
+
+  .footer-note { font-size: 9pt; color: var(--muted); border-top: 1px solid var(--line); margin-top: 8mm; padding-top: 3mm; }
+  .pill { display: inline-block; padding: .3mm 2.4mm; border-radius: 10px; font-size: 8.6pt; font-weight: 700; }
+  .pill.teal { background: var(--primary-soft); color: var(--primary-dark); }
+  .pill.grey { background: #e2e8f0; color: #334155; }
+  .pill.amber { background: var(--warn-soft); color: #92400e; }
+  .kbd { font-family: "Consolas", monospace; background: #f1f5f9; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: .2mm 2mm; font-size: 9pt; }
+</style>
+</head>
+<body>
+
+<!-- ============================ COVER ============================ -->
+<section class="cover">
+  <div>
+    <div class="brand">⚕ On-Call Duty</div>
+    <div class="rule"></div>
+    <h1>On-Call Duty</h1>
+    <div class="sub">Hospital On-Call Duty Scheduling System</div>
+    <div class="manual-tag">Administrator User Manual</div>
+  </div>
+  <div class="meta">
+    <table>
+      <tr><td class="k">Document</td><td>End-user guide for hospital administrators</td></tr>
+      <tr><td class="k">Audience</td><td>Administrators (staff who plan and publish duty rosters)</td></tr>
+      <tr><td class="k">Version</td><td>1.0</td></tr>
+      <tr><td class="k">Date</td><td>August 2026</td></tr>
+      <tr><td class="k">Applies to</td><td>The deployed On-Call Duty web application</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ TOC ============================ -->
+<section class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li>Introduction <span class="d">Purpose, roles, and how to read this manual</span></li>
+    <li>Signing In <span class="d">Login, first-time password, sessions, sign-out</span></li>
+    <li>The Administrator Dashboard <span class="d">Coverage, fairness, and workload at a glance</span></li>
+    <li>Managing Users <span class="d">Administrator accounts and login accounts</span></li>
+    <li>Managing Doctors <span class="d">Doctor profiles and the monthly duty cap</span></li>
+    <li>Managing Availability <span class="d">Vacations, sick leave, and exclusions</span></li>
+    <li>Managing Holidays <span class="d">Public/official holidays used by the engine</span></li>
+    <li>Building a Schedule <span class="d">Preview → Generate → Edit → Publish</span></li>
+    <li>Reports <span class="d">The monthly report, CSV export, and printing</span></li>
+    <li>Your Profile <span class="d">Changing your password</span></li>
+    <li>Domain Rules &amp; the Scheduling Engine <span class="d">How assignments are produced and balanced</span></li>
+    <li>Troubleshooting &amp; FAQ <span class="d">Common situations and how to resolve them</span></li>
+    <li>Quick Reference &amp; Glossary <span class="d">Navigation map, field reference, key terms</span></li>
+  </ol>
+</section>
+
+<!-- ============================ 1. INTRODUCTION ============================ -->
+<h1 class="chapter"><span class="num">1.</span> Introduction</h1>
+<p class="chap-lead">What On-Call Duty is, who this manual is for, and the conventions used throughout.</p>
+
+<h2>1.1 What On-Call Duty does</h2>
+<p>On-Call Duty is a scheduling system that builds fair, conflict-free monthly on-call rosters for a
+hospital's doctors. As an administrator you maintain the list of doctors and their availability, record
+holidays, and then generate, fine-tune, and publish a duty schedule for any month. The system automatically
+respects each doctor's monthly duty limit, prevents back-to-back duties, avoids assigning a doctor who is
+unavailable, and balances weekend and holiday workload across the team.</p>
+
+<h2>1.2 Who uses the system</h2>
+<p>There are two roles. This manual covers the <strong>administrator</strong> role in full.</p>
+<table class="grid">
+  <tr><th style="width:34mm">Role</th><th>What they do</th></tr>
+  <tr><td><strong>Administrator</strong></td><td>Plans and publishes duty schedules. Manages users, doctors, availability, holidays, schedules, and reports. This is the audience of this manual.</td></tr>
+  <tr><td><strong>Doctor</strong></td><td>Views their own published duties and personal dashboard, and records their own unavailability (vacation, sick, etc.). Doctors cannot edit schedules.</td></tr>
+</table>
+
+<h2>1.3 The administrator's navigation</h2>
+<p>When you sign in as an administrator, the top navigation bar gives you everything you need:</p>
+<p style="text-align:center">
+  <span class="pill teal">Home</span>&nbsp;
+  <span class="pill grey">Users</span>&nbsp;
+  <span class="pill grey">Doctors</span>&nbsp;
+  <span class="pill grey">Availability</span>&nbsp;
+  <span class="pill grey">Schedules</span>&nbsp;
+  <span class="pill grey">Holidays</span>&nbsp;
+  <span class="pill grey">Reports</span>&nbsp;
+  <span class="pill grey">Profile</span>&nbsp;·&nbsp;<span class="pill amber">Logout</span>
+</p>
+<p>Doctors see a smaller menu (Home, My availability, Profile). If a doctor ever sees administrator-only
+pages, that is a mistake — administrator access is granted only on the <em>Users</em> page.</p>
+
+<h2>1.4 Conventions used in this manual</h2>
+<ul>
+  <li><span class="kbd">New schedule</span> — text styled like a button shows the exact label you click in the application.</li>
+  <li><strong>Bold</strong> highlights an important term or the name of a field.</li>
+  <li>Coloured boxes are callouts: <span class="note info" style="display:inline-block;width:auto;margin:0;padding:.6mm 2mm"><span class="t" style="display:inline">Info</span></span>
+      <span class="note tip" style="display:inline-block;width:auto;margin:0;padding:.6mm 2mm"><span class="t" style="display:inline">Tip</span></span>
+      <span class="note warn" style="display:inline-block;width:auto;margin:0;padding:.6mm 2mm"><span class="t" style="display:inline">Caution</span></span>
+      <span class="note danger" style="display:inline-block;width:auto;margin:0;padding:.6mm 2mm"><span class="t" style="display:inline">Important</span></span></li>
+</ul>
+
+<!-- ============================ 2. SIGNING IN ============================ -->
+<h1 class="chapter"><span class="num">2.</span> Signing In</h1>
+<p class="chap-lead">How to reach the application, sign in, handle the first-login password, and sign out.</p>
+
+<h2>2.1 The sign-in screen</h2>
+<p>Open the application's web address in a modern browser. You will see the staff sign-in screen.</p>
+<figure>
+  <img src="screenshots/01-login.png" alt="Sign-in screen" />
+  <figcaption><b>Figure 2.1</b> — The sign-in screen. Enter your email and password, then choose <b>Sign in</b>.</figcaption>
+</figure>
+<p>Enter the <strong>Email</strong> and <strong>Password</strong> given to you by whoever set up your account,
+then select <span class="kbd">Sign in</span>.</p>
+<div class="note info"><span class="t">Info</span>Both fields are required. The password must be at least 6 characters. If you submit an invalid email or an incorrect password, a red message appears under the form.</div>
+<figure>
+  <img src="screenshots/02-login-error.png" alt="Sign-in validation error" />
+  <figcaption><b>Figure 2.2</b> — A failed sign-in shows a clear error. Check the email and password and try again.</figcaption>
+</figure>
+
+<h2>2.2 First sign-in: change the initial password</h2>
+<p>New administrator accounts are created with an <strong>initial password equal to the email address</strong>.
+The system's seeded default administrator is <code>admin@oncall.local</code> with password <code>changeme123</code>.
+On first sign-in, go to <strong>Profile</strong> and set a private password of your own (see Chapter 10).</p>
+<div class="note danger"><span class="t">Important — security</span>Never leave an account on its initial/default password. Anyone who knows an email can guess the initial password. Change it before doing anything else, and disable any account that should not exist.</div>
+
+<h2>2.3 Sessions and signing out</h2>
+<p>After signing in you stay signed in as you move between pages, and your session is restored automatically if
+you reload the browser. To end your session, choose <span class="kbd">Logout</span> at the top right. Always sign
+out on a shared computer.</p>
+<div class="note tip"><span class="t">Tip</span>If your account is disabled by another administrator, or if you change your own password, your other active sessions are signed out automatically.</div>
+
+<!-- ============================ 3. DASHBOARD ============================ -->
+<h1 class="chapter"><span class="num">3.</span> The Administrator Dashboard</h1>
+<p class="chap-lead">The <strong>Home</strong> page is your starting point: a quick health check of any month's schedule.</p>
+
+<h2>3.1 Choosing a month</h2>
+<p>At the top of the dashboard, enter a <strong>Year</strong>, pick a <strong>Month</strong> from the drop-down,
+and choose <span class="kbd">Apply</span>. The cards and table below update for that month.</p>
+
+<h2>3.2 When no schedule exists yet</h2>
+<p>If a month has not been generated, the dashboard shows a clear empty state and a shortcut to create one.</p>
+<figure>
+  <img src="screenshots/03-dashboard-empty.png" alt="Dashboard empty state" />
+  <figcaption><b>Figure 3.1</b> — A month with no schedule. Choose <b>Go to Schedules</b> to generate one (see Chapter 8).</figcaption>
+</figure>
+
+<h2>3.3 Reading a populated dashboard</h2>
+<p>Once a schedule exists, the dashboard summarises its quality in three parts.</p>
+<figure>
+  <img src="screenshots/04-dashboard-sept.png" alt="Populated dashboard" />
+  <figcaption><b>Figure 3.2</b> — The dashboard for a generated month: coverage, fairness, and per-doctor workload.</figcaption>
+</figure>
+<table class="grid">
+  <tr><th style="width:42mm">Card</th><th>What it tells you</th></tr>
+  <tr><td><strong>Coverage</strong></td><td>How many of the month's days are filled (e.g. <code>30 / 30 days filled</code>) and lists any <em>gap days</em> — dates still unassigned. “No gap days” means the month is fully covered.</td></tr>
+  <tr><td><strong>Fairness</strong></td><td>The <em>duty spread</em> (the difference between the busiest and quietest doctor). A spread of 0–1 is labelled <span class="pill teal">Well balanced</span>; anything larger is labelled <span class="pill amber">Imbalanced — review workload</span>. Weekend and holiday spread are shown too.</td></tr>
+  <tr><td><strong>Workload table</strong></td><td>Per doctor: number of duties (with a small bar), weekend count, holiday count, and their monthly <strong>Cap</strong>. Inactive doctors are flagged.</td></tr>
+</table>
+<div class="note tip"><span class="t">Tip</span>Use the dashboard as a pre-publish sanity check. Aim for “No gap days” and “Well balanced” before publishing a schedule.</div>
+
+<!-- ============================ 4. USERS ============================ -->
+<h1 class="chapter"><span class="num">4.</span> Managing Users</h1>
+<p class="chap-lead">The <strong>Users</strong> page lists every login account and is where you create new administrator accounts.</p>
+
+<h2>4.1 The users list</h2>
+<p>Each row is one account, showing <strong>Name, Email, Role</strong> (administrator or doctor), <strong>Status</strong>
+(active or disabled), and <strong>Actions</strong>.</p>
+<figure>
+  <img src="screenshots/05-users.png" alt="Users list" />
+  <figcaption><b>Figure 4.1</b> — The Users page lists all accounts. Use it mainly to manage <b>administrators</b>; doctor accounts are normally created on the Doctors page (Chapter 5).</figcaption>
+</figure>
+
+<h2>4.2 Creating an administrator account</h2>
+<ol class="steps">
+  <li>Choose <span class="kbd">New user</span>.</li>
+  <li>Fill in <strong>Email, First name</strong> and <strong>Last name</strong>.</li>
+  <li>Choose <span class="kbd">Save</span>. The new account is created with the role <strong>administrator</strong> and an initial password equal to its email.</li>
+</ol>
+<figure>
+  <img src="screenshots/06-users-new-dialog.png" alt="New administrator dialog" />
+  <figcaption><b>Figure 4.2</b> — Creating an administrator. The note reminds you that the initial password is the email — the new admin must change it on first login.</figcaption>
+</figure>
+
+<h2>4.3 Editing, disabling, and deleting an account</h2>
+<ul>
+  <li><span class="kbd">Edit</span> — change name/email and, importantly, the <strong>Role</strong> (you can promote a doctor to administrator or vice-versa).</li>
+  <li><span class="kbd">Disable</span> / <span class="kbd">Enable</span> — switch the account on or off. A disabled user cannot sign in. This is reversible and preferred over deleting.</li>
+  <li><span class="kbd">Delete</span> — permanently removes the account (you are asked to confirm).</li>
+</ul>
+<figure>
+  <img src="screenshots/07-users-edit-dialog.png" alt="Edit user dialog" />
+  <figcaption><b>Figure 4.3</b> — Editing a user. The <b>Role</b> drop-down controls whether this person is an administrator or a doctor.</figcaption>
+</figure>
+<div class="note warn"><span class="t">Caution</span>Deleting a doctor who already has scheduled duties is blocked — set them <b>Disabled</b> instead. Deleting an administrator is immediate and cannot be undone.</div>
+
+<!-- ============================ 5. DOCTORS ============================ -->
+<h1 class="chapter"><span class="num">5.</span> Managing Doctors</h1>
+<p class="chap-lead">The <strong>Doctors</strong> page is where you register doctors and set each one's monthly duty limit.</p>
+
+<h2>5.1 The doctors list</h2>
+<p>Each doctor is shown with <strong>Name, Email, Status</strong>, their <strong>Max monthly duties</strong> (their personal cap), and <strong>Actions</strong>.</p>
+<figure>
+  <img src="screenshots/08-doctors.png" alt="Doctors list" />
+  <figcaption><b>Figure 5.1</b> — The Doctors page. The <b>Max monthly duties</b> column shows each doctor's personal cap (1–7).</figcaption>
+</figure>
+
+<h2>5.2 Adding a doctor</h2>
+<ol class="steps">
+  <li>Choose <span class="kbd">New doctor</span>.</li>
+  <li>Enter <strong>Email, First name, Last name</strong>.</li>
+  <li>Set <strong>Max monthly duties</strong> (between 1 and 7; the default is 7). This is the maximum number of on-call duties this doctor can be assigned in any month.</li>
+  <li>Choose <span class="kbd">Save</span>. A login account is created for the doctor at the same time, with an initial password equal to the email.</li>
+</ol>
+<figure>
+  <img src="screenshots/09-doctors-new-dialog.png" alt="New doctor dialog" />
+  <figcaption><b>Figure 5.2</b> — Adding a doctor. The <b>Max monthly duties</b> field is the key setting the scheduling engine honours.</figcaption>
+</figure>
+<div class="note info"><span class="t">Info</span>Creating a doctor automatically creates their login account (role <em>doctor</em>) — you do not need to visit the Users page. The doctor can then sign in and record their own availability.</div>
+
+<h2>5.3 Editing, disabling, and deleting a doctor</h2>
+<figure>
+  <img src="screenshots/10-doctors-edit-dialog.png" alt="Edit doctor dialog" />
+  <figcaption><b>Figure 5.3</b> — Editing a doctor. Adjust the cap, name, or email; changes apply the next time a schedule is generated.</figcaption>
+</figure>
+<ul>
+  <li><span class="kbd">Edit</span> — update details or change the <strong>Max monthly duties</strong> cap.</li>
+  <li><span class="kbd">Disable</span> / <span class="kbd">Enable</span> — a disabled doctor is skipped by the scheduling engine and cannot sign in. Use this for doctors on extended leave.</li>
+  <li><span class="kbd">Delete</span> — permanently removes the doctor <em>and</em> their login account.</li>
+</ul>
+<div class="note danger"><span class="t">Important</span>You cannot delete a doctor who already has duties on any schedule — the system refuses and tells you to disable them instead. Disable is reversible; delete is not.</div>
+
+<!-- ============================ 6. AVAILABILITY ============================ -->
+<h1 class="chapter"><span class="num">6.</span> Managing Availability</h1>
+<p class="chap-lead">The <strong>Availability</strong> page records when a doctor is <em>not</em> available (vacation, sick leave, conferences, etc.). The scheduling engine never assigns a doctor on a day they are unavailable.</p>
+
+<h2>6.1 The availability list</h2>
+<p>You can filter by <strong>Doctor</strong> and by a <strong>From / To</strong> date range, then choose <span class="kbd">Apply</span>.
+The table shows each exclusion's <strong>Type, Start, End</strong> and optional <strong>Note</strong>.</p>
+<figure>
+  <img src="screenshots/11-availability.png" alt="Availability list" />
+  <figcaption><b>Figure 6.1</b> — All doctors' exclusions in one place. Use the filters to focus on one doctor or one period.</figcaption>
+</figure>
+
+<h2>6.2 Adding an exclusion</h2>
+<ol class="steps">
+  <li>Choose <span class="kbd">New exclusion</span>.</li>
+  <li>Select the <strong>Doctor</strong>.</li>
+  <li>Choose a <strong>Type</strong>: <em>Vacation, Sick, Conference,</em> or <em>Other</em>.</li>
+  <li>Set the <strong>Start date</strong> and <strong>End date</strong> (inclusive, whole days; the end must be on or after the start).</li>
+  <li>(Optional) add a <strong>Note</strong> (up to 500 characters), then <span class="kbd">Save</span>.</li>
+</ol>
+<figure>
+  <img src="screenshots/12-availability-new-dialog.png" alt="New exclusion dialog" />
+  <figcaption><b>Figure 6.2</b> — Recording an exclusion. Dates are inclusive: a one-day absence uses the same start and end date.</figcaption>
+</figure>
+<div class="note warn"><span class="t">Caution — overlaps</span>Two exclusions for the same doctor cannot overlap in time. The system rejects an overlapping record. If you need to extend an absence, edit the existing record instead of adding a second one.</div>
+<div class="note tip"><span class="t">Tip</span>Doctors can record their own exclusions from their <em>My availability</em> page. Use this admin page to record exclusions on a doctor's behalf or to correct mistakes.</div>
+
+<!-- ============================ 7. HOLIDAYS ============================ -->
+<h1 class="chapter"><span class="num">7.</span> Managing Holidays</h1>
+<p class="chap-lead">The <strong>Holidays</strong> page records official/public holidays. The engine uses them to balance holiday duties fairly and to flag holiday duties in schedules and reports.</p>
+
+<h2>7.1 The holidays list</h2>
+<p>Each holiday has a <strong>Date</strong> and a <strong>Name</strong>, with <span class="kbd">Edit</span> and <span class="kbd">Delete</span> actions.</p>
+<figure>
+  <img src="screenshots/13-holidays.png" alt="Holidays list" />
+  <figcaption><b>Figure 7.1</b> — Holidays used by the scheduling engine. Each date must be unique.</figcaption>
+</figure>
+
+<h2>7.2 Adding or editing a holiday</h2>
+<ol class="steps">
+  <li>Choose <span class="kbd">New holiday</span> (or <span class="kbd">Edit</span> on an existing row).</li>
+  <li>Enter a <strong>Name</strong> (e.g. “National Health Day”) and pick the <strong>Date</strong>.</li>
+  <li>Choose <span class="kbd">Save</span>.</li>
+</ol>
+<figure>
+  <img src="screenshots/14-holidays-new-dialog.png" alt="New holiday dialog" />
+  <figcaption><b>Figure 7.2</b> — Recording a holiday. Add holidays <em>before</em> generating a month so the engine can account for them.</figcaption>
+</figure>
+<div class="note info"><span class="t">Info</span>Adding or removing a holiday does not change a schedule that has already been generated — it only affects schedules you generate afterwards. To reflect a holiday change, edit the existing schedule manually or regenerate it.</div>
+
+<!-- ============================ 8. SCHEDULES ============================ -->
+<h1 class="chapter"><span class="num">8.</span> Building a Schedule</h1>
+<p class="chap-lead">This is the core administrative workflow: <strong>Preview → resolve any conflicts → Generate → edit → Publish</strong>.</p>
+
+<h2>8.1 The schedules list</h2>
+<p>The <strong>Schedules</strong> page lists every generated month with its <strong>Status</strong>
+(<span class="pill grey">Draft</span> or <span class="pill teal">Published</span>), creation date, and a <span class="kbd">View</span> action.
+Use the <strong>Year</strong> filter to narrow the list.</p>
+<figure>
+  <img src="screenshots/15-schedules.png" alt="Schedules list" />
+  <figcaption><b>Figure 8.1</b> — Existing schedules. Only one schedule can exist per month.</figcaption>
+</figure>
+
+<h2>8.2 Step 1 — Preview a month</h2>
+<p>Before committing anything, preview a month to see whether it can be filled.</p>
+<ol class="steps">
+  <li>Choose <span class="kbd">New schedule</span>.</li>
+  <li>Enter the <strong>Year</strong> and pick the <strong>Month</strong>.</li>
+  <li>Choose <span class="kbd">Preview</span>. The engine runs without saving and reports the result.</li>
+</ol>
+<figure>
+  <img src="screenshots/16-schedules-new-preview.png" alt="New schedule preview — no conflicts" />
+  <figcaption><b>Figure 8.2</b> — A clean preview: “N day(s) ready to assign. No conflicts.” You can now generate.</figcaption>
+</figure>
+
+<h2>8.3 Step 2 — Resolve conflicts if any</h2>
+<p>If some days cannot be filled, the preview shows a red conflict panel listing each unfillable date and why.
+<span class="kbd">Generate</span> stays disabled until conflicts are cleared.</p>
+<figure>
+  <img src="screenshots/17-schedules-new-conflict.png" alt="New schedule preview — conflict" />
+  <figcaption><b>Figure 8.3</b> — A preview with an unfillable day. The message tells you what to adjust: availability, doctor capacity, or holidays.</figcaption>
+</figure>
+<p>To resolve a conflict, address the cause and preview again:</p>
+<ul>
+  <li><strong>Not enough capacity</strong> — a day needs a doctor but too few are eligible. Increase a doctor's <em>Max monthly duties</em> (Doctors page), add/enable a doctor, or reduce overlapping vacations.</li>
+  <li><strong>Everyone unavailable</strong> — adjust the exclusion(s) blocking that date (Availability page).</li>
+  <li><strong>Back-to-back constraint</strong> — no doctor is free because each would follow their own previous duty. Add capacity (above) to loosen the chain.</li>
+</ul>
+<div class="note tip"><span class="t">Tip</span>Each conflict message reads “of N active doctor(s): X unavailable, Y at cap, Z back-to-back”, so you know exactly what to fix.</div>
+
+<h2>8.4 Step 3 — Generate</h2>
+<p>Once the preview reports no conflicts, choose <span class="kbd">Generate</span>. The schedule is created in
+<strong>Draft</strong> status and you are taken to its detail page. Generating is blocked if a schedule for that
+month already exists.</p>
+
+<h2>8.5 Step 4 — Review and edit the draft (Schedule Detail)</h2>
+<p>The detail page shows the full month: each date, the assigned doctor (or <em>Unassigned</em>), <strong>Flags</strong>
+(Weekend, Holiday, Gap day), and the <strong>Reason</strong> the engine chose that doctor (hover the date for the
+explanation). While the schedule is a draft you can fine-tune it:</p>
+<figure>
+  <img src="screenshots/18-schedule-detail-draft.png" alt="Schedule detail — draft" />
+  <figcaption><b>Figure 8.4</b> — A draft schedule, fully editable. Each day shows the doctor, flags, and the engine's reason; draft rows offer <b>Edit</b> and <b>Remove</b>.</figcaption>
+</figure>
+<ul>
+  <li><span class="kbd">Edit</span> on a filled day — <strong>reassign</strong> that duty to another eligible doctor.</li>
+  <li><span class="kbd">Remove</span> — clear a duty; the day becomes <em>Unassigned</em> and a <span class="kbd">+ Add</span> button appears.</li>
+  <li><span class="kbd">+ Add</span> on an empty day — assign a doctor manually.</li>
+</ul>
+<figure>
+  <img src="screenshots/19-schedule-detail-add-dialog.png" alt="Add duty dialog" />
+  <figcaption><b>Figure 8.5</b> — Manually adding a duty. The same hard rules still apply: the doctor must be active, available, under their monthly cap, and not on a back-to-back day.</figcaption>
+</figure>
+<div class="note info"><span class="t">Info</span>Every manual change is re-validated against the same hard rules as automatic generation. If a change would violate a rule (for example a back-to-back duty), it is refused with an explanation.</div>
+
+<h2>8.6 Step 5 — Publish (lock) the schedule</h2>
+<p>When the draft looks right, choose <span class="kbd">Publish</span> and confirm. The status changes to
+<span class="pill teal">Published</span> and <strong>all editing is locked</strong> — duties can no longer be added,
+reassigned, or removed, and the schedule cannot be deleted.</p>
+<figure>
+  <img src="screenshots/20-schedule-detail-published.png" alt="Schedule detail — published" />
+  <figcaption><b>Figure 8.6</b> — A published schedule. Rows read <b>Locked</b>. Publishing is what makes the roster visible to doctors on their dashboards.</figcaption>
+</figure>
+<div class="note tip"><span class="t">Tip — need to change a published schedule?</span>Choose <span class="kbd">Revert to draft</span> to unlock it, make your changes, then publish again.</div>
+
+<!-- ============================ 9. REPORTS ============================ -->
+<h1 class="chapter"><span class="num">9.</span> Reports</h1>
+<p class="chap-lead">The <strong>Reports</strong> page produces a consolidated, printable monthly report — coverage, fairness, holidays, the full roster, and per-doctor workload.</p>
+
+<h2>9.1 Viewing a monthly report</h2>
+<p>Enter the <strong>Year</strong>, pick the <strong>Month</strong>, and choose <span class="kbd">Apply</span>.
+The report is read-only; it cannot be edited here.</p>
+<figure>
+  <img src="screenshots/21-reports.png" alt="Monthly report" />
+  <figcaption><b>Figure 9.1</b> — The monthly report: title block with status and generation time, coverage and fairness cards, this month's holidays, the duty roster, and the workload table.</figcaption>
+</figure>
+<table class="grid">
+  <tr><th style="width:38mm">Section</th><th>Contents</th></tr>
+  <tr><td><strong>Title block</strong></td><td>“On-Call Duty”, the month, the <strong>Published/Draft</strong> badge, and the generation timestamp.</td></tr>
+  <tr><td><strong>Coverage</strong></td><td>Days filled vs. total, and the list of gap days (if any).</td></tr>
+  <tr><td><strong>Fairness</strong></td><td>Duty spread with a <em>Well balanced / Imbalanced</em> badge, plus weekend and holiday spread.</td></tr>
+  <tr><td><strong>Holidays this month</strong></td><td>Each holiday date and name (only shown if any exist).</td></tr>
+  <tr><td><strong>Duty roster</strong></td><td>Day-by-day table: date, doctor (or <em>Unassigned</em>), flags, and the assignment reason.</td></tr>
+  <tr><td><strong>Workload</strong></td><td>Per doctor: duties (with a proportional bar), weekend count, holiday count, and cap. Inactive doctors are greyed.</td></tr>
+</table>
+
+<h2>9.2 Exporting to CSV</h2>
+<p>Choose <span class="kbd">Export CSV</span> to download the month's duty roster as a spreadsheet file named
+<code>oncall-YYYY-MM.csv</code>. It opens directly in Excel, Google Sheets, or any CSV-aware tool, with columns
+<strong>Date, Weekday, Doctor, Weekend, Holiday, Reason</strong>. The button is disabled when there is no schedule for the selected month.</p>
+
+<h2>9.3 Printing or saving as PDF</h2>
+<p>Choose <span class="kbd">Print / Save as PDF</span> to open your browser's print dialog. From there you can print
+a paper copy or choose <em>Save as PDF</em> as a destination to produce a clean, formatted PDF of the report. The
+on-screen controls are hidden automatically when printing.</p>
+<div class="note tip"><span class="t">Tip</span>For the neatest printed report, set the paper orientation to <b>Portrait</b> and margins to <b>Default</b> in the print dialog.</div>
+
+<!-- ============================ 10. PROFILE ============================ -->
+<h1 class="chapter"><span class="num">10.</span> Your Profile</h1>
+<p class="chap-lead">The <strong>Profile</strong> page is where you change your own password.</p>
+<figure>
+  <img src="screenshots/22-profile.png" alt="Profile page" />
+  <figcaption><b>Figure 10.1</b> — Changing your password. Enter your current password, choose a new one, and save.</figcaption>
+</figure>
+<ol class="steps">
+  <li>Enter your <strong>Current password</strong>.</li>
+  <li>Enter a <strong>New password</strong> (at least 6 characters, and different from the current one).</li>
+  <li>Choose <span class="kbd">Update password</span>.</li>
+</ol>
+<div class="note info"><span class="t">Info</span>Changing your password signs you out of all your other active sessions. You stay signed in on the current browser.</div>
+
+<!-- ============================ 11. DOMAIN RULES ============================ -->
+<h1 class="chapter"><span class="num">11.</span> Domain Rules &amp; the Scheduling Engine</h1>
+<p class="chap-lead">This chapter explains the rules the system enforces and how the engine produces a fair roster. You do not need to configure any of this — it helps you understand <em>why</em> a schedule looks the way it does.</p>
+
+<h2>11.1 Shifts and on-call timing</h2>
+<table class="grid kv">
+  <tr><th>Regular weekday shift</th><td>07:00–15:00.</td></tr>
+  <tr><th>On-call duty</th><td>07:00 on the duty day until 15:00 the <em>next</em> day (overnight, handing over at 15:00).</td></tr>
+  <tr><th>On any day</th><td>On-call duties can fall on any day, including weekends and holidays.</td></tr>
+</table>
+
+<h2>11.2 Hard rules (always enforced)</h2>
+<p>These can never be broken, by automatic generation or by a manual edit:</p>
+<table class="grid">
+  <tr><th style="width:46mm">Rule</th><th>Meaning</th></tr>
+  <tr><td><strong>Monthly duty cap</strong></td><td>A doctor cannot exceed their <em>Max monthly duties</em> (1–7, set on the Doctors page) in a given month.</td></tr>
+  <tr><td><strong>No back-to-back</strong></td><td>A doctor cannot be on duty the day immediately after a day they were already on duty. This is checked across month boundaries, so the last day of one month protects the first day of the next.</td></tr>
+  <tr><td><strong>Availability</strong></td><td>A doctor is never assigned on a date covered by one of their exclusions (vacation, sick, conference, other).</td></tr>
+  <tr><td><strong>Active only</strong></td><td>Disabled doctors are skipped entirely.</td></tr>
+</table>
+
+<h2>11.3 How the engine balances work</h2>
+<p>Among the doctors who satisfy the hard rules for a given day, the engine picks the one with the best
+<strong>score</strong>, so that work is spread fairly:</p>
+<ul>
+  <li><strong>Workload</strong> — favours doctors with the most remaining headroom under their cap (heaviest weight).</li>
+  <li><strong>Weekend balance</strong> — on weekend days, favours doctors who have had fewer weekend duties so far.</li>
+  <li><strong>Holiday balance</strong> — on holiday days, favours doctors who have had fewer holiday duties so far.</li>
+</ul>
+<p>Ties are broken deterministically: fewest total duties first, then fewest weekend duties, then lower doctor id.
+The result is stable — generating the same month with the same inputs always yields the same roster.</p>
+
+<h2>11.4 Explainable assignments</h2>
+<p>Every duty stores a human-readable <strong>Reason</strong>, visible on the schedule detail page (hover a date) and in the
+report. It looks like <code>score 18 (workload +12, weekend +6)</code> and notes any tie-break used. Manual changes are
+recorded as <code>manual override by admin</code>.</p>
+
+<h2>11.5 Conflict detection</h2>
+<p>When a day cannot be filled (no eligible doctor), the preview lists it as a conflict with the exact breakdown
+(unavailable / at cap / back-to-back). You resolve conflicts as described in §8.3 before generating.</p>
+
+<!-- ============================ 12. TROUBLESHOOTING ============================ -->
+<h1 class="chapter"><span class="num">12.</span> Troubleshooting &amp; FAQ</h1>
+
+<h2>12.1 “Resolve N unfillable day(s) first” when generating</h2>
+<p>One or more days have no eligible doctor. Open the preview to see which days and why, then: raise a doctor's
+monthly cap, enable/add a doctor, shorten a vacation, or — if a holiday is mis-recorded — correct it. Preview again
+until there are no conflicts, then generate.</p>
+
+<h2>12.2 “Cannot delete a doctor with scheduled duties”</h2>
+<p>A doctor with duties on any schedule cannot be deleted. Choose <span class="kbd">Disable</span> instead — they
+will be skipped by future schedules and cannot sign in, and you can re-enable them later.</p>
+
+<h2>12.3 “Schedule is published; revert to draft…”</h2>
+<p>You tried to edit, reassign, remove, or delete a duty on a published schedule. Choose
+<span class="kbd">Revert to draft</span> at the top of the detail page to unlock editing, make your change, then publish again.</p>
+
+<h2>12.4 A disabled account cannot sign in</h2>
+<p>Disabled users are refused at sign-in. Re-enable the account on the Users (or Doctors) page if access should be restored.</p>
+
+<h2>12.5 I changed a doctor's cap / a holiday — why didn't the existing schedule change?</h2>
+<p>Edits to doctors, availability, and holidays only affect schedules you generate <em>after</em> the change.
+An existing schedule keeps its assignments. To reflect changes, revert it to draft and adjust manually, or delete
+and regenerate it.</p>
+
+<h2>12.6 The dashboard / report shows an old month</h2>
+<p>Both pages default to the <em>current</em> month. Enter the <strong>Year</strong> and <strong>Month</strong> you want and choose <span class="kbd">Apply</span>.</p>
+
+<h2>12.7 CSV opens with all columns merged into one</h2>
+<p>Some spreadsheet tools need the comma delimiter stated explicitly. Use the “Import” or “Text to columns” feature
+and choose <em>Comma</em> as the delimiter.</p>
+
+<h2>12.8 The fairness badge says “Imbalanced”</h2>
+<p>The busiest and quietest doctors differ by more than one duty. This can happen when caps, availability, or the
+number of days force an uneven spread. Review the workload table and consider adjusting caps or availability, then
+regenerate.</p>
+
+<!-- ============================ 13. QUICK REFERENCE ============================ -->
+<h1 class="chapter"><span class="num">13.</span> Quick Reference &amp; Glossary</h1>
+
+<h2>13.1 Where to do each task</h2>
+<table class="grid">
+  <tr><th style="width:62mm">I want to…</th><th>Go to</th></tr>
+  <tr><td>See how a month is shaping up</td><td>Home (dashboard)</td></tr>
+  <tr><td>Create or manage administrator accounts</td><td>Users</td></tr>
+  <tr><td>Add a doctor / set their monthly cap</td><td>Doctors</td></tr>
+  <tr><td>Record a vacation, sick leave, etc.</td><td>Availability</td></tr>
+  <tr><td>Record official holidays</td><td>Holidays</td></tr>
+  <tr><td>Generate, edit, and publish a month</td><td>Schedules → (month) → detail</td></tr>
+  <tr><td>Export or print a monthly report</td><td>Reports</td></tr>
+  <tr><td>Change my password</td><td>Profile</td></tr>
+</table>
+
+<h2>13.2 Field reference</h2>
+<table class="grid">
+  <tr><th style="width:46mm">Field</th><th>Rules</th></tr>
+  <tr><td>Password (any)</td><td>At least 6 characters. New password must differ from the current one.</td></tr>
+  <tr><td>Email (any)</td><td>Must be a valid email address; unique per account.</td></tr>
+  <tr><td>Max monthly duties</td><td>Whole number from 1 to 7 (default 7).</td></tr>
+  <tr><td>Exclusion dates</td><td>Format YYYY-MM-DD; end date on or after start date; inclusive whole days.</td></tr>
+  <tr><td>Exclusion type</td><td>One of Vacation, Sick, Conference, Other.</td></tr>
+  <tr><td>Holiday date / name</td><td>Date YYYY-MM-DD (unique); name up to 200 characters.</td></tr>
+  <tr><td>Schedule year / month</td><td>Year 1970–2100; month January–December. One schedule per month.</td></tr>
+</table>
+
+<h2>13.3 Glossary</h2>
+<table class="grid">
+  <tr><th style="width:40mm">Term</th><th>Meaning</th></tr>
+  <tr><td><strong>Draft</strong></td><td>A schedule you can still edit. Not yet visible to doctors as final.</td></tr>
+  <tr><td><strong>Published</strong></td><td>A locked schedule. Visible to doctors; editing is disabled until reverted.</td></tr>
+  <tr><td><strong>Duty</strong></td><td>A single doctor assigned to a single day (07:00 → next day 15:00).</td></tr>
+  <tr><td><strong>Gap day</strong></td><td>A day in the month with no doctor assigned.</td></tr>
+  <tr><td><strong>Cap</strong></td><td>A doctor's maximum duties per month (Max monthly duties, 1–7).</td></tr>
+  <tr><td><strong>Exclusion</strong></td><td>A date range a doctor is unavailable (vacation, sick, conference, other).</td></tr>
+  <tr><td><strong>Duty spread</strong></td><td>Busiest minus quietest doctor's duty count; 0–1 is “Well balanced”.</td></tr>
+  <tr><td><strong>Reason</strong></td><td>The engine's stored explanation for an assignment.</td></tr>
+  <tr><td><strong>Conflict</strong></td><td>A day the engine cannot fill under the hard rules.</td></tr>
+</table>
+
+<p class="footer-note">On-Call Duty — Administrator User Manual · Version 1.0 · August 2026. This manual describes
+the application's administrator features as of the published version. Screenshots use sample data for illustration.</p>
+
+</body>
+</html>
