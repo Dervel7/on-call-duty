@@ -12,9 +12,11 @@ Production-ready doctor on-call duty scheduling system for medium-sized hospital
 
 **Phase 4 — Availability Management** is complete. This phase adds a `unavailability` table of doctor exclusions (inclusive whole-day date ranges with a type of vacation / sick / conference / other and an optional note), an admin Availability page (manage any doctor's exclusions with optional doctor / date filters), and a doctor My Availability page (self-service). Doctors are available by default; overlapping records are rejected (409). The scheduling engine (Phase 5) consumes these exclusions.
 
-**Phase 5 — Scheduling Engine** is complete (backend). This phase adds a `holidays` table (admin-managed), `schedules` + `duties` tables, and a pure greedy scheduling engine (weighted score, deterministic tie-breaks) that respects monthly caps, unavailability, and no back-to-back duties (including across month boundaries), while balancing workload, weekends, and holidays. Admins can preview a month (`POST /schedules/preview` returns proposed assignments + unfillable-day conflicts), generate atomically (`POST /schedules` — 201 / 409 if the month exists / 422 if unfillable), and manually add/reassign/remove individual duties (re-validated against the same hard constraints). The Schedule Management UI is Phase 6.
+**Phase 5 — Scheduling Engine** is complete (backend). This phase adds a `holidays` table (admin-managed), `schedules` + `duties` tables, and a pure greedy scheduling engine (weighted score, deterministic tie-breaks) that respects monthly caps, unavailability, and no back-to-back duties (including across month boundaries), while balancing workload, weekends, and holidays. Admins can preview a month (`POST /schedules/preview` returns proposed assignments + unfillable-day conflicts), generate atomically (`POST /schedules` — 201 / 409 if the month exists / 422 if unfillable), and manually add/reassign/remove individual duties (re-validated against the same hard constraints).
 
-Remaining business features (schedule UI, statistics, reports) arrive in later phases.
+**Phase 6 — Schedule Management UI** is complete. This phase ships the deferred backend publish/unpublish lifecycle (`POST /schedules/:id/publish`, `POST /schedules/:id/unpublish`) with a service-layer **published-lock** that blocks duty add/reassign/remove and schedule deletion while a schedule is published. On the web, an admin **Schedules** page offers a guided preview → generate flow (Generate stays disabled while the preview reports unfillable-day conflicts), the **Schedule detail** page renders the month as a day-list table with weekend/holiday/gap badges, the assignment reason, and per-day Edit / Remove / +Add overrides (re-validated by the server, with 409 surfaced inline), plus publish / revert-to-draft (both confirmed). A dedicated admin **Holidays** page provides CRUD over the holidays that feed the engine. No DB migration — the `published` status was already reserved in `schema.sql` — and no `@oncall/shared` changes.
+
+Remaining business features (statistics, reports) arrive in later phases.
 
 ## Roadmap
 
@@ -23,7 +25,7 @@ Remaining business features (schedule UI, statistics, reports) arrive in later p
 3. Doctor Management (complete)
 4. Availability Management (complete)
 5. Scheduling Engine (complete)
-6. Schedule Management UI
+6. Schedule Management UI (complete)
 7. Statistics & Dashboard
 8. Reporting
 
@@ -221,6 +223,15 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - Deleting a doctor with duties → 409 (disable instead); deleting a schedule cascades its duties.
 - `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.
 
+## Definition of Done (Phase 6)
+
+- Admin can open **Schedules** and generate a month via the guided preview → generate flow (Generate disabled while conflicts exist), then navigate to the detail.
+- The **Schedule detail** day-list shows every day with doctor, weekend/holiday/gap badges, reason, and per-row Edit / Remove / +Add; overrides validate on the server and surface 409 messages inline.
+- Admin can **Publish** (locks editing + delete) and **Revert to draft** (re-enables), both confirmed. A published schedule rejects duty add/reassign/remove and delete with 409 at the service layer.
+- Admin can manage **Holidays** (create / edit / delete) on a dedicated page; any authenticated user can read holidays.
+- Doctors get 403 on all schedule/duty routes and on holiday mutations; nav links and routes are admin-gated.
+- `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.
+
 ## Documentation
 
 - Design: `docs/superpowers/specs/2026-08-06-phase1-foundation-design.md`
@@ -231,4 +242,6 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - Phase 4 implementation plan: `docs/superpowers/plans/2026-08-07-phase4-availability-plan.md`
 - Phase 5 design: `docs/superpowers/specs/2026-08-07-phase5-scheduling-engine-design.md`
 - Phase 5 implementation plan: `docs/superpowers/plans/2026-08-07-phase5-scheduling-engine-plan.md`
+- Phase 6 design: `docs/superpowers/specs/2026-08-07-phase6-schedule-ui-design.md`
+- Phase 6 implementation plan: `docs/superpowers/plans/2026-08-07-phase6-schedule-ui-plan.md`
 - Project conventions: `AGENTS.md`
