@@ -11,7 +11,7 @@ vi.mock('pg', () => {
   class Pool {
     connect = connect
   }
-  return { Pool }
+  return { Pool, types: { setTypeParser: () => {} } }
 })
 
 import { withTransaction } from '../db/client'

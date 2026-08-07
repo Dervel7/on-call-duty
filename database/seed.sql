@@ -37,3 +37,16 @@ VALUES
 ON CONFLICT (user_id) DO UPDATE SET
   max_monthly_duties = EXCLUDED.max_monthly_duties,
   updated_at         = NOW();
+
+-- Phase 4: seed sample unavailability (fixed sample month 2026-09)
+INSERT INTO unavailability (doctor_id, type, start_date, end_date, note)
+SELECT d.id, 'vacation', '2026-09-07', '2026-09-11', 'Summer break'
+FROM doctors d JOIN users u ON u.id = d.user_id
+WHERE u.email = 'dr1@oncall.local'
+AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id AND x.start_date = '2026-09-07' AND x.end_date = '2026-09-11');
+
+INSERT INTO unavailability (doctor_id, type, start_date, end_date, note)
+SELECT d.id, 'sick', '2026-09-15', '2026-09-15', NULL
+FROM doctors d JOIN users u ON u.id = d.user_id
+WHERE u.email = 'dr2@oncall.local'
+AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id AND x.start_date = '2026-09-15' AND x.end_date = '2026-09-15');
