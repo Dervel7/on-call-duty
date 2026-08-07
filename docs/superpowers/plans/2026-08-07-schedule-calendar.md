@@ -309,47 +309,28 @@ git commit -m "feat(api): allow doctors to read schedules"
 
 - [ ] **Step 1: Add a `disabled` prop to `Select.vue`**
 
-In `apps/web/src/components/ui/Select.vue`, add `disabled?: boolean` to `defineProps` and bind it on the native `<select>`:
+The current `apps/web/src/components/ui/Select.vue` is a plain native `<select>` styled via `:class="cn(base, props.class)"` whose emit is `'update:modelValue': [value: string | number]`. Do NOT add a `ChevronDown` icon, a wrapper `<div>`, or an `id` prop — that styling was intentionally reverted (commits `d6469f9`, `23046e2`). Make only these two minimal edits to the existing file:
 
-```vue
-<script setup lang="ts">
-import type { HTMLAttributes } from 'vue'
-import { ChevronDown } from 'lucide-vue-next'
-import { cn } from '@/lib/utils'
+Edit A — add the prop to `defineProps`:
 
+```ts
 const props = defineProps<{
   modelValue?: string | number
-  id?: string
   disabled?: boolean
   class?: HTMLAttributes['class']
 }>()
-
-const emit = defineEmits<{
-  'update:modelValue': [value: string]
-}>()
-
-function onChange(event: Event) {
-  emit('update:modelValue', (event.target as HTMLSelectElement).value)
-}
-</script>
-
-<template>
-  <div :class="cn('group relative', props.class)">
-    <select
-      :id="id"
-      :value="modelValue"
-      :disabled="disabled"
-      class="flex h-10 w-full cursor-pointer appearance-none rounded-md border border-input bg-card pl-3 pr-9 py-2 text-sm text-foreground shadow-sm transition-colors hover:border-input/80 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
-      @change="onChange"
-    >
-      <slot />
-    </select>
-    <ChevronDown
-      class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors duration-150 group-focus-within:text-primary group-hover:text-foreground"
-    />
-  </div>
-</template>
 ```
+
+Edit B — bind `:disabled` on the native `<select>` (the element that currently reads `<select :value="props.modelValue" :class="cn( ... )"`):
+
+```
+  <select
+    :value="props.modelValue"
+    :disabled="props.disabled"
+    :class="cn(
+```
+
+Leave the rest of the file (the `cn(...)` class string, `@change="onChange"`, the `<slot />`) unchanged.
 
 - [ ] **Step 2: Create `DutyCalendar.vue`**
 
@@ -431,7 +412,7 @@ const cells = computed<Cell[]>(() => {
   return out
 })
 
-function onSelect(date: string, value: string) {
+function onSelect(date: string, value: string | number) {
   emit('select', date, value === '' ? null : Number(value))
 }
 
