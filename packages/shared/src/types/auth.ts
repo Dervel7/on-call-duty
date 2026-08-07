@@ -3,6 +3,7 @@ export type Role = 'administrator' | 'doctor'
 export interface AuthUser {
   id: number
   email: string
+  username: string
   role: Role
   firstName: string
   lastName: string
@@ -14,7 +15,7 @@ export interface User extends AuthUser {
 }
 
 export interface LoginRequest {
-  email: string
+  identifier: string
   password: string
 }
 export interface LoginResponse {
@@ -31,6 +32,7 @@ export interface ChangePasswordRequest {
 }
 export interface CreateUserRequest {
   email: string
+  username: string
   password: string
   role: Role
   firstName: string
@@ -38,6 +40,7 @@ export interface CreateUserRequest {
 }
 export interface UpdateUserRequest {
   email?: string
+  username?: string
   role?: Role
   firstName?: string
   lastName?: string

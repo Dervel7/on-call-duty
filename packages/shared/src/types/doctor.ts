@@ -2,6 +2,7 @@ export interface Doctor {
   id: number
   userId: number
   email: string
+  username: string
   firstName: string
   lastName: string
   isActive: boolean
@@ -12,6 +13,7 @@ export interface Doctor {
 
 export interface CreateDoctorRequest {
   email: string
+  username: string
   password: string
   firstName: string
   lastName: string
@@ -20,6 +22,7 @@ export interface CreateDoctorRequest {
 
 export interface UpdateDoctorRequest {
   email?: string
+  username?: string
   firstName?: string
   lastName?: string
   maxMonthlyDuties?: number

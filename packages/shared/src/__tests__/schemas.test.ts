@@ -5,14 +5,22 @@ import {
   loginSchema,
   roleSchema,
   updateUserSchema,
+  usernameSchema,
 } from '../index'
 
 describe('auth schemas', () => {
-  it('loginSchema rejects short password and bad email', () => {
-    expect(loginSchema.safeParse({ email: 'x', password: '123' }).success).toBe(false)
-    expect(
-      loginSchema.safeParse({ email: 'a@b.com', password: '123456' }).success,
-    ).toBe(true)
+  it('loginSchema requires identifier + min-6 password', () => {
+    expect(loginSchema.safeParse({ identifier: '', password: '123456' }).success).toBe(false)
+    expect(loginSchema.safeParse({ identifier: 'a@b.com', password: '12345' }).success).toBe(false)
+    expect(loginSchema.safeParse({ identifier: 'a@b.com', password: '123456' }).success).toBe(true)
+    expect(loginSchema.safeParse({ identifier: 'admin', password: '123456' }).success).toBe(true)
+  })
+
+  it('usernameSchema enforces the 3-32 alnum/._- format', () => {
+    expect(usernameSchema.safeParse('ab').success).toBe(false)
+    expect(usernameSchema.safeParse('a@b').success).toBe(false)
+    expect(usernameSchema.safeParse('has space').success).toBe(false)
+    expect(usernameSchema.safeParse('admin.1_ok').success).toBe(true)
   })
 
   it('changePasswordSchema rejects identical passwords', () => {
@@ -27,6 +35,7 @@ describe('auth schemas', () => {
     expect(
       createUserSchema.safeParse({
         email: 'd@h.com',
+        username: 'dr1',
         password: 'secret1',
         role: 'doctor',
         firstName: 'Jane',
@@ -51,6 +60,7 @@ import { createDoctorSchema, updateDoctorSchema } from '../index'
 describe('doctor schemas', () => {
   const valid = {
     email: 'dr@h.com',
+    username: 'dr1',
     password: 'secret1',
     firstName: 'Jane',
     lastName: 'Roe',

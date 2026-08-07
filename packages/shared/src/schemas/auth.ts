@@ -2,8 +2,10 @@ import { z } from 'zod'
 
 export const roleSchema = z.enum(['administrator', 'doctor'])
 
+export const usernameSchema = z.string().regex(/^[A-Za-z0-9._-]{3,32}$/, 'Invalid username')
+
 export const loginSchema = z.object({
-  email: z.string().email(),
+  identifier: z.string().min(1),
   password: z.string().min(6),
 })
 
@@ -18,6 +20,7 @@ export const changePasswordSchema = z
 
 export const createUserSchema = z.object({
   email: z.string().email(),
+  username: usernameSchema,
   password: z.string().min(6),
   role: roleSchema,
   firstName: z.string().min(1),
@@ -26,6 +29,7 @@ export const createUserSchema = z.object({
 
 export const updateUserSchema = z.object({
   email: z.string().email().optional(),
+  username: usernameSchema.optional(),
   role: roleSchema.optional(),
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),

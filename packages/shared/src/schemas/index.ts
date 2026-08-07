@@ -1,5 +1,6 @@
 export {
   roleSchema,
+  usernameSchema,
   loginSchema,
   changePasswordSchema,
   createUserSchema,
