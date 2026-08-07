@@ -195,11 +195,12 @@ export const statsQuerySchema = z.object({
 ```
 
 `z.coerce.number()` mirrors `scheduleQuerySchema` (query params arrive as strings). `min(1970).max(2100)`
-matches `scheduleQuerySchema` exactly. Invalid `year`/`month` → 422 via the existing `validate` middleware.
-`apps/api/src/validators/stats.ts` is a one-line re-export (`export { statsQuerySchema } from
-'@oncall/shared'`), matching `validators/schedule.ts`. When `year` or `month` is absent, the controller
-fills in the **current** year/month before calling the service (so `GET /stats/admin` with no query returns
-the current month).
+matches `scheduleQuerySchema` exactly. Invalid `year`/`month` → **400** via the existing `validate`
+middleware (which throws `HttpError(400, …)` on any parse failure — the codebase's de-facto validation
+status, matching Phases 3–4). `apps/api/src/validators/stats.ts` is a one-line re-export (`export {
+statsQuerySchema } from '@oncall/shared'`), matching `validators/schedule.ts`. When `year` or `month` is
+absent, the controller fills in the **current** year/month before calling the service (so
+`GET /stats/admin` with no query returns the current month).
 
 ### 5.3 Controller — `controllers/stats.controller.ts`
 
@@ -390,8 +391,8 @@ errorMsg.value = e instanceof Error ? e.message : 'Failed to …'
   `/stats/me`), but if it did the message is shown inline.
 - **404** (`/stats/me` called by an admin) → cannot happen in normal flow (admins render the admin
   dashboard); shown inline if it ever occurs.
-- **422** (invalid `year`/`month` query) → cannot happen via the UI (the picker constrains values); the
-  browser would show the server message.
+- **400** (invalid `year`/`month` query) → cannot happen via the UI (the picker constrains values); the
+  browser would show the server message if it ever occurred.
 
 ## 8. Security & Integrity
 
@@ -425,7 +426,7 @@ errorMsg.value = e instanceof Error ? e.message : 'Failed to …'
     published; `onCall` covers the 8-day window, crosses a month boundary, and sets `isMine` correctly.
     Verify the published-only filter is applied (draft-only duties are excluded).
 - **`stats.routes.test.ts`** (supertest, service mocked at module level):
-  - `GET /stats/admin` → 200 for admin; 403 for doctor; 401 unauth; 422 for invalid `month`/`year`; default
+  - `GET /stats/admin` → 200 for admin; 403 for doctor; 401 unauth; 400 for invalid `month`/`year`; default
     (no query) resolves to the current month.
   - `GET /stats/me` → 200 for a doctor; 404 for an admin (no profile); 401 unauth.
 
