@@ -12,7 +12,9 @@ Production-ready doctor on-call duty scheduling system for medium-sized hospital
 
 **Phase 4 — Availability Management** is complete. This phase adds a `unavailability` table of doctor exclusions (inclusive whole-day date ranges with a type of vacation / sick / conference / other and an optional note), an admin Availability page (manage any doctor's exclusions with optional doctor / date filters), and a doctor My Availability page (self-service). Doctors are available by default; overlapping records are rejected (409). The scheduling engine (Phase 5) consumes these exclusions.
 
-Remaining business features (scheduling, schedule UI, statistics, reports) arrive in later phases.
+**Phase 5 — Scheduling Engine** is complete (backend). This phase adds a `holidays` table (admin-managed), `schedules` + `duties` tables, and a pure greedy scheduling engine (weighted score, deterministic tie-breaks) that respects monthly caps, unavailability, and no back-to-back duties (including across month boundaries), while balancing workload, weekends, and holidays. Admins can preview a month (`POST /schedules/preview` returns proposed assignments + unfillable-day conflicts), generate atomically (`POST /schedules` — 201 / 409 if the month exists / 422 if unfillable), and manually add/reassign/remove individual duties (re-validated against the same hard constraints). The Schedule Management UI is Phase 6.
+
+Remaining business features (schedule UI, statistics, reports) arrive in later phases.
 
 ## Roadmap
 
@@ -20,7 +22,7 @@ Remaining business features (scheduling, schedule UI, statistics, reports) arriv
 2. Auth & Authorization (complete)
 3. Doctor Management (complete)
 4. Availability Management (complete)
-5. Scheduling Engine
+5. Scheduling Engine (complete)
 6. Schedule Management UI
 7. Statistics & Dashboard
 8. Reporting
@@ -210,6 +212,15 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - Overlapping record → 409; `endDate < startDate` → 400; non-numeric `:id` → 400; unknown doctor → 404; a doctor editing another doctor's record → 403.
 - `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.
 
+## Definition of Done (Phase 5)
+
+- `pnpm install`, `pnpm db:setup`, and `pnpm dev` succeed from a clean clone; sample `holidays` rows are seeded (no schedule seed — schedules are produced via the API).
+- The engine respects every hard constraint: no doctor over `max_monthly_duties`, no duty during unavailability, no back-to-back (including the cross-month boundary), inactive doctors excluded.
+- Admin can `POST /schedules/preview` (200 `{assignments, conflicts}`), `POST /schedules` (201; 409 if the month exists; 422 if unfillable and nothing persisted), `GET /schedules` / `GET /schedules/:id`, `DELETE /schedules/:id`, and override duties via `POST /schedules/:id/duties` / `PATCH /duties/:id` / `DELETE /duties/:id` with 409 on any constraint violation. Doctors get 403 on all schedule/duty routes and on holiday mutations; any authenticated user can `GET /holidays`.
+- For solvable months, weekend/holiday counts stay within ±1 across eligible doctors; every duty carries a persisted `reason`.
+- Deleting a doctor with duties → 409 (disable instead); deleting a schedule cascades its duties.
+- `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.
+
 ## Documentation
 
 - Design: `docs/superpowers/specs/2026-08-06-phase1-foundation-design.md`
@@ -218,4 +229,6 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - Phase 3 implementation plan: `docs/superpowers/plans/2026-08-06-phase3-doctors-plan.md`
 - Phase 4 design: `docs/superpowers/specs/2026-08-07-phase4-availability-design.md`
 - Phase 4 implementation plan: `docs/superpowers/plans/2026-08-07-phase4-availability-plan.md`
+- Phase 5 design: `docs/superpowers/specs/2026-08-07-phase5-scheduling-engine-design.md`
+- Phase 5 implementation plan: `docs/superpowers/plans/2026-08-07-phase5-scheduling-engine-plan.md`
 - Project conventions: `AGENTS.md`
