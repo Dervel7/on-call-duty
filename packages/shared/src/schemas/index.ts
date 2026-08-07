@@ -12,3 +12,12 @@ export {
   updateUnavailabilitySchema,
   unavailabilityQuerySchema,
 } from './unavailability'
+export {
+  createScheduleSchema,
+  scheduleQuerySchema,
+  holidayQuerySchema,
+  createHolidaySchema,
+  updateHolidaySchema,
+  createDutySchema,
+  reassignDutySchema,
+} from './schedule'

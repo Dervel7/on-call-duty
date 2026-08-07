@@ -19,3 +19,20 @@ export type {
   UpdateUnavailabilityRequest,
   UnavailabilityQuery,
 } from './unavailability'
+export type {
+  ScheduleStatus,
+  Holiday,
+  ScheduleSummary,
+  Duty,
+  AssignmentPlan,
+  ConflictPlan,
+  PreviewResult,
+  ScheduleDetail,
+  CreateScheduleRequest,
+  ScheduleQuery,
+  HolidayQuery,
+  CreateHolidayRequest,
+  UpdateHolidayRequest,
+  CreateDutyRequest,
+  ReassignDutyRequest,
+} from './schedule'
