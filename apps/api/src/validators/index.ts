@@ -1,4 +1,6 @@
 export * from './auth'
 export * from './doctor'
+export * from './holiday'
+export * from './schedule'
 export * from './unavailability'
 export * from './user'
