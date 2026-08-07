@@ -22,6 +22,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../layouts/DefaultLayout.vue'),
     children: [
       { path: '', name: 'home', component: () => import('../pages/HomePage.vue') },
+      {
+        path: 'roster',
+        name: 'roster',
+        component: () => import('../pages/ScheduleRosterPage.vue'),
+        meta: { roles: ['doctor'] },
+      },
       { path: 'profile', name: 'profile', component: () => import('../pages/ProfilePage.vue') },
       {
         path: 'users',
@@ -51,13 +57,13 @@ const routes: RouteRecordRaw[] = [
         path: 'schedules',
         name: 'schedules',
         component: () => import('../pages/SchedulesPage.vue'),
-        meta: { roles: ['administrator'] },
+        meta: { roles: ['administrator', 'doctor'] },
       },
       {
         path: 'schedules/:id',
         name: 'schedule-detail',
         component: () => import('../pages/ScheduleDetailPage.vue'),
-        meta: { roles: ['administrator'] },
+        meta: { roles: ['administrator', 'doctor'] },
       },
       {
         path: 'holidays',

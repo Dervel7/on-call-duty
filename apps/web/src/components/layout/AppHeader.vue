@@ -17,6 +17,7 @@ async function onLogout() {
 const navItems = computed(() => {
   const items: { to: string; label: string }[] = [{ to: '/', label: 'Home' }]
   if (auth.isAuthenticated && !auth.isAdmin) {
+    items.push({ to: '/roster', label: 'Duty roster' })
     items.push({ to: '/my-availability', label: 'My availability' })
   }
   if (auth.isAdmin) {
