@@ -28,6 +28,7 @@ async function onLogout() {
         <RouterLink v-if="auth.isAdmin" class="text-muted-foreground hover:text-foreground" to="/availability">Availability</RouterLink>
         <RouterLink v-if="auth.isAdmin" class="text-muted-foreground hover:text-foreground" to="/schedules">Schedules</RouterLink>
         <RouterLink v-if="auth.isAdmin" class="text-muted-foreground hover:text-foreground" to="/holidays">Holidays</RouterLink>
+        <RouterLink v-if="auth.isAdmin" class="text-muted-foreground hover:text-foreground" to="/reports">Reports</RouterLink>
         <RouterLink class="text-muted-foreground hover:text-foreground" to="/profile">Profile</RouterLink>
       </nav>
       <div class="ml-auto flex items-center gap-3">

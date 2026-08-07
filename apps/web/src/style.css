@@ -57,3 +57,16 @@
     color: hsl(var(--foreground));
   }
 }
+
+@media print {
+  header,
+  .no-print {
+    display: none !important;
+  }
+  .container {
+    max-width: 100% !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+}
