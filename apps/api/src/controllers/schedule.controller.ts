@@ -72,4 +72,20 @@ export const scheduleController = {
       next(err)
     }
   },
+  async publish(req: Request, res: Response, next: NextFunction) {
+    try {
+      const schedule = await scheduleService.publish(Number(req.params.id))
+      res.status(200).json(ok({ schedule }))
+    } catch (err) {
+      next(err)
+    }
+  },
+  async unpublish(req: Request, res: Response, next: NextFunction) {
+    try {
+      const schedule = await scheduleService.unpublish(Number(req.params.id))
+      res.status(200).json(ok({ schedule }))
+    } catch (err) {
+      next(err)
+    }
+  },
 }

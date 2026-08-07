@@ -10,6 +10,8 @@ const remove = vi.fn()
 const addDuty = vi.fn()
 const reassignDuty = vi.fn()
 const removeDuty = vi.fn()
+const publish = vi.fn()
+const unpublish = vi.fn()
 vi.mock('../services/schedule.service', () => ({
   preview: (...a: unknown[]) => preview(...a),
   generate: (...a: unknown[]) => generate(...a),
@@ -19,6 +21,8 @@ vi.mock('../services/schedule.service', () => ({
   addDuty: (...a: unknown[]) => addDuty(...a),
   reassignDuty: (...a: unknown[]) => reassignDuty(...a),
   removeDuty: (...a: unknown[]) => removeDuty(...a),
+  publish: (...a: unknown[]) => publish(...a),
+  unpublish: (...a: unknown[]) => unpublish(...a),
 }))
 
 import { signAccessToken } from '../lib/jwt'
@@ -63,7 +67,7 @@ const duty = (id: number, doctorId: number) => ({
 })
 
 beforeEach(() => {
-  [preview, generate, list, getById, remove, addDuty, reassignDuty, removeDuty].forEach((m) =>
+  [preview, generate, list, getById, remove, addDuty, reassignDuty, removeDuty, publish, unpublish].forEach((m) =>
     m.mockReset(),
   )
 })
@@ -154,5 +158,57 @@ describe('schedule routes', () => {
       .delete('/duties/5')
       .set('Authorization', `Bearer ${adminToken()}`)
     expect(r.status).toBe(204)
+  })
+
+  it('admin publish (200) and unpublish (200); doctor 403', async () => {
+    publish.mockResolvedValue({
+      id: 1, year: 2026, month: 9, status: 'published', createdBy: 1, createdAt: '', updatedAt: '',
+    })
+    unpublish.mockResolvedValue({
+      id: 1, year: 2026, month: 9, status: 'draft', createdBy: 1, createdAt: '', updatedAt: '',
+    })
+    const p = await request(build())
+      .post('/schedules/1/publish')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(p.status).toBe(200)
+    expect(p.body.data.schedule.status).toBe('published')
+
+    const u = await request(build())
+      .post('/schedules/1/unpublish')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(u.status).toBe(200)
+    expect(u.body.data.schedule.status).toBe('draft')
+
+    const forbidden = await request(build())
+      .post('/schedules/1/publish')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+    expect(forbidden.status).toBe(403)
+  })
+
+  it('duty + schedule mutations surface the published-lock as 409', async () => {
+    const locked = Object.assign(new Error('Schedule is published; revert to draft to edit'), { status: 409 })
+    addDuty.mockRejectedValue(locked)
+    reassignDuty.mockRejectedValue(locked)
+    removeDuty.mockRejectedValue(locked)
+    remove.mockRejectedValue(locked)
+
+    const a = await request(build())
+      .post('/schedules/1/duties')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ date: '2026-09-05', doctorId: 3 })
+    expect(a.status).toBe(409)
+    const r = await request(build())
+      .patch('/duties/5')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ doctorId: 4 })
+    expect(r.status).toBe(409)
+    const d = await request(build())
+      .delete('/duties/5')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(d.status).toBe(409)
+    const s = await request(build())
+      .delete('/schedules/1')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(s.status).toBe(409)
   })
 })

@@ -45,12 +45,14 @@ interface DutyRow {
   is_holiday: boolean
   reason: string
   created_at: Date
+  schedule_status: string
 }
 
 const SELECT_SCHEDULE = `SELECT id, year, month, status, created_by, created_at, updated_at FROM schedules`
 const SELECT_DUTY = `SELECT du.id, du.schedule_id, du.duty_date, du.doctor_id, du.is_weekend,
-  du.is_holiday, du.reason, du.created_at, u.first_name, u.last_name
-  FROM duties du JOIN doctors d ON d.id = du.doctor_id JOIN users u ON u.id = d.user_id`
+  du.is_holiday, du.reason, du.created_at, u.first_name, u.last_name, s.status AS schedule_status
+  FROM duties du JOIN doctors d ON d.id = du.doctor_id JOIN users u ON u.id = d.user_id
+  JOIN schedules s ON s.id = du.schedule_id`
 
 function toSchedule(row: ScheduleRow): ScheduleSummary {
   return {
@@ -213,8 +215,15 @@ export async function getById(id: number): Promise<ScheduleDetail> {
 }
 
 export async function remove(id: number): Promise<void> {
-  const existing = await query('SELECT id FROM schedules WHERE id = $1', [id])
+  const existing = await query<{ status: string }>(
+    'SELECT status FROM schedules WHERE id = $1',
+    [id],
+  )
   if (existing.rows.length === 0) throw new HttpError(404, 'Schedule not found')
+  assertEditable(
+    existing.rows[0]!.status,
+    'Schedule is published; revert to draft before deleting',
+  )
   await query('DELETE FROM schedules WHERE id = $1', [id])
 }
 
@@ -280,6 +289,13 @@ async function isHolidayOn(date: string): Promise<boolean> {
   return res.rows.length > 0
 }
 
+function assertEditable(
+  status: string,
+  message = 'Schedule is published; revert to draft to edit',
+): void {
+  if (status === 'published') throw new HttpError(409, message)
+}
+
 export async function addDuty(
   scheduleId: number,
   input: CreateDutyRequest,
@@ -290,6 +306,8 @@ export async function addDuty(
   if (!schedule) throw new HttpError(404, 'Schedule not found')
   if (!inMonth(input.date, schedule.year, schedule.month))
     throw new HttpError(400, 'Date is outside this schedule month')
+
+  assertEditable(schedule.status)
 
   const existing = await query('SELECT id FROM duties WHERE schedule_id = $1 AND duty_date = $2', [
     scheduleId,
@@ -324,6 +342,7 @@ export async function reassignDuty(
   actor: Actor,
 ): Promise<Duty> {
   const duty = await getDutyRow(dutyId)
+  assertEditable(duty.schedule_status)
   await validateAssignment(duty.schedule_id, input.doctorId, duty.duty_date, dutyId)
   const reason = `manual override by admin #${actor.id}`
   await query('UPDATE duties SET doctor_id = $1, reason = $2 WHERE id = $3', [
@@ -335,6 +354,37 @@ export async function reassignDuty(
 }
 
 export async function removeDuty(dutyId: number): Promise<void> {
-  await getDutyRow(dutyId)
+  const duty = await getDutyRow(dutyId)
+  assertEditable(duty.schedule_status)
   await query('DELETE FROM duties WHERE id = $1', [dutyId])
+}
+
+export async function publish(id: number): Promise<ScheduleSummary> {
+  const upd = await query<ScheduleRow>(
+    `UPDATE schedules SET status = 'published', updated_at = NOW()
+     WHERE id = $1 AND status = 'draft'
+     RETURNING id, year, month, status, created_by, created_at, updated_at`,
+    [id],
+  )
+  if (upd.rows.length === 0) {
+    const found = await query('SELECT 1 FROM schedules WHERE id = $1', [id])
+    if (found.rows.length === 0) throw new HttpError(404, 'Schedule not found')
+    throw new HttpError(409, 'Schedule is already published')
+  }
+  return toSchedule(upd.rows[0]!)
+}
+
+export async function unpublish(id: number): Promise<ScheduleSummary> {
+  const upd = await query<ScheduleRow>(
+    `UPDATE schedules SET status = 'draft', updated_at = NOW()
+     WHERE id = $1 AND status = 'published'
+     RETURNING id, year, month, status, created_by, created_at, updated_at`,
+    [id],
+  )
+  if (upd.rows.length === 0) {
+    const found = await query('SELECT 1 FROM schedules WHERE id = $1', [id])
+    if (found.rows.length === 0) throw new HttpError(404, 'Schedule not found')
+    throw new HttpError(409, 'Schedule is already draft')
+  }
+  return toSchedule(upd.rows[0]!)
 }

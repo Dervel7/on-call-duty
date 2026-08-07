@@ -12,9 +12,11 @@ import {
   getById,
   list,
   preview,
+  publish,
   reassignDuty,
   remove,
   removeDuty,
+  unpublish,
 } from '../services/schedule.service'
 
 function scheduleRow(overrides: Partial<Record<string, unknown>> = {}) {
@@ -168,5 +170,61 @@ describe('schedule.service', () => {
     query.mockReset()
     query.mockResolvedValue({ rows: [] })
     await expect(removeDuty(99)).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+describe('publish / unpublish', () => {
+  it('publish flips draft->published; 404 missing; 409 already published', async () => {
+    query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] })
+    const published = await publish(1)
+    expect(published.status).toBe('published')
+
+    query.mockResolvedValueOnce({ rows: [] }) // UPDATE matches nothing
+    query.mockResolvedValueOnce({ rows: [] }) // existence -> 404
+    await expect(publish(99)).rejects.toMatchObject({ status: 404 })
+
+    query.mockResolvedValueOnce({ rows: [] }) // UPDATE matches nothing (already published)
+    query.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] }) // exists -> 409
+    await expect(publish(1)).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('unpublish flips published->draft; 404 missing; 409 already draft', async () => {
+    query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'draft' })] })
+    const draft = await unpublish(1)
+    expect(draft.status).toBe('draft')
+
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [] })
+    await expect(unpublish(99)).rejects.toMatchObject({ status: 404 })
+
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
+    await expect(unpublish(1)).rejects.toMatchObject({ status: 409 })
+  })
+})
+
+describe('published lock', () => {
+  it('addDuty 409 when published', async () => {
+    query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] })
+    await expect(
+      addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator' }),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('reassignDuty 409 when published', async () => {
+    query.mockResolvedValueOnce({ rows: [dutyRow({ schedule_status: 'published' })] })
+    await expect(
+      reassignDuty(10, { doctorId: 7 }, { id: 2, role: 'administrator' }),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('removeDuty 409 when published', async () => {
+    query.mockResolvedValueOnce({ rows: [dutyRow({ schedule_status: 'published' })] })
+    await expect(removeDuty(10)).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('remove (schedule) 409 when published', async () => {
+    query.mockResolvedValueOnce({ rows: [{ status: 'published' }] })
+    await expect(remove(1)).rejects.toMatchObject({ status: 409 })
   })
 })

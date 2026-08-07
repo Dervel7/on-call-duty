@@ -20,6 +20,8 @@ scheduleRouter.get('/', validate(scheduleQuerySchema, 'query'), scheduleControll
 scheduleRouter.post('/preview', validate(createScheduleSchema, 'body'), scheduleController.preview)
 scheduleRouter.post('/', validate(createScheduleSchema, 'body'), scheduleController.generate)
 scheduleRouter.get('/:id', validate(idParams, 'params'), scheduleController.getById)
+scheduleRouter.post('/:id/publish', validate(idParams, 'params'), scheduleController.publish)
+scheduleRouter.post('/:id/unpublish', validate(idParams, 'params'), scheduleController.unpublish)
 scheduleRouter.delete('/:id', validate(idParams, 'params'), scheduleController.remove)
 scheduleRouter.post('/:id/duties', validate(idParams, 'params'), validate(createDutySchema, 'body'), scheduleController.addDuty)
 
