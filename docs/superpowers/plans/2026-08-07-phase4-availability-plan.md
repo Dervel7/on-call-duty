@@ -140,20 +140,25 @@ import { z } from 'zod'
 const unavailabilityTypeEnum = z.enum(['vacation', 'sick', 'conference', 'other'])
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date (YYYY-MM-DD)')
 
-export const createUnavailabilityAdminSchema = z
-  .object({
-    doctorId: z.number().int().positive(),
-    type: unavailabilityTypeEnum,
-    startDate: dateStr,
-    endDate: dateStr,
-    note: z.string().max(500).optional(),
-  })
-  .refine((d) => d.endDate >= d.startDate, {
-    message: 'endDate must be on or after startDate',
-    path: ['endDate'],
-  })
+// `.refine()` wraps in ZodEffects (which has no `.omit()`), so call `.omit()` on the
+// raw ZodObject first, then refine each variant.
+const adminFields = z.object({
+  doctorId: z.number().int().positive(),
+  type: unavailabilityTypeEnum,
+  startDate: dateStr,
+  endDate: dateStr,
+  note: z.string().max(500).optional(),
+})
+const selfFields = adminFields.omit({ doctorId: true })
 
-export const createUnavailabilitySelfSchema = createUnavailabilityAdminSchema.omit({ doctorId: true })
+export const createUnavailabilityAdminSchema = adminFields.refine(
+  (d) => d.endDate >= d.startDate,
+  { message: 'endDate must be on or after startDate', path: ['endDate'] },
+)
+export const createUnavailabilitySelfSchema = selfFields.refine(
+  (d) => d.endDate >= d.startDate,
+  { message: 'endDate must be on or after startDate', path: ['endDate'] },
+)
 
 export const updateUnavailabilitySchema = z
   .object({

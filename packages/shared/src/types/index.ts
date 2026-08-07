@@ -11,3 +11,11 @@ export type {
   UpdateUserRequest,
 } from './auth'
 export type { Doctor, CreateDoctorRequest, UpdateDoctorRequest } from './doctor'
+export type {
+  UnavailabilityType,
+  Unavailability,
+  CreateUnavailabilityAdminRequest,
+  CreateUnavailabilitySelfRequest,
+  UpdateUnavailabilityRequest,
+  UnavailabilityQuery,
+} from './unavailability'
