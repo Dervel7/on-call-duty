@@ -1590,7 +1590,7 @@ git commit -m "feat(web): admin Availability page, route, header link"
 Create `apps/web/src/__tests__/MyAvailabilityPage.test.ts`:
 ```ts
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const listMine = vi.fn()
@@ -1628,8 +1628,7 @@ describe('MyAvailabilityPage', () => {
       },
     ])
     const wrapper = mount(MyAvailabilityPage, { global: { plugins: [createPinia()] } })
-    await wrapper.vm.$nextTick()
-    await wrapper.vm.$nextTick()
+    await flushPromises()
     expect(wrapper.text()).toContain('sick')
     expect(wrapper.text()).toContain('2026-09-15')
   })
@@ -1637,8 +1636,7 @@ describe('MyAvailabilityPage', () => {
   it('shows an error when listing fails', async () => {
     listMine.mockRejectedValue(new Error('nope'))
     const wrapper = mount(MyAvailabilityPage, { global: { plugins: [createPinia()] } })
-    await wrapper.vm.$nextTick()
-    await wrapper.vm.$nextTick()
+    await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
   })
 })
