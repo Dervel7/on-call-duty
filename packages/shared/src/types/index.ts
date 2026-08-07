@@ -47,3 +47,4 @@ export type {
   OnCallEntry,
   MeStats,
 } from './stats'
+export type { ReportQuery, ReportHoliday, MonthlyReport } from './reports'
