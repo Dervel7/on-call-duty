@@ -9,6 +9,7 @@ import { requestLogger } from './middleware/request-logger'
 import { authRouter } from './routes/auth.routes'
 import { doctorRouter } from './routes/doctor.routes'
 import { healthRouter } from './routes/health.routes'
+import { unavailabilityRouter } from './routes/unavailability.routes'
 import { userRouter } from './routes/user.routes'
 
 export const app = express()
@@ -23,6 +24,7 @@ app.use('/health', healthRouter)
 app.use('/auth', authRouter)
 app.use('/users', userRouter)
 app.use('/doctors', doctorRouter)
+app.use('/unavailability', unavailabilityRouter)
 
 app.use(notFound)
 app.use(errorHandler)
