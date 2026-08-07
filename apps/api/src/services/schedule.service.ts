@@ -141,7 +141,7 @@ async function buildContext(year: number, month: number): Promise<SchedulingCont
   return { year, month, days, doctors, unavailability, priorDayDoctorIds }
 }
 
-interface EligibilityInput {
+export interface EligibilityInput {
   doctors: DoctorSpec[]
   unavailability: Map<number, Array<{ start: string; end: string }>>
   days: { date: string; isWeekend: boolean; isHoliday: boolean }[]
@@ -149,7 +149,7 @@ interface EligibilityInput {
   dutyCountByDoctor: Map<number, number>
 }
 
-function computeEligibility(input: EligibilityInput): DayInfo[] {
+export function computeEligibility(input: EligibilityInput): DayInfo[] {
   const out: DayInfo[] = []
   for (const day of input.days) {
     const eligible: number[] = []

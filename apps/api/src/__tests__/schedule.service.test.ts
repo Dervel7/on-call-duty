@@ -8,6 +8,7 @@ vi.mock('../db/client', () => ({
 
 import {
   addDuty,
+  computeEligibility,
   generate,
   getById,
   list,
@@ -18,6 +19,7 @@ import {
   removeDuty,
   unpublish,
 } from '../services/schedule.service'
+import type { DoctorSpec } from '../scheduling/types'
 
 function scheduleRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -226,5 +228,97 @@ describe('published lock', () => {
   it('remove (schedule) 409 when published', async () => {
     query.mockResolvedValueOnce({ rows: [{ status: 'published' }] })
     await expect(remove(1)).rejects.toMatchObject({ status: 409 })
+  })
+})
+
+describe('computeEligibility', () => {
+  const day = (date: string, isWeekend = false, isHoliday = false) => ({ date, isWeekend, isHoliday })
+  const doctor = (id: number, maxMonthlyDuties = 7): DoctorSpec => ({
+    id,
+    firstName: `D${id}`,
+    lastName: `D${id}`,
+    maxMonthlyDuties,
+    isActive: true,
+  })
+
+  it('eligible: active, available, under cap, not on adjacent duty -> included', () => {
+    const result = computeEligibility({
+      doctors: [doctor(1)],
+      unavailability: new Map(),
+      days: [day('2026-09-10')],
+      dutiesByDate: new Map(),
+      dutyCountByDoctor: new Map(),
+    })
+    expect(result).toEqual([
+      { date: '2026-09-10', isWeekend: false, isHoliday: false, eligibleDoctorIds: [1] },
+    ])
+  })
+
+  it('unavailable: an unavailability range containing the date -> excluded', () => {
+    const result = computeEligibility({
+      doctors: [doctor(1)],
+      unavailability: new Map([[1, [{ start: '2026-09-09', end: '2026-09-12' }]]]),
+      days: [day('2026-09-10')],
+      dutiesByDate: new Map(),
+      dutyCountByDoctor: new Map(),
+    })
+    expect(result[0]?.eligibleDoctorIds).toEqual([])
+  })
+
+  it('at cap: dutyCountByDoctor >= maxMonthlyDuties -> excluded', () => {
+    const result = computeEligibility({
+      doctors: [doctor(1, 7)],
+      unavailability: new Map(),
+      days: [day('2026-09-10')],
+      dutiesByDate: new Map(),
+      dutyCountByDoctor: new Map([[1, 7]]),
+    })
+    expect(result[0]?.eligibleDoctorIds).toEqual([])
+  })
+
+  it('own-duty exclusion: assigned today reduces count by 1 -> back under cap -> included', () => {
+    const result = computeEligibility({
+      doctors: [doctor(1, 7)],
+      unavailability: new Map(),
+      days: [day('2026-09-10')],
+      dutiesByDate: new Map([['2026-09-10', 1]]),
+      dutyCountByDoctor: new Map([[1, 7]]),
+    })
+    expect(result[0]?.eligibleDoctorIds).toEqual([1])
+  })
+
+  it('back-to-back: doctor on prevDate or nextDate -> excluded', () => {
+    // previous day already assigned
+    const fromPrev = computeEligibility({
+      doctors: [doctor(1)],
+      unavailability: new Map(),
+      days: [day('2026-09-10')],
+      dutiesByDate: new Map([['2026-09-09', 1]]),
+      dutyCountByDoctor: new Map(),
+    })
+    expect(fromPrev[0]?.eligibleDoctorIds).toEqual([])
+    // next day already assigned
+    const fromNext = computeEligibility({
+      doctors: [doctor(1)],
+      unavailability: new Map(),
+      days: [day('2026-09-10')],
+      dutiesByDate: new Map([['2026-09-11', 1]]),
+      dutyCountByDoctor: new Map(),
+    })
+    expect(fromNext[0]?.eligibleDoctorIds).toEqual([])
+  })
+
+  it('empty: when no doctor passes -> eligibleDoctorIds is []', () => {
+    const result = computeEligibility({
+      doctors: [doctor(1, 7), doctor(2, 7)],
+      unavailability: new Map(),
+      days: [day('2026-09-10')],
+      dutiesByDate: new Map(),
+      dutyCountByDoctor: new Map([
+        [1, 7],
+        [2, 7],
+      ]),
+    })
+    expect(result[0]?.eligibleDoctorIds).toEqual([])
   })
 })

@@ -11,9 +11,9 @@ vi.mock('../services/stats.service', () => ({
   adminStats: (...a: unknown[]) => adminStats(...a),
 }))
 
-const getById = vi.fn()
+const getScheduleDuties = vi.fn()
 vi.mock('../services/schedule.service', () => ({
-  getById: (...a: unknown[]) => getById(...a),
+  getScheduleDuties: (...a: unknown[]) => getScheduleDuties(...a),
 }))
 
 import { monthlyReport } from '../services/reports.service'
@@ -21,7 +21,7 @@ import { monthlyReport } from '../services/reports.service'
 beforeEach(() => {
   query.mockReset()
   adminStats.mockReset()
-  getById.mockReset()
+  getScheduleDuties.mockReset()
 })
 
 describe('reports.service — monthlyReport', () => {
@@ -38,7 +38,7 @@ describe('reports.service — monthlyReport', () => {
 
     expect(report.schedule).toBeNull()
     expect(report.roster).toEqual([])
-    expect(getById).not.toHaveBeenCalled()
+    expect(getScheduleDuties).not.toHaveBeenCalled()
     expect(report.holidays).toEqual([])
     expect(report.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
     // holidays query scoped to month bounds
@@ -48,7 +48,7 @@ describe('reports.service — monthlyReport', () => {
     expect(query.mock.calls[0]?.[1]).toEqual(['2026-08-01', '2026-08-31'])
   })
 
-  it('with schedule: composes roster from getById and forwards stats fields', async () => {
+  it('with schedule: composes roster from getScheduleDuties and forwards stats fields', async () => {
     const schedule = {
       id: 7,
       year: 2026,
@@ -90,12 +90,12 @@ describe('reports.service — monthlyReport', () => {
         createdAt: '',
       },
     ]
-    getById.mockResolvedValue({ schedule, duties })
+    getScheduleDuties.mockResolvedValue({ schedule, duties })
     query.mockResolvedValue({ rows: [{ date: '2026-09-15', name: 'Mid-Autumn' }] })
 
     const report = await monthlyReport(2026, 9)
 
-    expect(getById).toHaveBeenCalledWith(7)
+    expect(getScheduleDuties).toHaveBeenCalledWith(7)
     expect(report.roster).toEqual(duties)
     expect(report.coverage.filled).toBe(30)
     expect(report.workload).toHaveLength(1)
