@@ -18,7 +18,7 @@ Production-ready doctor on-call duty scheduling system for medium-sized hospital
 
 **Phase 7 — Statistics & Dashboard** is complete. This phase delivers a role-aware dashboard at `/` (the static marketing card is retired) backed by a new read-only `/stats` API. **Administrators** see hospital-wide statistics for a selectable month: day coverage (including gap days), a fairness/imbalance spread badge, and a per-doctor workload table (CSS bars + inactive-doctor flags). **Doctors** see a personal dashboard: current-month progress vs. their `max_monthly_duties` cap, a published-only "who's on call today + next 7 days" list (their own shifts highlighted), and their upcoming duties. The `/stats` endpoints aggregate `schedules`/`duties` server-side (parameterized SQL, no ORM): `/stats/admin` is admin-only (`authenticate` + `authorize('administrator')`), `/stats/me` resolves the caller's own doctor profile (admin → 404). Doctors see `published` schedules only (enforced in SQL); admins see draft + published; doctors still receive 403 on every `/schedules` and `/duties` route. No DB migration and no new frontend dependencies.
 
-The remaining business feature (reports) arrives in a later phase.
+**Phase 8 — Reporting** is complete. This phase delivers an admin-only **Reports** page at `/reports`: an administrator selects a month and sees a consolidated on-call report — a header with the schedule status badge and generation time, a day-by-day duty roster (with weekend/holiday badges and gap days marked), a coverage summary, a fairness badge, a per-doctor workload table, and the month's holidays. The admin can **export the roster as CSV** (downloads `oncall-{year}-{month}.csv`, generated client-side by a pure RFC 4180 helper in `@oncall/utils`) and **print / save as PDF** via the browser's native print over a scoped `@media print` stylesheet. No schedule for the selected month → an empty state linking to `/schedules`. A new read-only `GET /reports/monthly` endpoint composes Phase 7's `statsService.adminStats` (coverage/workload/fairness) + Phase 5's `scheduleService.getById` (roster) + a parameterized holidays-in-month query — no aggregation duplication, no DB migration, no new dependencies. The entire `/reports` router is admin-only (`authenticate` + `authorize('administrator')`): doctors get 403 and see no nav link; invalid `year`/`month` → 400; no query → the current UTC month.
 
 ## Roadmap
 
@@ -29,7 +29,7 @@ The remaining business feature (reports) arrives in a later phase.
 5. Scheduling Engine (complete)
 6. Schedule Management UI (complete)
 7. Statistics & Dashboard (complete)
-8. Reporting
+8. Reporting (complete)
 
 Multi-hospital is out of scope: the system targets a single hospital.
 
@@ -242,6 +242,15 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - `GET /stats/admin` is admin-only (doctor → 403, unauth → 401); `GET /stats/me` resolves the caller's own doctor profile (admin → 404, unauth → 401). Doctors see `published` schedules only; admins see draft + published; doctors still receive 403 on every `/schedules` and `/duties` route. The published-only filter is enforced in SQL.
 - `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.
 
+## Definition of Done (Phase 8)
+
+- An admin can open **Reports** (nav link, `/reports`), pick a month, and see a consolidated report: a header with the status badge + generation time, a per-day roster (with weekend/holiday badges and gap days marked), a coverage summary, a fairness badge, a per-doctor workload table, and the month's holidays.
+- An admin can **export the roster as CSV** (downloads `oncall-{year}-{month}.csv`) and **print / save as PDF** (browser print dialog, with nav and action buttons hidden and the report at full width).
+- No schedule for the selected month → an empty state that links to `/schedules`.
+- `GET /reports/monthly` is admin-only (doctor → 403, unauth → 401); invalid `year`/`month` → 400; no query → the current UTC month. The reports service composes Phase 7's `adminStats` and Phase 5's `getById` plus one holidays query — no aggregation duplication, no DB migration.
+- Doctors still receive 403 on every `/reports` route; the nav link and route are admin-gated.
+- `pnpm typecheck`, `pnpm lint`, and `pnpm test` pass across the monorepo.
+
 ## Documentation
 
 - Design: `docs/superpowers/specs/2026-08-06-phase1-foundation-design.md`
@@ -256,4 +265,6 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - Phase 6 implementation plan: `docs/superpowers/plans/2026-08-07-phase6-schedule-ui-plan.md`
 - Phase 7 design: `docs/superpowers/specs/2026-08-07-phase7-statistics-dashboard-design.md`
 - Phase 7 implementation plan: `docs/superpowers/plans/2026-08-07-phase7-statistics-dashboard-plan.md`
+- Phase 8 design: `docs/superpowers/specs/2026-08-07-phase8-reporting-design.md`
+- Phase 8 implementation plan: `docs/superpowers/plans/2026-08-07-phase8-reporting-plan.md`
 - Project conventions: `AGENTS.md`
