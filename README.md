@@ -16,7 +16,9 @@ Production-ready doctor on-call duty scheduling system for medium-sized hospital
 
 **Phase 6 — Schedule Management UI** is complete. This phase ships the deferred backend publish/unpublish lifecycle (`POST /schedules/:id/publish`, `POST /schedules/:id/unpublish`) with a service-layer **published-lock** that blocks duty add/reassign/remove and schedule deletion while a schedule is published. On the web, an admin **Schedules** page offers a guided preview → generate flow (Generate stays disabled while the preview reports unfillable-day conflicts), the **Schedule detail** page renders the month as a day-list table with weekend/holiday/gap badges, the assignment reason, and per-day Edit / Remove / +Add overrides (re-validated by the server, with 409 surfaced inline), plus publish / revert-to-draft (both confirmed). A dedicated admin **Holidays** page provides CRUD over the holidays that feed the engine. No DB migration — the `published` status was already reserved in `schema.sql` — and no `@oncall/shared` changes.
 
-Remaining business features (statistics, reports) arrive in later phases.
+**Phase 7 — Statistics & Dashboard** is complete. This phase delivers a role-aware dashboard at `/` (the static marketing card is retired) backed by a new read-only `/stats` API. **Administrators** see hospital-wide statistics for a selectable month: day coverage (including gap days), a fairness/imbalance spread badge, and a per-doctor workload table (CSS bars + inactive-doctor flags). **Doctors** see a personal dashboard: current-month progress vs. their `max_monthly_duties` cap, a published-only "who's on call today + next 7 days" list (their own shifts highlighted), and their upcoming duties. The `/stats` endpoints aggregate `schedules`/`duties` server-side (parameterized SQL, no ORM): `/stats/admin` is admin-only (`authenticate` + `authorize('administrator')`), `/stats/me` resolves the caller's own doctor profile (admin → 404). Doctors see `published` schedules only (enforced in SQL); admins see draft + published; doctors still receive 403 on every `/schedules` and `/duties` route. No DB migration and no new frontend dependencies.
+
+The remaining business feature (reports) arrives in a later phase.
 
 ## Roadmap
 
@@ -26,7 +28,7 @@ Remaining business features (statistics, reports) arrive in later phases.
 4. Availability Management (complete)
 5. Scheduling Engine (complete)
 6. Schedule Management UI (complete)
-7. Statistics & Dashboard
+7. Statistics & Dashboard (complete)
 8. Reporting
 
 Multi-hospital is out of scope: the system targets a single hospital.
@@ -232,6 +234,14 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - Doctors get 403 on all schedule/duty routes and on holiday mutations; nav links and routes are admin-gated.
 - `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.
 
+## Definition of Done (Phase 7)
+
+- The role-aware home at `/` renders the admin dashboard for administrators and the doctor dashboard for doctors; the static marketing card is gone.
+- Admin home shows month-selectable coverage (filled/gaps), a fairness spread badge, and a per-doctor workload table (with CSS bars and inactive flags); an empty state links to `/schedules` when the selected month has no schedule.
+- Doctor home shows current-month progress vs. cap, a published-only who's-on-call list (today + 7 days, `isMine` highlighted), and upcoming duties, each with an empty state.
+- `GET /stats/admin` is admin-only (doctor → 403, unauth → 401); `GET /stats/me` resolves the caller's own doctor profile (admin → 404, unauth → 401). Doctors see `published` schedules only; admins see draft + published; doctors still receive 403 on every `/schedules` and `/duties` route. The published-only filter is enforced in SQL.
+- `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.
+
 ## Documentation
 
 - Design: `docs/superpowers/specs/2026-08-06-phase1-foundation-design.md`
@@ -244,4 +254,6 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 - Phase 5 implementation plan: `docs/superpowers/plans/2026-08-07-phase5-scheduling-engine-plan.md`
 - Phase 6 design: `docs/superpowers/specs/2026-08-07-phase6-schedule-ui-design.md`
 - Phase 6 implementation plan: `docs/superpowers/plans/2026-08-07-phase6-schedule-ui-plan.md`
+- Phase 7 design: `docs/superpowers/specs/2026-08-07-phase7-statistics-dashboard-design.md`
+- Phase 7 implementation plan: `docs/superpowers/plans/2026-08-07-phase7-statistics-dashboard-plan.md`
 - Project conventions: `AGENTS.md`
