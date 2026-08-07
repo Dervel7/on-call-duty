@@ -63,6 +63,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     if (next) res = await send(next)
   }
 
+  if (res.status === 204) return undefined as T
+
   const json = await parseEnvelope(res)
   if (res.ok && json.success === true) return json.data as T
   throw new ApiError(json.error ?? 'Request failed', res.status)

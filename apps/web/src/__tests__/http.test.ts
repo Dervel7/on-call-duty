@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
+  apiDelete,
   apiGet,
   apiPost,
   setAccessToken,
@@ -65,5 +66,13 @@ describe('http client', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
     const secondInit = fetchMock.mock.calls[1]?.[1] as RequestInit
     expect((secondInit.headers as Record<string, string>).Authorization).toBe('Bearer NEW')
+  })
+
+  it('treats a 204 No Content response as a successful delete', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      new Response(null, { status: 204 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(apiDelete<void>('/x')).resolves.toBeUndefined()
   })
 })
