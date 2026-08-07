@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import type { ConflictPlan, ScheduleSummary } from '@oncall/shared'
+import type { ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import * as scheduleService from '@/services/schedule'
 import Button from '@/components/ui/Button.vue'
@@ -51,9 +51,6 @@ interface GenState {
   open: boolean
   year: string
   month: string
-  previewing: boolean
-  assignments: number
-  conflicts: ConflictPlan[]
   errorMsg: string
   generating: boolean
 }
@@ -61,9 +58,6 @@ const emptyGen = (): GenState => ({
   open: false,
   year: String(new Date().getFullYear()),
   month: String(new Date().getMonth() + 1),
-  previewing: false,
-  assignments: 0,
-  conflicts: [],
   errorMsg: '',
   generating: false,
 })
@@ -74,10 +68,7 @@ function openGenerate() {
   gen.value.open = true
 }
 
-async function runPreview() {
-  gen.value.errorMsg = ''
-  gen.value.conflicts = []
-  gen.value.assignments = 0
+function goPreview() {
   const parsed = createScheduleSchema.safeParse({
     year: Number(gen.value.year),
     month: Number(gen.value.month),
@@ -86,16 +77,8 @@ async function runPreview() {
     gen.value.errorMsg = parsed.error.issues[0]?.message ?? 'Invalid input'
     return
   }
-  gen.value.previewing = true
-  try {
-    const result = await scheduleService.preview(parsed.data.year, parsed.data.month)
-    gen.value.assignments = result.assignments.length
-    gen.value.conflicts = result.conflicts
-  } catch (e) {
-    gen.value.errorMsg = e instanceof Error ? e.message : 'Failed to preview'
-  } finally {
-    gen.value.previewing = false
-  }
+  gen.value.open = false
+  router.push({ path: '/schedules/preview', query: { year: gen.value.year, month: gen.value.month } })
 }
 
 async function runGenerate() {
@@ -183,28 +166,15 @@ onMounted(load)
         </div>
 
         <div class="flex items-center gap-2">
-          <Button type="button" variant="outline" :disabled="gen.previewing" @click="runPreview">
-            {{ gen.previewing ? 'Previewing…' : 'Preview' }}
-          </Button>
-          <Button type="submit" :disabled="gen.assignments === 0 || gen.conflicts.length > 0 || gen.generating">
+          <Button type="button" variant="outline" @click="goPreview">Preview</Button>
+          <Button type="submit" :disabled="gen.generating">
             {{ gen.generating ? 'Generating…' : 'Generate' }}
           </Button>
         </div>
 
         <p v-if="gen.errorMsg" class="text-sm text-destructive" role="alert">{{ gen.errorMsg }}</p>
-
-        <div v-if="gen.conflicts.length > 0"
-          class="flex flex-col gap-1 rounded-md border border-destructive/40 bg-destructive/5 p-3">
-          <p class="text-sm font-medium text-destructive">
-            Resolve {{ gen.conflicts.length }} unfillable day(s) first (adjust availability, doctor capacity, or
-            holidays).
-          </p>
-          <ul class="text-xs text-muted-foreground">
-            <li v-for="c in gen.conflicts" :key="c.date">{{ c.date }} — {{ c.detail }}</li>
-          </ul>
-        </div>
-        <p v-else-if="gen.assignments > 0" class="text-sm text-muted-foreground">
-          {{ gen.assignments }} day(s) ready to assign. No conflicts — Generate to create.
+        <p v-else class="text-xs text-muted-foreground">
+          Use Preview to review the proposed calendar before generating.
         </p>
       </form>
     </Dialog>
