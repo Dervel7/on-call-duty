@@ -27,6 +27,7 @@ function userRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 1,
     email: 'admin@oncall.local',
+    username: 'admin',
     password_hash: SEED_HASH,
     role: 'administrator',
     first_name: 'System',
@@ -46,18 +47,29 @@ beforeEach(() => {
 })
 
 describe('auth.service', () => {
-  it('login returns tokens on valid credentials', async () => {
+  it('login returns tokens on valid credentials (by email)', async () => {
     query.mockResolvedValue({ rows: [userRow()] })
-    const r = await login({ email: 'admin@oncall.local', password: 'changeme123' })
+    const r = await login({ identifier: 'admin@oncall.local', password: 'changeme123' })
     expect(r.accessToken).toBe('ACCESS')
     expect(r.refreshToken).toBe('REFRESH')
     expect(r.user.email).toBe('admin@oncall.local')
+    expect(r.user.username).toBe('admin')
     expect(bcrypt.compare).toHaveBeenCalledWith('changeme123', SEED_HASH)
+  })
+
+  it('login by username resolves via the username lookup', async () => {
+    query.mockResolvedValue({ rows: [userRow()] })
+    const r = await login({ identifier: 'admin', password: 'changeme123' })
+    expect(r.accessToken).toBe('ACCESS')
+    expect(r.user.username).toBe('admin')
+    const sql = query.mock.calls[0]?.[0] as string
+    expect(sql).toContain('WHERE username = $1')
+    expect(query.mock.calls[0]?.[1]).toEqual(['admin'])
   })
 
   it('login throws 401 when user not found', async () => {
     query.mockResolvedValue({ rows: [] })
-    await expect(login({ email: 'x@y.z', password: 'whatever' })).rejects.toMatchObject({
+    await expect(login({ identifier: 'x@y.z', password: 'whatever' })).rejects.toMatchObject({
       status: 401,
     })
   })
@@ -65,16 +77,16 @@ describe('auth.service', () => {
   it('login throws 401 on wrong password', async () => {
     query.mockResolvedValue({ rows: [userRow()] })
     compare.mockResolvedValue(false)
-    await expect(login({ email: 'admin@oncall.local', password: 'bad' })).rejects.toMatchObject({
+    await expect(login({ identifier: 'admin@oncall.local', password: 'bad' })).rejects.toMatchObject({
       status: 401,
     })
   })
 
   it('login throws 403 when inactive', async () => {
     query.mockResolvedValue({ rows: [userRow({ is_active: false })] })
-    await expect(login({ email: 'admin@oncall.local', password: 'changeme123' })).rejects.toMatchObject({
-      status: 403,
-    })
+    await expect(
+      login({ identifier: 'admin@oncall.local', password: 'changeme123' }),
+    ).rejects.toMatchObject({ status: 403 })
   })
 
   it('refresh returns a new access token from the rotated token', async () => {

@@ -23,6 +23,7 @@ function doctorRow(overrides: Partial<Record<string, unknown>> = {}) {
     id: 1,
     user_id: 10,
     email: 'd@h.com',
+    username: 'dr1',
     first_name: 'Jane',
     last_name: 'Roe',
     is_active: true,
@@ -56,7 +57,7 @@ describe('doctor.service', () => {
   it('create rejects duplicate email with 409', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: 9 }] })
     await expect(
-      create({ email: 'd@h.com', password: 'secret1', firstName: 'J', lastName: 'R' }),
+      create({ email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' }),
     ).rejects.toMatchObject({ status: 409 })
   })
 
@@ -65,12 +66,14 @@ describe('doctor.service', () => {
     query.mockImplementation(async () => {
       n++
       if (n === 1) return { rows: [] }
-      if (n === 2) return { rows: [{ id: 10 }] }
-      if (n === 3) return { rows: [] }
+      if (n === 2) return { rows: [] }
+      if (n === 3) return { rows: [{ id: 10 }] }
+      if (n === 4) return { rows: [] }
       return { rows: [doctorRow({ user_id: 10, max_monthly_duties: 5 })] }
     })
     const d = await create({
       email: 'd@h.com',
+      username: 'dr1',
       password: 'secret1',
       firstName: 'Jane',
       lastName: 'Roe',
@@ -78,9 +81,9 @@ describe('doctor.service', () => {
     })
     expect(d.userId).toBe(10)
     expect(d.maxMonthlyDuties).toBe(5)
-    const insertUserSql = query.mock.calls[1]?.[0] as string
+    const insertUserSql = query.mock.calls[2]?.[0] as string
     expect(insertUserSql).toContain("'doctor'")
-    expect((query.mock.calls[2]?.[1] as unknown[])).toEqual([10, 5])
+    expect((query.mock.calls[3]?.[1] as unknown[])).toEqual([10, 5])
     expect(hash).toHaveBeenCalledWith('secret1', 12)
   })
 

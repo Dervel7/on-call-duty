@@ -11,6 +11,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 1,
     email: 'd@h.com',
+    username: 'dr1',
     password_hash: 'x',
     role: 'doctor',
     first_name: 'Jane',
@@ -47,12 +48,13 @@ describe('RBAC on /users', () => {
 describe('POST /users (admin)', () => {
   it('returns 201 and creates a user', async () => {
     query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [row({ id: 5, email: 'new@h.com' })] })
     const token = signAccessToken({ sub: 2, role: 'administrator' })
     const res = await request(app)
       .post('/users')
       .set('Authorization', `Bearer ${token}`)
-      .send({ email: 'new@h.com', password: 'secret1', role: 'doctor', firstName: 'Jane', lastName: 'Roe' })
+      .send({ email: 'new@h.com', username: 'newdr', password: 'secret1', role: 'doctor', firstName: 'Jane', lastName: 'Roe' })
     expect(res.status).toBe(201)
     expect(res.body.data.user.email).toBe('new@h.com')
   })
@@ -63,7 +65,7 @@ describe('POST /users (admin)', () => {
     const res = await request(app)
       .post('/users')
       .set('Authorization', `Bearer ${token}`)
-      .send({ email: 'd@h.com', password: 'secret1', role: 'doctor', firstName: 'Jane', lastName: 'Roe' })
+      .send({ email: 'd@h.com', username: 'newdr', password: 'secret1', role: 'doctor', firstName: 'Jane', lastName: 'Roe' })
     expect(res.status).toBe(409)
   })
 })

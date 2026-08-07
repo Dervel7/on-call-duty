@@ -6,6 +6,7 @@ import type { CreateUserRequest, UpdateUserRequest, User } from '@oncall/shared'
 interface UserRow {
   id: number
   email: string
+  username: string
   password_hash: string
   role: 'administrator' | 'doctor'
   first_name: string
@@ -14,12 +15,13 @@ interface UserRow {
   created_at: Date
 }
 
-const COLUMNS = `id, email, password_hash, role, first_name, last_name, is_active, created_at`
+const COLUMNS = `id, email, username, password_hash, role, first_name, last_name, is_active, created_at`
 
 function toUser(row: UserRow): User {
   return {
     id: row.id,
     email: row.email,
+    username: row.username,
     role: row.role,
     firstName: row.first_name,
     lastName: row.last_name,
@@ -45,13 +47,15 @@ export async function getById(id: number): Promise<User> {
 }
 
 export async function create(input: CreateUserRequest): Promise<User> {
-  const existing = await query(`SELECT id FROM users WHERE email = $1`, [input.email])
-  if (existing.rows.length > 0) throw new HttpError(409, 'Email already in use')
+  const existingEmail = await query(`SELECT id FROM users WHERE email = $1`, [input.email])
+  if (existingEmail.rows.length > 0) throw new HttpError(409, 'Email already in use')
+  const existingUsername = await query(`SELECT id FROM users WHERE username = $1`, [input.username])
+  if (existingUsername.rows.length > 0) throw new HttpError(409, 'Username already in use')
   const passwordHash = await bcrypt.hash(input.password, 12)
   const res = await query<UserRow>(
-    `INSERT INTO users (email, password_hash, role, first_name, last_name)
-     VALUES ($1, $2, $3, $4, $5) RETURNING ${COLUMNS}`,
-    [input.email, passwordHash, input.role, input.firstName, input.lastName],
+    `INSERT INTO users (email, username, password_hash, role, first_name, last_name)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${COLUMNS}`,
+    [input.email, input.username, passwordHash, input.role, input.firstName, input.lastName],
   )
   const row = oneRow(res.rows)
   if (!row) throw new HttpError(500, 'Failed to create user')
@@ -63,6 +67,7 @@ export async function update(id: number, input: UpdateUserRequest): Promise<User
   const params: unknown[] = []
   const map: Array<[string, unknown]> = [
     ['email', input.email],
+    ['username', input.username],
     ['role', input.role],
     ['first_name', input.firstName],
     ['last_name', input.lastName],

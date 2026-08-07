@@ -7,6 +7,7 @@ interface DoctorRow {
   id: number
   user_id: number
   email: string
+  username: string
   first_name: string
   last_name: string
   is_active: boolean
@@ -16,7 +17,7 @@ interface DoctorRow {
 }
 
 const SELECT = `SELECT d.id, d.user_id, d.max_monthly_duties, d.created_at, d.updated_at,
-  u.email, u.first_name, u.last_name, u.is_active
+  u.email, u.username, u.first_name, u.last_name, u.is_active
   FROM doctors d JOIN users u ON u.id = d.user_id`
 
 function toDoctor(row: DoctorRow): Doctor {
@@ -24,6 +25,7 @@ function toDoctor(row: DoctorRow): Doctor {
     id: row.id,
     userId: row.user_id,
     email: row.email,
+    username: row.username,
     firstName: row.first_name,
     lastName: row.last_name,
     isActive: row.is_active,
@@ -54,13 +56,15 @@ export async function getByUserId(userId: number): Promise<Doctor> {
 
 export async function create(input: CreateDoctorRequest): Promise<Doctor> {
   const userId = await withTransaction(async (client) => {
-    const dup = await client.query('SELECT id FROM users WHERE email = $1', [input.email])
-    if (dup.rows.length > 0) throw new HttpError(409, 'Email already in use')
+    const dupEmail = await client.query('SELECT id FROM users WHERE email = $1', [input.email])
+    if (dupEmail.rows.length > 0) throw new HttpError(409, 'Email already in use')
+    const dupUser = await client.query('SELECT id FROM users WHERE username = $1', [input.username])
+    if (dupUser.rows.length > 0) throw new HttpError(409, 'Username already in use')
     const passwordHash = await bcrypt.hash(input.password, 12)
     const ins = await client.query(
-      `INSERT INTO users (email, password_hash, role, first_name, last_name)
-       VALUES ($1, $2, 'doctor', $3, $4) RETURNING id`,
-      [input.email, passwordHash, input.firstName, input.lastName],
+      `INSERT INTO users (email, username, password_hash, role, first_name, last_name)
+       VALUES ($1, $2, $3, 'doctor', $4, $5) RETURNING id`,
+      [input.email, input.username, passwordHash, input.firstName, input.lastName],
     )
     const id = ins.rows[0]?.id
     if (id === undefined) throw new HttpError(500, 'Failed to create user')
@@ -87,6 +91,7 @@ export async function update(id: number, input: UpdateDoctorRequest): Promise<Do
     const params: unknown[] = []
     const map: Array<[string, unknown]> = [
       ['email', input.email],
+      ['username', input.username],
       ['first_name', input.firstName],
       ['last_name', input.lastName],
       ['is_active', input.isActive],

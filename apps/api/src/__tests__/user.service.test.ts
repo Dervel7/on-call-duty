@@ -12,6 +12,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 1,
     email: 'd@h.com',
+    username: 'dr1',
     password_hash: 'HASH',
     role: 'doctor',
     first_name: 'Jane',
@@ -40,15 +41,40 @@ describe('user.service', () => {
   it('create rejects duplicate email with 409', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: 9 }] })
     await expect(
-      create({ email: 'd@h.com', password: 'secret1', role: 'doctor', firstName: 'J', lastName: 'R' }),
+      create({
+        email: 'd@h.com',
+        username: 'dr1',
+        password: 'secret1',
+        role: 'doctor',
+        firstName: 'J',
+        lastName: 'R',
+      }),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('create rejects duplicate username with 409', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 9 }] })
+    await expect(
+      create({
+        email: 'd@h.com',
+        username: 'dr1',
+        password: 'secret1',
+        role: 'doctor',
+        firstName: 'J',
+        lastName: 'R',
+      }),
     ).rejects.toMatchObject({ status: 409 })
   })
 
   it('create hashes the password and inserts', async () => {
     query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [row()] })
     const u = await create({
       email: 'd@h.com',
+      username: 'dr1',
       password: 'secret1',
       role: 'doctor',
       firstName: 'Jane',
@@ -56,7 +82,7 @@ describe('user.service', () => {
     })
     expect(hash).toHaveBeenCalledWith('secret1', 12)
     expect(u.email).toBe('d@h.com')
-    const insertSql = query.mock.calls[1]?.[0] as string
+    const insertSql = query.mock.calls[2]?.[0] as string
     expect(insertSql).toContain('INSERT INTO users')
   })
 

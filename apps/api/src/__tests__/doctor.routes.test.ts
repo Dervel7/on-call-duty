@@ -30,6 +30,7 @@ const row = () => ({
   id: 1,
   user_id: 10,
   email: 'd@h.com',
+  username: 'dr1',
   first_name: 'Jane',
   last_name: 'Roe',
   is_active: true,
@@ -84,14 +85,15 @@ describe('doctor routes', () => {
     query.mockImplementation(async () => {
       n++
       if (n === 1) return { rows: [] }
-      if (n === 2) return { rows: [{ id: 12 }] }
-      if (n === 3) return { rows: [] }
+      if (n === 2) return { rows: [] }
+      if (n === 3) return { rows: [{ id: 12 }] }
+      if (n === 4) return { rows: [] }
       return { rows: [row()] }
     })
     const res = await request(build())
       .post('/doctors')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ email: 'new@h.com', password: 'secret1', firstName: 'Jane', lastName: 'Roe' })
+      .send({ email: 'new@h.com', username: 'newdr', password: 'secret1', firstName: 'Jane', lastName: 'Roe' })
     expect(res.status).toBe(201)
     expect(res.body.data.doctor).toBeDefined()
   })
@@ -100,7 +102,7 @@ describe('doctor routes', () => {
     const res = await request(build())
       .post('/doctors')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ email: 'new@h.com', password: 'secret1', firstName: 'Jane', lastName: 'Roe', maxMonthlyDuties: 9 })
+      .send({ email: 'new@h.com', username: 'newdr', password: 'secret1', firstName: 'Jane', lastName: 'Roe', maxMonthlyDuties: 9 })
     expect(res.status).toBe(400)
   })
 })

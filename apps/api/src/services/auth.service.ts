@@ -8,6 +8,7 @@ import * as tokenService from './token.service'
 interface UserRow {
   id: number
   email: string
+  username: string
   password_hash: string
   role: 'administrator' | 'doctor'
   first_name: string
@@ -20,16 +21,24 @@ function toAuthUser(row: UserRow): AuthUser {
   return {
     id: row.id,
     email: row.email,
+    username: row.username,
     role: row.role,
     firstName: row.first_name,
     lastName: row.last_name,
   }
 }
 
-const USER_COLUMNS = `id, email, password_hash, role, first_name, last_name, is_active, created_at`
+const USER_COLUMNS = `id, email, username, password_hash, role, first_name, last_name, is_active, created_at`
 
 async function findUserByEmail(email: string): Promise<UserRow | undefined> {
   const res = await query<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE email = $1`, [email])
+  return res.rows[0]
+}
+
+async function findUserByUsername(username: string): Promise<UserRow | undefined> {
+  const res = await query<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE username = $1`, [
+    username,
+  ])
   return res.rows[0]
 }
 
@@ -41,7 +50,9 @@ async function findUserById(id: number): Promise<UserRow | undefined> {
 export async function login(
   input: LoginRequest,
 ): Promise<{ user: AuthUser; accessToken: string; refreshToken: string }> {
-  const row = await findUserByEmail(input.email)
+  const row = input.identifier.includes('@')
+    ? await findUserByEmail(input.identifier)
+    : await findUserByUsername(input.identifier)
   if (!row) throw new HttpError(401, 'Invalid credentials')
   const ok = await bcrypt.compare(input.password, row.password_hash)
   if (!ok) throw new HttpError(401, 'Invalid credentials')

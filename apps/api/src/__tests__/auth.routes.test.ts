@@ -25,6 +25,7 @@ function userRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 1,
     email: 'admin@oncall.local',
+    username: 'admin',
     password_hash: SEED_HASH,
     role: 'administrator',
     first_name: 'System',
@@ -42,7 +43,7 @@ describe('POST /auth/login', () => {
     query.mockResolvedValue({ rows: [userRow()] })
     const res = await request(buildApp())
       .post('/auth/login')
-      .send({ email: 'admin@oncall.local', password: 'changeme123' })
+      .send({ identifier: 'admin@oncall.local', password: 'changeme123' })
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
     expect(res.body.data.accessToken).toBeTruthy()
@@ -53,7 +54,7 @@ describe('POST /auth/login', () => {
   })
 
   it('returns 400 on invalid body', async () => {
-    const res = await request(buildApp()).post('/auth/login').send({ email: 'x', password: '1' })
+    const res = await request(buildApp()).post('/auth/login').send({ identifier: '', password: '1' })
     expect(res.status).toBe(400)
   })
 
@@ -61,7 +62,7 @@ describe('POST /auth/login', () => {
     query.mockResolvedValue({ rows: [userRow()] })
     const res = await request(buildApp())
       .post('/auth/login')
-      .send({ email: 'admin@oncall.local', password: 'wrongpass' })
+      .send({ identifier: 'admin@oncall.local', password: 'wrongpass' })
     expect(res.status).toBe(401)
   })
 })
