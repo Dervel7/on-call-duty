@@ -600,6 +600,8 @@ import type {
 import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
 
+type Actor = Pick<AuthUser, 'id' | 'role'>
+
 interface UnavailabilityRow {
   id: number
   doctor_id: number
@@ -648,7 +650,7 @@ async function getById(id: number): Promise<Unavailability> {
   return toUnavailability(row)
 }
 
-async function assertOwns(recordDoctorId: number, actor: AuthUser): Promise<void> {
+async function assertOwns(recordDoctorId: number, actor: Actor): Promise<void> {
   if (actor.role === 'administrator') return
   const ownDoctorId = await resolveDoctorId(actor.id)
   if (ownDoctorId !== recordDoctorId) throw new HttpError(403, 'Forbidden')
@@ -716,7 +718,7 @@ export async function createOwn(
 export async function update(
   id: number,
   input: UpdateUnavailabilityRequest,
-  actor: AuthUser,
+  actor: Actor,
 ): Promise<Unavailability> {
   const existing = await query<{ doctor_id: number; start_date: string; end_date: string }>(
     'SELECT doctor_id, start_date, end_date FROM unavailability WHERE id = $1',
@@ -763,7 +765,7 @@ export async function update(
   return getById(id)
 }
 
-export async function remove(id: number, actor: AuthUser): Promise<void> {
+export async function remove(id: number, actor: Actor): Promise<void> {
   const existing = await query<{ doctor_id: number }>(
     'SELECT doctor_id FROM unavailability WHERE id = $1',
     [id],
