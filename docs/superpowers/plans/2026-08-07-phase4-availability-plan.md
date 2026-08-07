@@ -1216,7 +1216,7 @@ git commit -m "feat(web): unavailability service"
 Create `apps/web/src/__tests__/AvailabilityPage.test.ts`:
 ```ts
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const listAll = vi.fn()
@@ -1265,8 +1265,7 @@ describe('AvailabilityPage', () => {
       },
     ])
     const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
-    await wrapper.vm.$nextTick()
-    await wrapper.vm.$nextTick()
+    await flushPromises()
     expect(wrapper.text()).toContain('Jane')
     expect(wrapper.text()).toContain('2026-09-07')
   })
@@ -1275,8 +1274,7 @@ describe('AvailabilityPage', () => {
     doctorList.mockResolvedValue([])
     listAll.mockRejectedValue(new Error('nope'))
     const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
-    await wrapper.vm.$nextTick()
-    await wrapper.vm.$nextTick()
+    await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
   })
 })

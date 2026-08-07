@@ -35,6 +35,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../pages/DoctorsPage.vue'),
         meta: { roles: ['administrator'] },
       },
+      {
+        path: 'availability',
+        name: 'availability',
+        component: () => import('../pages/AvailabilityPage.vue'),
+        meta: { roles: ['administrator'] },
+      },
     ],
   },
 ]
