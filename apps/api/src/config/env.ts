@@ -10,6 +10,16 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1),
   CORS_ORIGIN: z.string().default('http://localhost:5174'),
   LOG_LEVEL: z.string().default('info'),
+
+  JWT_ACCESS_SECRET: z.string().min(1),
+  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  COOKIE_SECURE: z
+    .string()
+    .optional()
+    .transform((v) => (v === undefined ? process.env.NODE_ENV === 'production' : v === 'true')),
+  COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  COOKIE_DOMAIN: z.string().optional(),
 })
 
 const parsed = schema.safeParse(process.env)

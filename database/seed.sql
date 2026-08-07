@@ -1,2 +1,39 @@
 INSERT INTO app_meta (key, value) VALUES ('schema_version', '1')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
+
+-- Phase 2: seed administrator (password: changeme123 - change on first login)
+INSERT INTO users (email, password_hash, role, first_name, last_name, is_active)
+VALUES (
+  'admin@oncall.local',
+  '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi',
+  'administrator',
+  'System',
+  'Administrator',
+  TRUE
+)
+ON CONFLICT (email) DO UPDATE SET
+  password_hash = EXCLUDED.password_hash,
+  role          = EXCLUDED.role,
+  is_active     = TRUE,
+  updated_at    = NOW();
+
+-- Phase 3: seed sample doctors (password = email, change on first login)
+INSERT INTO users (email, password_hash, role, first_name, last_name, is_active)
+VALUES
+  ('dr1@oncall.local', '$2b$12$sf0hxnuWvwI17HpZNo.VBubjp35/R3CXtabJsFMpjQxA/erV9m21G', 'doctor', 'Jane',  'Roe',   TRUE),
+  ('dr2@oncall.local', '$2b$12$CxcEXDtGy52WGatK9YCNlOdyS6yp1uNd4Ac8f68YZOmHYXN2HR8Sq', 'doctor', 'John',  'Smith', TRUE),
+  ('dr3@oncall.local', '$2b$12$nXzGkWp0gNlyFOj8/dp6oOQ0BH7twg.VkgYF95PqOzagOTZsBrJOW', 'doctor', 'Maria', 'Garcia', TRUE)
+ON CONFLICT (email) DO UPDATE SET
+  password_hash = EXCLUDED.password_hash,
+  role          = EXCLUDED.role,
+  is_active     = TRUE,
+  updated_at    = NOW();
+
+INSERT INTO doctors (user_id, max_monthly_duties)
+VALUES
+  ((SELECT id FROM users WHERE email = 'dr1@oncall.local'), 7),
+  ((SELECT id FROM users WHERE email = 'dr2@oncall.local'), 5),
+  ((SELECT id FROM users WHERE email = 'dr3@oncall.local'), 7)
+ON CONFLICT (user_id) DO UPDATE SET
+  max_monthly_duties = EXCLUDED.max_monthly_duties,
+  updated_at         = NOW();
