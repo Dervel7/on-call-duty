@@ -4,5 +4,5 @@ import { cn } from '@/lib/utils'
 const props = defineProps<{ class?: HTMLAttributes['class'] }>()
 </script>
 <template>
-  <td :class="cn('p-3 align-middle', props.class)"><slot /></td>
+  <td :class="cn('p-3 align-middle text-foreground', props.class)"><slot /></td>
 </template>

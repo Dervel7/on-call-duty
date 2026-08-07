@@ -14,6 +14,7 @@ import * as doctorService from '@/services/doctor'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Label from '@/components/ui/Label.vue'
+import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -292,16 +293,12 @@ onMounted(async () => {
       <form class="flex flex-col gap-3" novalidate @submit.prevent="saveOverride">
         <div class="flex flex-col gap-1">
           <Label for="o-doctor">Doctor</Label>
-          <select
-            id="o-doctor"
-            v-model="override.doctorId"
-            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          >
+          <Select id="o-doctor" v-model="override.doctorId">
             <option value="" disabled>Select a doctor</option>
             <option v-for="d in doctors" :key="d.id" :value="d.id">
               {{ d.firstName }} {{ d.lastName }}
             </option>
-          </select>
+          </Select>
         </div>
         <p v-if="override.errorMsg" class="text-sm text-destructive" role="alert">{{ override.errorMsg }}</p>
         <div class="flex justify-end gap-2">

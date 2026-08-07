@@ -1,31 +1,53 @@
 @import "tailwindcss";
 
+/*
+ * On-Call Duty — global design tokens.
+ * Re-theme the whole app from here: colors live as HSL channels so opacity
+ * modifiers (bg-primary/10) keep working. Fonts, radius and shadows are
+ * mapped into Tailwind through @theme inline below.
+ */
 :root {
+  /* surfaces */
   --background: 210 40% 98%;
-  --foreground: 222 47% 11%;
+  --background-tint: 211 100% 99%;
+  --foreground: 215 28% 17%;
   --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
+  --card-foreground: 215 28% 17%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --primary: 211 100% 45%;
+  --popover-foreground: 215 28% 17%;
+
+  /* brand — medical blue */
+  --primary: 215 90% 48%;
   --primary-foreground: 0 0% 100%;
+
+  /* scrub teal accent */
+  --accent: 173 58% 40%;
+  --accent-foreground: 0 0% 100%;
+
+  /* semantic */
   --secondary: 210 40% 96%;
-  --secondary-foreground: 222 47% 11%;
+  --secondary-foreground: 215 28% 17%;
   --muted: 210 40% 96%;
   --muted-foreground: 215 16% 47%;
-  --accent: 152 56% 40%;
-  --accent-foreground: 0 0% 100%;
+  --info: 199 85% 52%;
+  --info-foreground: 0 0% 100%;
+  --success: 142 71% 45%;
+  --success-foreground: 0 0% 100%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
+
+  /* lines + focus */
   --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 211 100% 45%;
-  --success: 142 71% 45%;
-  --radius: 0.5rem;
+  --input: 214 32% 88%;
+  --ring: 215 90% 48%;
+
+  /* shape */
+  --radius: 0.65rem;
 }
 
 @theme inline {
   --color-background: hsl(var(--background));
+  --color-background-tint: hsl(var(--background-tint));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
@@ -39,22 +61,172 @@
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --color-success: hsl(var(--success));
+
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
   --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 0.15rem);
+  --radius-sm: calc(var(--radius) - 0.3rem);
+
+  --shadow-card: 0 1px 2px hsl(var(--foreground) / 0.04), 0 1px 3px hsl(var(--foreground) / 0.06);
+  --shadow-pop: 0 18px 40px -12px hsl(215 50% 20% / 0.28), 0 6px 16px -6px hsl(215 50% 20% / 0.14);
+  --shadow-header: 0 1px 0 hsl(var(--border)), 0 6px 18px -10px hsl(var(--foreground) / 0.1);
 }
 
 @layer base {
   * {
     border-color: hsl(var(--border));
   }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(1200px 360px at 100% -10%, hsl(var(--primary) / 0.06), transparent 60%),
+      radial-gradient(900px 320px at -10% 0%, hsl(var(--accent) / 0.05), transparent 55%);
+    background-attachment: fixed;
     color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: hsl(var(--foreground));
+    letter-spacing: -0.01em;
+  }
+
+  ::selection {
+    background-color: hsl(var(--primary) / 0.18);
+    color: hsl(var(--foreground));
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring) / 0.55);
+  }
+
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border: 3px solid hsl(var(--background));
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+@layer components {
+  .nav-link {
+    position: relative;
+    padding: 0.5rem 0.25rem;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: color 0.15s ease;
+  }
+  .nav-link:hover {
+    color: hsl(var(--foreground));
+  }
+  .nav-link.is-active {
+    color: hsl(var(--primary));
+  }
+  .nav-link.is-active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)));
+  }
+
+  .brand-tile {
+    display: grid;
+    place-items: center;
+    height: 2.25rem;
+    width: 2.25rem;
+    border-radius: 0.6rem;
+    background: linear-gradient(160deg, hsl(var(--primary)), hsl(215 85% 42%));
+    box-shadow: 0 4px 12px -3px hsl(var(--primary) / 0.45), inset 0 1px 0 hsl(0 0% 100% / 0.25);
+  }
+}
+
+@keyframes ekg-draw {
+  from {
+    stroke-dashoffset: var(--ekg-len, 1600);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@layer utilities {
+  .page-enter-active,
+  .page-leave-active {
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .page-enter-from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  .page-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  .ekg-line {
+    stroke-dasharray: var(--ekg-len, 1600);
+    stroke-dashoffset: var(--ekg-len, 1600);
+    animation: ekg-draw 2.1s cubic-bezier(0.65, 0, 0.35, 1) 0.15s forwards;
+  }
+
+  .pulse-ring {
+    animation: pulse-ring 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
   }
 }
 
@@ -68,5 +240,8 @@
   }
   main {
     padding: 0 !important;
+  }
+  body {
+    background: none !important;
   }
 }

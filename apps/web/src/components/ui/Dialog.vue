@@ -28,10 +28,15 @@ watch(
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center">
-      <div class="absolute inset-0 bg-black/50" @click="close" />
-      <div ref="panel" class="relative z-10 w-full max-w-md rounded-xl border bg-card p-6 shadow-lg">
-        <h2 v-if="title" class="mb-4 text-lg font-semibold text-foreground">{{ title }}</h2>
+    <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-foreground/40 backdrop-blur-sm" @click="close" />
+      <div
+        ref="panel"
+        class="relative z-10 w-full max-w-md rounded-xl border border-border/80 bg-card p-6 shadow-pop"
+      >
+        <h2 v-if="title" class="mb-4 text-lg font-semibold tracking-tight text-foreground">
+          {{ title }}
+        </h2>
         <slot />
         <div class="mt-6 flex justify-end gap-2">
           <slot name="footer">

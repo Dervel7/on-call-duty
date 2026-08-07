@@ -4,5 +4,9 @@ import { cn } from '@/lib/utils'
 const props = defineProps<{ class?: HTMLAttributes['class'] }>()
 </script>
 <template>
-  <tr :class="cn('border-b transition-colors hover:bg-muted/50', props.class)"><slot /></tr>
+  <tr
+    :class="cn('border-b border-border/70 transition-colors hover:bg-primary/[0.035]', props.class)"
+  >
+    <slot />
+  </tr>
 </template>

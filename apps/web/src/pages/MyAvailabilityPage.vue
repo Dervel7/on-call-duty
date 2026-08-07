@@ -11,6 +11,7 @@ import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
+import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -158,13 +159,9 @@ onMounted(load)
       <form class="flex flex-col gap-3" novalidate @submit.prevent="save">
         <div class="flex flex-col gap-1">
           <Label for="m-type">Type</Label>
-          <select
-            id="m-type"
-            v-model="edit.type"
-            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          >
+          <Select id="m-type" v-model="edit.type">
             <option v-for="t in TYPES" :key="t" :value="t">{{ t }}</option>
-          </select>
+          </Select>
         </div>
         <div class="flex flex-col gap-1">
           <Label for="m-start">Start date</Label>

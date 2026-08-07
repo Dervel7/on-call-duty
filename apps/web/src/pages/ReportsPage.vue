@@ -10,6 +10,7 @@ import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
+import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -127,13 +128,9 @@ onMounted(load)
       </div>
       <div class="flex flex-col gap-1">
         <Label for="r-month">Month</Label>
-        <select
-          id="r-month"
-          v-model="month"
-          class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-        >
+        <Select id="r-month" v-model="month">
           <option v-for="(m, i) in MONTHS" :key="m" :value="String(i + 1)">{{ m }}</option>
-        </select>
+        </Select>
       </div>
       <Button variant="outline" @click="load">Apply</Button>
     </div>

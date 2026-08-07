@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
+import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -156,8 +157,7 @@ onMounted(load)
             <span
               :class="s.status === 'published'
                 ? 'inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary'
-                : 'inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'"
-            >
+                : 'inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'">
               {{ s.status === 'published' ? 'Published' : 'Draft' }}
             </span>
           </TableCell>
@@ -177,35 +177,27 @@ onMounted(load)
         </div>
         <div class="flex flex-col gap-1">
           <Label for="g-month">Month</Label>
-          <select
-            id="g-month"
-            v-model="gen.month"
-            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          >
+          <Select id="g-month" v-model="gen.month">
             <option v-for="(m, i) in MONTHS" :key="m" :value="String(i + 1)">{{ m }}</option>
-          </select>
+          </Select>
         </div>
 
         <div class="flex items-center gap-2">
           <Button type="button" variant="outline" :disabled="gen.previewing" @click="runPreview">
             {{ gen.previewing ? 'Previewing…' : 'Preview' }}
           </Button>
-          <Button
-            type="submit"
-            :disabled="gen.assignments === 0 || gen.conflicts.length > 0 || gen.generating"
-          >
+          <Button type="submit" :disabled="gen.assignments === 0 || gen.conflicts.length > 0 || gen.generating">
             {{ gen.generating ? 'Generating…' : 'Generate' }}
           </Button>
         </div>
 
         <p v-if="gen.errorMsg" class="text-sm text-destructive" role="alert">{{ gen.errorMsg }}</p>
 
-        <div
-          v-if="gen.conflicts.length > 0"
-          class="flex flex-col gap-1 rounded-md border border-destructive/40 bg-destructive/5 p-3"
-        >
+        <div v-if="gen.conflicts.length > 0"
+          class="flex flex-col gap-1 rounded-md border border-destructive/40 bg-destructive/5 p-3">
           <p class="text-sm font-medium text-destructive">
-            Resolve {{ gen.conflicts.length }} unfillable day(s) first (adjust availability, doctor capacity, or holidays).
+            Resolve {{ gen.conflicts.length }} unfillable day(s) first (adjust availability, doctor capacity, or
+            holidays).
           </p>
           <ul class="text-xs text-muted-foreground">
             <li v-for="c in gen.conflicts" :key="c.date">{{ c.date }} — {{ c.detail }}</li>

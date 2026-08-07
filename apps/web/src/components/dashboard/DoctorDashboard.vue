@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { Activity } from 'lucide-vue-next'
 import type { MeStats } from '@oncall/shared'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -50,14 +51,20 @@ onMounted(load)
     <template v-if="stats">
       <Card>
         <CardHeader>
-          <CardTitle>Welcome, {{ stats.doctor.firstName }}</CardTitle>
+          <CardTitle class="flex items-center gap-2">
+            <Activity class="h-5 w-5 text-primary" />
+            Welcome, {{ stats.doctor.firstName }}
+          </CardTitle>
         </CardHeader>
         <CardContent class="flex flex-col gap-3">
-          <p class="text-sm text-muted-foreground">
+          <p class="text-sm tabular-nums text-muted-foreground">
             {{ stats.currentMonth.duties }} / {{ stats.currentMonth.maxMonthly }} duties this month
           </p>
-          <div class="h-2 w-full rounded bg-muted">
-            <div class="h-2 rounded bg-primary/20" :style="{ width: `${progress}%` }"></div>
+          <div class="h-2.5 w-full rounded-full bg-muted">
+            <div
+              class="h-2.5 rounded-full bg-gradient-to-r from-primary to-accent transition-[width] duration-500"
+              :style="{ width: `${progress}%` }"
+            ></div>
           </div>
           <p v-if="!stats.currentMonth.published" class="text-sm text-muted-foreground">
             This month's schedule isn't published yet.
