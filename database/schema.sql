@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS app_meta (
 CREATE TABLE IF NOT EXISTS users (
   id            INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   email         TEXT NOT NULL UNIQUE,
+  username      TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   role          TEXT NOT NULL DEFAULT 'doctor'
                 CHECK (role IN ('administrator', 'doctor')),
@@ -18,9 +19,16 @@ CREATE TABLE IF NOT EXISTS users (
   last_name     TEXT NOT NULL,
   is_active     BOOLEAN NOT NULL DEFAULT TRUE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (username ~ '^[A-Za-z0-9._-]{3,32}$')
 );
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role) WHERE is_active = TRUE;
+
+-- Username column evolution for pre-existing databases (no migration runner exists)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;
+UPDATE users SET username = split_part(email, '@', 1) WHERE username IS NULL;
+ALTER TABLE users ALTER COLUMN username SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users (username);
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
   id           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
