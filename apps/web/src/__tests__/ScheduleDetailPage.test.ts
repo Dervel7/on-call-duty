@@ -30,33 +30,44 @@ vi.mock('vue-router', () => ({
 }))
 
 import ScheduleDetailPage from '../pages/ScheduleDetailPage.vue'
+import { useAuthStore } from '../stores/auth'
+
+function daysFor(year: number, month: number) {
+  const total = new Date(year, month, 0).getDate()
+  return Array.from({ length: total }, (_, i) => {
+    const iso = `${year}-${String(month).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
+    const dow = new Date(`${iso}T00:00:00`).getDay()
+    return { date: iso, isWeekend: dow === 0 || dow === 6, isHoliday: false, eligibleDoctorIds: [5] }
+  })
+}
 
 function detail(status: 'draft' | 'published') {
   return {
     schedule: {
-      id: 1,
-      year: 2026,
-      month: 9,
-      status,
-      createdBy: 1,
-      createdAt: '2026-09-01T00:00:00.000Z',
-      updatedAt: '2026-09-01T00:00:00.000Z',
+      id: 1, year: 2026, month: 9, status, createdBy: 1,
+      createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z',
     },
     duties: [
       {
-        id: 10,
-        scheduleId: 1,
-        dutyDate: '2026-09-05',
-        doctorId: 5,
-        doctorFirstName: 'Jane',
-        doctorLastName: 'Roe',
-        isWeekend: false,
-        isHoliday: false,
-        reason: 'score 1',
+        id: 10, scheduleId: 1, dutyDate: '2026-09-05', doctorId: 5,
+        doctorFirstName: 'Jane', doctorLastName: 'Roe',
+        isWeekend: false, isHoliday: false, reason: 'score 1',
         createdAt: '2026-09-01T00:00:00.000Z',
       },
     ],
+    days: daysFor(2026, 9),
   }
+}
+
+function mountAs(role: 'administrator' | 'doctor' = 'administrator') {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const auth = useAuthStore()
+  auth.user = {
+    id: 1, role, email: 'a@b.c', username: 'a', firstName: 'A', lastName: 'B', isActive: true,
+  } as never
+  auth.accessToken = 'x'
+  return mount(ScheduleDetailPage, { global: { plugins: [pinia] } })
 }
 
 beforeEach(() => {
@@ -64,44 +75,53 @@ beforeEach(() => {
   get.mockReset()
   publish.mockReset()
   unpublish.mockReset()
-  doctorList.mockResolvedValue([])
+  addDuty.mockReset()
+  reassignDuty.mockReset()
+  removeDuty.mockReset()
+  doctorList.mockResolvedValue([
+    { id: 5, userId: 5, email: 'j@b.c', username: 'j', firstName: 'Jane', lastName: 'Roe', isActive: true, maxMonthlyDuties: 7, createdAt: '', updatedAt: '' },
+  ])
 })
 afterEach(() => vi.restoreAllMocks())
 
 describe('ScheduleDetailPage', () => {
-  it('renders the day-list with the assigned doctor and Edit action', async () => {
+  it('renders the calendar with the assigned doctor (admin, draft, editable)', async () => {
     get.mockResolvedValue(detail('draft'))
-    const wrapper = mount(ScheduleDetailPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     expect(wrapper.text()).toContain('September 2026')
-    expect(wrapper.text()).toContain('Jane Roe')
-    expect(wrapper.text()).toContain('Edit')
+    expect(wrapper.text()).toContain('Roe J.')
+    expect(wrapper.findAll('select').length).toBeGreaterThan(0)
   })
 
-  it('locks override actions when the schedule is published', async () => {
+  it('locks to read-only when published (no selects)', async () => {
     get.mockResolvedValue(detail('published'))
-    const wrapper = mount(ScheduleDetailPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     expect(wrapper.text()).toContain('Published')
-    expect(wrapper.text()).toContain('Locked')
     expect(wrapper.text()).toContain('Revert to draft')
-    expect(wrapper.text()).not.toContain('+ Add')
+    expect(wrapper.findAll('select').length).toBe(0)
   })
 
-  it('publish flips status and locks editing', async () => {
-    get.mockResolvedValue(detail('draft'))
-    publish.mockResolvedValue({
-      id: 1, year: 2026, month: 9, status: 'published', createdBy: 1, createdAt: '', updatedAt: '',
-    })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const wrapper = mount(ScheduleDetailPage, { global: { plugins: [createPinia()] } })
+  it('doctor sees read-only names (no selects, no publish buttons)', async () => {
+    get.mockResolvedValue(detail('published'))
+    const wrapper = mountAs('doctor')
     await flushPromises()
-    expect(wrapper.text()).toContain('Edit')
+    expect(wrapper.text()).toContain('Roe J.')
+    expect(wrapper.findAll('select').length).toBe(0)
+    expect(wrapper.text()).not.toContain('Revert to draft')
+  })
 
-    await wrapper.findAll('button').find((b) => b.text().includes('Publish'))!.trigger('click')
+  it('adds a duty via the inline select and reloads', async () => {
+    get.mockResolvedValueOnce(detail('draft'))
+    addDuty.mockResolvedValue({ id: 99 } as never)
+    get.mockResolvedValue(detail('draft'))
+    const wrapper = mountAs('administrator')
     await flushPromises()
-    expect(publish).toHaveBeenCalledWith(1)
-    expect(wrapper.text()).toContain('Locked')
-    expect(wrapper.text()).not.toContain('+ Add')
+    const select = wrapper.find('select')
+    await select.setValue('5')
+    await flushPromises()
+    expect(addDuty).toHaveBeenCalledWith(1, { date: '2026-09-01', doctorId: 5 })
+    expect(get).toHaveBeenCalledTimes(2)
   })
 })

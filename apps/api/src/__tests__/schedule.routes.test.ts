@@ -52,6 +52,7 @@ const detail = () => ({
     updatedAt: '',
   },
   duties: [],
+  days: [],
 })
 const duty = (id: number, doctorId: number) => ({
   id,
@@ -73,7 +74,7 @@ beforeEach(() => {
 })
 
 describe('schedule routes', () => {
-  it('doctor is forbidden from schedule routes (403); unauthenticated is 401', async () => {
+  it('preview stays admin-only (doctor 403); unauthenticated is 401; doctors can read GET routes', async () => {
     const forbidden = await request(build())
       .post('/schedules/preview')
       .set('Authorization', `Bearer ${doctorToken()}`)
@@ -82,6 +83,18 @@ describe('schedule routes', () => {
 
     const unauth = await request(build()).get('/schedules')
     expect(unauth.status).toBe(401)
+
+    list.mockResolvedValue([])
+    const doctorList = await request(build())
+      .get('/schedules')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+    expect(doctorList.status).toBe(200)
+
+    getById.mockResolvedValue(detail())
+    const doctorDetail = await request(build())
+      .get('/schedules/1')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+    expect(doctorDetail.status).toBe(200)
   })
 
   it('admin preview returns 200 with assignments + conflicts', async () => {
