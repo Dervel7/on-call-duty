@@ -12,7 +12,7 @@ export async function monthlyReport(year: number, month: number): Promise<Monthl
   //    so getById cannot throw 404 here.
   let roster: MonthlyReport['roster'] = []
   if (stats.schedule) {
-    const detail = await scheduleService.getById(stats.schedule.id)
+    const detail = await scheduleService.getScheduleDuties(stats.schedule.id)
     roster = detail.duties
   }
 

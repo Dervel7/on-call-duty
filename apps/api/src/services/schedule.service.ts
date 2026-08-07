@@ -230,7 +230,7 @@ export async function generate(
     }
     return id
   })
-  return getById(scheduleId)
+  return getById(scheduleId, actor)
 }
 
 export async function list(
@@ -259,18 +259,24 @@ export async function list(
   return res.rows.map(toSchedule)
 }
 
-export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail> {
+export async function getScheduleDuties(
+  id: number,
+): Promise<{ schedule: ScheduleSummary; duties: Duty[] }> {
   const sres = await query<ScheduleRow>(`${SELECT_SCHEDULE} WHERE id = $1`, [id])
   const schedule = sres.rows[0]
   if (!schedule) throw new HttpError(404, 'Schedule not found')
+  const dres = await query<DutyRow>(`${SELECT_DUTY} WHERE du.schedule_id = $1 ORDER BY du.duty_date`, [
+    id,
+  ])
+  return { schedule: toSchedule(schedule), duties: dres.rows.map(toDuty) }
+}
+
+export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail> {
+  const { schedule, duties } = await getScheduleDuties(id)
   const isAdmin = actor?.role === 'administrator'
   if (actor && !isAdmin && schedule.status !== 'published') {
     throw new HttpError(403, 'Schedule not published')
   }
-  const dres = await query<DutyRow>(`${SELECT_DUTY} WHERE du.schedule_id = $1 ORDER BY du.duty_date`, [
-    id,
-  ])
-  const duties = dres.rows.map(toDuty)
   const ctx = await buildContext(schedule.year, schedule.month)
   const dutiesByDate = new Map<string, number>()
   const dutyCountByDoctor = new Map<number, number>()
@@ -288,7 +294,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
   if (!isAdmin) {
     days = days.map((d) => ({ ...d, eligibleDoctorIds: [] }))
   }
-  return { schedule: toSchedule(schedule), duties, days }
+  return { schedule, duties, days }
 }
 
 export async function remove(id: number): Promise<void> {
