@@ -240,9 +240,10 @@ export async function generate(
 
   const ctx = await buildContext(year, month)
 
-  const planDuties = assignments
-    ? validatePlan(ctx, assignments)
-    : enginePlanToDuties(runEngine(ctx))
+  const planDuties =
+    assignments && assignments.length > 0
+      ? validatePlan(ctx, assignments)
+      : enginePlanToDuties(runEngine(ctx))
 
   const scheduleId = await withTransaction(async (client) => {
     const ins = await client.query<{ id: number }>(

@@ -286,6 +286,15 @@ describe('generate plan path', () => {
       generate(2026, 9, { id: 2, role: 'administrator' }, assignments),
     ).rejects.toMatchObject({ status: 409 })
   })
+
+  it('treats an empty assignments array as the engine path (not plan path)', async () => {
+    mockContext()
+    const detail = await generate(2026, 9, { id: 2, role: 'administrator' }, [])
+    expect(detail.schedule.id).toBe(7)
+    expect(
+      query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties')).length,
+    ).toBeGreaterThan(0)
+  })
 })
 
 describe('publish / unpublish', () => {

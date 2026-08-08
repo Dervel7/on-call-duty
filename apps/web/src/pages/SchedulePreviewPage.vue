@@ -171,7 +171,7 @@ watch([year, month], load)
       <h1 class="text-xl font-semibold text-foreground">{{ monthLabel }}</h1>
       <div class="flex items-center gap-2">
         <Button variant="outline" @click="router.push('/schedules')">Back</Button>
-        <Button :disabled="errorCount > 0 || generating" @click="generate">
+        <Button :disabled="!result || errorCount > 0 || generating" @click="generate">
           {{ generating ? 'Generating…' : 'Generate' }}
         </Button>
       </div>
