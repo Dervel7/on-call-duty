@@ -156,12 +156,15 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
   const out: DayInfo[] = []
   for (const day of input.days) {
     const eligible: number[] = []
+    const available: number[] = []
     const todays = input.dutiesByDate.get(day.date) ?? new Set<number>()
     const yesterdays = input.dutiesByDate.get(prevDate(day.date))
     const tomorrows = input.dutiesByDate.get(nextDate(day.date))
     for (const doc of input.doctors) {
       const ranges = input.unavailability.get(doc.id)
-      if (!isAvailable(doc.id, day.date, ranges).ok) continue
+      const isAvail = isAvailable(doc.id, day.date, ranges).ok
+      if (isAvail) available.push(doc.id)
+      if (!isAvail) continue
       const assignedToday = todays.has(doc.id)
       const count = (input.dutyCountByDoctor.get(doc.id) ?? 0) - (assignedToday ? 1 : 0)
       if (!underCap(count, doc.maxMonthlyDuties).ok) continue
@@ -179,6 +182,7 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
       isWeekend: day.isWeekend,
       isHoliday: day.isHoliday,
       eligibleDoctorIds: eligible,
+      availableDoctorIds: available,
     })
   }
   return out
@@ -319,7 +323,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     sundayByDoctor,
   })
   if (!isAdmin) {
-    days = days.map((d) => ({ ...d, eligibleDoctorIds: [] }))
+    days = days.map((d) => ({ ...d, eligibleDoctorIds: [], availableDoctorIds: [] }))
   }
   return { schedule, duties, days }
 }

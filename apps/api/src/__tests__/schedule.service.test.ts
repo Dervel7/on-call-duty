@@ -277,7 +277,7 @@ describe('computeEligibility', () => {
       ...empty(),
     })
     expect(result).toEqual([
-      { date: '2026-09-10', isWeekend: false, isHoliday: false, eligibleDoctorIds: [1] },
+      { date: '2026-09-10', isWeekend: false, isHoliday: false, eligibleDoctorIds: [1], availableDoctorIds: [1] },
     ])
   })
 

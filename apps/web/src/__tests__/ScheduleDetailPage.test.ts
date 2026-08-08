@@ -37,7 +37,7 @@ function daysFor(year: number, month: number) {
   return Array.from({ length: total }, (_, i) => {
     const iso = `${year}-${String(month).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
     const dow = new Date(`${iso}T00:00:00`).getDay()
-    return { date: iso, isWeekend: dow === 0 || dow === 6, isHoliday: false, eligibleDoctorIds: [5] }
+    return { date: iso, isWeekend: dow === 0 || dow === 6, isHoliday: false, eligibleDoctorIds: [5], availableDoctorIds: [5] }
   })
 }
 

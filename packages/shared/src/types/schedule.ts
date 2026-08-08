@@ -51,6 +51,7 @@ export interface DayInfo {
   isWeekend: boolean
   isHoliday: boolean
   eligibleDoctorIds: number[]
+  availableDoctorIds: number[]
 }
 
 export interface PreviewResult {
