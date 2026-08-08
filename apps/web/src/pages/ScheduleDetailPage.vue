@@ -37,24 +37,30 @@ const mode = computed<'editable' | 'readonly'>(() =>
   auth.isAdmin && !isPublished.value ? 'editable' : 'readonly',
 )
 
-const dutyIdByDate = computed<Map<string, number>>(() => {
-  const m = new Map<string, number>()
-  for (const d of detail.value?.duties ?? []) m.set(d.dutyDate, d.id)
+const dutyIdsByDate = computed<Map<string, number[]>>(() => {
+  const m = new Map<string, number[]>()
+  for (const d of detail.value?.duties ?? []) {
+    const arr = m.get(d.dutyDate) ?? []
+    arr.push(d.id)
+    m.set(d.dutyDate, arr)
+  }
   return m
 })
 
 const assignmentByDate = computed(() => {
   const m = new Map<
     string,
-    { doctorId: number; firstName: string; lastName: string; reason: string }
+    { doctorId: number; firstName: string; lastName: string; reason: string }[]
   >()
   for (const d of detail.value?.duties ?? []) {
-    m.set(d.dutyDate, {
+    const arr = m.get(d.dutyDate) ?? []
+    arr.push({
       doctorId: d.doctorId,
       firstName: d.doctorFirstName,
       lastName: d.doctorLastName,
       reason: d.reason,
     })
+    m.set(d.dutyDate, arr)
   }
   return m
 })
@@ -106,9 +112,11 @@ async function deleteSchedule() {
   }
 }
 
-async function onSelect(date: string, doctorId: number | null) {
-  const dutyId = dutyIdByDate.value.get(date) ?? null
-  const existing = assignmentByDate.value.get(date)
+async function onSelect(date: string, slotIndex: number, doctorId: number | null) {
+  const dutyIds = dutyIdsByDate.value.get(date) ?? []
+  const dutyId = dutyIds[slotIndex] ?? null
+  const slots = assignmentByDate.value.get(date) ?? []
+  const existing = slots[slotIndex]
   errorMsg.value = ''
   if (doctorId === null) {
     if (dutyId === null) return

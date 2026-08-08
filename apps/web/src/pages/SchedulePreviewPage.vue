@@ -33,15 +33,17 @@ const monthLabel = computed(() =>
 const assignmentByDate = computed(() => {
   const m = new Map<
     string,
-    { doctorId: number; firstName: string; lastName: string; reason: string }
+    { doctorId: number; firstName: string; lastName: string; reason: string }[]
   >()
   for (const a of result.value?.assignments ?? []) {
-    m.set(a.date, {
+    const arr = m.get(a.date) ?? []
+    arr.push({
       doctorId: a.doctorId,
       firstName: a.doctorFirstName,
       lastName: a.doctorLastName,
       reason: a.reason,
     })
+    m.set(a.date, arr)
   }
   return m
 })

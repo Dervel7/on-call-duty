@@ -14,14 +14,17 @@ const props = defineProps<{
   year: number
   month: number
   days: DayInfo[]
-  assignmentByDate: Map<string, CalendarAssignment>
+  assignmentByDate: Map<string, CalendarAssignment[]>
   conflictsByDate: Map<string, string>
   doctors: Doctor[]
   mode: 'editable' | 'readonly'
+  slotsPerDay?: number
   savingDates?: Set<string>
 }>()
 
-const emit = defineEmits<{ select: [date: string, doctorId: number | null] }>()
+const SLOTS = computed(() => props.slotsPerDay ?? 2)
+
+const emit = defineEmits<{ select: [date: string, slotIndex: number, doctorId: number | null] }>()
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -37,9 +40,20 @@ interface Cell {
   dayNum: number | null
   isWeekend: boolean
   isHoliday: boolean
-  assignment?: CalendarAssignment
+  slots: (CalendarAssignment | undefined)[]
   conflict?: string
-  options: number[]
+  options: number[][]
+}
+
+function slotOptions(eligible: number[], slots: (CalendarAssignment | undefined)[], slotIndex: number): number[] {
+  const taken = new Set<number>()
+  slots.forEach((s, i) => {
+    if (i !== slotIndex && s) taken.add(s.doctorId)
+  })
+  const opts = new Set<number>(eligible)
+  const current = slots[slotIndex]
+  if (current) opts.add(current.doctorId)
+  return [...opts].filter((id) => !taken.has(id))
 }
 
 const cells = computed<Cell[]>(() => {
@@ -49,12 +63,13 @@ const cells = computed<Cell[]>(() => {
   const firstJs = new Date(`${first.date}T00:00:00`)
   const lead = (firstJs.getDay() + 6) % 7
   for (let i = 0; i < lead; i++) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isHoliday: false, options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isHoliday: false, slots: [], options: [] })
   }
   for (const day of props.days) {
-    const assignment = props.assignmentByDate.get(day.date)
-    const opts = new Set<number>(day.eligibleDoctorIds)
-    if (assignment) opts.add(assignment.doctorId)
+    const slotsArr = props.assignmentByDate.get(day.date) ?? []
+    const slots: (CalendarAssignment | undefined)[] = Array.from({ length: SLOTS.value }, (_, i) => slotsArr[i])
+    const eligible = day.eligibleDoctorIds
+    const options = slots.map((_, i) => slotOptions(eligible, slots, i))
     const js = new Date(`${day.date}T00:00:00`)
     out.push({
       blank: false,
@@ -62,19 +77,19 @@ const cells = computed<Cell[]>(() => {
       dayNum: js.getDate(),
       isWeekend: day.isWeekend,
       isHoliday: day.isHoliday,
-      assignment,
+      slots,
       conflict: props.conflictsByDate.get(day.date),
-      options: [...opts],
+      options,
     })
   }
   while (out.length % 7 !== 0) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isHoliday: false, options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isHoliday: false, slots: [], options: [] })
   }
   return out
 })
 
-function onSelect(date: string, value: string | number) {
-  emit('select', date, value === '' ? null : Number(value))
+function onSelect(date: string, slotIndex: number, value: string | number) {
+  emit('select', date, slotIndex, value === '' ? null : Number(value))
 }
 
 function doctorLabel(id: number): string {
@@ -110,7 +125,6 @@ function doctorFull(id: number): string {
             !c.blank && c.isWeekend && 'bg-muted/30',
             !c.blank && c.isHoliday && 'border border-destructive/40',
             !c.blank && c.conflict && 'border border-destructive/60 bg-destructive/5',
-            mode === 'editable' && !c.blank && !c.assignment && c.options.length > 0 && 'border border-dashed border-primary/40',
           ]"
         >
           <template v-if="!c.blank">
@@ -130,33 +144,38 @@ function doctorFull(id: number): string {
               </span>
             </div>
 
-            <div class="mt-1.5">
-              <template v-if="mode === 'editable' && !c.conflict">
-                <Select
-                  :model-value="c.assignment ? String(c.assignment.doctorId) : ''"
-                  :disabled="savingDates?.has(c.date ?? '')"
-                  @update:model-value="onSelect(c.date!, $event)"
-                >
-                  <option value="" :disabled="!c.assignment">
-                    {{ c.assignment ? 'Unassigned' : 'Assign…' }}
-                  </option>
-                  <option v-for="did in c.options" :key="did" :value="String(did)">
-                    {{ doctorLabel(did) }}
-                  </option>
-                </Select>
-              </template>
-              <template v-else>
-                <span
-                  v-if="c.assignment"
-                  class="block text-xs font-medium text-foreground"
-                  :title="doctorFull(c.assignment.doctorId)"
-                  >{{ doctorLabel(c.assignment.doctorId) }}</span
-                >
-                <span v-else-if="c.conflict" class="block text-[11px] font-medium text-destructive" :title="c.conflict"
-                  >Unfillable</span
-                >
-                <span v-else class="block text-xs italic text-muted-foreground">—</span>
-              </template>
+            <div class="mt-1.5 flex flex-col gap-1">
+              <div v-for="(slot, sIdx) in c.slots" :key="sIdx">
+                <template v-if="mode === 'editable' && !c.conflict">
+                  <Select
+                    :model-value="slot ? String(slot.doctorId) : ''"
+                    :disabled="savingDates?.has(c.date ?? '')"
+                    @update:model-value="onSelect(c.date!, sIdx, $event)"
+                  >
+                    <option value="" :disabled="!!slot">
+                      {{ slot ? 'Unassigned' : 'Assign…' }}
+                    </option>
+                    <option v-for="did in c.options[sIdx]" :key="did" :value="String(did)">
+                      {{ doctorLabel(did) }}
+                    </option>
+                  </Select>
+                </template>
+                <template v-else>
+                  <span
+                    v-if="slot"
+                    class="block text-xs font-medium text-foreground"
+                    :title="doctorFull(slot.doctorId)"
+                    >{{ doctorLabel(slot.doctorId) }}</span
+                  >
+                  <span v-else class="block text-xs italic text-muted-foreground">—</span>
+                </template>
+              </div>
+              <span
+                v-if="mode !== 'editable' && c.conflict && !c.slots.some((s) => s)"
+                class="block text-[11px] font-medium text-destructive"
+                :title="c.conflict"
+                >Unfillable</span
+              >
             </div>
           </template>
         </div>
