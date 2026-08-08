@@ -20,6 +20,8 @@ const props = defineProps<{
   mode: 'editable' | 'readonly'
   slotsPerDay?: number
   savingDates?: Set<string>
+  pool?: 'eligible' | 'available'
+  allowClear?: boolean
 }>()
 
 const SLOTS = computed(() => props.slotsPerDay ?? 2)
@@ -68,8 +70,8 @@ const cells = computed<Cell[]>(() => {
   for (const day of props.days) {
     const slotsArr = props.assignmentByDate.get(day.date) ?? []
     const slots: (CalendarAssignment | undefined)[] = Array.from({ length: SLOTS.value }, (_, i) => slotsArr[i])
-    const eligible = day.eligibleDoctorIds
-    const options = slots.map((_, i) => slotOptions(eligible, slots, i))
+    const poolIds = props.pool === 'available' ? day.availableDoctorIds : day.eligibleDoctorIds
+    const options = slots.map((_, i) => slotOptions(poolIds, slots, i))
     const js = new Date(`${day.date}T00:00:00`)
     out.push({
       blank: false,
@@ -95,6 +97,10 @@ function onSelect(date: string, slotIndex: number, value: string | number) {
 function doctorLabel(id: number): string {
   const d = doctorsById.value.get(id)
   return d ? `${d.lastName} ${d.firstName.charAt(0)}.` : String(id)
+}
+
+function filledCount(slots: (CalendarAssignment | undefined)[]): number {
+  return slots.filter((s) => s).length
 }
 
 function doctorFull(id: number): string {
@@ -146,13 +152,13 @@ function doctorFull(id: number): string {
 
             <div class="mt-1.5 flex flex-col gap-1">
               <div v-for="(slot, sIdx) in c.slots" :key="sIdx">
-                <template v-if="mode === 'editable' && !c.conflict">
+                <template v-if="mode === 'editable'">
                   <Select
                     :model-value="slot ? String(slot.doctorId) : ''"
                     :disabled="savingDates?.has(c.date ?? '')"
                     @update:model-value="onSelect(c.date!, sIdx, $event)"
                   >
-                    <option value="" :disabled="!!slot">
+                    <option value="" :disabled="!!slot && !allowClear">
                       {{ slot ? 'Unassigned' : 'Assign…' }}
                     </option>
                     <option v-for="did in c.options[sIdx]" :key="did" :value="String(did)">
@@ -175,6 +181,17 @@ function doctorFull(id: number): string {
                 class="block text-[11px] font-medium text-destructive"
                 :title="c.conflict"
                 >Unfillable</span
+              >
+              <span
+                v-if="mode === 'editable' && filledCount(c.slots) === 0"
+                class="block text-[11px] font-medium text-destructive"
+                :title="c.conflict"
+                >No doctor</span
+              >
+              <span
+                v-else-if="mode === 'editable' && filledCount(c.slots) === 1"
+                class="block text-[11px] font-medium text-amber-600"
+                >1 of 2</span
               >
             </div>
           </template>
