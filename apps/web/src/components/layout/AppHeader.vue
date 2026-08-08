@@ -47,7 +47,7 @@ const initials = computed(() => {
 
 <template>
   <header class="sticky top-0 z-40 w-full border-b border-border bg-background/85 backdrop-blur-md">
-    <div class="container mx-auto flex h-16 items-center gap-6 px-4 sm:px-6">
+    <div class="flex h-16 w-full items-center gap-6 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
       <RouterLink to="/" class="group flex shrink-0 items-center gap-2.5">
         <span class="brand-tile transition-transform duration-200 group-hover:scale-105">
           <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" aria-hidden="true">
