@@ -1,6 +1,6 @@
 import { prevDate } from './dates'
-import { isAvailable, notConsecutive, underCap } from './constraints'
-import { holidayBudget, scoreCandidate, weekendBudget } from './scoring'
+import { isAvailable, notConsecutive, underCap, MAX_SATURDAY_DUTIES, MAX_SUNDAY_DUTIES } from './constraints'
+import { holidayBudget, scoreCandidate, weekendBudget, fridayBudget } from './scoring'
 import type {
   AssignmentPlan,
   CandidateScore,
@@ -9,6 +9,8 @@ import type {
   GenerateResult,
   SchedulingContext,
 } from './types'
+
+export const DOCTORS_PER_DAY = 2
 
 interface Eligible {
   doctor: DoctorSpec
@@ -19,7 +21,10 @@ interface RunState {
   total: Map<number, number>
   weekend: Map<number, number>
   holiday: Map<number, number>
-  byDate: Map<string, number>
+  saturday: Map<number, number>
+  sunday: Map<number, number>
+  friday: Map<number, number>
+  byDate: Map<string, Set<number>>
 }
 
 export function generate(ctx: SchedulingContext): GenerateResult {
@@ -30,45 +35,58 @@ export function generate(ctx: SchedulingContext): GenerateResult {
     total: new Map(),
     weekend: new Map(),
     holiday: new Map(),
+    saturday: new Map(),
+    sunday: new Map(),
+    friday: new Map(),
     byDate: new Map(),
   }
   for (const d of ctx.doctors) {
     state.total.set(d.id, 0)
     state.weekend.set(d.id, 0)
     state.holiday.set(d.id, 0)
+    state.saturday.set(d.id, 0)
+    state.sunday.set(d.id, 0)
+    state.friday.set(d.id, 0)
   }
 
   const activeCount = ctx.doctors.length
   const weekendDays = ctx.days.filter((d) => d.isWeekend).length
   const holidayDays = ctx.days.filter((d) => d.isHoliday).length
+  const fridayDays = ctx.days.filter((d) => d.dayOfWeek === 5).length
   const wBudget = weekendBudget(weekendDays, activeCount)
   const hBudget = holidayBudget(holidayDays, activeCount)
+  const fBudget = fridayBudget(fridayDays, activeCount)
   const firstDay = ctx.days[0]
   const firstDayPrev = firstDay ? prevDate(firstDay.date) : ''
 
   for (const day of ctx.days) {
     const eligible: Eligible[] = []
-    const tally = { unavailable: 0, 'at cap': 0, 'back-to-back': 0 }
+    const tally = { unavailable: 0, 'at cap': 0, 'at weekend cap': 0, 'back-to-back': 0 }
 
     for (const doctor of ctx.doctors) {
       const ranges = ctx.unavailability.get(doctor.id)
-      const avail = isAvailable(doctor.id, day.date, ranges)
-      if (!avail.ok) {
+      if (!isAvailable(doctor.id, day.date, ranges).ok) {
         tally.unavailable++
         continue
       }
-      const cap = underCap(state.total.get(doctor.id) ?? 0, doctor.maxMonthlyDuties)
-      if (!cap.ok) {
+      if (!underCap(state.total.get(doctor.id) ?? 0, doctor.maxMonthlyDuties).ok) {
         tally['at cap']++
+        continue
+      }
+      if (day.dayOfWeek === 6 && !underCap(state.saturday.get(doctor.id) ?? 0, MAX_SATURDAY_DUTIES).ok) {
+        tally['at weekend cap']++
+        continue
+      }
+      if (day.dayOfWeek === 0 && !underCap(state.sunday.get(doctor.id) ?? 0, MAX_SUNDAY_DUTIES).ok) {
+        tally['at weekend cap']++
         continue
       }
       const prev = prevDate(day.date)
       const onDutyYesterday =
         prev === firstDayPrev
           ? ctx.priorDayDoctorIds.has(doctor.id)
-          : state.byDate.get(prev) === doctor.id
-      const consec = notConsecutive(onDutyYesterday)
-      if (!consec.ok) {
+          : state.byDate.get(prev)?.has(doctor.id) ?? false
+      if (!notConsecutive(onDutyYesterday).ok) {
         tally['back-to-back']++
         continue
       }
@@ -80,17 +98,16 @@ export function generate(ctx: SchedulingContext): GenerateResult {
           state.total.get(doctor.id) ?? 0,
           state.weekend.get(doctor.id) ?? 0,
           state.holiday.get(doctor.id) ?? 0,
+          state.friday.get(doctor.id) ?? 0,
           wBudget,
           hBudget,
+          fBudget,
         ),
       })
     }
 
     if (eligible.length === 0) {
-      conflicts.push({
-        date: day.date,
-        detail: `of ${activeCount} active doctor(s): ${tally.unavailable} unavailable, ${tally['at cap']} at cap, ${tally['back-to-back']} back-to-back`,
-      })
+      conflicts.push(conflictFor(day.date, activeCount, tally, 0))
       continue
     }
 
@@ -102,28 +119,49 @@ export function generate(ctx: SchedulingContext): GenerateResult {
         a.doctor.id - b.doctor.id,
     )
 
-    const winner = eligible[0]
-    if (!winner) continue
+    const winners = eligible.slice(0, DOCTORS_PER_DAY)
+    for (const winner of winners) {
+      assignments.push({
+        date: day.date,
+        doctorId: winner.doctor.id,
+        doctorFirstName: winner.doctor.firstName,
+        doctorLastName: winner.doctor.lastName,
+        isWeekend: day.isWeekend,
+        isHoliday: day.isHoliday,
+        reason: `score ${winner.score.score} (workload +${winner.score.workload}, weekend +${winner.score.weekend}, holiday +${winner.score.holiday}, friday +${winner.score.friday})${describeTiebreak(winner, eligible, state)}`,
+      })
+      state.total.set(winner.doctor.id, (state.total.get(winner.doctor.id) ?? 0) + 1)
+      state.byDate.set(day.date, (state.byDate.get(day.date) ?? new Set()).add(winner.doctor.id))
+      if (day.isWeekend)
+        state.weekend.set(winner.doctor.id, (state.weekend.get(winner.doctor.id) ?? 0) + 1)
+      if (day.isHoliday)
+        state.holiday.set(winner.doctor.id, (state.holiday.get(winner.doctor.id) ?? 0) + 1)
+      if (day.dayOfWeek === 6)
+        state.saturday.set(winner.doctor.id, (state.saturday.get(winner.doctor.id) ?? 0) + 1)
+      if (day.dayOfWeek === 0)
+        state.sunday.set(winner.doctor.id, (state.sunday.get(winner.doctor.id) ?? 0) + 1)
+      if (day.dayOfWeek === 5)
+        state.friday.set(winner.doctor.id, (state.friday.get(winner.doctor.id) ?? 0) + 1)
+    }
 
-    assignments.push({
-      date: day.date,
-      doctorId: winner.doctor.id,
-      doctorFirstName: winner.doctor.firstName,
-      doctorLastName: winner.doctor.lastName,
-      isWeekend: day.isWeekend,
-      isHoliday: day.isHoliday,
-      reason: `score ${winner.score.score} (workload +${winner.score.workload}, weekend +${winner.score.weekend}, holiday +${winner.score.holiday})${describeTiebreak(winner, eligible, state)}`,
-    })
-
-    state.total.set(winner.doctor.id, (state.total.get(winner.doctor.id) ?? 0) + 1)
-    state.byDate.set(day.date, winner.doctor.id)
-    if (day.isWeekend)
-      state.weekend.set(winner.doctor.id, (state.weekend.get(winner.doctor.id) ?? 0) + 1)
-    if (day.isHoliday)
-      state.holiday.set(winner.doctor.id, (state.holiday.get(winner.doctor.id) ?? 0) + 1)
+    if (winners.length < DOCTORS_PER_DAY) {
+      conflicts.push(conflictFor(day.date, activeCount, tally, winners.length))
+    }
   }
 
   return { assignments, conflicts }
+}
+
+function conflictFor(
+  date: string,
+  activeCount: number,
+  tally: { unavailable: number; 'at cap': number; 'at weekend cap': number; 'back-to-back': number },
+  assigned: number,
+): ConflictPlan {
+  return {
+    date,
+    detail: `only ${assigned} of ${DOCTORS_PER_DAY} doctors assigned; of ${activeCount} active doctor(s): ${tally.unavailable} unavailable, ${tally['at cap']} at monthly cap, ${tally['at weekend cap']} at weekend cap, ${tally['back-to-back']} back-to-back`,
+  }
 }
 
 function describeTiebreak(winner: Eligible, eligible: Eligible[], state: RunState): string {

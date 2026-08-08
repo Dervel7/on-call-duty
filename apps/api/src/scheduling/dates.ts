@@ -30,3 +30,7 @@ export function nextDate(date: string): string {
 export function inMonth(date: string, year: number, month: number): boolean {
   return date.startsWith(`${year}-${pad2(month)}-`)
 }
+
+export function dayOfWeekISO(date: string): number {
+  return new Date(`${date}T00:00:00Z`).getUTCDay()
+}

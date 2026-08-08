@@ -43,7 +43,7 @@ function dutyRow(overrides: Partial<Record<string, unknown>> = {}) {
     last_name: 'Roe',
     is_weekend: false,
     is_holiday: false,
-    reason: 'score 1 (workload +1, weekend +0, holiday +0)',
+    reason: 'score 1 (workload +1, weekend +0, holiday +0, friday +0)',
     created_at: new Date('2026-08-01'),
     ...overrides,
   }
@@ -68,13 +68,13 @@ describe('schedule.service', () => {
   })
 
   it('generate persists a schedule + duties when every day is fillable', async () => {
-    const doctors = [
-      { id: 1, max_monthly_duties: 7, first_name: 'A', last_name: 'A', is_active: true },
-      { id: 2, max_monthly_duties: 7, first_name: 'B', last_name: 'B', is_active: true },
-      { id: 3, max_monthly_duties: 7, first_name: 'C', last_name: 'C', is_active: true },
-      { id: 4, max_monthly_duties: 7, first_name: 'D', last_name: 'D', is_active: true },
-      { id: 5, max_monthly_duties: 7, first_name: 'E', last_name: 'E', is_active: true },
-    ]
+    const doctors = Array.from({ length: 12 }, (_, i) => ({
+      id: i + 1,
+      max_monthly_duties: 7,
+      first_name: `D${i + 1}`,
+      last_name: `D${i + 1}`,
+      is_active: true,
+    }))
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
@@ -135,9 +135,9 @@ describe('schedule.service', () => {
     ).rejects.toMatchObject({ status: 400 })
   })
 
-  it('addDuty rejects an already-filled date with 409', async () => {
+  it('addDuty rejects a date with both slots filled (409)', async () => {
     query.mockResolvedValueOnce({ rows: [scheduleRow()] })
-    query.mockResolvedValueOnce({ rows: [{ id: 9 }] })
+    query.mockResolvedValueOnce({ rows: [{ n: 2 }] })
     await expect(
       addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator' }),
     ).rejects.toMatchObject({ status: 409 })
@@ -147,6 +147,7 @@ describe('schedule.service', () => {
     query.mockResolvedValueOnce({ rows: [dutyRow({ id: 10, doctor_id: 5, duty_date: '2026-09-05' })] })
     query.mockResolvedValueOnce({ rows: [{ max_monthly_duties: 7, is_active: true }] })
     query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
     query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [] })
@@ -232,7 +233,18 @@ describe('published lock', () => {
 })
 
 describe('computeEligibility', () => {
-  const day = (date: string, isWeekend = false, isHoliday = false) => ({ date, isWeekend, isHoliday })
+  const day = (date: string, isWeekend = false, isHoliday = false) => ({
+    date,
+    dayOfWeek: new Date(`${date}T00:00:00Z`).getUTCDay(),
+    isWeekend,
+    isHoliday,
+  })
+  const empty = () => ({
+    dutiesByDate: new Map<string, Set<number>>(),
+    dutyCountByDoctor: new Map<number, number>(),
+    saturdayByDoctor: new Map<number, number>(),
+    sundayByDoctor: new Map<number, number>(),
+  })
   const doctor = (id: number, maxMonthlyDuties = 7): DoctorSpec => ({
     id,
     firstName: `D${id}`,
@@ -246,8 +258,7 @@ describe('computeEligibility', () => {
       doctors: [doctor(1)],
       unavailability: new Map(),
       days: [day('2026-09-10')],
-      dutiesByDate: new Map(),
-      dutyCountByDoctor: new Map(),
+      ...empty(),
     })
     expect(result).toEqual([
       { date: '2026-09-10', isWeekend: false, isHoliday: false, eligibleDoctorIds: [1] },
@@ -259,8 +270,7 @@ describe('computeEligibility', () => {
       doctors: [doctor(1)],
       unavailability: new Map([[1, [{ start: '2026-09-09', end: '2026-09-12' }]]]),
       days: [day('2026-09-10')],
-      dutiesByDate: new Map(),
-      dutyCountByDoctor: new Map(),
+      ...empty(),
     })
     expect(result[0]?.eligibleDoctorIds).toEqual([])
   })
@@ -270,7 +280,7 @@ describe('computeEligibility', () => {
       doctors: [doctor(1, 7)],
       unavailability: new Map(),
       days: [day('2026-09-10')],
-      dutiesByDate: new Map(),
+      ...empty(),
       dutyCountByDoctor: new Map([[1, 7]]),
     })
     expect(result[0]?.eligibleDoctorIds).toEqual([])
@@ -281,7 +291,8 @@ describe('computeEligibility', () => {
       doctors: [doctor(1, 7)],
       unavailability: new Map(),
       days: [day('2026-09-10')],
-      dutiesByDate: new Map([['2026-09-10', 1]]),
+      ...empty(),
+      dutiesByDate: new Map([['2026-09-10', new Set([1])]]),
       dutyCountByDoctor: new Map([[1, 7]]),
     })
     expect(result[0]?.eligibleDoctorIds).toEqual([1])
@@ -293,8 +304,8 @@ describe('computeEligibility', () => {
       doctors: [doctor(1)],
       unavailability: new Map(),
       days: [day('2026-09-10')],
-      dutiesByDate: new Map([['2026-09-09', 1]]),
-      dutyCountByDoctor: new Map(),
+      ...empty(),
+      dutiesByDate: new Map([['2026-09-09', new Set([1])]]),
     })
     expect(fromPrev[0]?.eligibleDoctorIds).toEqual([])
     // next day already assigned
@@ -302,8 +313,8 @@ describe('computeEligibility', () => {
       doctors: [doctor(1)],
       unavailability: new Map(),
       days: [day('2026-09-10')],
-      dutiesByDate: new Map([['2026-09-11', 1]]),
-      dutyCountByDoctor: new Map(),
+      ...empty(),
+      dutiesByDate: new Map([['2026-09-11', new Set([1])]]),
     })
     expect(fromNext[0]?.eligibleDoctorIds).toEqual([])
   })
@@ -313,7 +324,7 @@ describe('computeEligibility', () => {
       doctors: [doctor(1, 7), doctor(2, 7)],
       unavailability: new Map(),
       days: [day('2026-09-10')],
-      dutiesByDate: new Map(),
+      ...empty(),
       dutyCountByDoctor: new Map([
         [1, 7],
         [2, 7],

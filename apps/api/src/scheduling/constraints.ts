@@ -24,3 +24,6 @@ export function underCap(count: number, maxMonthlyDuties: number): ConstraintRes
 export function notConsecutive(onDutyYesterday: boolean): ConstraintResult {
   return onDutyYesterday ? { ok: false, reason: 'back-to-back' } : { ok: true, reason: '' }
 }
+
+export const MAX_SATURDAY_DUTIES = 1
+export const MAX_SUNDAY_DUTIES = 1
