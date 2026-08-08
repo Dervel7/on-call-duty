@@ -25,15 +25,15 @@ VALUES
   ('dr1@oncall.local', 'dr1',  '$2b$12$sf0hxnuWvwI17HpZNo.VBubjp35/R3CXtabJsFMpjQxA/erV9m21G', 'doctor', 'Jane',   'Roe',     TRUE),
   ('dr2@oncall.local', 'dr2',  '$2b$12$CxcEXDtGy52WGatK9YCNlOdyS6yp1uNd4Ac8f68YZOmHYXN2HR8Sq', 'doctor', 'John',   'Smith',   TRUE),
   ('dr3@oncall.local', 'dr3',  '$2b$12$nXzGkWp0gNlyFOj8/dp6oOQ0BH7twg.VkgYF95PqOzagOTZsBrJOW', 'doctor', 'Maria',  'Garcia',  TRUE),
-  ('dr4@oncall.local', 'dr4',  '$2b$12$33333333333333333333333333333333333333333333333333',    'doctor', 'Ahmed',  'Hassan',  TRUE),
-  ('dr5@oncall.local', 'dr5',  '$2b$12$44444444444444444444444444444444444444444444444444444',    'doctor', 'Sara',   ' Cohen',  TRUE),
+  ('dr4@oncall.local', 'dr4',  '$2b$12$33333333333333333333333333333333333333333333333333333',   'doctor', 'Ahmed',  'Hassan',  TRUE),
+  ('dr5@oncall.local', 'dr5',  '$2b$12$44444444444444444444444444444444444444444444444444444',    'doctor', 'Sara',   'Cohen',   TRUE),
   ('dr6@oncall.local', 'dr6',  '$2b$12$55555555555555555555555555555555555555555555555555555',    'doctor', 'Liam',   'Novak',   TRUE),
   ('dr7@oncall.local', 'dr7',  '$2b$12$66666666666666666666666666666666666666666666666666666',    'doctor', 'Emma',   'Muller',  TRUE),
   ('dr8@oncall.local', 'dr8',  '$2b$12$77777777777777777777777777777777777777777777777777777',    'doctor', 'Noah',   'Rossi',   TRUE),
-  ('dr9@oncall.local', 'dr9',  '$2b$12$88888888888888888888888888888888888888888888888888',    'doctor', 'Olivia', 'Petrov',  TRUE),
-  ('dr10@oncall.local','dr10', '$2b$12$99999999999999999999999999999999999999999999999999',    'doctor', 'Lucas',  'Diaz',    TRUE),
-  ('dr11@oncall.local','dr11', '$2b$12$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',    'doctor', 'Ava',    'Kowalski',TRUE),
-  ('dr12@oncall.local','dr12', '$2b$12$BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',    'doctor', 'Ethan',  'Yamada',  TRUE)
+  ('dr9@oncall.local', 'dr9',  '$2b$12$88888888888888888888888888888888888888888888888888888',   'doctor', 'Olivia', 'Petrov',  TRUE),
+  ('dr10@oncall.local','dr10', '$2b$12$99999999999999999999999999999999999999999999999999999',   'doctor', 'Lucas',  'Diaz',    TRUE),
+  ('dr11@oncall.local','dr11', '$2b$12$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',   'doctor', 'Ava',    'Kowalski',TRUE),
+  ('dr12@oncall.local','dr12', '$2b$12$BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',   'doctor', 'Ethan',  'Yamada',  TRUE)
 ON CONFLICT (email) DO UPDATE SET
   username      = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,
