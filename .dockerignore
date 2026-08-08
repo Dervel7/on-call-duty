@@ -1,0 +1,27 @@
+# VCS & editor metadata
+.git
+.gitignore
+.github
+.vscode
+.superpowers
+.idea
+.DS_Store
+
+# Dependencies & build artifacts (regenerated inside the image)
+**/node_modules
+**/dist
+**/coverage
+
+# Env files (provided at runtime via the container environment)
+**/.env
+**/.env.*
+
+# Logs
+**/*.log
+.pnpm-debug.log*
+
+# Not needed inside the images
+docs
+database
+*.md
+LICENSE
