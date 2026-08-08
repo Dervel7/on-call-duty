@@ -49,8 +49,11 @@ describe('stats.service — adminStats', () => {
             },
           ],
         }
-      if (sql.includes('SELECT duty_date FROM duties'))
-        return { rows: assigned.map((duty_date) => ({ duty_date })) }
+      if (sql.includes('GROUP BY duty_date')) {
+        const rows = assigned.map((duty_date) => ({ duty_date, n: 2 }))
+        rows.push({ duty_date: '2026-09-30', n: 1 })
+        return { rows }
+      }
       if (sql.includes('WHERE u.is_active = TRUE'))
         return { rows: [{ id: 5, first_name: 'Jane', last_name: 'Roe', max_monthly_duties: 7 }] }
       if (sql.includes('GROUP BY doctor_id'))
@@ -85,7 +88,7 @@ describe('stats.service — adminStats', () => {
             },
           ],
         }
-      if (sql.includes('SELECT duty_date FROM duties')) return { rows: [{ duty_date: '2026-09-01' }] }
+      if (sql.includes('GROUP BY duty_date')) return { rows: [{ duty_date: '2026-09-01', n: 1 }] }
       if (sql.includes('WHERE u.is_active = TRUE'))
         return { rows: [{ id: 5, first_name: 'Jane', last_name: 'Roe', max_monthly_duties: 7 }] }
       if (sql.includes('GROUP BY doctor_id'))
@@ -118,7 +121,7 @@ describe('stats.service — adminStats', () => {
             },
           ],
         }
-      if (sql.includes('SELECT duty_date FROM duties')) return { rows: [{ duty_date: '2026-09-01' }] }
+      if (sql.includes('GROUP BY duty_date')) return { rows: [{ duty_date: '2026-09-01', n: 1 }] }
       if (sql.includes('WHERE u.is_active = TRUE'))
         return {
           rows: [

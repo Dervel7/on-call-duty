@@ -67,18 +67,18 @@ export async function adminStats(year: number, month: number): Promise<AdminStat
   const allDays: string[] = []
   for (let d = 1; d <= total; d++) allDays.push(isoDate(year, month, d))
 
-  const assigned = new Set<string>()
+  const perDate = new Map<string, number>()
   if (scheduleRow) {
-    const dres = await query<{ duty_date: string }>(
-      `SELECT duty_date FROM duties WHERE schedule_id = $1`,
+    const dres = await query<{ duty_date: string; n: number }>(
+      `SELECT duty_date, COUNT(*)::int AS n FROM duties WHERE schedule_id = $1 GROUP BY duty_date`,
       [scheduleRow.id],
     )
-    for (const r of dres.rows) assigned.add(r.duty_date)
+    for (const r of dres.rows) perDate.set(r.duty_date, r.n)
   }
   const coverage: AdminCoverage = {
     daysInMonth: total,
-    filled: assigned.size,
-    gaps: allDays.filter((d) => !assigned.has(d)),
+    filled: allDays.filter((d) => (perDate.get(d) ?? 0) >= 2).length,
+    gaps: allDays.filter((d) => (perDate.get(d) ?? 0) < 2),
   }
 
   const activeRes = await query<{
