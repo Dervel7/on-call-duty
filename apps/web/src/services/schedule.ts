@@ -1,6 +1,7 @@
 import type {
   CreateDutyRequest,
   Duty,
+  GenerateAssignment,
   PreviewResult,
   ReassignDutyRequest,
   ScheduleDetail,
@@ -27,8 +28,12 @@ export async function get(id: number): Promise<ScheduleDetail> {
 export async function preview(year: number, month: number): Promise<PreviewResult> {
   return apiPost<PreviewResult>('/schedules/preview', { year, month })
 }
-export async function generate(year: number, month: number): Promise<ScheduleDetail> {
-  return apiPost<ScheduleDetail>('/schedules', { year, month })
+export async function generate(
+  year: number,
+  month: number,
+  assignments?: GenerateAssignment[],
+): Promise<ScheduleDetail> {
+  return apiPost<ScheduleDetail>('/schedules', { year, month, assignments })
 }
 export async function remove(id: number): Promise<void> {
   await apiDelete<void>(`/schedules/${id}`)

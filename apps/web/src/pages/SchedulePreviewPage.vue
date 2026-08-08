@@ -22,6 +22,15 @@ const loading = ref(false)
 const errorMsg = ref('')
 const generating = ref(false)
 
+interface PreviewAssignment {
+  date: string
+  doctorId: number
+  firstName: string
+  lastName: string
+  reason: string
+}
+const assignments = ref<PreviewAssignment[]>([])
+
 const year = computed(() => Number(route.query.year))
 const month = computed(() => Number(route.query.month))
 const parsed = computed(() => createScheduleSchema.safeParse({ year: year.value, month: month.value }))
@@ -30,30 +39,44 @@ const monthLabel = computed(() =>
   valid.value ? `${MONTHS[month.value - 1]} ${year.value}` : 'Preview',
 )
 
+const doctorsById = computed(() => {
+  const m = new Map<number, Doctor>()
+  for (const d of doctors.value) m.set(d.id, d)
+  return m
+})
+
 const assignmentByDate = computed(() => {
   const m = new Map<
     string,
     { doctorId: number; firstName: string; lastName: string; reason: string }[]
   >()
-  for (const a of result.value?.assignments ?? []) {
+  for (const a of assignments.value) {
     const arr = m.get(a.date) ?? []
-    arr.push({
-      doctorId: a.doctorId,
-      firstName: a.doctorFirstName,
-      lastName: a.doctorLastName,
-      reason: a.reason,
-    })
+    arr.push({ doctorId: a.doctorId, firstName: a.firstName, lastName: a.lastName, reason: a.reason })
     m.set(a.date, arr)
   }
   return m
 })
+
 const conflictsByDate = computed(() => {
   const m = new Map<string, string>()
   for (const c of result.value?.conflicts ?? []) m.set(c.date, c.detail)
   return m
 })
+
 const days = computed<DayInfo[]>(() => result.value?.days ?? [])
-const conflictCount = computed(() => result.value?.conflicts.length ?? 0)
+
+const countByDate = computed(() => {
+  const m = new Map<string, number>()
+  for (const a of assignments.value) m.set(a.date, (m.get(a.date) ?? 0) + 1)
+  return m
+})
+const errorCount = computed(
+  () => days.value.filter((d) => (countByDate.value.get(d.date) ?? 0) === 0).length,
+)
+const warningCount = computed(
+  () => days.value.filter((d) => (countByDate.value.get(d.date) ?? 0) === 1).length,
+)
 
 async function load() {
   if (!valid.value) {
@@ -64,6 +87,13 @@ async function load() {
   errorMsg.value = ''
   try {
     result.value = await scheduleService.preview(year.value, month.value)
+    assignments.value = (result.value?.assignments ?? []).map((a) => ({
+      date: a.date,
+      doctorId: a.doctorId,
+      firstName: a.doctorFirstName,
+      lastName: a.doctorLastName,
+      reason: a.reason,
+    }))
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to preview'
   } finally {
@@ -71,11 +101,51 @@ async function load() {
   }
 }
 
+function onSelect(date: string, slotIndex: number, doctorId: number | null) {
+  const current = assignments.value.filter((a) => a.date === date)
+  if (doctorId === null) {
+    if (slotIndex >= current.length) return
+    const target = current[slotIndex]
+    if (!target) return
+    assignments.value = assignments.value.filter((a) => a !== target)
+    return
+  }
+  if (slotIndex < current.length) {
+    const target = current[slotIndex]
+    if (!target || target.doctorId === doctorId) return
+    const doc = doctorsById.value.get(doctorId)
+    if (!doc) return
+    const idx = assignments.value.indexOf(target)
+    const next = [...assignments.value]
+    next[idx] = {
+      date,
+      doctorId,
+      firstName: doc.firstName,
+      lastName: doc.lastName,
+      reason: 'manual override',
+    }
+    assignments.value = next
+    return
+  }
+  if (current.length >= 2) return
+  if (current.some((a) => a.doctorId === doctorId)) return
+  const doc = doctorsById.value.get(doctorId)
+  if (!doc) return
+  assignments.value = [
+    ...assignments.value,
+    { date, doctorId, firstName: doc.firstName, lastName: doc.lastName, reason: 'manual override' },
+  ]
+}
+
 async function generate() {
   generating.value = true
   errorMsg.value = ''
   try {
-    const detail = await scheduleService.generate(year.value, month.value)
+    const detail = await scheduleService.generate(
+      year.value,
+      month.value,
+      assignments.value.map((a) => ({ date: a.date, doctorId: a.doctorId, reason: a.reason })),
+    )
     router.push(`/schedules/${detail.schedule.id}`)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to generate'
@@ -101,7 +171,7 @@ watch([year, month], load)
       <h1 class="text-xl font-semibold text-foreground">{{ monthLabel }}</h1>
       <div class="flex items-center gap-2">
         <Button variant="outline" @click="router.push('/schedules')">Back</Button>
-        <Button :disabled="conflictCount > 0 || generating" @click="generate">
+        <Button :disabled="errorCount > 0 || generating" @click="generate">
           {{ generating ? 'Generating…' : 'Generate' }}
         </Button>
       </div>
@@ -109,11 +179,14 @@ watch([year, month], load)
 
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
     <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
-    <p v-else-if="conflictCount > 0" class="text-sm text-destructive">
-      {{ conflictCount }} unfillable day(s) — resolve before generating.
+    <p v-else-if="errorCount > 0" class="text-sm text-destructive">
+      {{ errorCount }} day(s) with no doctor — assign at least one before generating.
+    </p>
+    <p v-else-if="warningCount > 0" class="text-sm text-amber-600">
+      {{ warningCount }} day(s) with only 1 doctor. Ready to generate.
     </p>
     <p v-else-if="result" class="text-sm text-muted-foreground">
-      {{ result.assignments.length }} day(s) ready. No conflicts.
+      {{ assignments.length }} assignment(s) ready. No conflicts.
     </p>
 
     <DutyCalendar
@@ -124,7 +197,11 @@ watch([year, month], load)
       :assignment-by-date="assignmentByDate"
       :conflicts-by-date="conflictsByDate"
       :doctors="doctors"
-      mode="readonly"
+      mode="editable"
+      pool="available"
+      allow-clear
+      show-fill-hints
+      @select="onSelect"
     />
   </div>
 </template>
