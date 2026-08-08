@@ -98,12 +98,12 @@ onMounted(load)
           <CardHeader><CardTitle>Coverage</CardTitle></CardHeader>
           <CardContent class="flex flex-col gap-2">
             <p class="text-3xl font-semibold tracking-tight tabular-nums text-foreground">
-              {{ stats.coverage.filled }} / {{ stats.coverage.daysInMonth }} days filled
+              {{ stats.coverage.filled }} / {{ stats.coverage.daysInMonth }} days fully staffed
             </p>
             <p v-if="stats.coverage.gaps.length > 0" class="text-sm text-destructive">
-              Gap days: {{ stats.coverage.gaps.join(', ') }}
+              Understaffed days: {{ stats.coverage.gaps.join(', ') }}
             </p>
-            <p v-else class="text-sm text-muted-foreground">No gap days.</p>
+            <p v-else class="text-sm text-muted-foreground">No understaffed days.</p>
           </CardContent>
         </Card>
 

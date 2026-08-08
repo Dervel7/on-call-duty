@@ -67,7 +67,7 @@ describe('AdminDashboard', () => {
     admin.mockResolvedValue(fullStats())
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    expect(w.text()).toContain('31 / 31 days filled')
+    expect(w.text()).toContain('31 / 31 days fully staffed')
     expect(w.text()).toContain('Imbalanced — review workload')
     expect(w.text()).toContain('Jane Roe')
     expect(w.text()).toContain('Old Doc')

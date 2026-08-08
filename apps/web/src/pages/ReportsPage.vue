@@ -44,14 +44,18 @@ interface DayRow {
   weekday: string
   day: string
   isWeekend: boolean
-  duty?: Duty
+  duties: Duty[]
 }
 const rows = computed<DayRow[]>(() => {
   const r = report.value
   if (!r || !r.schedule) return []
   const total = new Date(Date.UTC(r.year, r.month, 0)).getUTCDate()
-  const byDate = new Map<string, Duty>()
-  for (const d of r.roster) byDate.set(d.dutyDate, d)
+  const byDate = new Map<string, Duty[]>()
+  for (const d of r.roster) {
+    const arr = byDate.get(d.dutyDate) ?? []
+    arr.push(d)
+    byDate.set(d.dutyDate, arr)
+  }
   const out: DayRow[] = []
   for (let dayNum = 1; dayNum <= total; dayNum++) {
     const iso = `${r.year}-${String(r.month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
@@ -62,7 +66,7 @@ const rows = computed<DayRow[]>(() => {
       weekday: weekdayFmt.format(js),
       day: dayFmt.format(js),
       isWeekend: dow === 0 || dow === 6,
-      duty: byDate.get(iso),
+      duties: byDate.get(iso) ?? [],
     })
   }
   return out
@@ -174,12 +178,12 @@ onMounted(load)
           <CardHeader><CardTitle>Coverage</CardTitle></CardHeader>
           <CardContent class="flex flex-col gap-2">
             <p class="text-2xl font-semibold text-foreground">
-              {{ report.coverage.filled }} / {{ report.coverage.daysInMonth }} days filled
+              {{ report.coverage.filled }} / {{ report.coverage.daysInMonth }} days fully staffed
             </p>
             <p v-if="report.coverage.gaps.length > 0" class="text-sm text-destructive">
-              Gap days: {{ report.coverage.gaps.join(', ') }}
+              Understaffed days: {{ report.coverage.gaps.join(', ') }}
             </p>
-            <p v-else class="text-sm text-muted-foreground">No gap days.</p>
+            <p v-else class="text-sm text-muted-foreground">No understaffed days.</p>
           </CardContent>
         </Card>
 
@@ -228,7 +232,7 @@ onMounted(load)
               <TableRow v-for="r in rows" :key="r.date">
                 <TableCell>{{ r.weekday }} {{ r.day }}</TableCell>
                 <TableCell>
-                  <span v-if="r.duty">{{ r.duty.doctorFirstName }} {{ r.duty.doctorLastName }}</span>
+                  <span v-if="r.duties.length">{{ r.duties.map((d) => `${d.doctorFirstName} ${d.doctorLastName}`).join(' / ') }}</span>
                   <span v-else class="italic text-muted-foreground">Unassigned</span>
                 </TableCell>
                 <TableCell>
@@ -240,21 +244,21 @@ onMounted(load)
                       Weekend
                     </span>
                     <span
-                      v-if="r.duty?.isHoliday"
+                      v-if="r.duties.some((d) => d.isHoliday)"
                       class="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
                     >
                       Holiday
                     </span>
                     <span
-                      v-if="!r.duty"
+                      v-if="r.duties.length < 2"
                       class="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
                     >
-                      Gap day
+                      {{ r.duties.length === 0 ? 'Gap day' : '1 of 2' }}
                     </span>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span v-if="r.duty" class="text-xs text-muted-foreground">{{ r.duty.reason }}</span>
+                  <span v-if="r.duties.length" class="text-xs text-muted-foreground">{{ r.duties.map((d) => d.reason).join(' | ') }}</span>
                 </TableCell>
               </TableRow>
             </TableBody>
