@@ -100,8 +100,18 @@ CREATE TABLE IF NOT EXISTS duties (
   is_holiday  BOOLEAN NOT NULL,
   reason      TEXT NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (schedule_id, duty_date)
+  UNIQUE (schedule_id, duty_date, doctor_id)
 );
 CREATE INDEX IF NOT EXISTS idx_duties_schedule ON duties (schedule_id);
 CREATE INDEX IF NOT EXISTS idx_duties_doctor_date ON duties (doctor_id, duty_date);
 CREATE INDEX IF NOT EXISTS idx_duties_date ON duties (duty_date);
+
+-- Two-doctors-per-day: allow two distinct doctors per (schedule, date)
+ALTER TABLE duties DROP CONSTRAINT IF EXISTS duties_schedule_id_duty_date_key;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'duties_schedule_id_duty_date_doctor_id_key') THEN
+    ALTER TABLE duties ADD CONSTRAINT duties_schedule_id_duty_date_doctor_id_key
+      UNIQUE (schedule_id, duty_date, doctor_id);
+  END IF;
+END $$;
