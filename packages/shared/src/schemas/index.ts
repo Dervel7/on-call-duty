@@ -21,6 +21,7 @@ export {
   updateHolidaySchema,
   createDutySchema,
   reassignDutySchema,
+  generateScheduleSchema,
 } from './schedule'
 export { statsQuerySchema } from './stats'
 export { reportQuerySchema } from './reports'

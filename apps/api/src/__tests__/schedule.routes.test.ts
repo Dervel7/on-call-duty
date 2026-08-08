@@ -131,6 +131,18 @@ describe('schedule routes', () => {
     expect(unfillable.status).toBe(422)
   })
 
+  it('admin generate forwards an assignments plan to the service (201)', async () => {
+    generate.mockResolvedValue(detail())
+    const res = await request(build())
+      .post('/schedules')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ year: 2026, month: 9, assignments: [{ date: '2026-09-01', doctorId: 5 }] })
+    expect(res.status).toBe(201)
+    expect(generate).toHaveBeenCalledWith(2026, 9, expect.anything(), [
+      { date: '2026-09-01', doctorId: 5 },
+    ])
+  })
+
   it('admin list (200), getById (200), delete (204)', async () => {
     list.mockResolvedValue([])
     getById.mockResolvedValue(detail())

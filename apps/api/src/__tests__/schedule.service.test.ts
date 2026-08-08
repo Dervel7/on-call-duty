@@ -192,6 +192,102 @@ describe('schedule.service', () => {
   })
 })
 
+describe('generate plan path', () => {
+  const doctors = Array.from({ length: 12 }, (_, i) => ({
+    id: i + 1,
+    max_monthly_duties: 7,
+    first_name: `D${i + 1}`,
+    last_name: `D${i + 1}`,
+    is_active: true,
+  }))
+
+  function mockContext() {
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
+      if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
+      if (sql.includes('FROM holidays')) return { rows: [] }
+      if (sql.includes('FROM unavailability')) return { rows: [] }
+      if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [] }
+      if (sql.includes('INSERT INTO schedules')) return { rows: [{ id: 7 }] }
+      if (sql.includes('INSERT INTO duties')) return { rows: [] }
+      if (sql.includes('FROM schedules') && sql.includes('WHERE id =')) {
+        return { rows: [scheduleRow({ id: 7 })] }
+      }
+      if (sql.includes('FROM duties du')) return { rows: [] }
+      return { rows: [] }
+    })
+  }
+
+  it('persists a valid 1-doctor-per-day plan (relaxed rule)', async () => {
+    mockContext()
+    const assignments = Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+      doctorId: (i % 12) + 1,
+      reason: 'manual override',
+    }))
+    const detail = await generate(2026, 9, { id: 2, role: 'administrator' }, assignments)
+    expect(detail.schedule.id).toBe(7)
+    const inserts = query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties'))
+    expect(inserts.length).toBe(30)
+  })
+
+  it('422 when any day has no doctor', async () => {
+    mockContext()
+    const assignments = Array.from({ length: 29 }, (_, i) => ({
+      date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+      doctorId: (i % 12) + 1,
+    }))
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator' }, assignments),
+    ).rejects.toMatchObject({ status: 422 })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO schedules'))).toBe(false)
+  })
+
+  it('409 when a doctor is on vacation that date (availability is hard)', async () => {
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
+      if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
+      if (sql.includes('FROM holidays')) return { rows: [] }
+      if (sql.includes('FROM unavailability'))
+        return { rows: [{ doctor_id: 1, start_date: '2026-09-01', end_date: '2026-09-30' }] }
+      if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [] }
+      return { rows: [] }
+    })
+    const assignments = Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+      doctorId: 1,
+    }))
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator' }, assignments),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('409 when the same doctor is assigned twice on a date', async () => {
+    mockContext()
+    const assignments = [
+      { date: '2026-09-01', doctorId: 1 },
+      { date: '2026-09-01', doctorId: 1 },
+    ]
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator' }, assignments),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('409 when a date has more than 2 doctors', async () => {
+    mockContext()
+    const assignments = [
+      { date: '2026-09-01', doctorId: 1 },
+      { date: '2026-09-01', doctorId: 2 },
+      { date: '2026-09-01', doctorId: 3 },
+    ]
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator' }, assignments),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+})
+
 describe('publish / unpublish', () => {
   it('publish flips draft->published; 404 missing; 409 already published', async () => {
     query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] })

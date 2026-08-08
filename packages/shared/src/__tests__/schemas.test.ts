@@ -144,6 +144,7 @@ import {
   createDutySchema,
   createHolidaySchema,
   createScheduleSchema,
+  generateScheduleSchema,
   holidayQuerySchema,
   reassignDutySchema,
   scheduleQuerySchema,
@@ -185,5 +186,30 @@ describe('schedule schemas', () => {
     expect(createDutySchema.safeParse({ date: '2026-09-01', doctorId: 5 }).success).toBe(true)
     expect(reassignDutySchema.safeParse({ doctorId: -1 }).success).toBe(false)
     expect(reassignDutySchema.safeParse({ doctorId: 5 }).success).toBe(true)
+  })
+
+  it('generateScheduleSchema accepts with/without assignments and validates items', () => {
+    expect(generateScheduleSchema.safeParse({ year: 2026, month: 9 }).success).toBe(true)
+    expect(
+      generateScheduleSchema.safeParse({
+        year: 2026,
+        month: 9,
+        assignments: [{ date: '2026-09-01', doctorId: 5 }],
+      }).success,
+    ).toBe(true)
+    expect(
+      generateScheduleSchema.safeParse({
+        year: 2026,
+        month: 9,
+        assignments: [{ date: '2026-9-1', doctorId: 5 }],
+      }).success,
+    ).toBe(false)
+    expect(
+      generateScheduleSchema.safeParse({
+        year: 2026,
+        month: 9,
+        assignments: [{ date: '2026-09-01', doctorId: 0 }],
+      }).success,
+    ).toBe(false)
   })
 })

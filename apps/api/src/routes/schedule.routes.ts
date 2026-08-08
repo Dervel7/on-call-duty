@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate'
 import {
   createDutySchema,
   createScheduleSchema,
+  generateScheduleSchema,
   idParams,
   reassignDutySchema,
   scheduleQuerySchema,
@@ -22,7 +23,7 @@ scheduleRouter.get(
   scheduleController.list,
 )
 scheduleRouter.post('/preview', authorize('administrator'), validate(createScheduleSchema, 'body'), scheduleController.preview)
-scheduleRouter.post('/', authorize('administrator'), validate(createScheduleSchema, 'body'), scheduleController.generate)
+scheduleRouter.post('/', authorize('administrator'), validate(generateScheduleSchema, 'body'), scheduleController.generate)
 scheduleRouter.get('/:id', authorize('administrator', 'doctor'), validate(idParams, 'params'), scheduleController.getById)
 scheduleRouter.post('/:id/publish', authorize('administrator'), validate(idParams, 'params'), scheduleController.publish)
 scheduleRouter.post('/:id/unpublish', authorize('administrator'), validate(idParams, 'params'), scheduleController.unpublish)

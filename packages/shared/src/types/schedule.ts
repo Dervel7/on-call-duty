@@ -71,6 +71,18 @@ export interface CreateScheduleRequest {
   month: number
 }
 
+export interface GenerateAssignment {
+  date: string
+  doctorId: number
+  reason?: string
+}
+
+export interface GenerateScheduleRequest {
+  year: number
+  month: number
+  assignments?: GenerateAssignment[]
+}
+
 export interface ScheduleQuery {
   year?: number
   month?: number

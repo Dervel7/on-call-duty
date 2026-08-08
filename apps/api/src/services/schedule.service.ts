@@ -3,6 +3,7 @@ import type {
   CreateDutyRequest,
   DayInfo,
   Duty,
+  GenerateAssignment,
   PreviewResult,
   ReassignDutyRequest,
   ScheduleDetail,
@@ -216,10 +217,19 @@ export async function preview(year: number, month: number): Promise<PreviewResul
   return { assignments: result.assignments, conflicts: result.conflicts, days }
 }
 
+interface PlanDuty {
+  date: string
+  doctorId: number
+  isWeekend: boolean
+  isHoliday: boolean
+  reason: string
+}
+
 export async function generate(
   year: number,
   month: number,
   actor: Actor,
+  assignments?: GenerateAssignment[],
 ): Promise<ScheduleDetail> {
   const exists = await query('SELECT id FROM schedules WHERE year = $1 AND month = $2', [
     year,
@@ -229,12 +239,10 @@ export async function generate(
     throw new HttpError(409, 'Schedule already exists for this month; delete it first')
 
   const ctx = await buildContext(year, month)
-  const result = runEngine(ctx)
-  if (result.conflicts.length > 0)
-    throw new HttpError(
-      422,
-      `Schedule has ${result.conflicts.length} unfillable day(s); run /schedules/preview for details`,
-    )
+
+  const planDuties = assignments
+    ? validatePlan(ctx, assignments)
+    : enginePlanToDuties(runEngine(ctx))
 
   const scheduleId = await withTransaction(async (client) => {
     const ins = await client.query<{ id: number }>(
@@ -243,16 +251,88 @@ export async function generate(
     )
     const id = ins.rows[0]?.id
     if (id === undefined) throw new HttpError(500, 'Failed to create schedule')
-    for (const a of result.assignments) {
+    for (const d of planDuties) {
       await client.query(
         `INSERT INTO duties (schedule_id, duty_date, doctor_id, is_weekend, is_holiday, reason)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [id, a.date, a.doctorId, a.isWeekend, a.isHoliday, a.reason],
+        [id, d.date, d.doctorId, d.isWeekend, d.isHoliday, d.reason],
       )
     }
     return id
   })
   return getById(scheduleId, actor)
+}
+
+function enginePlanToDuties(result: ReturnType<typeof runEngine>): PlanDuty[] {
+  if (result.conflicts.length > 0)
+    throw new HttpError(
+      422,
+      `Schedule has ${result.conflicts.length} unfillable day(s); run /schedules/preview for details`,
+    )
+  return result.assignments.map((a) => ({
+    date: a.date,
+    doctorId: a.doctorId,
+    isWeekend: a.isWeekend,
+    isHoliday: a.isHoliday,
+    reason: a.reason,
+  }))
+}
+
+function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[]): PlanDuty[] {
+  const activeIds = new Set(ctx.doctors.map((d) => d.id))
+  const dayInfo = new Map(ctx.days.map((d) => [d.date, d]))
+  const monthDates = new Set(ctx.days.map((d) => d.date))
+
+  const byDate = new Map<string, GenerateAssignment[]>()
+  for (const a of assignments) {
+    if (!monthDates.has(a.date))
+      throw new HttpError(400, `Assignment date ${a.date} is outside the schedule month`)
+    if (!activeIds.has(a.doctorId))
+      throw new HttpError(400, `Doctor ${a.doctorId} is not an active doctor`)
+    const ranges = ctx.unavailability.get(a.doctorId)
+    if (!isAvailable(a.doctorId, a.date, ranges).ok)
+      throw new HttpError(
+        409,
+        `Constraint violation: doctor ${a.doctorId} unavailable on ${a.date}`,
+      )
+    const arr = byDate.get(a.date) ?? []
+    if (arr.some((x) => x.doctorId === a.doctorId))
+      throw new HttpError(
+        409,
+        `Constraint violation: doctor ${a.doctorId} already assigned to ${a.date}`,
+      )
+    arr.push(a)
+    byDate.set(a.date, arr)
+  }
+
+  for (const [date, arr] of byDate) {
+    if (arr.length > DOCTORS_PER_DAY)
+      throw new HttpError(
+        409,
+        `Too many assignments (${arr.length}) for ${date}; max ${DOCTORS_PER_DAY}`,
+      )
+  }
+
+  const empty: string[] = []
+  for (const date of monthDates) {
+    if (!byDate.has(date)) empty.push(date)
+  }
+  if (empty.length > 0)
+    throw new HttpError(
+      422,
+      `${empty.length} day(s) have no doctor: ${empty.join(', ')}; assign at least one per day`,
+    )
+
+  return assignments.map((a) => {
+    const info = dayInfo.get(a.date)!
+    return {
+      date: a.date,
+      doctorId: a.doctorId,
+      isWeekend: info.isWeekend,
+      isHoliday: info.isHoliday,
+      reason: a.reason ?? 'plan',
+    }
+  })
 }
 
 export async function list(

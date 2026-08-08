@@ -30,3 +30,15 @@ export const createDutySchema = z.object({
 export const reassignDutySchema = z.object({
   doctorId: z.number().int().positive(),
 })
+
+export const generateScheduleSchema = createScheduleSchema.extend({
+  assignments: z
+    .array(
+      z.object({
+        date: dateStr,
+        doctorId: z.number().int().positive(),
+        reason: z.string().max(500).optional(),
+      }),
+    )
+    .optional(),
+})

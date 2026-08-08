@@ -32,7 +32,12 @@ export const scheduleController = {
   async generate(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new HttpError(401, 'Unauthorized')
-      const detail = await scheduleService.generate(req.body.year, req.body.month, req.user)
+      const detail = await scheduleService.generate(
+        req.body.year,
+        req.body.month,
+        req.user,
+        req.body.assignments,
+      )
       res.status(201).json(ok(detail))
     } catch (err) {
       next(err)

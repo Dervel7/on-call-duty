@@ -1,6 +1,7 @@
 export {
   createDutySchema,
   createScheduleSchema,
+  generateScheduleSchema,
   reassignDutySchema,
   scheduleQuerySchema,
 } from '@oncall/shared'

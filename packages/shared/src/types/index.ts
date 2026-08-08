@@ -36,6 +36,8 @@ export type {
   UpdateHolidayRequest,
   CreateDutyRequest,
   ReassignDutyRequest,
+  GenerateAssignment,
+  GenerateScheduleRequest,
 } from './schedule'
 export type {
   StatsQuery,
