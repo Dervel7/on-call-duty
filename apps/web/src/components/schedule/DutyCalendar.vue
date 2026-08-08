@@ -104,6 +104,19 @@ function filledCount(slots: (CalendarAssignment | undefined)[]): number {
   return slots.filter((s) => s).length
 }
 
+function cellBg(c: Cell): string {
+  if (c.blank) return 'bg-muted/40'
+  if (props.showFillHints) {
+    const n = filledCount(c.slots)
+    if (n >= SLOTS.value) return 'bg-green-100'
+    if (n === 0) return 'bg-red-100'
+    return 'bg-amber-100'
+  }
+  if (c.conflict) return 'bg-destructive/5'
+  if (c.isWeekend) return 'bg-muted/30'
+  return 'bg-card'
+}
+
 function doctorFull(id: number): string {
   const d = doctorsById.value.get(id)
   return d ? `${d.firstName} ${d.lastName}` : String(id)
@@ -127,11 +140,10 @@ function doctorFull(id: number): string {
           v-for="(c, idx) in cells"
           :key="idx"
           :class="[
-            'min-h-[112px] bg-card p-2',
-            c.blank && 'bg-muted/40',
-            !c.blank && c.isWeekend && 'bg-muted/30',
+            'min-h-[112px] p-2',
+            cellBg(c),
             !c.blank && c.isHoliday && 'border border-destructive/40',
-            !c.blank && c.conflict && 'border border-destructive/60 bg-destructive/5',
+            !c.blank && c.conflict && 'border border-destructive/60',
           ]"
         >
           <template v-if="!c.blank">
