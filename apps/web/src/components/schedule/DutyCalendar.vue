@@ -22,6 +22,7 @@ const props = defineProps<{
   savingDates?: Set<string>
   pool?: 'eligible' | 'available'
   allowClear?: boolean
+  showFillHints?: boolean
 }>()
 
 const SLOTS = computed(() => props.slotsPerDay ?? 2)
@@ -183,13 +184,13 @@ function doctorFull(id: number): string {
                 >Unfillable</span
               >
               <span
-                v-if="mode === 'editable' && filledCount(c.slots) === 0"
+                v-if="mode === 'editable' && showFillHints && filledCount(c.slots) === 0"
                 class="block text-[11px] font-medium text-destructive"
                 :title="c.conflict"
                 >No doctor</span
               >
               <span
-                v-else-if="mode === 'editable' && filledCount(c.slots) === 1"
+                v-else-if="mode === 'editable' && showFillHints && filledCount(c.slots) === 1"
                 class="block text-[11px] font-medium text-amber-600"
                 >1 of 2</span
               >
