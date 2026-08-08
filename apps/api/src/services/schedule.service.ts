@@ -383,6 +383,15 @@ async function validateAssignment(
   if (!underCap(count, doctor.max_monthly_duties).ok)
     throw new HttpError(409, 'Constraint violation: monthly cap reached')
 
+  const dupRes = await query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM duties
+     WHERE schedule_id = $1 AND duty_date = $2 AND doctor_id = $3
+     AND ($4::int IS NULL OR id <> $4)`,
+    [scheduleId, date, doctorId, excludeDutyId],
+  )
+  if ((dupRes.rows[0]?.n ?? 0) > 0)
+    throw new HttpError(409, 'Constraint violation: doctor already assigned to this date')
+
   const dow = dayOfWeekISO(date)
   if (dow === 6 || dow === 0) {
     const wkRes = await query<{ n: number }>(

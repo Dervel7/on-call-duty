@@ -143,10 +143,26 @@ describe('schedule.service', () => {
     ).rejects.toMatchObject({ status: 409 })
   })
 
+  it('addDuty 409 when the same doctor is already assigned to the date', async () => {
+    query.mockResolvedValueOnce({ rows: [scheduleRow()] })
+    query.mockResolvedValueOnce({ rows: [{ n: 1 }] })
+    query.mockResolvedValueOnce({ rows: [{ max_monthly_duties: 7, is_active: true }] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
+    query.mockResolvedValueOnce({ rows: [{ n: 1 }] })
+    await expect(
+      addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator' }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining('already assigned to this date'),
+    })
+  })
+
   it('reassignDuty runs validateAssignment and updates the row', async () => {
     query.mockResolvedValueOnce({ rows: [dutyRow({ id: 10, doctor_id: 5, duty_date: '2026-09-05' })] })
     query.mockResolvedValueOnce({ rows: [{ max_monthly_duties: 7, is_active: true }] })
     query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
     query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
     query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
     query.mockResolvedValueOnce({ rows: [] })
