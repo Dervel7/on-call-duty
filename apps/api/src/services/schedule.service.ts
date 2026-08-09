@@ -268,7 +268,7 @@ function enginePlanToDuties(result: ReturnType<typeof runEngine>): PlanDuty[] {
   if (result.conflicts.length > 0)
     throw new HttpError(
       422,
-      `Schedule has ${result.conflicts.length} unfillable day(s); run /schedules/preview for details`,
+      `Schedule has ${result.conflicts.length} unfillable day(s); Preview the schedule and resolve conflicts before generating a plan`,
     )
   return result.assignments.map((a) => ({
     date: a.date,

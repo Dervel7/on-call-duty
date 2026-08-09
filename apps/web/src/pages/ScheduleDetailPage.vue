@@ -217,6 +217,7 @@ onMounted(async () => {
         :doctors="doctors"
         :mode="mode"
         :saving-dates="savingDates"
+        allow-clear
         @select="onSelect"
       />
     </template>
