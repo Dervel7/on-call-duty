@@ -342,7 +342,7 @@ export async function list(
 ): Promise<ScheduleSummary[]> {
   const where: string[] = []
   const params: unknown[] = []
-  if (actor && actor.role !== 'administrator') {
+  if (actor && actor.role !== 'administrator' && actor.role !== 'superadmin') {
     params.push('published')
     where.push(`status = $${params.length}`)
   }
@@ -376,7 +376,7 @@ export async function getScheduleDuties(
 
 export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail> {
   const { schedule, duties } = await getScheduleDuties(id)
-  const isAdmin = actor?.role === 'administrator'
+  const isAdmin = actor?.role === 'administrator' || actor?.role === 'superadmin'
   if (actor && !isAdmin && schedule.status !== 'published') {
     throw new HttpError(403, 'Schedule not published')
   }

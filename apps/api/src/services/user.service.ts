@@ -1,14 +1,22 @@
 import bcrypt from 'bcrypt'
 import { query } from '../db/client'
 import { HttpError } from '../lib/http-error'
-import type { CreateUserRequest, UpdateUserRequest, User } from '@oncall/shared'
+import type {
+  AuthUser,
+  CreateUserRequest,
+  Role,
+  UpdateUserRequest,
+  User,
+} from '@oncall/shared'
+
+type Actor = Pick<AuthUser, 'id' | 'role'>
 
 interface UserRow {
   id: number
   email: string
   username: string
   password_hash: string
-  role: 'administrator' | 'doctor'
+  role: Role
   first_name: string
   last_name: string
   is_active: boolean
@@ -46,7 +54,10 @@ export async function getById(id: number): Promise<User> {
   return toUser(row)
 }
 
-export async function create(input: CreateUserRequest): Promise<User> {
+export async function create(input: CreateUserRequest, actor: Actor): Promise<User> {
+  if (input.role === 'superadmin' && actor.role !== 'superadmin') {
+    throw new HttpError(403, 'Only a superadmin can create superadmin accounts')
+  }
   const existingEmail = await query(`SELECT id FROM users WHERE email = $1`, [input.email])
   if (existingEmail.rows.length > 0) throw new HttpError(409, 'Email already in use')
   const existingUsername = await query(`SELECT id FROM users WHERE username = $1`, [input.username])
@@ -62,7 +73,13 @@ export async function create(input: CreateUserRequest): Promise<User> {
   return toUser(row)
 }
 
-export async function update(id: number, input: UpdateUserRequest): Promise<User> {
+export async function update(id: number, input: UpdateUserRequest, actor: Actor): Promise<User> {
+  const existing = await getById(id)
+  if (actor.role !== 'superadmin') {
+    if (existing.role === 'superadmin' || input.role === 'superadmin') {
+      throw new HttpError(403, 'Only a superadmin can manage superadmin accounts')
+    }
+  }
   const sets: string[] = []
   const params: unknown[] = []
   const map: Array<[string, unknown]> = [

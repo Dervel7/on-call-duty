@@ -21,7 +21,7 @@ export const userController = {
   },
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await userService.create(req.body)
+      const user = await userService.create(req.body, req.user!)
       res.status(201).json(ok({ user }))
     } catch (err) {
       next(err)
@@ -29,7 +29,7 @@ export const userController = {
   },
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await userService.update(Number(req.params.id), req.body)
+      const user = await userService.update(Number(req.params.id), req.body, req.user!)
       res.status(200).json(ok({ user }))
     } catch (err) {
       next(err)

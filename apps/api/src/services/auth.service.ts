@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt'
 import { query } from '../db/client'
 import { HttpError } from '../lib/http-error'
 import { signAccessToken } from '../lib/jwt'
-import type { AuthUser, ChangePasswordRequest, LoginRequest } from '@oncall/shared'
+import type { AuthUser, ChangePasswordRequest, LoginRequest, Role } from '@oncall/shared'
 import * as tokenService from './token.service'
 
 interface UserRow {
@@ -10,7 +10,7 @@ interface UserRow {
   email: string
   username: string
   password_hash: string
-  role: 'administrator' | 'doctor'
+  role: Role
   first_name: string
   last_name: string
   is_active: boolean
