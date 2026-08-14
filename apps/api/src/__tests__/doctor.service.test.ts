@@ -12,9 +12,10 @@ vi.mock('bcrypt', () => ({ default: { hash: (...a: unknown[]) => hash(...a) } })
 
 import {
   create,
+  deactivate,
+  getById,
   getByUserId,
   list,
-  remove,
   update,
 } from '../services/doctor.service'
 
@@ -101,25 +102,36 @@ describe('doctor.service', () => {
     expect(updateDoctorSql).toContain('UPDATE doctors')
   })
 
-  it('remove deletes the underlying user row (cascade) when no duties exist', async () => {
+  it('deactivate flips users.is_active to FALSE instead of deleting rows', async () => {
     query.mockResolvedValueOnce({ rows: [{ user_id: 7 }] })
     query.mockResolvedValueOnce({ rows: [] })
-    query.mockResolvedValueOnce({ rows: [] })
-    await remove(2)
-    const del = query.mock.calls[2]?.[0] as string
-    expect(del).toContain('DELETE FROM users')
-    expect((query.mock.calls[2]?.[1] as unknown[])[0]).toBe(7)
-  })
-
-  it('remove 409 when the doctor has scheduled duties', async () => {
-    query.mockResolvedValueOnce({ rows: [{ user_id: 7 }] })
-    query.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
-    await expect(remove(2)).rejects.toMatchObject({ status: 409 })
+    await deactivate(2)
+    const upd = query.mock.calls[1]?.[0] as string
+    expect(upd).toContain('UPDATE users')
+    expect(upd).toContain('is_active = FALSE')
+    expect((query.mock.calls[1]?.[1] as unknown[])[0]).toBe(7)
     expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM users'))).toBe(false)
   })
 
-  it('remove throws 404 when doctor missing', async () => {
+  it('deactivate keeps the doctor readable with isActive false (duties survive)', async () => {
+    query.mockResolvedValueOnce({ rows: [{ user_id: 7 }] })
     query.mockResolvedValueOnce({ rows: [] })
-    await expect(remove(99)).rejects.toMatchObject({ status: 404 })
+    await deactivate(2)
+    query.mockResolvedValueOnce({ rows: [doctorRow({ is_active: false })] })
+    const d = await getById(2)
+    expect(d.isActive).toBe(false)
+  })
+
+  it('reactivation via update(id, { isActive: true }) restores isActive', async () => {
+    query.mockResolvedValueOnce({ rows: [{ user_id: 7 }] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [doctorRow({ is_active: true })] })
+    const d = await update(2, { isActive: true })
+    expect(d.isActive).toBe(true)
+  })
+
+  it('deactivate throws 404 when doctor missing', async () => {
+    query.mockResolvedValueOnce({ rows: [] })
+    await expect(deactivate(99)).rejects.toMatchObject({ status: 404 })
   })
 })

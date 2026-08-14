@@ -26,7 +26,7 @@ function build() {
 const adminToken = () => signAccessToken({ sub: 1, role: 'administrator' })
 const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor' })
 
-const row = () => ({
+const row = (overrides: Partial<Record<string, unknown>> = {}) => ({
   id: 1,
   user_id: 10,
   email: 'd@h.com',
@@ -37,6 +37,7 @@ const row = () => ({
   max_monthly_duties: 7,
   created_at: new Date(),
   updated_at: new Date(),
+  ...overrides,
 })
 
 beforeEach(() => query.mockReset())
@@ -104,5 +105,30 @@ describe('doctor routes', () => {
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ email: 'new@h.com', username: 'newdr', password: 'secret1', firstName: 'Jane', lastName: 'Roe', maxMonthlyDuties: 9 })
     expect(res.status).toBe(400)
+  })
+
+  it('admin DELETE /doctors/:id deactivates instead of deleting (204, history kept)', async () => {
+    query.mockResolvedValueOnce({ rows: [{ user_id: 10 }] })
+    query.mockResolvedValueOnce({ rows: [] })
+    const res = await request(build())
+      .delete('/doctors/1')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(res.status).toBe(204)
+    const upd = query.mock.calls[1]?.[0] as string
+    expect(upd).toContain('UPDATE users')
+    expect(upd).toContain('is_active = FALSE')
+    expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM users'))).toBe(false)
+  })
+
+  it('admin PATCH /doctors/:id { isActive: true } reactivates (200)', async () => {
+    query.mockResolvedValueOnce({ rows: [{ user_id: 10 }] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [row({ is_active: true })] })
+    const res = await request(build())
+      .patch('/doctors/1')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ isActive: true })
+    expect(res.status).toBe(200)
+    expect(res.body.data.doctor.isActive).toBe(true)
   })
 })
