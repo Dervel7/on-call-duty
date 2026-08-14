@@ -37,7 +37,7 @@ export const userController = {
   },
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
-      await userService.remove(Number(req.params.id))
+      await userService.remove(Number(req.params.id), req.user!)
       res.status(204).end()
     } catch (err) {
       next(err)

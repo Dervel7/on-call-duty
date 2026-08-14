@@ -109,7 +109,11 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
   return toUser(row)
 }
 
-export async function remove(id: number): Promise<void> {
+export async function remove(id: number, actor: Actor): Promise<void> {
+  const existing = await getById(id)
+  if (existing.role === 'superadmin' && actor.role !== 'superadmin') {
+    throw new HttpError(403, 'Only a superadmin can manage superadmin accounts')
+  }
   const res = await query(`DELETE FROM users WHERE id = $1 RETURNING id`, [id])
   if (res.rows.length === 0) throw new HttpError(404, 'User not found')
 }

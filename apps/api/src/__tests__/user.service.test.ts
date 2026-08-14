@@ -146,8 +146,13 @@ describe('user.service', () => {
     expect(u.isActive).toBe(false)
   })
 
+  it('remove rejects deleting a superadmin from a non-superadmin actor with 403', async () => {
+    query.mockResolvedValueOnce({ rows: [row({ role: 'superadmin' })] })
+    await expect(remove(1, adminActor)).rejects.toMatchObject({ status: 403 })
+  })
+
   it('remove throws 404 when nothing deleted', async () => {
     query.mockResolvedValue({ rows: [] })
-    await expect(remove(99)).rejects.toMatchObject({ status: 404 })
+    await expect(remove(99, adminActor)).rejects.toMatchObject({ status: 404 })
   })
 })
