@@ -51,3 +51,4 @@ export type {
   MeStats,
 } from './stats'
 export type { ReportQuery, ReportHoliday, MonthlyReport } from './reports'
+export * from './usage'
