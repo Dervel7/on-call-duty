@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import type { CreateUserRequest, UpdateUserRequest, User } from '@oncall/shared'
+import type { CreateUserRequest, Role, UpdateUserRequest, User } from '@oncall/shared'
 import { createUserSchema, updateUserSchema } from '@oncall/shared'
 import * as userService from '@/services/user'
 import Button from '@/components/ui/Button.vue'
@@ -25,7 +25,7 @@ interface EditState {
   username: string
   firstName: string
   lastName: string
-  role: 'administrator' | 'doctor'
+  role: Role
   isActive: boolean
 }
 
