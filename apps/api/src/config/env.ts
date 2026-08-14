@@ -20,6 +20,8 @@ const schema = z.object({
     .transform((v) => (v === undefined ? process.env.NODE_ENV === 'production' : v === 'true')),
   COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   COOKIE_DOMAIN: z.string().optional(),
+
+  LICENSE_FILE: z.string().default(''),
 })
 
 const parsed = schema.safeParse(process.env)

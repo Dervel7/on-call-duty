@@ -11,6 +11,10 @@ coverage
 !.vscode/settings.json
 .idea/
 .superpowers/
+
+# Signed license files (issued per clinic, never commit)
+license.json
+*.license.json
 .turbo/
 .nitro/
 .output/
