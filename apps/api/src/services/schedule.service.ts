@@ -24,6 +24,7 @@ import {
   prevDate,
 } from '../scheduling/dates'
 import type { DoctorSpec, SchedulingContext } from '../scheduling/types'
+import { recordGeneration } from './usage.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -259,6 +260,8 @@ export async function generate(
         [id, d.date, d.doctorId, d.isWeekend, d.isHoliday, d.reason],
       )
     }
+    const doctorIds = [...new Set(planDuties.map((d) => d.doctorId))]
+    await recordGeneration(client, year, month, doctorIds)
     return id
   })
   return getById(scheduleId, actor)
