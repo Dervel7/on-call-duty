@@ -109,3 +109,41 @@ CREATE INDEX IF NOT EXISTS idx_duties_date ON duties (duty_date);
 ALTER TABLE duties DROP CONSTRAINT IF EXISTS duties_schedule_id_duty_date_key;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_duties_schedule_date_doctor
   ON duties (schedule_id, duty_date, doctor_id);
+
+-- Phase 10: Usage metering & superadmin audit
+
+-- superadmin role (vendor auditor). Drop/re-add keeps the file idempotent.
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check
+  CHECK (role IN ('administrator', 'doctor', 'superadmin'));
+
+-- Append-only: one row per doctor included in each generated schedule.
+-- Never deleted by schedule deletion or doctor deactivation.
+CREATE TABLE IF NOT EXISTS schedule_generation_log (
+  id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  doctor_id  INTEGER NOT NULL REFERENCES doctors (id) ON DELETE RESTRICT,
+  year       INTEGER NOT NULL,
+  month      INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_schedule_generation_log_doctor
+  ON schedule_generation_log (doctor_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_schedule_generation_log_period
+  ON schedule_generation_log (year, month);
+
+-- One-time backfill from existing duties (no-op once the log has rows).
+INSERT INTO schedule_generation_log (doctor_id, year, month, created_at)
+SELECT DISTINCT du.doctor_id, s.year, s.month, s.updated_at
+FROM duties du JOIN schedules s ON s.id = du.schedule_id
+WHERE NOT EXISTS (SELECT 1 FROM schedule_generation_log LIMIT 1);
+
+-- Alert-only abuse flags, visible to the superadmin only.
+CREATE TABLE IF NOT EXISTS operator_alerts (
+  id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  type        TEXT NOT NULL CHECK (type IN ('allowance_exceeded', 'disjoint_regeneration')),
+  detail      JSONB NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_operator_alerts_open
+  ON operator_alerts (type, resolved_at);

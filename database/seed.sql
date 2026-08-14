@@ -72,3 +72,16 @@ WHERE NOT EXISTS (SELECT 1 FROM holidays WHERE date = '2026-09-01');
 INSERT INTO holidays (name, date)
 SELECT 'Another Holiday', '2026-09-17'
 WHERE NOT EXISTS (SELECT 1 FROM holidays WHERE date = '2026-09-17');
+
+-- Phase 10: seed superadmin (vendor audit account, password: changeme123)
+INSERT INTO users (email, username, password_hash, role, first_name, last_name, is_active)
+VALUES (
+  'superadmin@oncall.local',
+  'superadmin',
+  '$2b$12$ib69wvBRW9XbWWJagExPNe9QrDklUGCvMBlMivRVOAY03LTNsOwSi',
+  'superadmin',
+  'Vendor',
+  'Superadmin',
+  TRUE
+)
+ON CONFLICT (email) DO NOTHING;
