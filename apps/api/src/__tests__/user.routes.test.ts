@@ -43,6 +43,13 @@ describe('RBAC on /users', () => {
     expect(res.status).toBe(200)
     expect(res.body.data.users).toHaveLength(1)
   })
+
+  it('hides a superadmin from GET /users/:id for an administrator', async () => {
+    query.mockResolvedValueOnce({ rows: [row({ id: 3, role: 'superadmin' })] })
+    const token = signAccessToken({ sub: 2, role: 'administrator' })
+    const res = await request(app).get('/users/3').set('Authorization', `Bearer ${token}`)
+    expect(res.status).toBe(404)
+  })
 })
 
 describe('POST /users (admin)', () => {

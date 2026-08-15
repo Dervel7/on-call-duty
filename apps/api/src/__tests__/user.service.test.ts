@@ -6,7 +6,7 @@ vi.mock('../db/client', () => ({ query: (...a: unknown[]) => query(...a) }))
 const { hash } = vi.hoisted(() => ({ hash: vi.fn(async () => 'HASH') }))
 vi.mock('bcrypt', () => ({ default: { hash } }))
 
-import { create, list, remove, update } from '../services/user.service'
+import { create, getById, list, remove, update } from '../services/user.service'
 
 function row(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -39,6 +39,47 @@ describe('user.service', () => {
     expect(users).toHaveLength(2)
     expect(users[0]?.firstName).toBe('Jane')
     expect(typeof users[0]?.createdAt).toBe('string')
+  })
+
+  it('list filters out superadmins for a non-superadmin actor', async () => {
+    query.mockResolvedValue({ rows: [row()] })
+    await list(adminActor)
+    const sql = query.mock.calls[0]?.[0] as string
+    expect(sql).toContain('role <> $1')
+    expect(query.mock.calls[0]?.[1]).toEqual(['superadmin'])
+  })
+
+  it('list uses the unfiltered query for a superadmin actor', async () => {
+    query.mockResolvedValue({ rows: [row()] })
+    await list(superadminActor)
+    const sql = query.mock.calls[0]?.[0] as string
+    expect(sql).not.toContain('role <>')
+    expect(query.mock.calls[0]?.[1]).toEqual([])
+  })
+
+  it('list uses the unfiltered query when no actor is given', async () => {
+    query.mockResolvedValue({ rows: [row()] })
+    await list()
+    const sql = query.mock.calls[0]?.[0] as string
+    expect(sql).not.toContain('role <>')
+    expect(query.mock.calls[0]?.[1]).toEqual([])
+  })
+
+  it('getById of a superadmin row throws 404 for a non-superadmin actor', async () => {
+    query.mockResolvedValueOnce({ rows: [row({ role: 'superadmin' })] })
+    await expect(getById(1, adminActor)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('getById of a superadmin row resolves for a superadmin actor', async () => {
+    query.mockResolvedValueOnce({ rows: [row({ role: 'superadmin' })] })
+    const u = await getById(1, superadminActor)
+    expect(u.role).toBe('superadmin')
+  })
+
+  it('getById without an actor resolves a superadmin row (internal path)', async () => {
+    query.mockResolvedValueOnce({ rows: [row({ role: 'superadmin' })] })
+    const u = await getById(1)
+    expect(u.role).toBe('superadmin')
   })
 
   it('create rejects duplicate email with 409', async () => {

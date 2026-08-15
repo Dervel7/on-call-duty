@@ -3,9 +3,9 @@ import { ok } from '../lib/envelope'
 import * as userService from '../services/user.service'
 
 export const userController = {
-  async list(_req: Request, res: Response, next: NextFunction) {
+  async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const users = await userService.list()
+      const users = await userService.list(req.user!)
       res.status(200).json(ok({ users }))
     } catch (err) {
       next(err)
@@ -13,7 +13,7 @@ export const userController = {
   },
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await userService.getById(Number(req.params.id))
+      const user = await userService.getById(Number(req.params.id), req.user!)
       res.status(200).json(ok({ user }))
     } catch (err) {
       next(err)

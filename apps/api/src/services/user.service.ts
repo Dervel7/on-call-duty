@@ -42,15 +42,25 @@ function oneRow(rows: UserRow[]): UserRow | undefined {
   return rows[0]
 }
 
-export async function list(): Promise<User[]> {
+export async function list(actor?: Actor): Promise<User[]> {
+  if (actor && actor.role !== 'superadmin') {
+    const filtered = await query<UserRow>(
+      `SELECT ${COLUMNS} FROM users WHERE role <> $1 ORDER BY created_at`,
+      ['superadmin'],
+    )
+    return filtered.rows.map(toUser)
+  }
   const res = await query<UserRow>(`SELECT ${COLUMNS} FROM users ORDER BY created_at`, [])
   return res.rows.map(toUser)
 }
 
-export async function getById(id: number): Promise<User> {
+export async function getById(id: number, actor?: Actor): Promise<User> {
   const res = await query<UserRow>(`SELECT ${COLUMNS} FROM users WHERE id = $1`, [id])
   const row = oneRow(res.rows)
   if (!row) throw new HttpError(404, 'User not found')
+  if (row.role === 'superadmin' && actor && actor.role !== 'superadmin') {
+    throw new HttpError(404, 'User not found')
+  }
   return toUser(row)
 }
 
