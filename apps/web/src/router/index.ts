@@ -78,6 +78,12 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['administrator'] },
       },
       {
+        path: 'usage',
+        name: 'usage',
+        component: () => import('../pages/UsagePage.vue'),
+        meta: { roles: ['superadmin'] },
+      },
+      {
         path: 'my-availability',
         name: 'my-availability',
         component: () => import('../pages/MyAvailabilityPage.vue'),

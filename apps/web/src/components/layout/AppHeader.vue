@@ -30,6 +30,9 @@ const navItems = computed(() => {
       { to: '/reports', label: 'Reports' },
     )
   }
+  if (auth.isSuperadmin) {
+    items.push({ to: '/usage', label: 'Usage' })
+  }
   items.push({ to: '/profile', label: 'Profile' })
   return items
 })

@@ -9,7 +9,10 @@ export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(null)
 
   const isAuthenticated = computed(() => accessToken.value !== null)
-  const isAdmin = computed(() => user.value?.role === 'administrator')
+  const isAdmin = computed(
+    () => user.value?.role === 'administrator' || user.value?.role === 'superadmin',
+  )
+  const isSuperadmin = computed(() => user.value?.role === 'superadmin')
 
   async function login(identifier: string, password: string): Promise<void> {
     const data = await authService.login(identifier, password)
@@ -50,5 +53,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   setRefreshHandler(refresh)
 
-  return { user, accessToken, isAuthenticated, isAdmin, login, refresh, logout, fetchMe, changePassword }
+  return {
+    user,
+    accessToken,
+    isAuthenticated,
+    isAdmin,
+    isSuperadmin,
+    login,
+    refresh,
+    logout,
+    fetchMe,
+    changePassword,
+  }
 })
