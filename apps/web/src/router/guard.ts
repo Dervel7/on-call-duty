@@ -6,6 +6,11 @@ export interface GuardAuth {
   user: { role: Role } | null
 }
 
+function isRoleAllowed(roles: Role[], role: Role): boolean {
+  if (roles.includes(role)) return true
+  return role === 'superadmin' && roles.includes('administrator')
+}
+
 export function resolveGuard(
   to: RouteLocationNormalized,
   auth: GuardAuth,
@@ -15,7 +20,7 @@ export function resolveGuard(
     return { name: 'login', query: { redirect: to.fullPath } }
   }
   const roles = to.meta.roles
-  if (roles && (auth.user === null || !roles.includes(auth.user.role))) {
+  if (roles && (auth.user === null || !isRoleAllowed(roles, auth.user.role))) {
     return { name: 'home' }
   }
   return true

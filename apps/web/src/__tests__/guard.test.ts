@@ -10,7 +10,7 @@ function to(fullPath: string, meta: Partial<RouteLocationNormalized['meta']> = {
   } as RouteLocationNormalized
 }
 
-const authed = (role: 'administrator' | 'doctor'): GuardAuth => ({
+const authed = (role: 'administrator' | 'doctor' | 'superadmin'): GuardAuth => ({
   isAuthenticated: true,
   user: { role },
 })
@@ -28,6 +28,20 @@ describe('resolveGuard', () => {
 
   it('allows an administrator on a role-gated route', () => {
     expect(resolveGuard(to('/users', { roles: ['administrator'] }), authed('administrator'))).toBe(true)
+  })
+
+  it('allows a superadmin on an administrator-only route', () => {
+    expect(resolveGuard(to('/users', { roles: ['administrator'] }), authed('superadmin'))).toBe(true)
+  })
+
+  it('redirects a superadmin away from a doctor-only route to home', () => {
+    const res = resolveGuard(to('/roster', { roles: ['doctor'] }), authed('superadmin'))
+    expect(res).toEqual({ name: 'home' })
+  })
+
+  it('redirects an administrator away from a superadmin-only route to home', () => {
+    const res = resolveGuard(to('/usage', { roles: ['superadmin'] }), authed('administrator'))
+    expect(res).toEqual({ name: 'home' })
   })
 
   it('redirects a doctor away from an admin-only route to home', () => {
