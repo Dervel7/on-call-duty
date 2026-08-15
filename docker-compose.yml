@@ -52,6 +52,11 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      # Signed license file, mounted read-only below. Required in production —
+      # the API exits at boot without a valid license.
+      LICENSE_FILE: ${LICENSE_FILE:-/license.json}
+    volumes:
+      - ./license.json:/license.json:ro
     healthcheck:
       test:
         - CMD

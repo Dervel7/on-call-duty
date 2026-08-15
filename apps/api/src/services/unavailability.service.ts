@@ -61,7 +61,7 @@ async function getById(id: number): Promise<Unavailability> {
 }
 
 async function assertOwns(recordDoctorId: number, actor: Actor): Promise<void> {
-  if (actor.role === 'administrator') return
+  if (actor.role === 'administrator' || actor.role === 'superadmin') return
   const ownDoctorId = await resolveDoctorId(actor.id)
   if (ownDoctorId !== recordDoctorId) throw new HttpError(403, 'Forbidden')
 }

@@ -15,6 +15,9 @@ coverage
 # Signed license files (issued per clinic, never commit)
 license.json
 *.license.json
+# License signing keys (local keygen artifacts, never commit)
+license-private.pem
+license-public.pem
 .turbo/
 .nitro/
 .output/

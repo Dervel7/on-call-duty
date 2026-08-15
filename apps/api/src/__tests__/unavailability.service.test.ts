@@ -121,7 +121,7 @@ describe('unavailability.service', () => {
     expect(updateSql).toContain('UPDATE unavailability')
   })
 
-  it('update forbids a non-owner doctor (403)', async () => {
+  it('update forbids a non-owner doctor (403); superadmin treated as admin', async () => {
     query.mockResolvedValueOnce({
       rows: [{ doctor_id: 5, start_date: '2026-09-07', end_date: '2026-09-11' }],
     })
@@ -129,6 +129,16 @@ describe('unavailability.service', () => {
     await expect(
       update(1, { type: 'sick' }, { id: 10, role: 'doctor' }),
     ).rejects.toMatchObject({ status: 403 })
+
+    query.mockReset()
+    query.mockResolvedValueOnce({
+      rows: [{ doctor_id: 5, start_date: '2026-09-07', end_date: '2026-09-11' }],
+    })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [row({ type: 'sick' })] })
+    const x = await update(1, { type: 'sick' }, { id: 1, role: 'superadmin' })
+    expect(x.type).toBe('sick')
   })
 
   it('update 404 when record missing', async () => {

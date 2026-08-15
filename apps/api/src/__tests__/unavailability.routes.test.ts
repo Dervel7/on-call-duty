@@ -21,6 +21,7 @@ function build() {
 }
 
 const adminToken = () => signAccessToken({ sub: 1, role: 'administrator' })
+const superadminToken = () => signAccessToken({ sub: 2, role: 'superadmin' })
 const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor' })
 
 const row = () => ({
@@ -146,5 +147,20 @@ describe('unavailability routes', () => {
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ type: 'sick' })
     expect(badId.status).toBe(400)
+  })
+
+  it('superadmin can PATCH any record without a doctor profile (200)', async () => {
+    query.mockResolvedValueOnce({
+      rows: [{ doctor_id: 5, start_date: '2026-09-07', end_date: '2026-09-11' }],
+    })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [row()] })
+    const res = await request(build())
+      .patch('/unavailability/1')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+      .send({ type: 'sick' })
+    expect(res.status).toBe(200)
+    expect(res.body.data.unavailability).toBeDefined()
   })
 })
