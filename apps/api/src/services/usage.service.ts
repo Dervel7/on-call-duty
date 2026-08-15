@@ -1,5 +1,8 @@
 import type { PoolClient } from 'pg'
+import type { GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
 import { license } from '../config/license'
+import { query } from '../db/client'
+import { HttpError } from '../lib/http-error'
 
 /** Share of `next` doctors already present in `prev`, as a percentage of the larger set. */
 export function overlapPercent(prev: number[], next: number[]): number {
@@ -106,4 +109,117 @@ export async function recordGeneration(
       )
     }
   }
+}
+
+interface AlertRow {
+  id: number
+  type: 'allowance_exceeded' | 'disjoint_regeneration'
+  detail: Record<string, unknown>
+  created_at: Date
+  resolved_at: Date | null
+}
+
+function toAlert(row: AlertRow): OperatorAlert {
+  return {
+    id: row.id,
+    type: row.type,
+    detail: row.detail,
+    createdAt: row.created_at.toISOString(),
+    resolvedAt: row.resolved_at ? row.resolved_at.toISOString() : null,
+  }
+}
+
+export async function summary(): Promise<UsageSummary> {
+  const res = await query<{ n: number }>(
+    `SELECT COUNT(DISTINCT doctor_id)::int AS n FROM schedule_generation_log
+     WHERE created_at >= NOW() - ($1 || ' days')::interval`,
+    [license.rollingWindowDays],
+  )
+  const open = await query<{ n: number }>(
+    'SELECT COUNT(*)::int AS n FROM operator_alerts WHERE resolved_at IS NULL',
+  )
+  return {
+    license: {
+      licensee: license.licensee,
+      doctorAllowance: license.doctorAllowance,
+      rollingWindowDays: license.rollingWindowDays,
+      expiresAt: license.expiresAt,
+    },
+    rollingDistinctDoctors: res.rows[0]?.n ?? 0,
+    openAlerts: open.rows[0]?.n ?? 0,
+  }
+}
+
+export async function generations(): Promise<GenerationEvent[]> {
+  // Batch timestamps travel as text for the same reason as in recordGeneration:
+  // node-postgres truncates timestamptz microseconds when parsing to a JS Date,
+  // which would break the exact equality match on each batch.
+  const batches = await query<{ year: number; month: number; created_at: string }>(
+    `SELECT year, month, created_at::text AS created_at FROM schedule_generation_log
+     GROUP BY year, month, created_at ORDER BY created_at DESC`,
+  )
+  const events: GenerationEvent[] = []
+  for (const b of batches.rows) {
+    const docs = await query<{ doctor_id: number; name: string }>(
+      `SELECT DISTINCT l.doctor_id, u.first_name || ' ' || u.last_name AS name
+       FROM schedule_generation_log l
+       JOIN doctors d ON d.id = l.doctor_id JOIN users u ON u.id = d.user_id
+       WHERE l.year = $1 AND l.month = $2 AND l.created_at = $3::timestamptz`,
+      [b.year, b.month, b.created_at],
+    )
+    const ids = docs.rows.map((r) => r.doctor_id)
+    const prev = batches.rows.find(
+      (o) =>
+        o.year === b.year &&
+        o.month === b.month &&
+        o.created_at < b.created_at,
+    )
+    let overlap: number | null = null
+    if (prev) {
+      const prevDocs = await query<{ doctor_id: number }>(
+        `SELECT DISTINCT doctor_id FROM schedule_generation_log
+         WHERE year = $1 AND month = $2 AND created_at = $3::timestamptz`,
+        [prev.year, prev.month, prev.created_at],
+      )
+      overlap = Math.round(
+        overlapPercent(
+          prevDocs.rows.map((r) => r.doctor_id),
+          ids,
+        ),
+      )
+    }
+    events.push({
+      year: b.year,
+      month: b.month,
+      generatedAt: new Date(b.created_at).toISOString(),
+      doctorIds: ids,
+      doctorNames: docs.rows.map((r) => r.name),
+      overlapPercent: overlap,
+    })
+  }
+  return events
+}
+
+export async function listAlerts(): Promise<OperatorAlert[]> {
+  const res = await query<AlertRow>(
+    `SELECT id, type, detail, created_at, resolved_at FROM operator_alerts
+     ORDER BY resolved_at IS NOT NULL, created_at DESC`,
+  )
+  return res.rows.map(toAlert)
+}
+
+export async function resolveAlert(id: number): Promise<OperatorAlert> {
+  const res = await query<AlertRow>(
+    `UPDATE operator_alerts SET resolved_at = NOW()
+     WHERE id = $1 AND resolved_at IS NULL
+     RETURNING id, type, detail, created_at, resolved_at`,
+    [id],
+  )
+  const row = res.rows[0]
+  if (!row) {
+    const found = await query('SELECT 1 FROM operator_alerts WHERE id = $1', [id])
+    if (found.rows.length === 0) throw new HttpError(404, 'Alert not found')
+    throw new HttpError(409, 'Alert already resolved')
+  }
+  return toAlert(row)
 }
