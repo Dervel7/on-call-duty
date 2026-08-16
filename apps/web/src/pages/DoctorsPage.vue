@@ -144,7 +144,7 @@ onMounted(load)
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow v-for="d in doctors" :key="d.id">
+        <TableRow v-for="d in doctors" :key="d.id" :class="d.isActive ? undefined : 'bg-destructive/10'">
           <TableCell>{{ d.firstName }} {{ d.lastName }}</TableCell>
           <TableCell>{{ d.email }}</TableCell>
           <TableCell>{{ d.username }}</TableCell>
