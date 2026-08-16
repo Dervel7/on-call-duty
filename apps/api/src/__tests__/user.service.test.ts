@@ -251,4 +251,31 @@ describe('user.service', () => {
     query.mockResolvedValue({ rows: [] })
     await expect(remove(99, adminActor)).rejects.toMatchObject({ status: 404 })
   })
+
+  it('list excludes deleted users in both role-filtered and full queries', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await list()
+    await list({ id: 1, role: 'administrator' as const })
+    expect(query.mock.calls[0]?.[0]).toContain('is_deleted = FALSE')
+    expect(query.mock.calls[1]?.[0]).toContain('is_deleted = FALSE')
+  })
+
+  it('create duplicate checks ignore deleted accounts', async () => {
+    query.mockResolvedValueOnce({ rows: [] }) // email check
+    query.mockResolvedValueOnce({ rows: [] }) // username check
+    query.mockImplementation(async () => ({ rows: [] }))
+    await create(
+      {
+        email: 'gone@h.com',
+        username: 'gone',
+        password: 'secret1',
+        role: 'doctor',
+        firstName: 'G',
+        lastName: 'O',
+      },
+      { id: 1, role: 'administrator' as const },
+    ).catch(() => undefined)
+    expect(query.mock.calls[0]?.[0]).toContain('AND is_deleted = FALSE')
+    expect(query.mock.calls[1]?.[0]).toContain('AND is_deleted = FALSE')
+  })
 })

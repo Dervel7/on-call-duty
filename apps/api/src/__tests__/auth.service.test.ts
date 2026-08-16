@@ -102,6 +102,13 @@ describe('auth.service', () => {
     ).rejects.toMatchObject({ status: 403 })
   })
 
+  it('login throws 401 when the account is deleted (invisible)', async () => {
+    query.mockResolvedValue({ rows: [] }) // lookups filter is_deleted = FALSE
+    await expect(
+      login({ identifier: 'gone@h.com', password: 'whatever' }),
+    ).rejects.toMatchObject({ status: 401 })
+  })
+
   it('refresh returns a new access token from the rotated token', async () => {
     query.mockResolvedValue({ rows: [userRow()] })
     const r = await refresh('old')

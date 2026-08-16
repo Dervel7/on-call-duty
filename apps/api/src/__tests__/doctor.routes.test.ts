@@ -108,16 +108,17 @@ describe('doctor routes', () => {
     expect(res.status).toBe(400)
   })
 
-  it('admin DELETE /doctors/:id deactivates instead of deleting (204, history kept)', async () => {
+  it('admin DELETE /doctors/:id soft-deletes (204, rows kept)', async () => {
     query.mockResolvedValueOnce({ rows: [row()] })
-    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [] }) // draft-duty check
+    query.mockResolvedValueOnce({ rows: [] }) // UPDATE users
     const res = await request(build())
       .delete('/doctors/1')
       .set('Authorization', `Bearer ${adminToken()}`)
     expect(res.status).toBe(204)
-    const upd = query.mock.calls[1]?.[0] as string
+    const upd = query.mock.calls[2]?.[0] as string
     expect(upd).toContain('UPDATE users')
-    expect(upd).toContain('is_active = FALSE')
+    expect(upd).toContain('is_deleted = TRUE')
     expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM users'))).toBe(false)
   })
 
