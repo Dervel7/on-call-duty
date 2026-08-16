@@ -46,17 +46,23 @@ function oneRow(rows: UserRow[]): UserRow | undefined {
 export async function list(actor?: Actor): Promise<User[]> {
   if (actor && actor.role !== 'superadmin') {
     const filtered = await query<UserRow>(
-      `SELECT ${COLUMNS} FROM users WHERE role <> $1 ORDER BY created_at`,
+      `SELECT ${COLUMNS} FROM users WHERE is_deleted = FALSE AND role <> $1 ORDER BY created_at`,
       ['superadmin'],
     )
     return filtered.rows.map(toUser)
   }
-  const res = await query<UserRow>(`SELECT ${COLUMNS} FROM users ORDER BY created_at`, [])
+  const res = await query<UserRow>(
+    `SELECT ${COLUMNS} FROM users WHERE is_deleted = FALSE ORDER BY created_at`,
+    [],
+  )
   return res.rows.map(toUser)
 }
 
 export async function getById(id: number, actor?: Actor): Promise<User> {
-  const res = await query<UserRow>(`SELECT ${COLUMNS} FROM users WHERE id = $1`, [id])
+  const res = await query<UserRow>(
+    `SELECT ${COLUMNS} FROM users WHERE id = $1 AND is_deleted = FALSE`,
+    [id],
+  )
   const row = oneRow(res.rows)
   if (!row) throw new HttpError(404, 'User not found')
   if (row.role === 'superadmin' && actor && actor.role !== 'superadmin') {
@@ -69,9 +75,15 @@ export async function create(input: CreateUserRequest, actor: Actor): Promise<Us
   if (input.role === 'superadmin' && actor.role !== 'superadmin') {
     throw new HttpError(403, 'Only a superadmin can create superadmin accounts')
   }
-  const existingEmail = await query(`SELECT id FROM users WHERE email = $1`, [input.email])
+  const existingEmail = await query(
+    'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE',
+    [input.email],
+  )
   if (existingEmail.rows.length > 0) throw new HttpError(409, 'Email already in use')
-  const existingUsername = await query(`SELECT id FROM users WHERE username = $1`, [input.username])
+  const existingUsername = await query(
+    'SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE',
+    [input.username],
+  )
   if (existingUsername.rows.length > 0) throw new HttpError(409, 'Username already in use')
   const passwordHash = await bcrypt.hash(input.password, 12)
   const row = await withTransaction(async (client) => {

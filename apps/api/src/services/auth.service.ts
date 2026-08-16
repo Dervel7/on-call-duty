@@ -32,19 +32,26 @@ function toAuthUser(row: UserRow): AuthUser {
 const USER_COLUMNS = `id, email, username, password_hash, role, first_name, last_name, is_active, created_at`
 
 async function findUserByEmail(email: string): Promise<UserRow | undefined> {
-  const res = await query<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE email = $1`, [email])
+  const res = await query<UserRow>(
+    `SELECT ${USER_COLUMNS} FROM users WHERE email = $1 AND is_deleted = FALSE`,
+    [email],
+  )
   return res.rows[0]
 }
 
 async function findUserByUsername(username: string): Promise<UserRow | undefined> {
-  const res = await query<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE username = $1`, [
-    username,
-  ])
+  const res = await query<UserRow>(
+    `SELECT ${USER_COLUMNS} FROM users WHERE username = $1 AND is_deleted = FALSE`,
+    [username],
+  )
   return res.rows[0]
 }
 
 async function findUserById(id: number): Promise<UserRow | undefined> {
-  const res = await query<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE id = $1`, [id])
+  const res = await query<UserRow>(
+    `SELECT ${USER_COLUMNS} FROM users WHERE id = $1 AND is_deleted = FALSE`,
+    [id],
+  )
   return res.rows[0]
 }
 
