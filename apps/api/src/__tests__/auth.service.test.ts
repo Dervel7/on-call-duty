@@ -116,6 +116,13 @@ describe('auth.service', () => {
     expect(r.refreshToken).toBe('REFRESH2')
   })
 
+  it('refresh throws 401 when the account is deleted (filtered out)', async () => {
+    query.mockResolvedValue({ rows: [] }) // findUserById filters is_deleted = FALSE
+    await expect(refresh('old')).rejects.toMatchObject({ status: 401 })
+    const sql = query.mock.calls[0]?.[0] as string
+    expect(sql).toContain('is_deleted = FALSE')
+  })
+
   it('logout revokes the token and logs the audit event', async () => {
     vi.mocked(tokenService.revokeRefreshToken).mockResolvedValue(7)
     await logout('t')

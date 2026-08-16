@@ -39,14 +39,14 @@ ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
 
 INSERT INTO doctors (user_id, max_monthly_duties)
 VALUES
-  ((SELECT id FROM users WHERE email = 'dr1@oncall.local'), 7),
-  ((SELECT id FROM users WHERE email = 'dr2@oncall.local'), 7),
-  ((SELECT id FROM users WHERE email = 'dr3@oncall.local'), 7),
-  ((SELECT id FROM users WHERE email = 'dr4@oncall.local'), 7),
-  ((SELECT id FROM users WHERE email = 'dr5@oncall.local'), 7),
-  ((SELECT id FROM users WHERE email = 'dr6@oncall.local'), 6),
-  ((SELECT id FROM users WHERE email = 'dr7@oncall.local'), 6),
-  ((SELECT id FROM users WHERE email = 'dr8@oncall.local'), 6)
+  ((SELECT id FROM users WHERE email = 'dr1@oncall.local' AND is_deleted = FALSE), 7),
+  ((SELECT id FROM users WHERE email = 'dr2@oncall.local' AND is_deleted = FALSE), 7),
+  ((SELECT id FROM users WHERE email = 'dr3@oncall.local' AND is_deleted = FALSE), 7),
+  ((SELECT id FROM users WHERE email = 'dr4@oncall.local' AND is_deleted = FALSE), 7),
+  ((SELECT id FROM users WHERE email = 'dr5@oncall.local' AND is_deleted = FALSE), 7),
+  ((SELECT id FROM users WHERE email = 'dr6@oncall.local' AND is_deleted = FALSE), 6),
+  ((SELECT id FROM users WHERE email = 'dr7@oncall.local' AND is_deleted = FALSE), 6),
+  ((SELECT id FROM users WHERE email = 'dr8@oncall.local' AND is_deleted = FALSE), 6)
 ON CONFLICT (user_id) DO UPDATE SET
   max_monthly_duties = EXCLUDED.max_monthly_duties,
   updated_at         = NOW();
@@ -55,13 +55,13 @@ ON CONFLICT (user_id) DO UPDATE SET
 INSERT INTO unavailability (doctor_id, type, start_date, end_date, note)
 SELECT d.id, 'vacation', '2026-09-07', '2026-09-11', 'Summer break'
 FROM doctors d JOIN users u ON u.id = d.user_id
-WHERE u.email = 'dr1@oncall.local'
+WHERE u.email = 'dr1@oncall.local' AND u.is_deleted = FALSE
 AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id AND x.start_date = '2026-09-07' AND x.end_date = '2026-09-11');
 
 INSERT INTO unavailability (doctor_id, type, start_date, end_date, note)
 SELECT d.id, 'sick', '2026-09-15', '2026-09-15', NULL
 FROM doctors d JOIN users u ON u.id = d.user_id
-WHERE u.email = 'dr2@oncall.local'
+WHERE u.email = 'dr2@oncall.local' AND u.is_deleted = FALSE
 AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id AND x.start_date = '2026-09-15' AND x.end_date = '2026-09-15');
 
 -- Phase 5: seed sample holidays (fixed sample month 2026-09)

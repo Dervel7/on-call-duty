@@ -72,6 +72,13 @@ describe('doctor.service', () => {
     await expect(getByUserId(9)).rejects.toMatchObject({ status: 404 })
   })
 
+  it('getByUserId excludes deleted doctors (404)', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await expect(getByUserId(10)).rejects.toMatchObject({ status: 404 })
+    const sql = query.mock.calls[0]?.[0] as string
+    expect(sql).toContain('u.is_deleted = FALSE')
+  })
+
   it('create rejects duplicate email with 409', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: 9 }] })
     await expect(
