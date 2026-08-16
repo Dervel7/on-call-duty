@@ -47,7 +47,7 @@ export const doctorController = {
   },
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
-      await doctorService.deactivate(Number(req.params.id), req.user!)
+      await doctorService.remove(Number(req.params.id), req.user!)
       res.status(204).end()
     } catch (err) {
       next(err)

@@ -19,10 +19,10 @@ vi.mock('bcrypt', () => ({ default: { hash: (...a: unknown[]) => hash(...a) } })
 
 import {
   create,
-  deactivate,
   getById,
   getByUserId,
   list,
+  remove,
   update,
 } from '../services/doctor.service'
 
@@ -129,7 +129,7 @@ describe('doctor.service', () => {
   it('deactivate flips users.is_active to FALSE instead of deleting rows', async () => {
     query.mockResolvedValueOnce({ rows: [doctorRow({ id: 2, user_id: 7 })] })
     query.mockResolvedValueOnce({ rows: [] })
-    await deactivate(2, actor)
+    await remove(2, actor)
     const upd = query.mock.calls[1]?.[0] as string
     expect(upd).toContain('UPDATE users')
     expect(upd).toContain('is_active = FALSE')
@@ -144,7 +144,7 @@ describe('doctor.service', () => {
   it('deactivate keeps the doctor readable with isActive false (duties survive)', async () => {
     query.mockResolvedValueOnce({ rows: [doctorRow({ id: 2, user_id: 7 })] })
     query.mockResolvedValueOnce({ rows: [] })
-    await deactivate(2, actor)
+    await remove(2, actor)
     query.mockResolvedValueOnce({ rows: [doctorRow({ is_active: false })] })
     const d = await getById(2)
     expect(d.isActive).toBe(false)
@@ -160,6 +160,6 @@ describe('doctor.service', () => {
 
   it('deactivate throws 404 when doctor missing', async () => {
     query.mockResolvedValueOnce({ rows: [] })
-    await expect(deactivate(99, actor)).rejects.toMatchObject({ status: 404 })
+    await expect(remove(99, actor)).rejects.toMatchObject({ status: 404 })
   })
 })

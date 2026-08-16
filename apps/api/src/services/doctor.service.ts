@@ -8,6 +8,7 @@ import type {
   UpdateDoctorRequest,
 } from '@oncall/shared'
 import { recordActivity } from './activity.service'
+import * as tokenService from './token.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -44,19 +45,25 @@ function toDoctor(row: DoctorRow): Doctor {
 }
 
 export async function list(): Promise<Doctor[]> {
-  const res = await query<DoctorRow>(`${SELECT} ORDER BY u.last_name, u.first_name`, [])
+  const res = await query<DoctorRow>(
+    `${SELECT} WHERE u.is_deleted = FALSE ORDER BY u.last_name, u.first_name`,
+    [],
+  )
   return res.rows.map(toDoctor)
 }
 
 export async function getById(id: number): Promise<Doctor> {
-  const res = await query<DoctorRow>(`${SELECT} WHERE d.id = $1`, [id])
+  const res = await query<DoctorRow>(`${SELECT} WHERE d.id = $1 AND u.is_deleted = FALSE`, [id])
   const row = res.rows[0]
   if (!row) throw new HttpError(404, 'Doctor not found')
   return toDoctor(row)
 }
 
 export async function getByUserId(userId: number): Promise<Doctor> {
-  const res = await query<DoctorRow>(`${SELECT} WHERE d.user_id = $1`, [userId])
+  const res = await query<DoctorRow>(
+    `${SELECT} WHERE d.user_id = $1 AND u.is_deleted = FALSE`,
+    [userId],
+  )
   const row = res.rows[0]
   if (!row) throw new HttpError(404, 'Doctor not found')
   return toDoctor(row)
@@ -64,9 +71,15 @@ export async function getByUserId(userId: number): Promise<Doctor> {
 
 export async function create(input: CreateDoctorRequest, actor: Actor): Promise<Doctor> {
   const doctorId = await withTransaction(async (client) => {
-    const dupEmail = await client.query('SELECT id FROM users WHERE email = $1', [input.email])
+    const dupEmail = await client.query(
+      'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE',
+      [input.email],
+    )
     if (dupEmail.rows.length > 0) throw new HttpError(409, 'Email already in use')
-    const dupUser = await client.query('SELECT id FROM users WHERE username = $1', [input.username])
+    const dupUser = await client.query(
+      'SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE',
+      [input.username],
+    )
     if (dupUser.rows.length > 0) throw new HttpError(409, 'Username already in use')
     const passwordHash = await bcrypt.hash(input.password, 12)
     const ins = await client.query(
@@ -174,18 +187,28 @@ export async function update(id: number, input: UpdateDoctorRequest, actor: Acto
   return getById(id)
 }
 
-export async function deactivate(id: number, actor: Actor): Promise<void> {
+export async function remove(id: number, actor: Actor): Promise<void> {
   const existing = await getById(id)
   await withTransaction(async (client) => {
-    await client.query('UPDATE users SET is_active = FALSE, updated_at = NOW() WHERE id = $1', [
-      existing.userId,
-    ])
+    const draft = await client.query(
+      `SELECT 1 FROM duties du JOIN schedules s ON s.id = du.schedule_id
+       WHERE du.doctor_id = $1 AND s.status = 'draft' LIMIT 1`,
+      [id],
+    )
+    if (draft.rows.length > 0) {
+      throw new HttpError(409, 'Doctor has duties in a draft schedule')
+    }
+    await client.query(
+      'UPDATE users SET is_deleted = TRUE, is_active = FALSE, updated_at = NOW() WHERE id = $1',
+      [existing.userId],
+    )
     await recordActivity(client, {
       userId: actor.id,
-      action: 'doctor.deactivated',
+      action: 'doctor.deleted',
       entityType: 'doctor',
       entityId: id,
       detail: { email: existing.email },
     })
   })
+  await tokenService.revokeAllForUser(existing.userId)
 }

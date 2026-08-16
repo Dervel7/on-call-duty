@@ -12,6 +12,7 @@ export const ACTIVITY_ACTIONS = [
   'doctor.created',
   'doctor.updated',
   'doctor.deactivated',
+  'doctor.deleted',
   'availability.created',
   'availability.updated',
   'availability.deleted',
