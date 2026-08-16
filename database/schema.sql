@@ -147,3 +147,18 @@ CREATE TABLE IF NOT EXISTS operator_alerts (
 );
 CREATE INDEX IF NOT EXISTS idx_operator_alerts_open
   ON operator_alerts (type, resolved_at);
+
+-- Phase 11: User Activity Log (append-only audit trail, no update/delete paths exist)
+
+CREATE TABLE IF NOT EXISTS activity_log (
+  id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id     INTEGER REFERENCES users (id) ON DELETE SET NULL,
+  action      TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id   INTEGER,
+  detail      JSONB NOT NULL DEFAULT '{}',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log (user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_log_action ON activity_log (action);
+CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log (created_at);
