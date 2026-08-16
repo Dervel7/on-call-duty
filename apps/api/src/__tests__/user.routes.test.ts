@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({ query: (...a: unknown[]) => query(...a) }))
+vi.mock('../db/client', () => ({
+  query: (...a: unknown[]) => query(...a),
+  withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
+}))
 
 const logActivity = vi.fn()
 const recordActivity = vi.fn()

@@ -64,7 +64,8 @@ describe('holiday.service', () => {
     expect(h.id).toBe(7)
     const insertSql = query.mock.calls[1]?.[0] as string
     expect(insertSql).toContain('INSERT INTO holidays')
-    expect(logActivity).toHaveBeenCalledWith(
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ action: 'holiday.created', entityId: 7 }),
     )
   })
@@ -88,7 +89,8 @@ describe('holiday.service', () => {
     query.mockResolvedValueOnce({ rows: [] })
     await remove(1, { id: 2, role: 'administrator' })
     expect((query.mock.calls[1]?.[0] as string).includes('DELETE FROM holidays')).toBe(true)
-    expect(logActivity).toHaveBeenCalledWith(
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ action: 'holiday.deleted', entityId: 1 }),
     )
 

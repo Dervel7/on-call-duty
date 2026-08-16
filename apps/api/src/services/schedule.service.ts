@@ -25,7 +25,7 @@ import {
 } from '../scheduling/dates'
 import type { DoctorSpec, SchedulingContext } from '../scheduling/types'
 import { recordGeneration } from './usage.service'
-import { logActivity, recordActivity } from './activity.service'
+import { recordActivity } from './activity.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -436,13 +436,15 @@ export async function remove(id: number, actor: Actor): Promise<void> {
     existing.rows[0]!.status,
     'Schedule is published; revert to draft before deleting',
   )
-  await query('DELETE FROM schedules WHERE id = $1', [id])
-  await logActivity({
-    userId: actor.id,
-    action: 'schedule.deleted',
-    entityType: 'schedule',
-    entityId: id,
-    detail: { year: existing.rows[0]!.year, month: existing.rows[0]!.month },
+  await withTransaction(async (client) => {
+    await client.query('DELETE FROM schedules WHERE id = $1', [id])
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'schedule.deleted',
+      entityType: 'schedule',
+      entityId: id,
+      detail: { year: existing.rows[0]!.year, month: existing.rows[0]!.month },
+    })
   })
 }
 
@@ -560,26 +562,23 @@ export async function addDuty(
   await validateAssignment(scheduleId, input.doctorId, input.date, null)
 
   const reason = `manual override by admin #${actor.id}`
-  const ins = await query<{ id: number }>(
-    `INSERT INTO duties (schedule_id, duty_date, doctor_id, is_weekend, is_holiday, reason)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-    [
-      scheduleId,
-      input.date,
-      input.doctorId,
-      isWeekendISO(input.date),
-      await isHolidayOn(input.date),
-      reason,
-    ],
-  )
-  const id = ins.rows[0]?.id
-  if (id === undefined) throw new HttpError(500, 'Failed to create duty')
-  await logActivity({
-    userId: actor.id,
-    action: 'duty.assigned',
-    entityType: 'duty',
-    entityId: id,
-    detail: { scheduleId, date: input.date, doctorId: input.doctorId },
+  const holidayOnDate = await isHolidayOn(input.date)
+  const id = await withTransaction(async (client) => {
+    const ins = await client.query<{ id: number }>(
+      `INSERT INTO duties (schedule_id, duty_date, doctor_id, is_weekend, is_holiday, reason)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [scheduleId, input.date, input.doctorId, isWeekendISO(input.date), holidayOnDate, reason],
+    )
+    const newId = ins.rows[0]?.id
+    if (newId === undefined) throw new HttpError(500, 'Failed to create duty')
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'duty.assigned',
+      entityType: 'duty',
+      entityId: newId,
+      detail: { scheduleId, date: input.date, doctorId: input.doctorId },
+    })
+    return newId
   })
   return getDutyById(id)
 }
@@ -593,22 +592,24 @@ export async function reassignDuty(
   assertEditable(duty.schedule_status)
   await validateAssignment(duty.schedule_id, input.doctorId, duty.duty_date, dutyId)
   const reason = `manual override by admin #${actor.id}`
-  await query('UPDATE duties SET doctor_id = $1, reason = $2 WHERE id = $3', [
-    input.doctorId,
-    reason,
-    dutyId,
-  ])
-  await logActivity({
-    userId: actor.id,
-    action: 'duty.reassigned',
-    entityType: 'duty',
-    entityId: dutyId,
-    detail: {
-      scheduleId: duty.schedule_id,
-      date: duty.duty_date,
-      fromDoctorId: duty.doctor_id,
-      toDoctorId: input.doctorId,
-    },
+  await withTransaction(async (client) => {
+    await client.query('UPDATE duties SET doctor_id = $1, reason = $2 WHERE id = $3', [
+      input.doctorId,
+      reason,
+      dutyId,
+    ])
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'duty.reassigned',
+      entityType: 'duty',
+      entityId: dutyId,
+      detail: {
+        scheduleId: duty.schedule_id,
+        date: duty.duty_date,
+        fromDoctorId: duty.doctor_id,
+        toDoctorId: input.doctorId,
+      },
+    })
   })
   return getDutyById(dutyId)
 }
@@ -616,61 +617,73 @@ export async function reassignDuty(
 export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
   const duty = await getDutyRow(dutyId)
   assertEditable(duty.schedule_status)
-  await query('DELETE FROM duties WHERE id = $1', [dutyId])
-  await logActivity({
-    userId: actor.id,
-    action: 'duty.removed',
-    entityType: 'duty',
-    entityId: dutyId,
-    detail: { scheduleId: duty.schedule_id, date: duty.duty_date, doctorId: duty.doctor_id },
+  await withTransaction(async (client) => {
+    await client.query('DELETE FROM duties WHERE id = $1', [dutyId])
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'duty.removed',
+      entityType: 'duty',
+      entityId: dutyId,
+      detail: { scheduleId: duty.schedule_id, date: duty.duty_date, doctorId: duty.doctor_id },
+    })
   })
 }
 
 export async function publish(id: number, actor: Actor): Promise<ScheduleSummary> {
-  const upd = await query<ScheduleRow>(
-    `UPDATE schedules SET status = 'published', updated_at = NOW()
-     WHERE id = $1 AND status = 'draft'
-     RETURNING id, year, month, status, created_by, created_at, updated_at`,
-    [id],
-  )
-  if (upd.rows.length === 0) {
+  const row = await withTransaction(async (client) => {
+    const upd = await client.query<ScheduleRow>(
+      `UPDATE schedules SET status = 'published', updated_at = NOW()
+       WHERE id = $1 AND status = 'draft'
+       RETURNING id, year, month, status, created_by, created_at, updated_at`,
+      [id],
+    )
+    const updated = upd.rows[0]
+    if (!updated) return null
+    const duties = await client.query<{ n: number }>(
+      'SELECT COUNT(*)::int AS n FROM duties WHERE schedule_id = $1',
+      [id],
+    )
+    const dutyCount = duties.rows[0]?.n ?? 0
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'schedule.published',
+      entityType: 'schedule',
+      entityId: id,
+      detail: { year: updated.year, month: updated.month, dutyCount },
+    })
+    return updated
+  })
+  if (!row) {
     const found = await query('SELECT 1 FROM schedules WHERE id = $1', [id])
     if (found.rows.length === 0) throw new HttpError(404, 'Schedule not found')
     throw new HttpError(409, 'Schedule is already published')
   }
-  const duties = await query<{ n: number }>(
-    'SELECT COUNT(*)::int AS n FROM duties WHERE schedule_id = $1',
-    [id],
-  )
-  const dutyCount = duties.rows[0]?.n ?? 0
-  await logActivity({
-    userId: actor.id,
-    action: 'schedule.published',
-    entityType: 'schedule',
-    entityId: id,
-    detail: { year: upd.rows[0]!.year, month: upd.rows[0]!.month, dutyCount },
-  })
-  return toSchedule(upd.rows[0]!)
+  return toSchedule(row)
 }
 
 export async function unpublish(id: number, actor: Actor): Promise<ScheduleSummary> {
-  const upd = await query<ScheduleRow>(
-    `UPDATE schedules SET status = 'draft', updated_at = NOW()
-     WHERE id = $1 AND status = 'published'
-     RETURNING id, year, month, status, created_by, created_at, updated_at`,
-    [id],
-  )
-  if (upd.rows.length === 0) {
+  const row = await withTransaction(async (client) => {
+    const upd = await client.query<ScheduleRow>(
+      `UPDATE schedules SET status = 'draft', updated_at = NOW()
+       WHERE id = $1 AND status = 'published'
+       RETURNING id, year, month, status, created_by, created_at, updated_at`,
+      [id],
+    )
+    const updated = upd.rows[0]
+    if (!updated) return null
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'schedule.reverted',
+      entityType: 'schedule',
+      entityId: id,
+      detail: { year: updated.year, month: updated.month },
+    })
+    return updated
+  })
+  if (!row) {
     const found = await query('SELECT 1 FROM schedules WHERE id = $1', [id])
     if (found.rows.length === 0) throw new HttpError(404, 'Schedule not found')
     throw new HttpError(409, 'Schedule is already draft')
   }
-  await logActivity({
-    userId: actor.id,
-    action: 'schedule.reverted',
-    entityType: 'schedule',
-    entityId: id,
-    detail: { year: upd.rows[0]!.year, month: upd.rows[0]!.month },
-  })
-  return toSchedule(upd.rows[0]!)
+  return toSchedule(row)
 }

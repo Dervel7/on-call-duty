@@ -137,7 +137,8 @@ describe('schedule.service', () => {
     query.mockResolvedValueOnce({ rows: [] })
     await remove(1, { id: 2, role: 'administrator' })
     expect((query.mock.calls[1]?.[0] as string).includes('DELETE FROM schedules')).toBe(true)
-    expect(logActivity).toHaveBeenCalledWith(
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ action: 'schedule.deleted', entityId: 1 }),
     )
 
@@ -179,6 +180,37 @@ describe('schedule.service', () => {
     })
   })
 
+  it('addDuty inserts the duty and records the audit row in-transaction', async () => {
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM schedules') && sql.includes('WHERE id =')) {
+        return { rows: [scheduleRow()] }
+      }
+      if (sql.includes('FROM duties WHERE schedule_id = $1 AND duty_date =')) {
+        return { rows: [{ n: 0 }] }
+      }
+      if (sql.includes('FROM doctors d JOIN users')) {
+        return { rows: [{ max_monthly_duties: 7, is_active: true }] }
+      }
+      if (sql.includes('FROM unavailability WHERE doctor_id')) return { rows: [] }
+      if (sql.includes('FROM duties WHERE schedule_id = $1 AND doctor_id')) {
+        return { rows: [{ n: 0 }] }
+      }
+      if (sql.includes('EXTRACT(ISODOW')) return { rows: [{ n: 0 }] }
+      if (sql.includes('FROM duties WHERE duty_date IN')) return { rows: [] }
+      if (sql.includes('FROM holidays WHERE date = $1')) return { rows: [] }
+      if (sql.includes('INSERT INTO duties')) return { rows: [{ id: 11 }] }
+      if (sql.includes('FROM duties du')) return { rows: [dutyRow({ id: 11 })] }
+      return { rows: [] }
+    })
+    const d = await addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator' })
+    expect(d.id).toBe(11)
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'duty.assigned', entityId: 11 }),
+    )
+  })
+
   it('reassignDuty runs validateAssignment and updates the row', async () => {
     query.mockResolvedValueOnce({ rows: [dutyRow({ id: 10, doctor_id: 5, duty_date: '2026-09-05' })] })
     query.mockResolvedValueOnce({ rows: [{ max_monthly_duties: 7, is_active: true }] })
@@ -192,6 +224,10 @@ describe('schedule.service', () => {
     const d = await reassignDuty(10, { doctorId: 7 }, { id: 2, role: 'administrator' })
     expect(d.doctorId).toBe(7)
     expect(d.reason).toContain('manual override by admin #2')
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'duty.reassigned', entityId: 10 }),
+    )
   })
 
   it('reassignDuty 404 when duty missing', async () => {
@@ -206,7 +242,8 @@ describe('schedule.service', () => {
     query.mockResolvedValueOnce({ rows: [] })
     await removeDuty(10, { id: 2, role: 'administrator' })
     expect((query.mock.calls[1]?.[0] as string).includes('DELETE FROM duties')).toBe(true)
-    expect(logActivity).toHaveBeenCalledWith(
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ action: 'duty.removed', entityId: 10 }),
     )
 
@@ -330,7 +367,8 @@ describe('publish / unpublish', () => {
     query.mockResolvedValueOnce({ rows: [{ n: 30 }] })
     const published = await publish(1, { id: 2, role: 'administrator' })
     expect(published.status).toBe('published')
-    expect(logActivity).toHaveBeenCalledWith(
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ action: 'schedule.published', entityId: 1 }),
     )
 
@@ -354,7 +392,8 @@ describe('publish / unpublish', () => {
     query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'draft' })] })
     const draft = await unpublish(1, { id: 2, role: 'administrator' })
     expect(draft.status).toBe('draft')
-    expect(logActivity).toHaveBeenCalledWith(
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ action: 'schedule.reverted', entityId: 1 }),
     )
 

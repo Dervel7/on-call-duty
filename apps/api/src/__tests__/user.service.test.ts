@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({ query: (...a: unknown[]) => query(...a) }))
+vi.mock('../db/client', () => ({
+  query: (...a: unknown[]) => query(...a),
+  withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
+}))
 
 const logActivity = vi.fn()
 const recordActivity = vi.fn()
@@ -146,7 +149,8 @@ describe('user.service', () => {
     expect(u.email).toBe('d@h.com')
     const insertSql = query.mock.calls[2]?.[0] as string
     expect(insertSql).toContain('INSERT INTO users')
-    expect(logActivity).toHaveBeenCalledWith(
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ action: 'user.created', userId: 2, entityId: 1 }),
     )
   })
@@ -177,7 +181,8 @@ describe('user.service', () => {
     const setClause = sql.split('WHERE')[0] as string
     expect(setClause).toContain('is_active = $1')
     expect(setClause).not.toContain('email')
-    expect(logActivity).toHaveBeenCalledWith(
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ action: 'user.deactivated', entityId: 1 }),
     )
   })
@@ -205,6 +210,18 @@ describe('user.service', () => {
   it('remove rejects deleting a superadmin from a non-superadmin actor with 403', async () => {
     query.mockResolvedValueOnce({ rows: [row({ role: 'superadmin' })] })
     await expect(remove(1, adminActor)).rejects.toMatchObject({ status: 403 })
+  })
+
+  it('remove deletes the user and records the audit row in-transaction', async () => {
+    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
+    await remove(1, adminActor)
+    const del = query.mock.calls[1]?.[0] as string
+    expect(del).toContain('DELETE FROM users')
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'user.deleted', entityId: 1 }),
+    )
   })
 
   it('remove throws 404 when nothing deleted', async () => {

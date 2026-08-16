@@ -135,7 +135,8 @@ describe('doctor.service', () => {
     expect(upd).toContain('is_active = FALSE')
     expect((query.mock.calls[1]?.[1] as unknown[])[0]).toBe(7)
     expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM users'))).toBe(false)
-    expect(logActivity).toHaveBeenCalledWith(
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ action: 'doctor.deactivated', entityId: 2 }),
     )
   })

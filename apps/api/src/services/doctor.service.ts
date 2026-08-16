@@ -7,7 +7,7 @@ import type {
   Doctor,
   UpdateDoctorRequest,
 } from '@oncall/shared'
-import { logActivity, recordActivity } from './activity.service'
+import { recordActivity } from './activity.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -176,14 +176,16 @@ export async function update(id: number, input: UpdateDoctorRequest, actor: Acto
 
 export async function deactivate(id: number, actor: Actor): Promise<void> {
   const existing = await getById(id)
-  await query('UPDATE users SET is_active = FALSE, updated_at = NOW() WHERE id = $1', [
-    existing.userId,
-  ])
-  await logActivity({
-    userId: actor.id,
-    action: 'doctor.deactivated',
-    entityType: 'doctor',
-    entityId: id,
-    detail: { email: existing.email },
+  await withTransaction(async (client) => {
+    await client.query('UPDATE users SET is_active = FALSE, updated_at = NOW() WHERE id = $1', [
+      existing.userId,
+    ])
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'doctor.deactivated',
+      entityType: 'doctor',
+      entityId: id,
+      detail: { email: existing.email },
+    })
   })
 }

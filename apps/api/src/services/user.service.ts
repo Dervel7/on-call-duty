@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt'
-import { query } from '../db/client'
+import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
 import type {
   AuthUser,
@@ -8,7 +8,7 @@ import type {
   UpdateUserRequest,
   User,
 } from '@oncall/shared'
-import { logActivity } from './activity.service'
+import { recordActivity } from './activity.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -74,25 +74,28 @@ export async function create(input: CreateUserRequest, actor: Actor): Promise<Us
   const existingUsername = await query(`SELECT id FROM users WHERE username = $1`, [input.username])
   if (existingUsername.rows.length > 0) throw new HttpError(409, 'Username already in use')
   const passwordHash = await bcrypt.hash(input.password, 12)
-  const res = await query<UserRow>(
-    `INSERT INTO users (email, username, password_hash, role, first_name, last_name)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${COLUMNS}`,
-    [input.email, input.username, passwordHash, input.role, input.firstName, input.lastName],
-  )
-  const row = oneRow(res.rows)
-  if (!row) throw new HttpError(500, 'Failed to create user')
-  await logActivity({
-    userId: actor.id,
-    action: 'user.created',
-    entityType: 'user',
-    entityId: row.id,
-    detail: {
-      email: input.email,
-      username: input.username,
-      role: input.role,
-      firstName: input.firstName,
-      lastName: input.lastName,
-    },
+  const row = await withTransaction(async (client) => {
+    const res = await client.query<UserRow>(
+      `INSERT INTO users (email, username, password_hash, role, first_name, last_name)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${COLUMNS}`,
+      [input.email, input.username, passwordHash, input.role, input.firstName, input.lastName],
+    )
+    const inserted = oneRow(res.rows)
+    if (!inserted) throw new HttpError(500, 'Failed to create user')
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'user.created',
+      entityType: 'user',
+      entityId: inserted.id,
+      detail: {
+        email: input.email,
+        username: input.username,
+        role: input.role,
+        firstName: input.firstName,
+        lastName: input.lastName,
+      },
+    })
+    return inserted
   })
   return toUser(row)
 }
@@ -124,12 +127,6 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
   params.push(new Date())
   sets.push(`updated_at = $${params.length}`)
   params.push(id)
-  const res = await query<UserRow>(
-    `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING ${COLUMNS}`,
-    params,
-  )
-  const row = oneRow(res.rows)
-  if (!row) throw new HttpError(404, 'User not found')
   const before: Record<string, unknown> = {}
   const after: Record<string, unknown> = {}
   if (input.email !== undefined && input.email !== existing.email) {
@@ -162,12 +159,21 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
       ? 'user.reactivated'
       : 'user.deactivated'
     : 'user.updated'
-  await logActivity({
-    userId: actor.id,
-    action,
-    entityType: 'user',
-    entityId: id,
-    detail: { before, after },
+  const row = await withTransaction(async (client) => {
+    const res = await client.query<UserRow>(
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING ${COLUMNS}`,
+      params,
+    )
+    const updated = oneRow(res.rows)
+    if (!updated) throw new HttpError(404, 'User not found')
+    await recordActivity(client, {
+      userId: actor.id,
+      action,
+      entityType: 'user',
+      entityId: id,
+      detail: { before, after },
+    })
+    return updated
   })
   return toUser(row)
 }
@@ -177,13 +183,15 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   if (existing.role === 'superadmin' && actor.role !== 'superadmin') {
     throw new HttpError(403, 'Only a superadmin can manage superadmin accounts')
   }
-  const res = await query(`DELETE FROM users WHERE id = $1 RETURNING id`, [id])
-  if (res.rows.length === 0) throw new HttpError(404, 'User not found')
-  await logActivity({
-    userId: actor.id,
-    action: 'user.deleted',
-    entityType: 'user',
-    entityId: id,
-    detail: { email: existing.email, username: existing.username },
+  await withTransaction(async (client) => {
+    const res = await client.query('DELETE FROM users WHERE id = $1 RETURNING id', [id])
+    if (res.rows.length === 0) throw new HttpError(404, 'User not found')
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'user.deleted',
+      entityType: 'user',
+      entityId: id,
+      detail: { email: existing.email, username: existing.username },
+    })
   })
 }

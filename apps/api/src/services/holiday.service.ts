@@ -5,9 +5,9 @@ import type {
   HolidayQuery,
   UpdateHolidayRequest,
 } from '@oncall/shared'
-import { query } from '../db/client'
+import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
-import { logActivity } from './activity.service'
+import { recordActivity } from './activity.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -60,18 +60,21 @@ export async function list(filters: HolidayQuery = {}): Promise<Holiday[]> {
 export async function create(input: CreateHolidayRequest, actor: Actor): Promise<Holiday> {
   const dup = await query('SELECT id FROM holidays WHERE date = $1', [input.date])
   if (dup.rows.length > 0) throw new HttpError(409, 'Holiday already exists on this date')
-  const ins = await query<{ id: number }>(
-    'INSERT INTO holidays (name, date) VALUES ($1, $2) RETURNING id',
-    [input.name, input.date],
-  )
-  const id = ins.rows[0]?.id
-  if (id === undefined) throw new HttpError(500, 'Failed to create holiday')
-  await logActivity({
-    userId: actor.id,
-    action: 'holiday.created',
-    entityType: 'holiday',
-    entityId: id,
-    detail: { name: input.name, date: input.date },
+  const id = await withTransaction(async (client) => {
+    const ins = await client.query<{ id: number }>(
+      'INSERT INTO holidays (name, date) VALUES ($1, $2) RETURNING id',
+      [input.name, input.date],
+    )
+    const newId = ins.rows[0]?.id
+    if (newId === undefined) throw new HttpError(500, 'Failed to create holiday')
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'holiday.created',
+      entityType: 'holiday',
+      entityId: newId,
+      detail: { name: input.name, date: input.date },
+    })
+    return newId
   })
   return getById(id)
 }
@@ -102,13 +105,6 @@ export async function update(
       sets.push(`${col} = $${params.length}`)
     }
   }
-  if (sets.length > 0) {
-    params.push(id)
-    await query(
-      `UPDATE holidays SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${params.length}`,
-      params,
-    )
-  }
   const before: Record<string, unknown> = {}
   const after: Record<string, unknown> = {}
   if (input.name !== undefined && input.name !== existing.rows[0]!.name) {
@@ -120,12 +116,19 @@ export async function update(
     after.date = input.date
   }
   if (sets.length > 0) {
-    await logActivity({
-      userId: actor.id,
-      action: 'holiday.updated',
-      entityType: 'holiday',
-      entityId: id,
-      detail: { before, after },
+    params.push(id)
+    await withTransaction(async (client) => {
+      await client.query(
+        `UPDATE holidays SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${params.length}`,
+        params,
+      )
+      await recordActivity(client, {
+        userId: actor.id,
+        action: 'holiday.updated',
+        entityType: 'holiday',
+        entityId: id,
+        detail: { before, after },
+      })
     })
   }
   return getById(id)
@@ -134,12 +137,14 @@ export async function update(
 export async function remove(id: number, actor: Actor): Promise<void> {
   const existing = await query<HolidayRow>(`${SELECT} WHERE id = $1`, [id])
   if (existing.rows.length === 0) throw new HttpError(404, 'Holiday not found')
-  await query('DELETE FROM holidays WHERE id = $1', [id])
-  await logActivity({
-    userId: actor.id,
-    action: 'holiday.deleted',
-    entityType: 'holiday',
-    entityId: id,
-    detail: { name: existing.rows[0]!.name, date: existing.rows[0]!.date },
+  await withTransaction(async (client) => {
+    await client.query('DELETE FROM holidays WHERE id = $1', [id])
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'holiday.deleted',
+      entityType: 'holiday',
+      entityId: id,
+      detail: { name: existing.rows[0]!.name, date: existing.rows[0]!.date },
+    })
   })
 }
