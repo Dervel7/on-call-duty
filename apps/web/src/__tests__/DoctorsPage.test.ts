@@ -3,13 +3,14 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const list = vi.fn()
+const remove = vi.fn()
 vi.mock('@/services/doctor', () => ({
   list: (...a: unknown[]) => list(...a),
   get: vi.fn(),
   me: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
-  remove: vi.fn(),
+  remove: (...a: unknown[]) => remove(...a),
 }))
 
 import DoctorsPage from '../pages/DoctorsPage.vue'
@@ -17,6 +18,7 @@ import DoctorsPage from '../pages/DoctorsPage.vue'
 beforeEach(() => {
   setActivePinia(createPinia())
   list.mockReset()
+  remove.mockReset()
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -49,5 +51,37 @@ describe('DoctorsPage', () => {
     await wrapper.vm.$nextTick()
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
+  })
+
+  it('Delete button asks for confirmation and calls remove', async () => {
+    list.mockResolvedValueOnce([
+      {
+        id: 1,
+        userId: 10,
+        email: 'dr@h.com',
+        username: 'dr1',
+        firstName: 'Jane',
+        lastName: 'Roe',
+        isActive: true,
+        maxMonthlyDuties: 7,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ])
+    list.mockResolvedValue([]) // reload after delete
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const wrapper = mount(DoctorsPage, { global: { plugins: [createPinia()] } })
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+    const btn = wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Delete')
+    await btn!.trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(confirmSpy).toHaveBeenCalledWith(
+      expect.stringContaining('permanently hidden'),
+    )
+    expect(remove).toHaveBeenCalledWith(1)
+    confirmSpy.mockRestore()
   })
 })

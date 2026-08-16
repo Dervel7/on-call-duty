@@ -108,8 +108,12 @@ async function toggleActive(d: Doctor) {
   await load()
 }
 
-async function deactivate(d: Doctor) {
-  if (!confirm(`Deactivate doctor ${d.email}? They keep their history and can be re-enabled later.`))
+async function deleteDoctor(d: Doctor) {
+  if (
+    !confirm(
+      `Delete doctor ${d.email}? They will be permanently hidden from the list. Past duties in published schedules are kept. This cannot be undone.`,
+    )
+  )
     return
   await doctorService.remove(d.id)
   await load()
@@ -152,7 +156,7 @@ onMounted(load)
               <Button size="sm" variant="outline" @click="toggleActive(d)">
                 {{ d.isActive ? 'Disable' : 'Enable' }}
               </Button>
-              <Button size="sm" variant="destructive" @click="deactivate(d)">Deactivate</Button>
+              <Button size="sm" variant="destructive" @click="deleteDoctor(d)">Delete</Button>
             </div>
           </TableCell>
         </TableRow>
