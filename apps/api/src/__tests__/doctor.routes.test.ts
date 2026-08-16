@@ -88,7 +88,8 @@ describe('doctor routes', () => {
       if (n === 1) return { rows: [] }
       if (n === 2) return { rows: [] }
       if (n === 3) return { rows: [{ id: 12 }] }
-      if (n === 4) return { rows: [] }
+      if (n === 4) return { rows: [{ id: 1 }] }
+      if (n === 5) return { rows: [] }
       return { rows: [row()] }
     })
     const res = await request(build())
@@ -108,7 +109,7 @@ describe('doctor routes', () => {
   })
 
   it('admin DELETE /doctors/:id deactivates instead of deleting (204, history kept)', async () => {
-    query.mockResolvedValueOnce({ rows: [{ user_id: 10 }] })
+    query.mockResolvedValueOnce({ rows: [row()] })
     query.mockResolvedValueOnce({ rows: [] })
     const res = await request(build())
       .delete('/doctors/1')
@@ -121,7 +122,8 @@ describe('doctor routes', () => {
   })
 
   it('admin PATCH /doctors/:id { isActive: true } reactivates (200)', async () => {
-    query.mockResolvedValueOnce({ rows: [{ user_id: 10 }] })
+    query.mockResolvedValueOnce({ rows: [row({ is_active: false })] })
+    query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [row({ is_active: true })] })
     const res = await request(build())

@@ -31,7 +31,7 @@ export const doctorController = {
   },
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const doctor = await doctorService.create(req.body)
+      const doctor = await doctorService.create(req.body, req.user!)
       res.status(201).json(ok({ doctor }))
     } catch (err) {
       next(err)
@@ -39,7 +39,7 @@ export const doctorController = {
   },
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const doctor = await doctorService.update(Number(req.params.id), req.body)
+      const doctor = await doctorService.update(Number(req.params.id), req.body, req.user!)
       res.status(200).json(ok({ doctor }))
     } catch (err) {
       next(err)
@@ -47,7 +47,7 @@ export const doctorController = {
   },
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
-      await doctorService.deactivate(Number(req.params.id))
+      await doctorService.deactivate(Number(req.params.id), req.user!)
       res.status(204).end()
     } catch (err) {
       next(err)

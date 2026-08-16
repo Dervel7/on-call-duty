@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const query = vi.fn()
 vi.mock('../db/client', () => ({ query: (...a: unknown[]) => query(...a) }))
 
+const logActivity = vi.fn()
+const recordActivity = vi.fn()
+vi.mock('../services/activity.service', () => ({
+  logActivity: (...a: unknown[]) => logActivity(...a),
+  recordActivity: (...a: unknown[]) => recordActivity(...a),
+}))
+
 const { hash } = vi.hoisted(() => ({ hash: vi.fn(async () => 'HASH') }))
 vi.mock('bcrypt', () => ({ default: { hash } }))
 
@@ -27,6 +34,8 @@ beforeEach(() => {
   query.mockReset()
   hash.mockReset()
   hash.mockResolvedValue('HASH')
+  logActivity.mockReset()
+  recordActivity.mockReset()
 })
 
 describe('user.service', () => {
@@ -137,6 +146,9 @@ describe('user.service', () => {
     expect(u.email).toBe('d@h.com')
     const insertSql = query.mock.calls[2]?.[0] as string
     expect(insertSql).toContain('INSERT INTO users')
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'user.created', userId: 2, entityId: 1 }),
+    )
   })
 
   it('create rejects superadmin role from a non-superadmin actor with 403', async () => {
@@ -165,6 +177,9 @@ describe('user.service', () => {
     const setClause = sql.split('WHERE')[0] as string
     expect(setClause).toContain('is_active = $1')
     expect(setClause).not.toContain('email')
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'user.deactivated', entityId: 1 }),
+    )
   })
 
   it('update rejects managing a superadmin account from a non-superadmin actor with 403', async () => {

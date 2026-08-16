@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const query = vi.fn()
 vi.mock('../db/client', () => ({ query: (...a: unknown[]) => query(...a) }))
 
+const logActivity = vi.fn()
+const recordActivity = vi.fn()
+vi.mock('../services/activity.service', () => ({
+  logActivity: (...a: unknown[]) => logActivity(...a),
+  recordActivity: (...a: unknown[]) => recordActivity(...a),
+}))
+
 import request from 'supertest'
 import { app } from '../app'
 import { signAccessToken } from '../lib/jwt'

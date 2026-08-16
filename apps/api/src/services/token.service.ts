@@ -114,12 +114,14 @@ export async function rotateRefreshToken(
   return { token: newToken, userId: row.user_id }
 }
 
-export async function revokeRefreshToken(token: string): Promise<void> {
-  await query(
+export async function revokeRefreshToken(token: string): Promise<number | null> {
+  const res = await query<{ user_id: number }>(
     `UPDATE refresh_tokens SET revoked_at = NOW()
-     WHERE token_hash = $1 AND revoked_at IS NULL`,
+     WHERE token_hash = $1 AND revoked_at IS NULL
+     RETURNING user_id`,
     [hashToken(token)],
   )
+  return res.rows[0]?.user_id ?? null
 }
 
 export async function revokeAllForUser(userId: number): Promise<void> {

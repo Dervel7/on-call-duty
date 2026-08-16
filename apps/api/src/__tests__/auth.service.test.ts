@@ -3,12 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const query = vi.fn()
 vi.mock('../db/client', () => ({ query: (...a: unknown[]) => query(...a) }))
 
+const logActivity = vi.fn()
+const recordActivity = vi.fn()
+vi.mock('../services/activity.service', () => ({
+  logActivity: (...a: unknown[]) => logActivity(...a),
+  recordActivity: (...a: unknown[]) => recordActivity(...a),
+}))
+
 vi.mock('../lib/jwt', () => ({ signAccessToken: vi.fn(() => 'ACCESS') }))
 
 vi.mock('../services/token.service', () => ({
   issueRefreshToken: vi.fn(async () => 'REFRESH'),
   rotateRefreshToken: vi.fn(async () => ({ token: 'REFRESH2', userId: 1 })),
-  revokeRefreshToken: vi.fn(async () => undefined),
+  revokeRefreshToken: vi.fn(async () => null),
   revokeAllForUser: vi.fn(async () => undefined),
 }))
 
@@ -19,6 +26,7 @@ const { compare, hash } = vi.hoisted(() => ({
 vi.mock('bcrypt', () => ({ default: { compare, hash } }))
 
 import bcrypt from 'bcrypt'
+import * as tokenService from '../services/token.service'
 import { changePassword, getUser, login, logout, refresh } from '../services/auth.service'
 
 const SEED_HASH = '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi'
@@ -44,6 +52,8 @@ beforeEach(() => {
   hash.mockReset()
   compare.mockResolvedValue(true)
   hash.mockResolvedValue('NEWHASH')
+  logActivity.mockReset()
+  recordActivity.mockReset()
 })
 
 describe('auth.service', () => {
@@ -55,6 +65,9 @@ describe('auth.service', () => {
     expect(r.user.email).toBe('admin@oncall.local')
     expect(r.user.username).toBe('admin')
     expect(bcrypt.compare).toHaveBeenCalledWith('changeme123', SEED_HASH)
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'auth.login', userId: 1 }),
+    )
   })
 
   it('login by username resolves via the username lookup', async () => {
@@ -96,9 +109,14 @@ describe('auth.service', () => {
     expect(r.refreshToken).toBe('REFRESH2')
   })
 
-  it('logout revokes the token', async () => {
+  it('logout revokes the token and logs the audit event', async () => {
+    vi.mocked(tokenService.revokeRefreshToken).mockResolvedValue(7)
     await logout('t')
+    expect(tokenService.revokeRefreshToken).toHaveBeenCalledWith('t')
     expect(query).not.toHaveBeenCalled()
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'auth.logout', userId: 7 }),
+    )
   })
 
   it('getUser throws 404 when missing', async () => {
@@ -113,6 +131,9 @@ describe('auth.service', () => {
     expect(hash).toHaveBeenCalledWith('newpass123', 12)
     const updateSql = query.mock.calls.find((c) => String(c[0]).includes('UPDATE users'))
     expect(updateSql?.[1]).toEqual(['NEWHASH', 1])
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'auth.password_changed', userId: 1 }),
+    )
   })
 
   it('changePassword throws 401 on wrong current password', async () => {

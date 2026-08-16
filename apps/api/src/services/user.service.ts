@@ -8,6 +8,7 @@ import type {
   UpdateUserRequest,
   User,
 } from '@oncall/shared'
+import { logActivity } from './activity.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -80,6 +81,19 @@ export async function create(input: CreateUserRequest, actor: Actor): Promise<Us
   )
   const row = oneRow(res.rows)
   if (!row) throw new HttpError(500, 'Failed to create user')
+  await logActivity({
+    userId: actor.id,
+    action: 'user.created',
+    entityType: 'user',
+    entityId: row.id,
+    detail: {
+      email: input.email,
+      username: input.username,
+      role: input.role,
+      firstName: input.firstName,
+      lastName: input.lastName,
+    },
+  })
   return toUser(row)
 }
 
@@ -116,6 +130,45 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
   )
   const row = oneRow(res.rows)
   if (!row) throw new HttpError(404, 'User not found')
+  const before: Record<string, unknown> = {}
+  const after: Record<string, unknown> = {}
+  if (input.email !== undefined && input.email !== existing.email) {
+    before.email = existing.email
+    after.email = input.email
+  }
+  if (input.username !== undefined && input.username !== existing.username) {
+    before.username = existing.username
+    after.username = input.username
+  }
+  if (input.role !== undefined && input.role !== existing.role) {
+    before.role = existing.role
+    after.role = input.role
+  }
+  if (input.firstName !== undefined && input.firstName !== existing.firstName) {
+    before.firstName = existing.firstName
+    after.firstName = input.firstName
+  }
+  if (input.lastName !== undefined && input.lastName !== existing.lastName) {
+    before.lastName = existing.lastName
+    after.lastName = input.lastName
+  }
+  const isActiveChanged = input.isActive !== undefined && input.isActive !== existing.isActive
+  if (isActiveChanged) {
+    before.isActive = existing.isActive
+    after.isActive = input.isActive
+  }
+  const action = isActiveChanged
+    ? input.isActive
+      ? 'user.reactivated'
+      : 'user.deactivated'
+    : 'user.updated'
+  await logActivity({
+    userId: actor.id,
+    action,
+    entityType: 'user',
+    entityId: id,
+    detail: { before, after },
+  })
   return toUser(row)
 }
 
@@ -126,4 +179,11 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   }
   const res = await query(`DELETE FROM users WHERE id = $1 RETURNING id`, [id])
   if (res.rows.length === 0) throw new HttpError(404, 'User not found')
+  await logActivity({
+    userId: actor.id,
+    action: 'user.deleted',
+    entityType: 'user',
+    entityId: id,
+    detail: { email: existing.email, username: existing.username },
+  })
 }

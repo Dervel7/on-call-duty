@@ -3,6 +3,7 @@ import { query } from '../db/client'
 import { HttpError } from '../lib/http-error'
 import { signAccessToken } from '../lib/jwt'
 import type { AuthUser, ChangePasswordRequest, LoginRequest, Role } from '@oncall/shared'
+import { logActivity } from './activity.service'
 import * as tokenService from './token.service'
 
 interface UserRow {
@@ -59,6 +60,7 @@ export async function login(
   if (!row.is_active) throw new HttpError(403, 'Account disabled')
   const accessToken = signAccessToken({ sub: row.id, role: row.role })
   const refreshToken = await tokenService.issueRefreshToken(row.id)
+  await logActivity({ userId: row.id, action: 'auth.login', entityType: 'auth', entityId: null })
   return { user: toAuthUser(row), accessToken, refreshToken }
 }
 
@@ -74,7 +76,9 @@ export async function refresh(
 }
 
 export async function logout(token: string): Promise<void> {
-  await tokenService.revokeRefreshToken(token)
+  const userId = await tokenService.revokeRefreshToken(token)
+  if (userId === null) return
+  await logActivity({ userId, action: 'auth.logout', entityType: 'auth', entityId: null })
 }
 
 export async function getUser(id: number): Promise<AuthUser> {
@@ -97,5 +101,11 @@ export async function changePassword(
     row.id,
   ])
   await tokenService.revokeAllForUser(userId)
+  await logActivity({
+    userId,
+    action: 'auth.password_changed',
+    entityType: 'user',
+    entityId: userId,
+  })
   return toAuthUser(row)
 }
