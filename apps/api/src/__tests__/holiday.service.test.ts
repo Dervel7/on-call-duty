@@ -84,6 +84,29 @@ describe('holiday.service', () => {
     ).rejects.toMatchObject({ status: 409 })
   })
 
+  it('update records the audit row only when something changed', async () => {
+    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [row()] })
+    await update(1, { name: 'Sample Holiday' }, { id: 2, role: 'administrator' })
+    expect(recordActivity).not.toHaveBeenCalled()
+
+    query.mockReset()
+    recordActivity.mockReset()
+    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [row({ name: 'Renamed' })] })
+    await update(1, { name: 'Renamed' }, { id: 2, role: 'administrator' })
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'holiday.updated',
+        entityId: 1,
+        detail: { before: { name: 'Sample Holiday' }, after: { name: 'Renamed' } },
+      }),
+    )
+  })
+
   it('remove deletes; 404 when missing', async () => {
     query.mockResolvedValueOnce({ rows: [row()] })
     query.mockResolvedValueOnce({ rows: [] })

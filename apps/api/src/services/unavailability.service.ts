@@ -213,7 +213,7 @@ export async function update(
       before.note = existingRow.note
       after.note = input.note
     }
-    if (sets.length > 0) {
+    if (Object.keys(before).length > 0) {
       await recordActivity(client, {
         userId: actor.id,
         action: 'availability.updated',

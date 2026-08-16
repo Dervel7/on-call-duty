@@ -187,6 +187,29 @@ describe('user.service', () => {
     )
   })
 
+  it('update skips the audit row when nothing changed', async () => {
+    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [row()] })
+    const u = await update(1, { email: 'd@h.com' }, adminActor)
+    expect(u.email).toBe('d@h.com')
+    expect(recordActivity).not.toHaveBeenCalled()
+  })
+
+  it('update records the audit row when a field changes', async () => {
+    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [row({ email: 'new@h.com' })] })
+    const u = await update(1, { email: 'new@h.com' }, adminActor)
+    expect(u.email).toBe('new@h.com')
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'user.updated',
+        entityId: 1,
+        detail: { before: { email: 'd@h.com' }, after: { email: 'new@h.com' } },
+      }),
+    )
+  })
+
   it('update rejects managing a superadmin account from a non-superadmin actor with 403', async () => {
     query.mockResolvedValueOnce({ rows: [row({ role: 'superadmin' })] })
     await expect(update(1, { isActive: false }, adminActor)).rejects.toMatchObject({ status: 403 })

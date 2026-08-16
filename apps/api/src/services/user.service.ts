@@ -166,13 +166,15 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
     )
     const updated = oneRow(res.rows)
     if (!updated) throw new HttpError(404, 'User not found')
-    await recordActivity(client, {
-      userId: actor.id,
-      action,
-      entityType: 'user',
-      entityId: id,
-      detail: { before, after },
-    })
+    if (Object.keys(before).length > 0) {
+      await recordActivity(client, {
+        userId: actor.id,
+        action,
+        entityType: 'user',
+        entityId: id,
+        detail: { before, after },
+      })
+    }
     return updated
   })
   return toUser(row)

@@ -148,6 +148,10 @@ describe('unavailability.service', () => {
     expect(overlapSql).toContain('AND id <>')
     const updateSql = query.mock.calls[3]?.[0] as string
     expect(updateSql).toContain('UPDATE unavailability')
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'availability.updated', entityId: 1 }),
+    )
   })
 
   it('update forbids a non-owner doctor (403); superadmin treated as admin', async () => {
@@ -184,6 +188,26 @@ describe('unavailability.service', () => {
     query.mockResolvedValueOnce({ rows: [row({ type: 'sick' })] })
     const x = await update(1, { type: 'sick' }, { id: 1, role: 'superadmin' })
     expect(x.type).toBe('sick')
+  })
+
+  it('update skips the audit row when nothing changed', async () => {
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          doctor_id: 5,
+          type: 'vacation',
+          start_date: '2026-09-07',
+          end_date: '2026-09-11',
+          note: null,
+        },
+      ],
+    })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [row()] })
+    const x = await update(1, { note: null }, { id: 1, role: 'administrator' })
+    expect(x.note).toBeNull()
+    expect(recordActivity).not.toHaveBeenCalled()
   })
 
   it('update 404 when record missing', async () => {

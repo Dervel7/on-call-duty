@@ -122,13 +122,15 @@ export async function update(
         `UPDATE holidays SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${params.length}`,
         params,
       )
-      await recordActivity(client, {
-        userId: actor.id,
-        action: 'holiday.updated',
-        entityType: 'holiday',
-        entityId: id,
-        detail: { before, after },
-      })
+      if (Object.keys(before).length > 0) {
+        await recordActivity(client, {
+          userId: actor.id,
+          action: 'holiday.updated',
+          entityType: 'holiday',
+          entityId: id,
+          detail: { before, after },
+        })
+      }
     })
   }
   return getById(id)
