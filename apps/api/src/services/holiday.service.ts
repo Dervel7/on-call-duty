@@ -1,4 +1,5 @@
 import type {
+  AuthUser,
   CreateHolidayRequest,
   Holiday,
   HolidayQuery,
@@ -6,6 +7,9 @@ import type {
 } from '@oncall/shared'
 import { query } from '../db/client'
 import { HttpError } from '../lib/http-error'
+import { logActivity } from './activity.service'
+
+type Actor = Pick<AuthUser, 'id' | 'role'>
 
 interface HolidayRow {
   id: number
@@ -53,7 +57,7 @@ export async function list(filters: HolidayQuery = {}): Promise<Holiday[]> {
   return res.rows.map(toHoliday)
 }
 
-export async function create(input: CreateHolidayRequest): Promise<Holiday> {
+export async function create(input: CreateHolidayRequest, actor: Actor): Promise<Holiday> {
   const dup = await query('SELECT id FROM holidays WHERE date = $1', [input.date])
   if (dup.rows.length > 0) throw new HttpError(409, 'Holiday already exists on this date')
   const ins = await query<{ id: number }>(
@@ -62,10 +66,21 @@ export async function create(input: CreateHolidayRequest): Promise<Holiday> {
   )
   const id = ins.rows[0]?.id
   if (id === undefined) throw new HttpError(500, 'Failed to create holiday')
+  await logActivity({
+    userId: actor.id,
+    action: 'holiday.created',
+    entityType: 'holiday',
+    entityId: id,
+    detail: { name: input.name, date: input.date },
+  })
   return getById(id)
 }
 
-export async function update(id: number, input: UpdateHolidayRequest): Promise<Holiday> {
+export async function update(
+  id: number,
+  input: UpdateHolidayRequest,
+  actor: Actor,
+): Promise<Holiday> {
   const existing = await query<HolidayRow>(`${SELECT} WHERE id = $1`, [id])
   if (existing.rows.length === 0) throw new HttpError(404, 'Holiday not found')
   if (input.date !== undefined) {
@@ -94,11 +109,37 @@ export async function update(id: number, input: UpdateHolidayRequest): Promise<H
       params,
     )
   }
+  const before: Record<string, unknown> = {}
+  const after: Record<string, unknown> = {}
+  if (input.name !== undefined && input.name !== existing.rows[0]!.name) {
+    before.name = existing.rows[0]!.name
+    after.name = input.name
+  }
+  if (input.date !== undefined && input.date !== existing.rows[0]!.date) {
+    before.date = existing.rows[0]!.date
+    after.date = input.date
+  }
+  if (sets.length > 0) {
+    await logActivity({
+      userId: actor.id,
+      action: 'holiday.updated',
+      entityType: 'holiday',
+      entityId: id,
+      detail: { before, after },
+    })
+  }
   return getById(id)
 }
 
-export async function remove(id: number): Promise<void> {
-  const existing = await query('SELECT id FROM holidays WHERE id = $1', [id])
+export async function remove(id: number, actor: Actor): Promise<void> {
+  const existing = await query<HolidayRow>(`${SELECT} WHERE id = $1`, [id])
   if (existing.rows.length === 0) throw new HttpError(404, 'Holiday not found')
   await query('DELETE FROM holidays WHERE id = $1', [id])
+  await logActivity({
+    userId: actor.id,
+    action: 'holiday.deleted',
+    entityType: 'holiday',
+    entityId: id,
+    detail: { name: existing.rows[0]!.name, date: existing.rows[0]!.date },
+  })
 }

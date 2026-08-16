@@ -14,7 +14,7 @@ export const holidayController = {
   },
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const holiday = await holidayService.create(req.body)
+      const holiday = await holidayService.create(req.body, req.user!)
       res.status(201).json(ok({ holiday }))
     } catch (err) {
       next(err)
@@ -22,7 +22,7 @@ export const holidayController = {
   },
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      const holiday = await holidayService.update(Number(req.params.id), req.body)
+      const holiday = await holidayService.update(Number(req.params.id), req.body, req.user!)
       res.status(200).json(ok({ holiday }))
     } catch (err) {
       next(err)
@@ -30,7 +30,7 @@ export const holidayController = {
   },
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
-      await holidayService.remove(Number(req.params.id))
+      await holidayService.remove(Number(req.params.id), req.user!)
       res.status(204).end()
     } catch (err) {
       next(err)

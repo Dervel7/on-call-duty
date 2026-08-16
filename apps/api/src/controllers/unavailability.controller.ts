@@ -26,7 +26,7 @@ export const unavailabilityController = {
   },
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const unavailability = await unavailabilityService.create(req.body.doctorId, req.body)
+      const unavailability = await unavailabilityService.create(req.body.doctorId, req.body, req.user!)
       res.status(201).json(ok({ unavailability }))
     } catch (err) {
       next(err)

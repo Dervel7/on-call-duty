@@ -45,7 +45,8 @@ export const scheduleController = {
   },
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
-      await scheduleService.remove(Number(req.params.id))
+      if (!req.user) throw new HttpError(401, 'Unauthorized')
+      await scheduleService.remove(Number(req.params.id), req.user)
       res.status(204).end()
     } catch (err) {
       next(err)
@@ -71,7 +72,8 @@ export const scheduleController = {
   },
   async removeDuty(req: Request, res: Response, next: NextFunction) {
     try {
-      await scheduleService.removeDuty(Number(req.params.id))
+      if (!req.user) throw new HttpError(401, 'Unauthorized')
+      await scheduleService.removeDuty(Number(req.params.id), req.user)
       res.status(204).end()
     } catch (err) {
       next(err)
@@ -79,7 +81,8 @@ export const scheduleController = {
   },
   async publish(req: Request, res: Response, next: NextFunction) {
     try {
-      const schedule = await scheduleService.publish(Number(req.params.id))
+      if (!req.user) throw new HttpError(401, 'Unauthorized')
+      const schedule = await scheduleService.publish(Number(req.params.id), req.user)
       res.status(200).json(ok({ schedule }))
     } catch (err) {
       next(err)
@@ -87,7 +90,8 @@ export const scheduleController = {
   },
   async unpublish(req: Request, res: Response, next: NextFunction) {
     try {
-      const schedule = await scheduleService.unpublish(Number(req.params.id))
+      if (!req.user) throw new HttpError(401, 'Unauthorized')
+      const schedule = await scheduleService.unpublish(Number(req.params.id), req.user)
       res.status(200).json(ok({ schedule }))
     } catch (err) {
       next(err)

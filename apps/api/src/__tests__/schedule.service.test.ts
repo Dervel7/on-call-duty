@@ -6,6 +6,13 @@ vi.mock('../db/client', () => ({
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
+const logActivity = vi.fn()
+const recordActivity = vi.fn()
+vi.mock('../services/activity.service', () => ({
+  logActivity: (...a: unknown[]) => logActivity(...a),
+  recordActivity: (...a: unknown[]) => recordActivity(...a),
+}))
+
 import {
   addDuty,
   computeEligibility,
@@ -49,7 +56,11 @@ function dutyRow(overrides: Partial<Record<string, unknown>> = {}) {
   }
 }
 
-beforeEach(() => query.mockReset())
+beforeEach(() => {
+  query.mockReset()
+  logActivity.mockReset()
+  recordActivity.mockReset()
+})
 
 describe('schedule.service', () => {
   it('generate 409 when the month already exists', async () => {
@@ -94,6 +105,10 @@ describe('schedule.service', () => {
     expect(detail.schedule.id).toBe(42)
     expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO schedules'))).toBe(true)
     expect(query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties')).length).toBeGreaterThan(0)
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'schedule.generated', entityId: 42 }),
+    )
   })
 
   it('preview returns assignments + conflicts without persisting', async () => {
@@ -118,14 +133,20 @@ describe('schedule.service', () => {
   })
 
   it('remove deletes the schedule (404 when missing)', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
+    query.mockResolvedValueOnce({ rows: [{ year: 2026, month: 9, status: 'draft' }] })
     query.mockResolvedValueOnce({ rows: [] })
-    await remove(1)
+    await remove(1, { id: 2, role: 'administrator' })
     expect((query.mock.calls[1]?.[0] as string).includes('DELETE FROM schedules')).toBe(true)
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'schedule.deleted', entityId: 1 }),
+    )
 
     query.mockReset()
+    logActivity.mockReset()
     query.mockResolvedValue({ rows: [] })
-    await expect(remove(99)).rejects.toMatchObject({ status: 404 })
+    await expect(remove(99, { id: 2, role: 'administrator' })).rejects.toMatchObject({
+      status: 404,
+    })
   })
 
   it('addDuty rejects an out-of-month date with 400', async () => {
@@ -183,12 +204,18 @@ describe('schedule.service', () => {
   it('removeDuty deletes; 404 when missing', async () => {
     query.mockResolvedValueOnce({ rows: [dutyRow()] })
     query.mockResolvedValueOnce({ rows: [] })
-    await removeDuty(10)
+    await removeDuty(10, { id: 2, role: 'administrator' })
     expect((query.mock.calls[1]?.[0] as string).includes('DELETE FROM duties')).toBe(true)
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'duty.removed', entityId: 10 }),
+    )
 
     query.mockReset()
+    logActivity.mockReset()
     query.mockResolvedValue({ rows: [] })
-    await expect(removeDuty(99)).rejects.toMatchObject({ status: 404 })
+    await expect(removeDuty(99, { id: 2, role: 'administrator' })).rejects.toMatchObject({
+      status: 404,
+    })
   })
 })
 
@@ -300,30 +327,51 @@ describe('generate plan path', () => {
 describe('publish / unpublish', () => {
   it('publish flips draft->published; 404 missing; 409 already published', async () => {
     query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] })
-    const published = await publish(1)
+    query.mockResolvedValueOnce({ rows: [{ n: 30 }] })
+    const published = await publish(1, { id: 2, role: 'administrator' })
     expect(published.status).toBe('published')
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'schedule.published', entityId: 1 }),
+    )
 
+    query.mockReset()
+    logActivity.mockReset()
     query.mockResolvedValueOnce({ rows: [] }) // UPDATE matches nothing
     query.mockResolvedValueOnce({ rows: [] }) // existence -> 404
-    await expect(publish(99)).rejects.toMatchObject({ status: 404 })
+    await expect(publish(99, { id: 2, role: 'administrator' })).rejects.toMatchObject({
+      status: 404,
+    })
 
+    query.mockReset()
     query.mockResolvedValueOnce({ rows: [] }) // UPDATE matches nothing (already published)
     query.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] }) // exists -> 409
-    await expect(publish(1)).rejects.toMatchObject({ status: 409 })
+    await expect(publish(1, { id: 2, role: 'administrator' })).rejects.toMatchObject({
+      status: 409,
+    })
   })
 
   it('unpublish flips published->draft; 404 missing; 409 already draft', async () => {
     query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'draft' })] })
-    const draft = await unpublish(1)
+    const draft = await unpublish(1, { id: 2, role: 'administrator' })
     expect(draft.status).toBe('draft')
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'schedule.reverted', entityId: 1 }),
+    )
 
+    query.mockReset()
+    logActivity.mockReset()
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [] })
-    await expect(unpublish(99)).rejects.toMatchObject({ status: 404 })
+    await expect(unpublish(99, { id: 2, role: 'administrator' })).rejects.toMatchObject({
+      status: 404,
+    })
 
+    query.mockReset()
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
-    await expect(unpublish(1)).rejects.toMatchObject({ status: 409 })
+    await expect(unpublish(1, { id: 2, role: 'administrator' })).rejects.toMatchObject({
+      status: 409,
+    })
   })
 })
 
@@ -344,12 +392,16 @@ describe('published lock', () => {
 
   it('removeDuty 409 when published', async () => {
     query.mockResolvedValueOnce({ rows: [dutyRow({ schedule_status: 'published' })] })
-    await expect(removeDuty(10)).rejects.toMatchObject({ status: 409 })
+    await expect(removeDuty(10, { id: 2, role: 'administrator' })).rejects.toMatchObject({
+      status: 409,
+    })
   })
 
   it('remove (schedule) 409 when published', async () => {
-    query.mockResolvedValueOnce({ rows: [{ status: 'published' }] })
-    await expect(remove(1)).rejects.toMatchObject({ status: 409 })
+    query.mockResolvedValueOnce({ rows: [{ year: 2026, month: 9, status: 'published' }] })
+    await expect(remove(1, { id: 2, role: 'administrator' })).rejects.toMatchObject({
+      status: 409,
+    })
   })
 })
 

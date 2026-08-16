@@ -25,6 +25,7 @@ import {
 } from '../scheduling/dates'
 import type { DoctorSpec, SchedulingContext } from '../scheduling/types'
 import { recordGeneration } from './usage.service'
+import { logActivity, recordActivity } from './activity.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -262,6 +263,19 @@ export async function generate(
     }
     const doctorIds = [...new Set(planDuties.map((d) => d.doctorId))]
     await recordGeneration(client, year, month, doctorIds)
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'schedule.generated',
+      entityType: 'schedule',
+      entityId: id,
+      detail: {
+        year,
+        month,
+        dutyCount: planDuties.length,
+        doctorCount: doctorIds.length,
+        mode: assignments && assignments.length > 0 ? 'manual' : 'engine',
+      },
+    })
     return id
   })
   return getById(scheduleId, actor)
@@ -412,9 +426,9 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
   return { schedule, duties, days }
 }
 
-export async function remove(id: number): Promise<void> {
-  const existing = await query<{ status: string }>(
-    'SELECT status FROM schedules WHERE id = $1',
+export async function remove(id: number, actor: Actor): Promise<void> {
+  const existing = await query<{ year: number; month: number; status: string }>(
+    'SELECT year, month, status FROM schedules WHERE id = $1',
     [id],
   )
   if (existing.rows.length === 0) throw new HttpError(404, 'Schedule not found')
@@ -423,6 +437,13 @@ export async function remove(id: number): Promise<void> {
     'Schedule is published; revert to draft before deleting',
   )
   await query('DELETE FROM schedules WHERE id = $1', [id])
+  await logActivity({
+    userId: actor.id,
+    action: 'schedule.deleted',
+    entityType: 'schedule',
+    entityId: id,
+    detail: { year: existing.rows[0]!.year, month: existing.rows[0]!.month },
+  })
 }
 
 async function getDutyRow(id: number): Promise<DutyRow> {
@@ -553,6 +574,13 @@ export async function addDuty(
   )
   const id = ins.rows[0]?.id
   if (id === undefined) throw new HttpError(500, 'Failed to create duty')
+  await logActivity({
+    userId: actor.id,
+    action: 'duty.assigned',
+    entityType: 'duty',
+    entityId: id,
+    detail: { scheduleId, date: input.date, doctorId: input.doctorId },
+  })
   return getDutyById(id)
 }
 
@@ -570,16 +598,35 @@ export async function reassignDuty(
     reason,
     dutyId,
   ])
+  await logActivity({
+    userId: actor.id,
+    action: 'duty.reassigned',
+    entityType: 'duty',
+    entityId: dutyId,
+    detail: {
+      scheduleId: duty.schedule_id,
+      date: duty.duty_date,
+      fromDoctorId: duty.doctor_id,
+      toDoctorId: input.doctorId,
+    },
+  })
   return getDutyById(dutyId)
 }
 
-export async function removeDuty(dutyId: number): Promise<void> {
+export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
   const duty = await getDutyRow(dutyId)
   assertEditable(duty.schedule_status)
   await query('DELETE FROM duties WHERE id = $1', [dutyId])
+  await logActivity({
+    userId: actor.id,
+    action: 'duty.removed',
+    entityType: 'duty',
+    entityId: dutyId,
+    detail: { scheduleId: duty.schedule_id, date: duty.duty_date, doctorId: duty.doctor_id },
+  })
 }
 
-export async function publish(id: number): Promise<ScheduleSummary> {
+export async function publish(id: number, actor: Actor): Promise<ScheduleSummary> {
   const upd = await query<ScheduleRow>(
     `UPDATE schedules SET status = 'published', updated_at = NOW()
      WHERE id = $1 AND status = 'draft'
@@ -591,10 +638,22 @@ export async function publish(id: number): Promise<ScheduleSummary> {
     if (found.rows.length === 0) throw new HttpError(404, 'Schedule not found')
     throw new HttpError(409, 'Schedule is already published')
   }
+  const duties = await query<{ n: number }>(
+    'SELECT COUNT(*)::int AS n FROM duties WHERE schedule_id = $1',
+    [id],
+  )
+  const dutyCount = duties.rows[0]?.n ?? 0
+  await logActivity({
+    userId: actor.id,
+    action: 'schedule.published',
+    entityType: 'schedule',
+    entityId: id,
+    detail: { year: upd.rows[0]!.year, month: upd.rows[0]!.month, dutyCount },
+  })
   return toSchedule(upd.rows[0]!)
 }
 
-export async function unpublish(id: number): Promise<ScheduleSummary> {
+export async function unpublish(id: number, actor: Actor): Promise<ScheduleSummary> {
   const upd = await query<ScheduleRow>(
     `UPDATE schedules SET status = 'draft', updated_at = NOW()
      WHERE id = $1 AND status = 'published'
@@ -606,5 +665,12 @@ export async function unpublish(id: number): Promise<ScheduleSummary> {
     if (found.rows.length === 0) throw new HttpError(404, 'Schedule not found')
     throw new HttpError(409, 'Schedule is already draft')
   }
+  await logActivity({
+    userId: actor.id,
+    action: 'schedule.reverted',
+    entityType: 'schedule',
+    entityId: id,
+    detail: { year: upd.rows[0]!.year, month: upd.rows[0]!.month },
+  })
   return toSchedule(upd.rows[0]!)
 }

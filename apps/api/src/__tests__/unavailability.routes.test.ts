@@ -8,6 +8,13 @@ vi.mock('../db/client', () => ({
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
+const logActivity = vi.fn()
+const recordActivity = vi.fn()
+vi.mock('../services/activity.service', () => ({
+  logActivity: (...a: unknown[]) => logActivity(...a),
+  recordActivity: (...a: unknown[]) => recordActivity(...a),
+}))
+
 import { signAccessToken } from '../lib/jwt'
 import { errorHandler } from '../middleware/error-handler'
 import { unavailabilityRouter } from '../routes/unavailability.routes'
@@ -37,7 +44,11 @@ const row = () => ({
   updated_at: new Date(),
 })
 
-beforeEach(() => query.mockReset())
+beforeEach(() => {
+  query.mockReset()
+  logActivity.mockReset()
+  recordActivity.mockReset()
+})
 
 describe('unavailability routes', () => {
   it('admin lists all (200)', async () => {

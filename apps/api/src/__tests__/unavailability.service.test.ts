@@ -6,6 +6,13 @@ vi.mock('../db/client', () => ({
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
+const logActivity = vi.fn()
+const recordActivity = vi.fn()
+vi.mock('../services/activity.service', () => ({
+  logActivity: (...a: unknown[]) => logActivity(...a),
+  recordActivity: (...a: unknown[]) => recordActivity(...a),
+}))
+
 import {
   create,
   createOwn,
@@ -31,7 +38,11 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
   }
 }
 
-beforeEach(() => query.mockReset())
+beforeEach(() => {
+  query.mockReset()
+  logActivity.mockReset()
+  recordActivity.mockReset()
+})
 
 describe('unavailability.service', () => {
   it('listAll with no filters runs an unfiltered SELECT', async () => {
@@ -61,7 +72,10 @@ describe('unavailability.service', () => {
   it('create rejects unknown doctor with 404', async () => {
     query.mockResolvedValueOnce({ rows: [] })
     await expect(
-      create(99, { type: 'sick', startDate: '2026-09-01', endDate: '2026-09-01' }),
+      create(99, { type: 'sick', startDate: '2026-09-01', endDate: '2026-09-01' }, {
+        id: 2,
+        role: 'administrator',
+      }),
     ).rejects.toMatchObject({ status: 404 })
   })
 
@@ -69,7 +83,10 @@ describe('unavailability.service', () => {
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
     query.mockResolvedValueOnce({ rows: [{ id: 99 }] })
     await expect(
-      create(5, { type: 'vacation', startDate: '2026-09-08', endDate: '2026-09-09' }),
+      create(5, { type: 'vacation', startDate: '2026-09-08', endDate: '2026-09-09' }, {
+        id: 2,
+        role: 'administrator',
+      }),
     ).rejects.toMatchObject({ status: 409 })
 
     query.mockReset()
@@ -81,14 +98,18 @@ describe('unavailability.service', () => {
       if (n === 3) return { rows: [{ id: 7 }] }
       return { rows: [row({ id: 7 })] }
     })
-    const x = await create(5, {
-      type: 'vacation',
-      startDate: '2026-09-20',
-      endDate: '2026-09-21',
-    })
+    const x = await create(
+      5,
+      { type: 'vacation', startDate: '2026-09-20', endDate: '2026-09-21' },
+      { id: 2, role: 'administrator' },
+    )
     expect(x.id).toBe(7)
     const insertSql = query.mock.calls[2]?.[0] as string
     expect(insertSql).toContain('INSERT INTO unavailability')
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'availability.created', entityId: 7 }),
+    )
   })
 
   it('createOwn resolves doctorId then creates', async () => {
@@ -103,7 +124,15 @@ describe('unavailability.service', () => {
 
   it('update excludes self from overlap check and clears note on null', async () => {
     query.mockResolvedValueOnce({
-      rows: [{ doctor_id: 5, start_date: '2026-09-07', end_date: '2026-09-11' }],
+      rows: [
+        {
+          doctor_id: 5,
+          type: 'vacation',
+          start_date: '2026-09-07',
+          end_date: '2026-09-11',
+          note: 'old',
+        },
+      ],
     })
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
     query.mockResolvedValueOnce({ rows: [] })
@@ -123,7 +152,15 @@ describe('unavailability.service', () => {
 
   it('update forbids a non-owner doctor (403); superadmin treated as admin', async () => {
     query.mockResolvedValueOnce({
-      rows: [{ doctor_id: 5, start_date: '2026-09-07', end_date: '2026-09-11' }],
+      rows: [
+        {
+          doctor_id: 5,
+          type: 'vacation',
+          start_date: '2026-09-07',
+          end_date: '2026-09-11',
+          note: null,
+        },
+      ],
     })
     query.mockResolvedValueOnce({ rows: [{ id: 8 }] })
     await expect(
@@ -132,7 +169,15 @@ describe('unavailability.service', () => {
 
     query.mockReset()
     query.mockResolvedValueOnce({
-      rows: [{ doctor_id: 5, start_date: '2026-09-07', end_date: '2026-09-11' }],
+      rows: [
+        {
+          doctor_id: 5,
+          type: 'vacation',
+          start_date: '2026-09-07',
+          end_date: '2026-09-11',
+          note: null,
+        },
+      ],
     })
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
     query.mockResolvedValueOnce({ rows: [] })
@@ -149,20 +194,28 @@ describe('unavailability.service', () => {
   })
 
   it('remove deletes the row; 404 when missing; 403 for non-owner', async () => {
-    query.mockResolvedValueOnce({ rows: [{ doctor_id: 5 }] })
+    query.mockResolvedValueOnce({
+      rows: [{ doctor_id: 5, type: 'vacation', start_date: '2026-09-07', end_date: '2026-09-11' }],
+    })
     query.mockResolvedValueOnce({ rows: [] })
     await remove(1, { id: 1, role: 'administrator' })
     const del = query.mock.calls[1]?.[0] as string
     expect(del).toContain('DELETE FROM unavailability')
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'availability.deleted', entityId: 1 }),
+    )
 
     query.mockReset()
+    logActivity.mockReset()
     query.mockResolvedValue({ rows: [] })
     await expect(remove(99, { id: 1, role: 'administrator' })).rejects.toMatchObject({
       status: 404,
     })
 
     query.mockReset()
-    query.mockResolvedValueOnce({ rows: [{ doctor_id: 5 }] })
+    query.mockResolvedValueOnce({
+      rows: [{ doctor_id: 5, type: 'vacation', start_date: '2026-09-07', end_date: '2026-09-11' }],
+    })
     query.mockResolvedValueOnce({ rows: [{ id: 8 }] })
     await expect(remove(1, { id: 10, role: 'doctor' })).rejects.toMatchObject({ status: 403 })
   })

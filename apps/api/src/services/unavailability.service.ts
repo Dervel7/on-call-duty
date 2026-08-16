@@ -9,6 +9,7 @@ import type {
 } from '@oncall/shared'
 import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
+import { logActivity, recordActivity } from './activity.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -96,7 +97,11 @@ export async function listOwn(userId: number): Promise<Unavailability[]> {
 
 type CreateInput = CreateUnavailabilityAdminRequest | CreateUnavailabilitySelfRequest
 
-export async function create(doctorId: number, input: CreateInput): Promise<Unavailability> {
+export async function create(
+  doctorId: number,
+  input: CreateInput,
+  actor: Actor,
+): Promise<Unavailability> {
   const id = await withTransaction(async (client) => {
     const lock = await client.query('SELECT 1 FROM doctors WHERE id = $1 FOR UPDATE', [doctorId])
     if (lock.rows.length === 0) throw new HttpError(404, 'Doctor not found')
@@ -112,6 +117,19 @@ export async function create(doctorId: number, input: CreateInput): Promise<Unav
     )
     const newId = ins.rows[0]?.id
     if (newId === undefined) throw new HttpError(500, 'Failed to create unavailability record')
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'availability.created',
+      entityType: 'unavailability',
+      entityId: newId,
+      detail: {
+        doctorId,
+        type: input.type,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        note: input.note ?? null,
+      },
+    })
     return newId
   })
   return getById(id)
@@ -122,7 +140,7 @@ export async function createOwn(
   input: CreateUnavailabilitySelfRequest,
 ): Promise<Unavailability> {
   const doctorId = await resolveDoctorId(userId)
-  return create(doctorId, input)
+  return create(doctorId, input, { id: userId, role: 'doctor' })
 }
 
 export async function update(
@@ -130,8 +148,14 @@ export async function update(
   input: UpdateUnavailabilityRequest,
   actor: Actor,
 ): Promise<Unavailability> {
-  const existing = await query<{ doctor_id: number; start_date: string; end_date: string }>(
-    'SELECT doctor_id, start_date, end_date FROM unavailability WHERE id = $1',
+  const existing = await query<{
+    doctor_id: number
+    type: string
+    start_date: string
+    end_date: string
+    note: string | null
+  }>(
+    'SELECT doctor_id, type, start_date, end_date, note FROM unavailability WHERE id = $1',
     [id],
   )
   const existingRow = existing.rows[0]
@@ -171,17 +195,61 @@ export async function update(
         params,
       )
     }
+    const before: Record<string, unknown> = {}
+    const after: Record<string, unknown> = {}
+    if (input.type !== undefined && input.type !== existingRow.type) {
+      before.type = existingRow.type
+      after.type = input.type
+    }
+    if (input.startDate !== undefined && input.startDate !== existingRow.start_date) {
+      before.startDate = existingRow.start_date
+      after.startDate = input.startDate
+    }
+    if (input.endDate !== undefined && input.endDate !== existingRow.end_date) {
+      before.endDate = existingRow.end_date
+      after.endDate = input.endDate
+    }
+    if (input.note !== undefined && input.note !== existingRow.note) {
+      before.note = existingRow.note
+      after.note = input.note
+    }
+    if (sets.length > 0) {
+      await recordActivity(client, {
+        userId: actor.id,
+        action: 'availability.updated',
+        entityType: 'unavailability',
+        entityId: id,
+        detail: { doctorId: existingRow.doctor_id, before, after },
+      })
+    }
   })
   return getById(id)
 }
 
 export async function remove(id: number, actor: Actor): Promise<void> {
-  const existing = await query<{ doctor_id: number }>(
-    'SELECT doctor_id FROM unavailability WHERE id = $1',
+  const existing = await query<{
+    doctor_id: number
+    type: string
+    start_date: string
+    end_date: string
+  }>(
+    'SELECT doctor_id, type, start_date, end_date FROM unavailability WHERE id = $1',
     [id],
   )
   const existingRow = existing.rows[0]
   if (!existingRow) throw new HttpError(404, 'Unavailability record not found')
   await assertOwns(existingRow.doctor_id, actor)
   await query('DELETE FROM unavailability WHERE id = $1', [id])
+  await logActivity({
+    userId: actor.id,
+    action: 'availability.deleted',
+    entityType: 'unavailability',
+    entityId: id,
+    detail: {
+      doctorId: existingRow.doctor_id,
+      type: existingRow.type,
+      startDate: existingRow.start_date,
+      endDate: existingRow.end_date,
+    },
+  })
 }

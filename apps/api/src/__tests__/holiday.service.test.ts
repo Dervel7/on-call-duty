@@ -6,6 +6,13 @@ vi.mock('../db/client', () => ({
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
+const logActivity = vi.fn()
+const recordActivity = vi.fn()
+vi.mock('../services/activity.service', () => ({
+  logActivity: (...a: unknown[]) => logActivity(...a),
+  recordActivity: (...a: unknown[]) => recordActivity(...a),
+}))
+
 import { create, list, remove, update } from '../services/holiday.service'
 
 function row(overrides: Partial<Record<string, unknown>> = {}) {
@@ -19,7 +26,11 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
   }
 }
 
-beforeEach(() => query.mockReset())
+beforeEach(() => {
+  query.mockReset()
+  logActivity.mockReset()
+  recordActivity.mockReset()
+})
 
 describe('holiday.service', () => {
   it('list applies an inclusive date window', async () => {
@@ -40,37 +51,52 @@ describe('holiday.service', () => {
 
   it('create rejects a duplicate date with 409', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
-    await expect(create({ name: 'X', date: '2026-09-01' })).rejects.toMatchObject({ status: 409 })
+    await expect(
+      create({ name: 'X', date: '2026-09-01' }, { id: 2, role: 'administrator' }),
+    ).rejects.toMatchObject({ status: 409 })
   })
 
   it('create inserts and returns the joined holiday', async () => {
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [{ id: 7 }] })
     query.mockResolvedValueOnce({ rows: [row({ id: 7 })] })
-    const h = await create({ name: 'Day', date: '2026-09-17' })
+    const h = await create({ name: 'Day', date: '2026-09-17' }, { id: 2, role: 'administrator' })
     expect(h.id).toBe(7)
     const insertSql = query.mock.calls[1]?.[0] as string
     expect(insertSql).toContain('INSERT INTO holidays')
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'holiday.created', entityId: 7 }),
+    )
   })
 
   it('update 404 when missing; 409 on dup date', async () => {
     query.mockResolvedValue({ rows: [] })
-    await expect(update(99, { name: 'X' })).rejects.toMatchObject({ status: 404 })
+    await expect(
+      update(99, { name: 'X' }, { id: 2, role: 'administrator' }),
+    ).rejects.toMatchObject({ status: 404 })
 
     query.mockReset()
     query.mockResolvedValueOnce({ rows: [{ id: 1, name: 'Old', date: '2026-09-01' }] })
     query.mockResolvedValueOnce({ rows: [{ id: 2 }] })
-    await expect(update(1, { date: '2026-09-17' })).rejects.toMatchObject({ status: 409 })
+    await expect(
+      update(1, { date: '2026-09-17' }, { id: 2, role: 'administrator' }),
+    ).rejects.toMatchObject({ status: 409 })
   })
 
   it('remove deletes; 404 when missing', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
+    query.mockResolvedValueOnce({ rows: [row()] })
     query.mockResolvedValueOnce({ rows: [] })
-    await remove(1)
+    await remove(1, { id: 2, role: 'administrator' })
     expect((query.mock.calls[1]?.[0] as string).includes('DELETE FROM holidays')).toBe(true)
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'holiday.deleted', entityId: 1 }),
+    )
 
     query.mockReset()
+    logActivity.mockReset()
     query.mockResolvedValue({ rows: [] })
-    await expect(remove(99)).rejects.toMatchObject({ status: 404 })
+    await expect(remove(99, { id: 2, role: 'administrator' })).rejects.toMatchObject({
+      status: 404,
+    })
   })
 })
