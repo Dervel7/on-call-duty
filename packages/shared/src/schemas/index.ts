@@ -25,3 +25,5 @@ export {
 } from './schedule'
 export { statsQuerySchema } from './stats'
 export { reportQuerySchema } from './reports'
+export { ACTIVITY_ACTIONS, activityQuerySchema } from './audit'
+export type { ActivityAction } from './audit'

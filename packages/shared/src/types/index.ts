@@ -52,3 +52,9 @@ export type {
 } from './stats'
 export type { ReportQuery, ReportHoliday, MonthlyReport } from './reports'
 export * from './usage'
+export type {
+  ActivityActor,
+  ActivityLogEntry,
+  ActivityQuery,
+  PaginatedActivity,
+} from './audit'
