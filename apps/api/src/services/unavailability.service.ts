@@ -9,7 +9,7 @@ import type {
 } from '@oncall/shared'
 import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
-import { logActivity, recordActivity } from './activity.service'
+import { recordActivity } from './activity.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -239,17 +239,19 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   const existingRow = existing.rows[0]
   if (!existingRow) throw new HttpError(404, 'Unavailability record not found')
   await assertOwns(existingRow.doctor_id, actor)
-  await query('DELETE FROM unavailability WHERE id = $1', [id])
-  await logActivity({
-    userId: actor.id,
-    action: 'availability.deleted',
-    entityType: 'unavailability',
-    entityId: id,
-    detail: {
-      doctorId: existingRow.doctor_id,
-      type: existingRow.type,
-      startDate: existingRow.start_date,
-      endDate: existingRow.end_date,
-    },
+  await withTransaction(async (client) => {
+    await client.query('DELETE FROM unavailability WHERE id = $1', [id])
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'availability.deleted',
+      entityType: 'unavailability',
+      entityId: id,
+      detail: {
+        doctorId: existingRow.doctor_id,
+        type: existingRow.type,
+        startDate: existingRow.start_date,
+        endDate: existingRow.end_date,
+      },
+    })
   })
 }

@@ -225,7 +225,8 @@ describe('unavailability.service', () => {
     await remove(1, { id: 1, role: 'administrator' })
     const del = query.mock.calls[1]?.[0] as string
     expect(del).toContain('DELETE FROM unavailability')
-    expect(logActivity).toHaveBeenCalledWith(
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ action: 'availability.deleted', entityId: 1 }),
     )
 
