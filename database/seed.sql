@@ -12,7 +12,7 @@ VALUES (
   'Administrator',
   TRUE
 )
-ON CONFLICT (email) DO UPDATE SET
+ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
   username      = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,
   role          = EXCLUDED.role,
@@ -30,7 +30,7 @@ VALUES
   ('dr6@oncall.local', 'dr6', '$2b$12$ZJVUxCgDZlVJfoXtQbh91OZwfqnV0aG3V1kJbS2QPy8Ok1a/ZexdS', 'doctor', 'Sofia',    'Vlachou',      TRUE),
   ('dr7@oncall.local', 'dr7', '$2b$12$47LuPzklNu2otUNM2PKKXOG8OUYGd.7XiGa2Fve6OwcGYCvDp1FLm', 'doctor', 'Dimitris', 'Antoniou',     TRUE),
   ('dr8@oncall.local', 'dr8', '$2b$12$pk./7Qh2MP/iJaYcD8UyAOR1Ys/kmXarnMYvSg/FuY0pI3sokXwiO', 'doctor', 'Katerina', 'Pavlidou',     TRUE)
-ON CONFLICT (email) DO UPDATE SET
+ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
   username      = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,
   role          = EXCLUDED.role,
@@ -84,4 +84,4 @@ VALUES (
   'Superadmin',
   TRUE
 )
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) WHERE is_deleted = FALSE DO NOTHING;

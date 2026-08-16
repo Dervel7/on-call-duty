@@ -162,3 +162,16 @@ CREATE TABLE IF NOT EXISTS activity_log (
 CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log (user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_log_action ON activity_log (action);
 CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log (created_at);
+
+-- Phase 12: Doctor soft delete
+-- Deleted accounts: is_deleted = TRUE (and always is_active = FALSE).
+-- Partial unique indexes free email/username of deleted accounts for reuse.
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
+DROP INDEX IF EXISTS idx_users_username;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_live
+  ON users (email) WHERE is_deleted = FALSE;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_live
+  ON users (username) WHERE is_deleted = FALSE;
