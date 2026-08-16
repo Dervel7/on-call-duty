@@ -28,6 +28,7 @@ const navItems = computed(() => {
       { to: '/schedules', label: 'Schedules' },
       { to: '/holidays', label: 'Holidays' },
       { to: '/reports', label: 'Reports' },
+      { to: '/activity', label: 'Activity' },
     )
   }
   if (auth.isSuperadmin) {
