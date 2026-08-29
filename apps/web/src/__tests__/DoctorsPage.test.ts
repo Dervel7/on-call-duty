@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const list = vi.fn()
@@ -14,11 +14,15 @@ vi.mock('@/services/doctor', () => ({
 }))
 
 import DoctorsPage from '../pages/DoctorsPage.vue'
+import { useConfirmState } from '../composables/useConfirm'
+
+const { request, settle } = useConfirmState()
 
 beforeEach(() => {
   setActivePinia(createPinia())
   list.mockReset()
   remove.mockReset()
+  settle(false)
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -84,7 +88,6 @@ describe('DoctorsPage', () => {
       },
     ])
     list.mockResolvedValue([]) // reload after delete
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const wrapper = mount(DoctorsPage, { global: { plugins: [createPinia()] } })
     await wrapper.vm.$nextTick()
     await wrapper.vm.$nextTick()
@@ -93,10 +96,14 @@ describe('DoctorsPage', () => {
       .find((b) => b.text() === 'Delete')
     await btn!.trigger('click')
     await wrapper.vm.$nextTick()
-    expect(confirmSpy).toHaveBeenCalledWith(
-      expect.stringContaining('permanently hidden'),
-    )
+    expect(request.value?.title).toBe('Delete doctor')
+    expect(request.value?.message).toContain('permanently hidden')
+    settle(false)
+    await flushPromises()
+    expect(remove).not.toHaveBeenCalled()
+    await btn!.trigger('click')
+    settle(true)
+    await flushPromises()
     expect(remove).toHaveBeenCalledWith(1)
-    confirmSpy.mockRestore()
   })
 })

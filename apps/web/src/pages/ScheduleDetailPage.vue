@@ -14,10 +14,12 @@ import * as scheduleService from '@/services/schedule'
 import * as doctorService from '@/services/doctor'
 import Button from '@/components/ui/Button.vue'
 import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
+import { useConfirm } from '@/composables/useConfirm'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const { confirm } = useConfirm()
 const id = Number(route.params.id)
 
 const MONTHS = [
@@ -80,7 +82,15 @@ async function load() {
 }
 
 async function publish() {
-  if (!confirm('Publish this schedule? Editing will be locked.')) return
+  if (
+    !(await confirm({
+      title: 'Publish schedule',
+      message: 'Publish this schedule? Editing will be locked.',
+      confirmText: 'Publish',
+      variant: 'primary',
+    }))
+  )
+    return
   errorMsg.value = ''
   try {
     const updated = await scheduleService.publish(id)
@@ -91,7 +101,15 @@ async function publish() {
 }
 
 async function unpublish() {
-  if (!confirm('Revert this schedule to draft? Editing will be re-enabled.')) return
+  if (
+    !(await confirm({
+      title: 'Revert to draft',
+      message: 'Revert this schedule to draft? Editing will be re-enabled.',
+      confirmText: 'Revert',
+      variant: 'primary',
+    }))
+  )
+    return
   errorMsg.value = ''
   try {
     const updated = await scheduleService.unpublish(id)
@@ -102,7 +120,14 @@ async function unpublish() {
 }
 
 async function deleteSchedule() {
-  if (!confirm('Delete this schedule and all its duties?')) return
+  if (
+    !(await confirm({
+      title: 'Delete schedule',
+      message: 'Delete this schedule and all its duties?',
+      confirmText: 'Delete',
+    }))
+  )
+    return
   errorMsg.value = ''
   try {
     await scheduleService.remove(id)
@@ -120,7 +145,14 @@ async function onSelect(date: string, slotIndex: number, doctorId: number | null
   errorMsg.value = ''
   if (doctorId === null) {
     if (dutyId === null) return
-    if (!confirm(`Remove ${existing?.firstName ?? ''} ${existing?.lastName ?? ''} from ${date}?`)) return
+    if (
+      !(await confirm({
+        title: 'Remove duty',
+        message: `Remove ${existing?.firstName ?? ''} ${existing?.lastName ?? ''} from ${date}?`,
+        confirmText: 'Remove',
+      }))
+    )
+      return
     savingDates.value = new Set(savingDates.value).add(date)
     try {
       await scheduleService.removeDuty(dutyId)

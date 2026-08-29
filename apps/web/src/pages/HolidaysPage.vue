@@ -13,10 +13,12 @@ import TableCell from '@/components/ui/TableCell.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
+import { useConfirm } from '@/composables/useConfirm'
 
 const records = ref<Holiday[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
+const { confirm } = useConfirm()
 
 interface EditState {
   open: boolean
@@ -80,7 +82,14 @@ async function save() {
 }
 
 async function remove(x: Holiday) {
-  if (!confirm(`Delete holiday "${x.name}" on ${x.date}?`)) return
+  if (
+    !(await confirm({
+      title: 'Delete holiday',
+      message: `Delete holiday "${x.name}" on ${x.date}?`,
+      confirmText: 'Delete',
+    }))
+  )
+    return
   try {
     await holidayService.remove(x.id)
   } catch (e) {

@@ -20,6 +20,7 @@ import TableCell from '@/components/ui/TableCell.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
+import { useConfirm } from '@/composables/useConfirm'
 
 const TYPES = ['vacation', 'sick', 'conference', 'other'] as const
 
@@ -27,6 +28,7 @@ const records = ref<Unavailability[]>([])
 const doctors = ref<Doctor[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
+const { confirm } = useConfirm()
 
 const filterDoctorId = ref<string>('')
 const filterFrom = ref('')
@@ -126,7 +128,14 @@ async function save() {
 }
 
 async function remove(x: Unavailability) {
-  if (!confirm(`Delete ${x.doctorFirstName} ${x.doctorLastName}'s ${x.type} record?`)) return
+  if (
+    !(await confirm({
+      title: 'Delete record',
+      message: `Delete ${x.doctorFirstName} ${x.doctorLastName}'s ${x.type} record?`,
+      confirmText: 'Delete',
+    }))
+  )
+    return
   await unavailabilityService.remove(x.id)
   await load()
 }

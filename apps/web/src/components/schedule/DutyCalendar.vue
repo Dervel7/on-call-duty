@@ -100,6 +100,14 @@ function doctorLabel(id: number): string {
   return d ? `${d.lastName} ${d.firstName.charAt(0)}.` : String(id)
 }
 
+function slotLabel(slot: CalendarAssignment): string {
+  return `${slot.lastName} ${slot.firstName.charAt(0)}.`
+}
+
+function slotFull(slot: CalendarAssignment): string {
+  return `${slot.firstName} ${slot.lastName}`
+}
+
 function filledCount(slots: (CalendarAssignment | undefined)[]): number {
   return slots.filter((s) => s).length
 }
@@ -115,11 +123,6 @@ function cellBg(c: Cell): string {
   if (c.conflict) return 'bg-destructive/5'
   if (c.isWeekend) return 'bg-muted/30'
   return 'bg-card'
-}
-
-function doctorFull(id: number): string {
-  const d = doctorsById.value.get(id)
-  return d ? `${d.firstName} ${d.lastName}` : String(id)
 }
 </script>
 
@@ -183,8 +186,8 @@ function doctorFull(id: number): string {
                   <span
                     v-if="slot"
                     class="block text-xs font-medium text-foreground"
-                    :title="doctorFull(slot.doctorId)"
-                    >{{ doctorLabel(slot.doctorId) }}</span
+                    :title="slotFull(slot)"
+                    >{{ slotLabel(slot) }}</span
                   >
                   <span v-else class="block text-xs italic text-muted-foreground">—</span>
                 </template>

@@ -13,10 +13,12 @@ import TableCell from '@/components/ui/TableCell.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
+import { useConfirm } from '@/composables/useConfirm'
 
 const users = ref<User[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
+const { confirm } = useConfirm()
 
 interface EditState {
   open: boolean
@@ -113,7 +115,14 @@ async function toggleActive(u: User) {
 }
 
 async function remove(u: User) {
-  if (!confirm(`Delete ${u.email}?`)) return
+  if (
+    !(await confirm({
+      title: 'Delete user',
+      message: `Delete ${u.email}?`,
+      confirmText: 'Delete',
+    }))
+  )
+    return
   await userService.remove(u.id)
   await load()
 }

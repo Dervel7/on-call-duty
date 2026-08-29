@@ -40,6 +40,14 @@ function fullMe(overrides: Record<string, unknown> = {}) {
         isHoliday: false,
         isMine: false,
       },
+      {
+        date: '2099-01-02',
+        doctorFirstName: 'Second',
+        doctorLastName: 'Doc',
+        isWeekend: true,
+        isHoliday: false,
+        isMine: false,
+      },
     ],
     ...overrides,
   }
@@ -61,6 +69,16 @@ describe('DoctorDashboard', () => {
     expect(w.text()).toContain('Jane Roe')
     expect(w.text()).toContain('Other Doc')
     expect(w.text()).toContain('You')
+  })
+
+  it('merges same-date on-call entries into one row with both names', async () => {
+    me.mockResolvedValue(fullMe())
+    const w = mount(DoctorDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const rows = w.findAll('ul')[0]?.findAll('li') ?? []
+    expect(rows).toHaveLength(2)
+    expect(rows[1]?.text()).toContain('02 Jan')
+    expect(rows[1]?.text()).toContain('Other Doc, Second Doc')
   })
 
   it('shows the not-published note and both empty states', async () => {

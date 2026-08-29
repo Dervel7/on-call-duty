@@ -38,6 +38,18 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('LoginPage', () => {
+  it('shows a friendly error when fields are empty', async () => {
+    login.mockResolvedValue(undefined)
+    const wrapper = mountWithRouter()
+    const inputs = wrapper.findAll('input')
+    await inputs[0]!.setValue('')
+    await inputs[1]!.setValue('')
+    await wrapper.find('form').trigger('submit.prevent')
+    await wrapper.vm.$nextTick()
+    expect(login).not.toHaveBeenCalled()
+    expect(wrapper.find('[role="alert"]').text()).toContain('Username and Password must not be empty')
+  })
+
   it('shows a validation error when the password is too short', async () => {
     login.mockResolvedValue(undefined)
     const wrapper = mountWithRouter()

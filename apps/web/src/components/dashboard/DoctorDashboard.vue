@@ -8,9 +8,38 @@ import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import * as statsService from '@/services/stats'
 
+interface OnCallRow {
+  date: string
+  names: string[]
+  isWeekend: boolean
+  isHoliday: boolean
+  isMine: boolean
+}
+
 const stats = ref<MeStats | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
+
+const onCallRows = computed<OnCallRow[]>(() => {
+  const byDate = new Map<string, OnCallRow>()
+  for (const e of stats.value?.onCall ?? []) {
+    const fullName = `${e.doctorFirstName} ${e.doctorLastName}`
+    const row = byDate.get(e.date)
+    if (row) {
+      row.names.push(fullName)
+      row.isMine = row.isMine || e.isMine
+    } else {
+      byDate.set(e.date, {
+        date: e.date,
+        names: [fullName],
+        isWeekend: e.isWeekend,
+        isHoliday: e.isHoliday,
+        isMine: e.isMine,
+      })
+    }
+  }
+  return [...byDate.values()]
+})
 
 const progress = computed(() => {
   if (!stats.value) return 0
@@ -78,9 +107,9 @@ onMounted(load)
       <Card>
         <CardHeader><CardTitle>Who's on call (today + 7 days)</CardTitle></CardHeader>
         <CardContent>
-          <ul v-if="stats.onCall.length > 0" class="flex flex-col divide-y divide-border">
+          <ul v-if="onCallRows.length > 0" class="flex flex-col divide-y divide-border">
             <li
-              v-for="e in stats.onCall"
+              v-for="e in onCallRows"
               :key="e.date"
               :class="[
                 'flex items-center justify-between py-2',
@@ -88,7 +117,7 @@ onMounted(load)
               ]"
             >
               <span class="text-sm text-foreground">
-                {{ fmt(e.date) }} · {{ e.doctorFirstName }} {{ e.doctorLastName }}
+                {{ fmt(e.date) }} · {{ e.names.join(', ') }}
               </span>
               <span class="flex items-center gap-1">
                 <span

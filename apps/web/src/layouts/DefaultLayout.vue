@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppLayout from '@/components/layout/AppLayout.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 </script>
 
 <template>
@@ -9,5 +10,6 @@ import AppLayout from '@/components/layout/AppLayout.vue'
         <component :is="Component" />
       </Transition>
     </RouterView>
+    <ConfirmDialog />
   </AppLayout>
 </template>

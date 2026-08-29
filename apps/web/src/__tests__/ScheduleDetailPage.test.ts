@@ -103,8 +103,9 @@ describe('ScheduleDetailPage', () => {
     expect(wrapper.findAll('select').length).toBe(0)
   })
 
-  it('doctor sees read-only names (no selects, no publish buttons)', async () => {
+  it('doctor sees read-only names even when doctor list is forbidden (no selects, no publish buttons)', async () => {
     get.mockResolvedValue(detail('published'))
+    doctorList.mockRejectedValue(new Error('Forbidden'))
     const wrapper = mountAs('doctor')
     await flushPromises()
     expect(wrapper.text()).toContain('Roe J.')

@@ -24,6 +24,10 @@ const route = useRoute()
 
 async function onSubmit() {
   formError.value = ''
+  if (!identifier.value.trim() || !password.value) {
+    formError.value = 'Username and Password must not be empty'
+    return
+  }
   const parsed = loginSchema.safeParse({ identifier: identifier.value, password: password.value })
   if (!parsed.success) {
     formError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
@@ -81,11 +85,11 @@ async function onSubmit() {
         <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
           <div class="flex flex-col gap-2">
             <Label for="identifier">Email or username</Label>
-            <Input id="identifier" v-model="identifier" type="text" autocomplete="username" />
+            <Input id="identifier" v-model="identifier" type="text" />
           </div>
           <div class="flex flex-col gap-2">
             <Label for="password">Password</Label>
-            <Input id="password" v-model="password" type="password" autocomplete="current-password" />
+            <Input id="password" v-model="password" type="password" />
           </div>
           <p v-if="formError" class="text-sm text-destructive" role="alert">{{ formError }}</p>
           <Button type="submit" :disabled="submitting" :aria-busy="submitting">

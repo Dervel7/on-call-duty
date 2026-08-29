@@ -13,10 +13,12 @@ import TableCell from '@/components/ui/TableCell.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
+import { useConfirm } from '@/composables/useConfirm'
 
 const doctors = ref<Doctor[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
+const { confirm } = useConfirm()
 
 interface EditState {
   open: boolean
@@ -110,9 +112,11 @@ async function toggleActive(d: Doctor) {
 
 async function deleteDoctor(d: Doctor) {
   if (
-    !confirm(
-      `Delete doctor ${d.email}? They will be permanently hidden from the list. Past duties in published schedules are kept. This cannot be undone.`,
-    )
+    !(await confirm({
+      title: 'Delete doctor',
+      message: `Delete doctor ${d.email}? They will be permanently hidden from the list. Past duties in published schedules are kept. This cannot be undone.`,
+      confirmText: 'Delete',
+    }))
   )
     return
   await doctorService.remove(d.id)

@@ -18,12 +18,14 @@ import TableCell from '@/components/ui/TableCell.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
+import { useConfirm } from '@/composables/useConfirm'
 
 const TYPES = ['vacation', 'sick', 'conference', 'other'] as const
 
 const records = ref<Unavailability[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
+const { confirm } = useConfirm()
 
 interface EditState {
   open: boolean
@@ -111,7 +113,14 @@ async function save() {
 }
 
 async function remove(x: Unavailability) {
-  if (!confirm(`Delete your ${x.type} record (${x.startDate} → ${x.endDate})?`)) return
+  if (
+    !(await confirm({
+      title: 'Delete record',
+      message: `Delete your ${x.type} record (${x.startDate} → ${x.endDate})?`,
+      confirmText: 'Delete',
+    }))
+  )
+    return
   await unavailabilityService.remove(x.id)
   await load()
 }
