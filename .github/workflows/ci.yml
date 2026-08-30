@@ -1,0 +1,64 @@
+name: CI
+
+# Continuous integration: runs on every push to main and every pull request.
+# - Installs dependencies with the repo-pinned pnpm (via corepack).
+# - Applies schema + seed to a Postgres service container.
+# - Runs typecheck, lint, and the full test suite.
+# The Release workflow calls this file (workflow_call) so nothing is ever
+# published from a tree that fails these checks.
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+  workflow_call: {}
+
+# Least privilege — reusable calls from Release must not inherit write permissions.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, lint & test
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/oncall
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: oncall
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d oncall"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Apply schema and seed
+        run: pnpm db:setup
+
+      - name: Test
+        run: pnpm test

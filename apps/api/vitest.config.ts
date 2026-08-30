@@ -9,7 +9,7 @@ export default mergeConfig(
       env: {
         NODE_ENV: 'test',
         LOG_LEVEL: 'silent',
-        DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/oncall',
+        DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/oncall',
         JWT_ACCESS_SECRET: 'test-secret',
       },
     },

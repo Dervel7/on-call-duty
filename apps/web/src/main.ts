@@ -9,8 +9,8 @@ async function bootstrap(): Promise<void> {
   const app = createApp(App)
   const pinia = createPinia()
   app.use(pinia)
-  app.use(router)
   await useAuthStore().refresh().catch(() => undefined)
+  app.use(router)
   app.mount('#app')
 }
 

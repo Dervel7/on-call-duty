@@ -14,8 +14,15 @@ permissions:
   packages: write # push images to ghcr.io
 
 jobs:
+  # CI must pass first — releases and images are never published from a
+  # tree that fails typecheck/lint/tests.
+  ci:
+    name: CI gate
+    uses: ./.github/workflows/ci.yml
+
   release:
     name: Create GitHub Release
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +35,7 @@ jobs:
 
   publish-images:
     name: Build & push images
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

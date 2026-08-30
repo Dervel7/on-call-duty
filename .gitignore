@@ -18,6 +18,7 @@ license.json
 # License signing keys (local keygen artifacts, never commit)
 license-private.pem
 license-public.pem
+dev-license-private-key.pem
 .turbo/
 .nitro/
 .output/

@@ -215,25 +215,7 @@ LICENSE_FILE=
 
 `apps/api/src/config/license-public-key.ts` — this DEV keypair is committed on purpose: it can only issue licenses the dev build trusts. Production deployments regenerate keys via the script in Step 4.
 
-```ts
-/**
- * Public key used to verify the license file. This is a DEV keypair committed
- * for local development and tests. For production, generate a new keypair with
- * `pnpm --filter @oncall/api exec tsx scripts/license.ts keygen` and replace
- * this constant with the generated public key before building.
- */
-export const LICENSE_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEATmwuNpNtIR49lG3kGanXcrWCsHrDFc/ly1vHL/+k+E0=
------END PUBLIC KEY-----`
-```
-
-Create `apps/api/dev-license-private-key.pem` with the matching dev private key:
-
-```
------BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIO7U6XdkG2iQtxG2/1VTlsNL7RNt72yOD7Gc2/5RpDYQ
------END PRIVATE KEY-----
-```
+(dev keypair removed from the repository 2026-08-30 — generate a local one with `pnpm --filter @oncall/api exec tsx scripts/license.ts keygen` if you need to sign local licenses)
 
 Add to the repo-root `.gitignore`:
 

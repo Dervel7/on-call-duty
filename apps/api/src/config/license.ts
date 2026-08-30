@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { createPublicKey, verify as verifySignature } from 'node:crypto'
 import { env } from './env'
-import { LICENSE_PUBLIC_KEY } from './license-public-key'
+import { LICENSE_PUBLIC_KEY, LICENSE_PUBLIC_KEY_IS_DEV } from './license-public-key'
 
 export interface License {
   licensee: string
@@ -61,7 +61,22 @@ function verifyEdDSA(token: string, publicKeyPem: string): LicenseClaims {
   return claims
 }
 
+/**
+ * Production must never verify licenses against the dev keypair that ships
+ * with this repo, so refuse to run until the public key is replaced.
+ */
+export function isDevKeyRefusedInProduction(nodeEnv: string, keyIsDev: boolean): boolean {
+  return nodeEnv === 'production' && keyIsDev
+}
+
 function loadLicense(): License {
+  if (isDevKeyRefusedInProduction(env.NODE_ENV, LICENSE_PUBLIC_KEY_IS_DEV)) {
+    console.error(
+      'refusing to start: production cannot run with the built-in dev license public key; ' +
+        'replace src/config/license-public-key.ts and set LICENSE_PUBLIC_KEY_IS_DEV = false',
+    )
+    process.exit(1)
+  }
   const path = env.LICENSE_FILE
   if (!path || !existsSync(path)) {
     if (env.NODE_ENV === 'production') {
