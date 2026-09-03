@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { env } from '../config/env'
 import jwt from 'jsonwebtoken'
 import { signAccessToken, verifyAccessToken } from '../lib/jwt'
 import { generateRefreshToken, hashToken } from '../lib/token'
@@ -14,6 +14,20 @@ describe('jwt', () => {
   it('rejects a token signed with a different secret', () => {
     const t = jwt.sign({ sub: 1, role: 'doctor' }, 'wrong-secret')
     expect(() => verifyAccessToken(t)).toThrow()
+  })
+
+  it('rejects a token signed with a non-pinned algorithm', () => {
+    const t = jwt.sign({ sub: 1, role: 'doctor' }, env.JWT_ACCESS_SECRET, {
+      algorithm: 'HS384',
+    })
+    expect(() => verifyAccessToken(t)).toThrow()
+  })
+
+  it('rejects a syntactically valid token with a bad payload shape', () => {
+    const t = jwt.sign({ sub: 'not-a-number', role: 'doctor' }, env.JWT_ACCESS_SECRET)
+    expect(() => verifyAccessToken(t)).toThrow()
+    const t2 = jwt.sign({ sub: 1, role: 'wizard' }, env.JWT_ACCESS_SECRET)
+    expect(() => verifyAccessToken(t2)).toThrow()
   })
 })
 

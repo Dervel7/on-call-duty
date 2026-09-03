@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { passwordSchema } from './common'
 
 export const roleSchema = z.enum(['administrator', 'doctor', 'superadmin'])
 
@@ -6,13 +7,13 @@ export const usernameSchema = z.string().regex(/^[A-Za-z0-9._-]{3,32}$/, 'Invali
 
 export const loginSchema = z.object({
   identifier: z.string().min(1),
-  password: z.string().min(6),
+  password: passwordSchema,
 })
 
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(6),
-    newPassword: z.string().min(6),
+    currentPassword: passwordSchema,
+    newPassword: passwordSchema,
   })
   .refine((d) => d.newPassword !== d.currentPassword, {
     message: 'New password must differ',
@@ -21,7 +22,7 @@ export const changePasswordSchema = z
 export const createUserSchema = z.object({
   email: z.string().email(),
   username: usernameSchema,
-  password: z.string().min(6),
+  password: passwordSchema,
   role: roleSchema,
   firstName: z.string().min(1),
   lastName: z.string().min(1),

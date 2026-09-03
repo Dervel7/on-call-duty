@@ -161,11 +161,11 @@ describe('unavailability routes', () => {
   })
 
   it('superadmin can PATCH any record without a doctor profile (200)', async () => {
-    query.mockResolvedValueOnce({
-      rows: [{ doctor_id: 5, start_date: '2026-09-07', end_date: '2026-09-11' }],
-    })
-    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
-    query.mockResolvedValueOnce({ rows: [] })
+    const stored = { doctor_id: 5, start_date: '2026-09-07', end_date: '2026-09-11' }
+    query.mockResolvedValueOnce({ rows: [stored] })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // doctors lock
+    query.mockResolvedValueOnce({ rows: [stored] }) // locked re-read
+    query.mockResolvedValueOnce({ rows: [] }) // UPDATE
     query.mockResolvedValueOnce({ rows: [row()] })
     const res = await request(build())
       .patch('/unavailability/1')

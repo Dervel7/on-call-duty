@@ -9,6 +9,7 @@ import type {
   User,
 } from '@oncall/shared'
 import { recordActivity } from './activity.service'
+import * as tokenService from './token.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 
@@ -119,6 +120,20 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
       throw new HttpError(403, 'Only a superadmin can manage superadmin accounts')
     }
   }
+  if (input.email !== undefined && input.email !== existing.email) {
+    const dup = await query('SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE AND id <> $2', [
+      input.email,
+      id,
+    ])
+    if (dup.rows.length > 0) throw new HttpError(409, 'Email already in use')
+  }
+  if (input.username !== undefined && input.username !== existing.username) {
+    const dup = await query('SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE AND id <> $2', [
+      input.username,
+      id,
+    ])
+    if (dup.rows.length > 0) throw new HttpError(409, 'Username already in use')
+  }
   const sets: string[] = []
   const params: unknown[] = []
   const map: Array<[string, unknown]> = [
@@ -197,8 +212,12 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   if (existing.role === 'superadmin' && actor.role !== 'superadmin') {
     throw new HttpError(403, 'Only a superadmin can manage superadmin accounts')
   }
+  // Soft delete: keeps doctor/duty/audit references intact (schema Phase 12).
   await withTransaction(async (client) => {
-    const res = await client.query('DELETE FROM users WHERE id = $1 RETURNING id', [id])
+    const res = await client.query(
+      'UPDATE users SET is_deleted = TRUE, is_active = FALSE, updated_at = NOW() WHERE id = $1 AND is_deleted = FALSE RETURNING id',
+      [id],
+    )
     if (res.rows.length === 0) throw new HttpError(404, 'User not found')
     await recordActivity(client, {
       userId: actor.id,
@@ -208,4 +227,5 @@ export async function remove(id: number, actor: Actor): Promise<void> {
       detail: { email: existing.email, username: existing.username },
     })
   })
+  await tokenService.revokeAllForUser(id)
 }

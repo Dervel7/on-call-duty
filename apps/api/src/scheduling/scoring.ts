@@ -1,3 +1,4 @@
+import { DOCTORS_PER_DAY } from './constraints'
 import type { CandidateScore, DaySpec, DoctorSpec } from './types'
 
 export const W_WORKLOAD = 3
@@ -6,15 +7,15 @@ export const W_HOLIDAY = 4
 export const W_FRIDAY = 2
 
 export function weekendBudget(weekendDays: number, activeDoctors: number): number {
-  return activeDoctors === 0 ? 0 : Math.ceil((2 * weekendDays) / activeDoctors)
+  return activeDoctors === 0 ? 0 : Math.ceil((DOCTORS_PER_DAY * weekendDays) / activeDoctors)
 }
 
 export function holidayBudget(holidayDays: number, activeDoctors: number): number {
-  return activeDoctors === 0 ? 0 : Math.ceil((2 * holidayDays) / activeDoctors)
+  return activeDoctors === 0 ? 0 : Math.ceil((DOCTORS_PER_DAY * holidayDays) / activeDoctors)
 }
 
 export function fridayBudget(fridayDays: number, activeDoctors: number): number {
-  return activeDoctors === 0 ? 0 : Math.ceil((2 * fridayDays) / activeDoctors)
+  return activeDoctors === 0 ? 0 : Math.ceil((DOCTORS_PER_DAY * fridayDays) / activeDoctors)
 }
 
 export function scoreCandidate(

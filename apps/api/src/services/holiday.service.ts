@@ -5,6 +5,7 @@ import type {
   HolidayQuery,
   UpdateHolidayRequest,
 } from '@oncall/shared'
+import type { PoolClient } from 'pg'
 import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
 import { recordActivity } from './activity.service'
@@ -38,6 +39,19 @@ async function getById(id: number): Promise<Holiday> {
   return toHoliday(row)
 }
 
+/**
+ * duties.is_holiday is denormalized at duty-write time; keep it consistent
+ * when holidays change so stats/reports do not contradict the holidays table.
+ */
+async function resyncHolidayFlags(client: PoolClient, dates: string[]): Promise<void> {
+  if (dates.length === 0) return
+  await client.query(
+    `UPDATE duties SET is_holiday = EXISTS (SELECT 1 FROM holidays h WHERE h.date = duties.duty_date)
+     WHERE duty_date = ANY($1::date[])`,
+    [dates],
+  )
+}
+
 export async function list(filters: HolidayQuery = {}): Promise<Holiday[]> {
   const where: string[] = []
   const params: unknown[] = []
@@ -67,6 +81,7 @@ export async function create(input: CreateHolidayRequest, actor: Actor): Promise
     )
     const newId = ins.rows[0]?.id
     if (newId === undefined) throw new HttpError(500, 'Failed to create holiday')
+    await resyncHolidayFlags(client, [input.date])
     await recordActivity(client, {
       userId: actor.id,
       action: 'holiday.created',
@@ -122,6 +137,9 @@ export async function update(
         `UPDATE holidays SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${params.length}`,
         params,
       )
+      if (before.date !== undefined) {
+        await resyncHolidayFlags(client, [String(before.date), String(after.date)])
+      }
       if (Object.keys(before).length > 0) {
         await recordActivity(client, {
           userId: actor.id,
@@ -141,6 +159,7 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   if (existing.rows.length === 0) throw new HttpError(404, 'Holiday not found')
   await withTransaction(async (client) => {
     await client.query('DELETE FROM holidays WHERE id = $1', [id])
+    await resyncHolidayFlags(client, [existing.rows[0]!.date])
     await recordActivity(client, {
       userId: actor.id,
       action: 'holiday.deleted',

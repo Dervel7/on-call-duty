@@ -1,12 +1,43 @@
 import { describe, expect, it } from 'vitest'
 import {
   changePasswordSchema,
+  createDutySchema,
+  createHolidaySchema,
+  createScheduleSchema,
   createUserSchema,
+  generateScheduleSchema,
+  holidayQuerySchema,
+  isoDateSchema,
   loginSchema,
+  reassignDutySchema,
   roleSchema,
+  scheduleQuerySchema,
+  updateHolidaySchema,
   updateUserSchema,
   usernameSchema,
 } from '../index'
+
+describe('date and password primitives', () => {
+  it('isoDateSchema rejects calendar-invalid but well-formed dates', () => {
+    expect(isoDateSchema.safeParse('2026-09-17').success).toBe(true)
+    expect(isoDateSchema.safeParse('2026-02-29').success).toBe(false) // not a leap year
+    expect(isoDateSchema.safeParse('2026-02-30').success).toBe(false)
+    expect(isoDateSchema.safeParse('2026-13-01').success).toBe(false)
+    expect(isoDateSchema.safeParse('2026-9-7').success).toBe(false)
+  })
+
+  it('holiday dates share the calendar validation', () => {
+    expect(createHolidaySchema.safeParse({ name: 'X', date: '2026-09-31' }).success).toBe(false)
+    expect(createHolidaySchema.safeParse({ name: 'X', date: '2026-09-30' }).success).toBe(true)
+  })
+
+  it('passwords over 72 bytes are rejected (bcrypt truncation)', () => {
+    expect(loginSchema.safeParse({ identifier: 'a', password: 'x'.repeat(72) }).success).toBe(true)
+    expect(loginSchema.safeParse({ identifier: 'a', password: 'x'.repeat(73) }).success).toBe(false)
+    // 40 two-byte chars = 80 bytes
+    expect(loginSchema.safeParse({ identifier: 'a', password: 'α'.repeat(40) }).success).toBe(false)
+  })
+})
 
 describe('auth schemas', () => {
   it('loginSchema requires identifier + min-6 password', () => {
@@ -140,16 +171,6 @@ describe('unavailability schemas', () => {
   })
 })
 
-import {
-  createDutySchema,
-  createHolidaySchema,
-  createScheduleSchema,
-  generateScheduleSchema,
-  holidayQuerySchema,
-  reassignDutySchema,
-  scheduleQuerySchema,
-  updateHolidaySchema,
-} from '../index'
 
 describe('schedule schemas', () => {
   it('createScheduleSchema rejects bad month/year', () => {

@@ -20,6 +20,10 @@ import { userRouter } from './routes/user.routes'
 
 export const app = express()
 
+// Deployed behind the nginx reverse proxy; required for req.ip (rate limiting)
+// to reflect the real client instead of the proxy address.
+app.set('trust proxy', 1)
+
 app.use(helmet())
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
 app.use(cookieParser())
