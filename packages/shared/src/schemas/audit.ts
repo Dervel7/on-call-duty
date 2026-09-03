@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateSchema } from './common'
 
 export const ACTIVITY_ACTIONS = [
   'auth.login',
@@ -12,6 +13,7 @@ export const ACTIVITY_ACTIONS = [
   'doctor.created',
   'doctor.updated',
   'doctor.deactivated',
+  'doctor.reactivated',
   'doctor.deleted',
   'availability.created',
   'availability.updated',
@@ -30,13 +32,11 @@ export const ACTIVITY_ACTIONS = [
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]
 
-const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date (YYYY-MM-DD)')
-
 export const activityQuerySchema = z.object({
   action: z.enum(ACTIVITY_ACTIONS).optional(),
   userId: z.coerce.number().int().positive().optional(),
-  from: dateStr.optional(),
-  to: dateStr.optional(),
+  from: isoDateSchema.optional(),
+  to: isoDateSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 })

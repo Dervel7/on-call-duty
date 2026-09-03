@@ -30,7 +30,7 @@ const SELECT = `SELECT x.id, x.doctor_id, x.type, x.start_date, x.end_date, x.no
   x.created_at, x.updated_at, u.first_name, u.last_name
   FROM unavailability x
   JOIN doctors d ON d.id = x.doctor_id
-  JOIN users u ON u.id = d.user_id`
+  JOIN users u ON u.id = d.user_id AND u.is_deleted = FALSE`
 
 function toUnavailability(row: UnavailabilityRow): Unavailability {
   return {
@@ -103,7 +103,10 @@ export async function create(
   actor: Actor,
 ): Promise<Unavailability> {
   const id = await withTransaction(async (client) => {
-    const lock = await client.query('SELECT 1 FROM doctors WHERE id = $1 FOR UPDATE', [doctorId])
+    const lock = await client.query(
+      'SELECT 1 FROM doctors d JOIN users u ON u.id = d.user_id WHERE d.id = $1 AND u.is_deleted = FALSE FOR UPDATE OF d',
+      [doctorId],
+    )
     if (lock.rows.length === 0) throw new HttpError(404, 'Doctor not found')
     const overlap = await client.query(
       'SELECT id FROM unavailability WHERE doctor_id = $1 AND start_date <= $2 AND end_date >= $3',
@@ -164,12 +167,25 @@ export async function update(
 
   await withTransaction(async (client) => {
     await client.query('SELECT 1 FROM doctors WHERE id = $1 FOR UPDATE', [existingRow.doctor_id])
+    // Re-read under lock so concurrent PATCH/DELETE decisions use committed state.
+    const locked = await client.query<{
+      doctor_id: number
+      type: string
+      start_date: string
+      end_date: string
+      note: string | null
+    }>('SELECT doctor_id, type, start_date, end_date, note FROM unavailability WHERE id = $1 FOR UPDATE', [id])
+    if (locked.rows.length === 0) throw new HttpError(404, 'Unavailability record not found')
+    const current = locked.rows[0]!
+    const start = input.startDate ?? current.start_date
+    const end = input.endDate ?? current.end_date
+    // A partial patch merges with stored values; validate the merged range.
+    if (end < start)
+      throw new HttpError(400, 'endDate must be on or after startDate')
     if (input.startDate !== undefined || input.endDate !== undefined) {
-      const start = input.startDate ?? existingRow.start_date
-      const end = input.endDate ?? existingRow.end_date
       const overlap = await client.query(
         'SELECT id FROM unavailability WHERE doctor_id = $1 AND start_date <= $2 AND end_date >= $3 AND id <> $4',
-        [existingRow.doctor_id, end, start, id],
+        [current.doctor_id, end, start, id],
       )
       if (overlap.rows.length > 0)
         throw new HttpError(409, 'Overlapping unavailability record exists')
@@ -197,20 +213,20 @@ export async function update(
     }
     const before: Record<string, unknown> = {}
     const after: Record<string, unknown> = {}
-    if (input.type !== undefined && input.type !== existingRow.type) {
-      before.type = existingRow.type
+    if (input.type !== undefined && input.type !== current.type) {
+      before.type = current.type
       after.type = input.type
     }
-    if (input.startDate !== undefined && input.startDate !== existingRow.start_date) {
-      before.startDate = existingRow.start_date
+    if (input.startDate !== undefined && input.startDate !== current.start_date) {
+      before.startDate = current.start_date
       after.startDate = input.startDate
     }
-    if (input.endDate !== undefined && input.endDate !== existingRow.end_date) {
-      before.endDate = existingRow.end_date
+    if (input.endDate !== undefined && input.endDate !== current.end_date) {
+      before.endDate = current.end_date
       after.endDate = input.endDate
     }
-    if (input.note !== undefined && input.note !== existingRow.note) {
-      before.note = existingRow.note
+    if (input.note !== undefined && input.note !== current.note) {
+      before.note = current.note
       after.note = input.note
     }
     if (Object.keys(before).length > 0) {
@@ -219,7 +235,7 @@ export async function update(
         action: 'availability.updated',
         entityType: 'unavailability',
         entityId: id,
-        detail: { doctorId: existingRow.doctor_id, before, after },
+        detail: { doctorId: current.doctor_id, before, after },
       })
     }
   })
@@ -240,7 +256,8 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   if (!existingRow) throw new HttpError(404, 'Unavailability record not found')
   await assertOwns(existingRow.doctor_id, actor)
   await withTransaction(async (client) => {
-    await client.query('DELETE FROM unavailability WHERE id = $1', [id])
+    const deleted = await client.query('DELETE FROM unavailability WHERE id = $1 RETURNING id', [id])
+    if (deleted.rows.length === 0) throw new HttpError(404, 'Unavailability record not found')
     await recordActivity(client, {
       userId: actor.id,
       action: 'availability.deleted',

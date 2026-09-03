@@ -1,6 +1,5 @@
 import type { NextFunction, Request, Response } from 'express'
 import { ok } from '../lib/envelope'
-import { HttpError } from '../lib/http-error'
 import * as usageService from '../services/usage.service'
 
 export const usageController = {
@@ -30,9 +29,7 @@ export const usageController = {
   },
   async resolveAlert(req: Request, res: Response, next: NextFunction) {
     try {
-      const id = Number(req.params.id)
-      if (!Number.isInteger(id) || id < 1) throw new HttpError(400, 'Invalid alert id')
-      const alert = await usageService.resolveAlert(id)
+      const alert = await usageService.resolveAlert(Number(req.params.id))
       res.status(200).json(ok({ alert }))
     } catch (err) {
       next(err)

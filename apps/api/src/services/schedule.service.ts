@@ -11,9 +11,17 @@ import type {
   ScheduleSummary,
   ScheduleStatus,
 } from '@oncall/shared'
+import type { PoolClient } from 'pg'
 import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
-import { generate as runEngine, isAvailable, notConsecutive, underCap, MAX_SATURDAY_DUTIES, MAX_SUNDAY_DUTIES, DOCTORS_PER_DAY } from '../scheduling'
+import {
+  balanceCap,
+  DOCTORS_PER_DAY,
+  generate as runEngine,
+  isAvailable,
+  notConsecutive,
+  underCap,
+} from '../scheduling'
 import {
   daysInMonth,
   dayOfWeekISO,
@@ -23,7 +31,7 @@ import {
   nextDate,
   prevDate,
 } from '../scheduling/dates'
-import type { DoctorSpec, SchedulingContext } from '../scheduling/types'
+import type { DoctorSpec, GenerateResult, SchedulingContext } from '../scheduling/types'
 import { recordGeneration } from './usage.service'
 import { recordActivity } from './activity.service'
 
@@ -42,6 +50,8 @@ interface ScheduleRow {
 interface DutyRow {
   id: number
   schedule_id: number
+  schedule_year: number
+  schedule_month: number
   duty_date: string
   doctor_id: number
   first_name: string
@@ -55,7 +65,8 @@ interface DutyRow {
 
 const SELECT_SCHEDULE = `SELECT id, year, month, status, created_by, created_at, updated_at FROM schedules`
 const SELECT_DUTY = `SELECT du.id, du.schedule_id, du.duty_date, du.doctor_id, du.is_weekend,
-  du.is_holiday, du.reason, du.created_at, u.first_name, u.last_name, s.status AS schedule_status
+  du.is_holiday, du.reason, du.created_at, u.first_name, u.last_name,
+  s.status AS schedule_status, s.year AS schedule_year, s.month AS schedule_month
   FROM duties du JOIN doctors d ON d.id = du.doctor_id JOIN users u ON u.id = d.user_id
   JOIN schedules s ON s.id = du.schedule_id`
 
@@ -153,10 +164,18 @@ export interface EligibilityInput {
   dutyCountByDoctor: Map<number, number>
   saturdayByDoctor: Map<number, number>
   sundayByDoctor: Map<number, number>
+  holidayByDoctor: Map<number, number>
 }
 
 export function computeEligibility(input: EligibilityInput): DayInfo[] {
   const out: DayInfo[] = []
+  const activeCount = input.doctors.length
+  const saturdays = input.days.filter((d) => d.dayOfWeek === 6).length
+  const sundays = input.days.filter((d) => d.dayOfWeek === 0).length
+  const holidays = input.days.filter((d) => d.isHoliday).length
+  const satCap = balanceCap(DOCTORS_PER_DAY * saturdays, activeCount)
+  const sunCap = balanceCap(DOCTORS_PER_DAY * sundays, activeCount)
+  const holCap = balanceCap(DOCTORS_PER_DAY * holidays, activeCount)
   for (const day of input.days) {
     const eligible: number[] = []
     const available: number[] = []
@@ -168,12 +187,16 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
       const isAvail = isAvailable(doc.id, day.date, ranges).ok
       if (isAvail) available.push(doc.id)
       if (!isAvail) continue
+      // Evaluate as if the doctor's own duty on this day were removed, so the
+      // list answers "could this doctor hold this slot" for swaps.
       const assignedToday = todays.has(doc.id)
       const count = (input.dutyCountByDoctor.get(doc.id) ?? 0) - (assignedToday ? 1 : 0)
       if (!underCap(count, doc.maxMonthlyDuties).ok) continue
-      if (day.dayOfWeek === 6 && !underCap(input.saturdayByDoctor.get(doc.id) ?? 0, MAX_SATURDAY_DUTIES).ok)
+      if (day.dayOfWeek === 6 && !underCap((input.saturdayByDoctor.get(doc.id) ?? 0) - (assignedToday ? 1 : 0), satCap).ok)
         continue
-      if (day.dayOfWeek === 0 && !underCap(input.sundayByDoctor.get(doc.id) ?? 0, MAX_SUNDAY_DUTIES).ok)
+      if (day.dayOfWeek === 0 && !underCap((input.sundayByDoctor.get(doc.id) ?? 0) - (assignedToday ? 1 : 0), sunCap).ok)
+        continue
+      if (day.isHoliday && !underCap((input.holidayByDoctor.get(doc.id) ?? 0) - (assignedToday ? 1 : 0), holCap).ok)
         continue
       const onDutyAdjacent =
         (yesterdays?.has(doc.id) ?? false) || (tomorrows?.has(doc.id) ?? false)
@@ -191,6 +214,24 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
   return out
 }
 
+/**
+ * Seed the adjacency map with duties from the days just outside the month so
+ * day-1 / last-day eligibility respects back-to-back across month boundaries.
+ */
+async function seedAdjacentDuties(
+  dutiesByDate: Map<string, Set<number>>,
+  ctx: SchedulingContext,
+): Promise<void> {
+  const first = ctx.days[0]?.date
+  const last = ctx.days.at(-1)?.date
+  if (!first || !last) return
+  dutiesByDate.set(prevDate(first), new Set(ctx.priorDayDoctorIds))
+  const res = await query<{ doctor_id: number }>(`SELECT doctor_id FROM duties WHERE duty_date = $1`, [
+    nextDate(last),
+  ])
+  dutiesByDate.set(nextDate(last), new Set(res.rows.map((r) => r.doctor_id)))
+}
+
 export async function preview(year: number, month: number): Promise<PreviewResult> {
   const ctx = await buildContext(year, month)
   const result = runEngine(ctx)
@@ -198,6 +239,7 @@ export async function preview(year: number, month: number): Promise<PreviewResul
   const dutyCountByDoctor = new Map<number, number>()
   const saturdayByDoctor = new Map<number, number>()
   const sundayByDoctor = new Map<number, number>()
+  const holidayByDoctor = new Map<number, number>()
   for (const a of result.assignments) {
     const set = dutiesByDate.get(a.date) ?? new Set<number>()
     set.add(a.doctorId)
@@ -206,7 +248,9 @@ export async function preview(year: number, month: number): Promise<PreviewResul
     const dow = dayOfWeekISO(a.date)
     if (dow === 6) saturdayByDoctor.set(a.doctorId, (saturdayByDoctor.get(a.doctorId) ?? 0) + 1)
     if (dow === 0) sundayByDoctor.set(a.doctorId, (sundayByDoctor.get(a.doctorId) ?? 0) + 1)
+    if (a.isHoliday) holidayByDoctor.set(a.doctorId, (holidayByDoctor.get(a.doctorId) ?? 0) + 1)
   }
+  await seedAdjacentDuties(dutiesByDate, ctx)
   const days = computeEligibility({
     doctors: ctx.doctors,
     unavailability: ctx.unavailability,
@@ -215,7 +259,8 @@ export async function preview(year: number, month: number): Promise<PreviewResul
     dutyCountByDoctor,
     saturdayByDoctor,
     sundayByDoctor,
-  }).map((d) => ({ ...d, eligibleDoctorIds: [] }))
+    holidayByDoctor,
+  })
   return { assignments: result.assignments, conflicts: result.conflicts, days }
 }
 
@@ -281,7 +326,7 @@ export async function generate(
   return getById(scheduleId, actor)
 }
 
-function enginePlanToDuties(result: ReturnType<typeof runEngine>): PlanDuty[] {
+function enginePlanToDuties(result: GenerateResult): PlanDuty[] {
   if (result.conflicts.length > 0)
     throw new HttpError(
       422,
@@ -341,6 +386,47 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
       `${empty.length} day(s) have no doctor: ${empty.join(', ')}; assign at least one per day`,
     )
 
+  // Same hard constraints the engine and validateAssignment enforce, so a
+  // manual plan cannot persist an impossible schedule.
+  const doctorsById = new Map(ctx.doctors.map((d) => [d.id, d]))
+  const activeCount = ctx.doctors.length
+  const satCap = balanceCap(DOCTORS_PER_DAY * ctx.days.filter((d) => d.dayOfWeek === 6).length, activeCount)
+  const sunCap = balanceCap(DOCTORS_PER_DAY * ctx.days.filter((d) => d.dayOfWeek === 0).length, activeCount)
+  const holCap = balanceCap(DOCTORS_PER_DAY * ctx.days.filter((d) => d.isHoliday).length, activeCount)
+  const firstDate = ctx.days[0]?.date ?? ''
+  const beforeFirst = firstDate ? prevDate(firstDate) : ''
+  const counts = new Map<number, { total: number; saturday: number; sunday: number; holiday: number }>()
+  for (const a of assignments) {
+    const info = dayInfo.get(a.date)!
+    const c = counts.get(a.doctorId) ?? { total: 0, saturday: 0, sunday: 0, holiday: 0 }
+    c.total++
+    if (info.dayOfWeek === 6) c.saturday++
+    if (info.dayOfWeek === 0) c.sunday++
+    if (info.isHoliday) c.holiday++
+    counts.set(a.doctorId, c)
+    const spec = doctorsById.get(a.doctorId)!
+    if (c.total > spec.maxMonthlyDuties)
+      throw new HttpError(
+        409,
+        `Constraint violation: doctor ${a.doctorId} exceeds the monthly cap of ${spec.maxMonthlyDuties} duties`,
+      )
+    if (info.dayOfWeek === 6 && c.saturday > satCap)
+      throw new HttpError(409, `Constraint violation: doctor ${a.doctorId} exceeds the Saturday balance cap`)
+    if (info.dayOfWeek === 0 && c.sunday > sunCap)
+      throw new HttpError(409, `Constraint violation: doctor ${a.doctorId} exceeds the Sunday balance cap`)
+    if (info.isHoliday && c.holiday > holCap)
+      throw new HttpError(409, `Constraint violation: doctor ${a.doctorId} exceeds the holiday balance cap`)
+    const prev = prevDate(a.date)
+    const onDutyYesterday =
+      byDate.get(prev)?.some((x) => x.doctorId === a.doctorId) ??
+      (prev === beforeFirst && ctx.priorDayDoctorIds.has(a.doctorId))
+    if (onDutyYesterday)
+      throw new HttpError(
+        409,
+        `Constraint violation: doctor ${a.doctorId} would be on duty back-to-back on ${a.date}`,
+      )
+  }
+
   return assignments.map((a) => {
     const info = dayInfo.get(a.date)!
     return {
@@ -385,9 +471,10 @@ export async function getScheduleDuties(
   const sres = await query<ScheduleRow>(`${SELECT_SCHEDULE} WHERE id = $1`, [id])
   const schedule = sres.rows[0]
   if (!schedule) throw new HttpError(404, 'Schedule not found')
-  const dres = await query<DutyRow>(`${SELECT_DUTY} WHERE du.schedule_id = $1 ORDER BY du.duty_date`, [
-    id,
-  ])
+  const dres = await query<DutyRow>(
+    `${SELECT_DUTY} WHERE du.schedule_id = $1 ORDER BY du.duty_date, du.id`,
+    [id],
+  )
   return { schedule: toSchedule(schedule), duties: dres.rows.map(toDuty) }
 }
 
@@ -397,11 +484,34 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
   if (actor && !isAdmin && schedule.status !== 'published') {
     throw new HttpError(403, 'Schedule not published')
   }
+  if (!isAdmin) {
+    // Calendar shape only — skip the eligibility work that gets blanked anyway.
+    const { first, last } = monthBounds(schedule.year, schedule.month)
+    const hres = await query<{ date: string }>(
+      `SELECT date FROM holidays WHERE date >= $1 AND date <= $2`,
+      [first, last],
+    )
+    const holidays = new Set(hres.rows.map((r) => r.date))
+    const total = daysInMonth(schedule.year, schedule.month)
+    const days: DayInfo[] = []
+    for (let d = 1; d <= total; d++) {
+      const date = isoDate(schedule.year, schedule.month, d)
+      days.push({
+        date,
+        isWeekend: isWeekendISO(date),
+        isHoliday: holidays.has(date),
+        eligibleDoctorIds: [],
+        availableDoctorIds: [],
+      })
+    }
+    return { schedule, duties, days }
+  }
   const ctx = await buildContext(schedule.year, schedule.month)
   const dutiesByDate = new Map<string, Set<number>>()
   const dutyCountByDoctor = new Map<number, number>()
   const saturdayByDoctor = new Map<number, number>()
   const sundayByDoctor = new Map<number, number>()
+  const holidayByDoctor = new Map<number, number>()
   for (const d of duties) {
     const set = dutiesByDate.get(d.dutyDate) ?? new Set<number>()
     set.add(d.doctorId)
@@ -410,8 +520,10 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     const dow = dayOfWeekISO(d.dutyDate)
     if (dow === 6) saturdayByDoctor.set(d.doctorId, (saturdayByDoctor.get(d.doctorId) ?? 0) + 1)
     if (dow === 0) sundayByDoctor.set(d.doctorId, (sundayByDoctor.get(d.doctorId) ?? 0) + 1)
+    if (d.isHoliday) holidayByDoctor.set(d.doctorId, (holidayByDoctor.get(d.doctorId) ?? 0) + 1)
   }
-  let days = computeEligibility({
+  await seedAdjacentDuties(dutiesByDate, ctx)
+  const days = computeEligibility({
     doctors: ctx.doctors,
     unavailability: ctx.unavailability,
     days: ctx.days,
@@ -419,10 +531,8 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     dutyCountByDoctor,
     saturdayByDoctor,
     sundayByDoctor,
+    holidayByDoctor,
   })
-  if (!isAdmin) {
-    days = days.map((d) => ({ ...d, eligibleDoctorIds: [], availableDoctorIds: [] }))
-  }
   return { schedule, duties, days }
 }
 
@@ -437,6 +547,8 @@ export async function remove(id: number, actor: Actor): Promise<void> {
     'Schedule is published; revert to draft before deleting',
   )
   await withTransaction(async (client) => {
+    // Re-check under lock: a concurrent publish must not be deletable.
+    await lockScheduleForEdit(client, id)
     await client.query('DELETE FROM schedules WHERE id = $1', [id])
     await recordActivity(client, {
       userId: actor.id,
@@ -459,11 +571,39 @@ async function getDutyById(id: number): Promise<Duty> {
   return toDuty(await getDutyRow(id))
 }
 
+/** ±1 balance caps for one schedule month, computed like the engine does. */
+async function monthCaps(year: number, month: number) {
+  const { first, last } = monthBounds(year, month)
+  const total = daysInMonth(year, month)
+  let saturdays = 0
+  let sundays = 0
+  for (let d = 1; d <= total; d++) {
+    const dow = dayOfWeekISO(isoDate(year, month, d))
+    if (dow === 6) saturdays++
+    else if (dow === 0) sundays++
+  }
+  const active = await query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM doctors d JOIN users u ON u.id = d.user_id WHERE u.is_active = TRUE`,
+  )
+  const activeCount = active.rows[0]?.n ?? 0
+  const holidays = await query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM holidays WHERE date >= $1 AND date <= $2`,
+    [first, last],
+  )
+  return {
+    saturday: balanceCap(DOCTORS_PER_DAY * saturdays, activeCount),
+    sunday: balanceCap(DOCTORS_PER_DAY * sundays, activeCount),
+    holiday: balanceCap(DOCTORS_PER_DAY * (holidays.rows[0]?.n ?? 0), activeCount),
+  }
+}
+
 async function validateAssignment(
   scheduleId: number,
   doctorId: number,
   date: string,
   excludeDutyId: number | null,
+  year: number,
+  month: number,
 ): Promise<void> {
   const dr = await query<{ max_monthly_duties: number; is_active: boolean }>(
     `SELECT d.max_monthly_duties, u.is_active FROM doctors d JOIN users u ON u.id = d.user_id WHERE d.id = $1`,
@@ -503,6 +643,7 @@ async function validateAssignment(
   if ((dupRes.rows[0]?.n ?? 0) > 0)
     throw new HttpError(409, 'Constraint violation: doctor already assigned to this date')
 
+  const caps = await monthCaps(year, month)
   const dow = dayOfWeekISO(date)
   if (dow === 6 || dow === 0) {
     const wkRes = await query<{ n: number }>(
@@ -511,9 +652,19 @@ async function validateAssignment(
        AND EXTRACT(ISODOW FROM duty_date) = $4`,
       [scheduleId, doctorId, excludeDutyId, dow === 6 ? 6 : 7],
     )
-    const cap = dow === 6 ? MAX_SATURDAY_DUTIES : MAX_SUNDAY_DUTIES
+    const cap = dow === 6 ? caps.saturday : caps.sunday
     if (!underCap(wkRes.rows[0]?.n ?? 0, cap).ok)
-      throw new HttpError(409, `Constraint violation: ${dow === 6 ? 'saturday' : 'sunday'} cap reached`)
+      throw new HttpError(409, `Constraint violation: ${dow === 6 ? 'saturday' : 'sunday'} balance cap reached`)
+  }
+
+  if (await isHolidayOn(date)) {
+    const holRes = await query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM duties
+       WHERE schedule_id = $1 AND doctor_id = $2 AND is_holiday AND ($3::int IS NULL OR id <> $3)`,
+      [scheduleId, doctorId, excludeDutyId],
+    )
+    if (!underCap(holRes.rows[0]?.n ?? 0, caps.holiday).ok)
+      throw new HttpError(409, 'Constraint violation: holiday balance cap reached')
   }
 
   const prev = prevDate(date)
@@ -539,6 +690,15 @@ function assertEditable(
   if (status === 'published') throw new HttpError(409, message)
 }
 
+/** Locks the schedule row and enforces draft-only edits inside the caller's transaction. */
+async function lockScheduleForEdit(client: PoolClient, scheduleId: number): Promise<void> {
+  const res = await client.query<{ status: string }>('SELECT status FROM schedules WHERE id = $1 FOR UPDATE', [
+    scheduleId,
+  ])
+  if (res.rows.length === 0) throw new HttpError(404, 'Schedule not found')
+  assertEditable(res.rows[0]!.status)
+}
+
 export async function addDuty(
   scheduleId: number,
   input: CreateDutyRequest,
@@ -559,11 +719,12 @@ export async function addDuty(
   if ((existing.rows[0]?.n ?? 0) >= DOCTORS_PER_DAY)
     throw new HttpError(409, 'Both on-call slots for this date are already filled')
 
-  await validateAssignment(scheduleId, input.doctorId, input.date, null)
+  await validateAssignment(scheduleId, input.doctorId, input.date, null, schedule.year, schedule.month)
 
   const reason = `manual override by admin #${actor.id}`
   const holidayOnDate = await isHolidayOn(input.date)
   const id = await withTransaction(async (client) => {
+    await lockScheduleForEdit(client, scheduleId)
     const ins = await client.query<{ id: number }>(
       `INSERT INTO duties (schedule_id, duty_date, doctor_id, is_weekend, is_holiday, reason)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
@@ -590,9 +751,17 @@ export async function reassignDuty(
 ): Promise<Duty> {
   const duty = await getDutyRow(dutyId)
   assertEditable(duty.schedule_status)
-  await validateAssignment(duty.schedule_id, input.doctorId, duty.duty_date, dutyId)
+  await validateAssignment(
+    duty.schedule_id,
+    input.doctorId,
+    duty.duty_date,
+    dutyId,
+    duty.schedule_year,
+    duty.schedule_month,
+  )
   const reason = `manual override by admin #${actor.id}`
   await withTransaction(async (client) => {
+    await lockScheduleForEdit(client, duty.schedule_id)
     await client.query('UPDATE duties SET doctor_id = $1, reason = $2 WHERE id = $3', [
       input.doctorId,
       reason,
@@ -618,6 +787,7 @@ export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
   const duty = await getDutyRow(dutyId)
   assertEditable(duty.schedule_status)
   await withTransaction(async (client) => {
+    await lockScheduleForEdit(client, duty.schedule_id)
     await client.query('DELETE FROM duties WHERE id = $1', [dutyId])
     await recordActivity(client, {
       userId: actor.id,
@@ -640,16 +810,17 @@ export async function publish(id: number, actor: Actor): Promise<ScheduleSummary
     const updated = upd.rows[0]
     if (!updated) return null
     const duties = await client.query<{ n: number }>(
-      'SELECT COUNT(*)::int AS n FROM duties WHERE schedule_id = $1',
+      'SELECT COUNT(DISTINCT duty_date)::int AS n FROM duties WHERE schedule_id = $1',
       [id],
     )
-    const dutyCount = duties.rows[0]?.n ?? 0
+    if ((duties.rows[0]?.n ?? 0) < daysInMonth(updated.year, updated.month))
+      throw new HttpError(409, 'Schedule is incomplete; every day needs at least one duty before publishing')
     await recordActivity(client, {
       userId: actor.id,
       action: 'schedule.published',
       entityType: 'schedule',
       entityId: id,
-      detail: { year: updated.year, month: updated.month, dutyCount },
+      detail: { year: updated.year, month: updated.month, dutyCount: duties.rows[0]?.n ?? 0 },
     })
     return updated
   })

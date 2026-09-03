@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
 
 const list = vi.fn()
 const generate = vi.fn()
@@ -40,6 +41,21 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('SchedulesPage', () => {
+  function mountAs(role: 'doctor' | 'administrator') {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useAuthStore(pinia).user = {
+      id: 1,
+      email: 'u@h.com',
+      username: 'u1',
+      role,
+      firstName: 'Jane',
+      lastName: 'Roe',
+    }
+    list.mockResolvedValue([])
+    return mount(SchedulesPage, { global: { plugins: [pinia] } })
+  }
+
   it('renders the list with month label and status', async () => {
     list.mockResolvedValue([summary()])
     const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
@@ -56,8 +72,7 @@ describe('SchedulesPage', () => {
   })
 
   it('Preview button navigates to the preview page with year/month', async () => {
-    list.mockResolvedValue([])
-    const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
     await flushPromises()
@@ -70,5 +85,15 @@ describe('SchedulesPage', () => {
     expect(push).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/schedules/preview', query: expect.anything() }),
     )
+  })
+
+  it("hides 'New schedule' from doctors and shows it to administrators", async () => {
+    const doctor = mountAs('doctor')
+    await flushPromises()
+    expect(doctor.findAll('button').some((b) => b.text().includes('New schedule'))).toBe(false)
+
+    const admin = mountAs('administrator')
+    await flushPromises()
+    expect(admin.findAll('button').some((b) => b.text().includes('New schedule'))).toBe(true)
   })
 })

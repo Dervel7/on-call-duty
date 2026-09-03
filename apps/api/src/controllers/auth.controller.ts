@@ -23,7 +23,10 @@ function setRefreshCookie(res: Response, token: string): void {
 }
 
 function clearRefreshCookie(res: Response): void {
-  res.clearCookie(COOKIE_NAME, cookieOptions())
+  // No maxAge: express turns it into a future Expires that keeps the cookie
+  // alive instead of deleting it.
+  const { maxAge: _maxAge, ...clear } = cookieOptions()
+  res.clearCookie(COOKIE_NAME, clear)
 }
 
 export const authController = {
@@ -44,6 +47,8 @@ export const authController = {
       setRefreshCookie(res, refreshToken)
       res.status(200).json(ok({ user, accessToken }))
     } catch (err) {
+      // A dead cookie must not linger: clear it so clients stop replaying it.
+      clearRefreshCookie(res)
       next(err)
     }
   },

@@ -118,6 +118,20 @@ export async function update(id: number, input: UpdateDoctorRequest, actor: Acto
   const userId = existing.userId
 
   await withTransaction(async (client) => {
+    if (input.email !== undefined && input.email !== existing.email) {
+      const dup = await client.query(
+        'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE AND id <> $2',
+        [input.email, userId],
+      )
+      if (dup.rows.length > 0) throw new HttpError(409, 'Email already in use')
+    }
+    if (input.username !== undefined && input.username !== existing.username) {
+      const dup = await client.query(
+        'SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE AND id <> $2',
+        [input.username, userId],
+      )
+      if (dup.rows.length > 0) throw new HttpError(409, 'Username already in use')
+    }
     const sets: string[] = []
     const params: unknown[] = []
     const map: Array<[string, unknown]> = [
@@ -174,10 +188,16 @@ export async function update(id: number, input: UpdateDoctorRequest, actor: Acto
       before.maxMonthlyDuties = existing.maxMonthlyDuties
       after.maxMonthlyDuties = input.maxMonthlyDuties
     }
+    const isActiveChanged = input.isActive !== undefined && input.isActive !== existing.isActive
+    const action = isActiveChanged
+      ? input.isActive
+        ? 'doctor.reactivated'
+        : 'doctor.deactivated'
+      : 'doctor.updated'
     if (Object.keys(before).length > 0) {
       await recordActivity(client, {
         userId: actor.id,
-        action: 'doctor.updated',
+        action,
         entityType: 'doctor',
         entityId: id,
         detail: { before, after },

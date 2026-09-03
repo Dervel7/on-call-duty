@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { DOCTORS_PER_DAY, generate } from '../engine'
+import { generate } from '../engine'
+import { DOCTORS_PER_DAY } from '../constraints'
 import { dayOfWeekISO } from '../dates'
 import type { DaySpec, DoctorSpec, SchedulingContext } from '../types'
 
@@ -94,8 +95,8 @@ describe('engine.generate', () => {
     expect(day1).not.toContain(2)
   })
 
-  it('enforces the one-Saturday cap: a doctor never gets two Saturdays', () => {
-    // four Saturdays, enough distinct doctors that caps are the binding constraint
+  it('spreads Saturday duties within the ±1 balance cap', () => {
+    // four Saturdays, enough distinct doctors that the balance cap binds at 1
     const sats = ['2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26'].map((d) => day(d, true))
     const doctors = Array.from({ length: 10 }, (_, i) => dr(i + 1))
     const { assignments, conflicts } = generate(ctx(sats, doctors))
@@ -103,6 +104,21 @@ describe('engine.generate', () => {
     for (const a of assignments) satCount.set(a.doctorId, (satCount.get(a.doctorId) ?? 0) + 1)
     for (const c of satCount.values()) expect(c).toBeLessThanOrEqual(1)
     expect(conflicts).toEqual([])
+  })
+
+  it('fills five Saturdays with eight doctors (cap 2, still ±1 balanced)', () => {
+    // 5 Saturdays * 2 slots = 10 slots over 8 doctors: a fixed <=1 cap would
+    // make the month ungeneratable; the balance cap allows at most 2 each.
+    const sats = ['2026-10-03', '2026-10-10', '2026-10-17', '2026-10-24', '2026-10-31'].map((d) =>
+      day(d, true),
+    )
+    const doctors = Array.from({ length: 8 }, (_, i) => dr(i + 1))
+    const { assignments, conflicts } = generate(ctx(sats, doctors))
+    const satCount = new Map<number, number>()
+    for (const a of assignments) satCount.set(a.doctorId, (satCount.get(a.doctorId) ?? 0) + 1)
+    for (const c of satCount.values()) expect(c).toBeLessThanOrEqual(2)
+    expect(conflicts).toEqual([])
+    expect(assignments).toHaveLength(10)
   })
 
   it('is deterministic: same context yields identical output twice', () => {

@@ -71,7 +71,7 @@ async function onSubmit() {
     <Card>
       <CardHeader>
         <CardTitle>{{ heading }}</CardTitle>
-        <CardDescription>Change your password. You will be signed out of other sessions.</CardDescription>
+        <CardDescription>Change your password. You will be signed out of all sessions, including this one.</CardDescription>
       </CardHeader>
       <CardContent>
         <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
@@ -84,7 +84,7 @@ async function onSubmit() {
             <Input id="new" v-model="newPassword" type="password" autocomplete="new-password" />
           </div>
           <p v-if="formError" class="text-sm text-destructive" role="alert">{{ formError }}</p>
-          <p v-if="success" class="text-sm text-accent-foreground">Password updated.</p>
+          <p v-if="success" class="text-sm text-success" role="status">Password updated.</p>
           <Button type="submit" :disabled="submitting">Update password</Button>
         </form>
       </CardContent>

@@ -59,11 +59,13 @@ describe('holiday.service', () => {
   it('create inserts and returns the joined holiday', async () => {
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [{ id: 7 }] })
+    query.mockResolvedValueOnce({ rows: [] }) // duties.is_holiday resync
     query.mockResolvedValueOnce({ rows: [row({ id: 7 })] })
     const h = await create({ name: 'Day', date: '2026-09-17' }, { id: 2, role: 'administrator' })
     expect(h.id).toBe(7)
     const insertSql = query.mock.calls[1]?.[0] as string
     expect(insertSql).toContain('INSERT INTO holidays')
+    expect(query.mock.calls[2]?.[0]).toContain('UPDATE duties SET is_holiday')
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'holiday.created', entityId: 7 }),
@@ -112,6 +114,7 @@ describe('holiday.service', () => {
     query.mockResolvedValueOnce({ rows: [] })
     await remove(1, { id: 2, role: 'administrator' })
     expect((query.mock.calls[1]?.[0] as string).includes('DELETE FROM holidays')).toBe(true)
+    expect(query.mock.calls[2]?.[0]).toContain('UPDATE duties SET is_holiday')
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'holiday.deleted', entityId: 1 }),

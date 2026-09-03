@@ -6,6 +6,10 @@ import type { AuthUser, ChangePasswordRequest, LoginRequest, Role } from '@oncal
 import { logActivity } from './activity.service'
 import * as tokenService from './token.service'
 
+// Compared against when the identifier does not exist so that response timing
+// cannot reveal which accounts are registered.
+const DUMMY_PASSWORD_HASH = '$2b$12$.sUi95LZBzGwXBrqZddeluQitk5dh0vkZ8uUeVK29CB0hjaspvEiG'
+
 interface UserRow {
   id: number
   email: string
@@ -61,9 +65,9 @@ export async function login(
   const row = input.identifier.includes('@')
     ? await findUserByEmail(input.identifier)
     : await findUserByUsername(input.identifier)
-  if (!row) throw new HttpError(401, 'Invalid credentials')
-  const ok = await bcrypt.compare(input.password, row.password_hash)
-  if (!ok) throw new HttpError(401, 'Invalid credentials')
+  const hash = row?.password_hash ?? DUMMY_PASSWORD_HASH
+  const ok = await bcrypt.compare(input.password, hash)
+  if (!row || !ok) throw new HttpError(401, 'Invalid credentials')
   if (!row.is_active) throw new HttpError(403, 'Account disabled')
   const accessToken = signAccessToken({ sub: row.id, role: row.role })
   const refreshToken = await tokenService.issueRefreshToken(row.id)

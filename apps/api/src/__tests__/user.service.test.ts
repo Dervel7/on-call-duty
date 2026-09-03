@@ -197,6 +197,7 @@ describe('user.service', () => {
 
   it('update records the audit row when a field changes', async () => {
     query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [] }) // duplicate-email check
     query.mockResolvedValueOnce({ rows: [row({ email: 'new@h.com' })] })
     const u = await update(1, { email: 'new@h.com' }, adminActor)
     expect(u.email).toBe('new@h.com')
@@ -208,6 +209,24 @@ describe('user.service', () => {
         detail: { before: { email: 'd@h.com' }, after: { email: 'new@h.com' } },
       }),
     )
+  })
+
+  it('update rejects an email already used by another live account with 409', async () => {
+    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [{ id: 9 }] })
+    await expect(update(1, { email: 'taken@h.com' }, adminActor)).rejects.toMatchObject({
+      status: 409,
+      message: 'Email already in use',
+    })
+  })
+
+  it('update rejects a username already used by another live account with 409', async () => {
+    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [{ id: 9 }] })
+    await expect(update(1, { username: 'taken' }, adminActor)).rejects.toMatchObject({
+      status: 409,
+      message: 'Username already in use',
+    })
   })
 
   it('update rejects managing a superadmin account from a non-superadmin actor with 403', async () => {
@@ -235,12 +254,14 @@ describe('user.service', () => {
     await expect(remove(1, adminActor)).rejects.toMatchObject({ status: 403 })
   })
 
-  it('remove deletes the user and records the audit row in-transaction', async () => {
+  it('remove soft-deletes the user and records the audit row in-transaction', async () => {
     query.mockResolvedValueOnce({ rows: [row()] })
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
     await remove(1, adminActor)
-    const del = query.mock.calls[1]?.[0] as string
-    expect(del).toContain('DELETE FROM users')
+    const upd = query.mock.calls[1]?.[0] as string
+    expect(upd).toContain('UPDATE users')
+    expect(upd).toContain('is_deleted = TRUE')
+    expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM users'))).toBe(false)
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'user.deleted', entityId: 1 }),

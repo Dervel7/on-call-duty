@@ -123,20 +123,18 @@ describe('unavailability.service', () => {
   })
 
   it('update excludes self from overlap check and clears note on null', async () => {
-    query.mockResolvedValueOnce({
-      rows: [
-        {
-          doctor_id: 5,
-          type: 'vacation',
-          start_date: '2026-09-07',
-          end_date: '2026-09-11',
-          note: 'old',
-        },
-      ],
-    })
-    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
-    query.mockResolvedValueOnce({ rows: [] })
-    query.mockResolvedValueOnce({ rows: [] })
+    const stored = {
+      doctor_id: 5,
+      type: 'vacation',
+      start_date: '2026-09-07',
+      end_date: '2026-09-11',
+      note: 'old',
+    }
+    query.mockResolvedValueOnce({ rows: [stored] })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // doctors lock
+    query.mockResolvedValueOnce({ rows: [stored] }) // locked re-read
+    query.mockResolvedValueOnce({ rows: [] }) // overlap
+    query.mockResolvedValueOnce({ rows: [] }) // UPDATE
     query.mockResolvedValueOnce({ rows: [row({ note: null })] })
     const x = await update(
       1,
@@ -144,14 +142,30 @@ describe('unavailability.service', () => {
       { id: 1, role: 'administrator' },
     )
     expect(x.note).toBeNull()
-    const overlapSql = query.mock.calls[2]?.[0] as string
+    const overlapSql = query.mock.calls[3]?.[0] as string
     expect(overlapSql).toContain('AND id <>')
-    const updateSql = query.mock.calls[3]?.[0] as string
+    const updateSql = query.mock.calls[4]?.[0] as string
     expect(updateSql).toContain('UPDATE unavailability')
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'availability.updated', entityId: 1 }),
     )
+  })
+
+  it('update rejects a partial date patch that inverts the stored range (400)', async () => {
+    const stored = {
+      doctor_id: 5,
+      type: 'vacation',
+      start_date: '2026-09-07',
+      end_date: '2026-09-11',
+      note: null,
+    }
+    query.mockResolvedValueOnce({ rows: [stored] })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // doctors lock
+    query.mockResolvedValueOnce({ rows: [stored] }) // locked re-read
+    await expect(
+      update(1, { startDate: '2026-09-20' }, { id: 1, role: 'administrator' }),
+    ).rejects.toMatchObject({ status: 400 })
   })
 
   it('update forbids a non-owner doctor (403); superadmin treated as admin', async () => {
@@ -172,38 +186,34 @@ describe('unavailability.service', () => {
     ).rejects.toMatchObject({ status: 403 })
 
     query.mockReset()
-    query.mockResolvedValueOnce({
-      rows: [
-        {
-          doctor_id: 5,
-          type: 'vacation',
-          start_date: '2026-09-07',
-          end_date: '2026-09-11',
-          note: null,
-        },
-      ],
-    })
-    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
-    query.mockResolvedValueOnce({ rows: [] })
+    const stored = {
+      doctor_id: 5,
+      type: 'vacation',
+      start_date: '2026-09-07',
+      end_date: '2026-09-11',
+      note: null,
+    }
+    query.mockResolvedValueOnce({ rows: [stored] })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // doctors lock
+    query.mockResolvedValueOnce({ rows: [stored] }) // locked re-read
+    query.mockResolvedValueOnce({ rows: [] }) // UPDATE
     query.mockResolvedValueOnce({ rows: [row({ type: 'sick' })] })
     const x = await update(1, { type: 'sick' }, { id: 1, role: 'superadmin' })
     expect(x.type).toBe('sick')
   })
 
   it('update skips the audit row when nothing changed', async () => {
-    query.mockResolvedValueOnce({
-      rows: [
-        {
-          doctor_id: 5,
-          type: 'vacation',
-          start_date: '2026-09-07',
-          end_date: '2026-09-11',
-          note: null,
-        },
-      ],
-    })
-    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
-    query.mockResolvedValueOnce({ rows: [] })
+    const stored = {
+      doctor_id: 5,
+      type: 'vacation',
+      start_date: '2026-09-07',
+      end_date: '2026-09-11',
+      note: null,
+    }
+    query.mockResolvedValueOnce({ rows: [stored] })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // doctors lock
+    query.mockResolvedValueOnce({ rows: [stored] }) // locked re-read
+    query.mockResolvedValueOnce({ rows: [] }) // UPDATE
     query.mockResolvedValueOnce({ rows: [row()] })
     const x = await update(1, { note: null }, { id: 1, role: 'administrator' })
     expect(x.note).toBeNull()
@@ -221,7 +231,7 @@ describe('unavailability.service', () => {
     query.mockResolvedValueOnce({
       rows: [{ doctor_id: 5, type: 'vacation', start_date: '2026-09-07', end_date: '2026-09-11' }],
     })
-    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // DELETE ... RETURNING
     await remove(1, { id: 1, role: 'administrator' })
     const del = query.mock.calls[1]?.[0] as string
     expect(del).toContain('DELETE FROM unavailability')

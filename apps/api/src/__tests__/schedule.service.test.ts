@@ -44,6 +44,8 @@ function dutyRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 10,
     schedule_id: 1,
+    schedule_year: 2026,
+    schedule_month: 9,
     duty_date: '2026-09-05',
     doctor_id: 5,
     first_name: 'Jane',
@@ -119,6 +121,29 @@ describe('schedule.service', () => {
     expect(query.mock.calls.some((c) => String(c[0]).startsWith('INSERT'))).toBe(false)
   })
 
+  it('preview returns per-day eligible doctors and boundary adjacency data', async () => {
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM doctors d JOIN users')) {
+        return {
+          rows: Array.from({ length: 12 }, (_, i) => ({
+            id: i + 1,
+            max_monthly_duties: 7,
+            first_name: 'D',
+            last_name: 'D',
+            is_active: true,
+          })),
+        }
+      }
+      return { rows: [] }
+    })
+    const res = await preview(2026, 9)
+    expect(res.days).toHaveLength(30)
+    // Preview is admin-only; the computed eligibility is returned, not blanked.
+    expect(res.days.some((d) => d.eligibleDoctorIds.length > 0)).toBe(true)
+    expect(res.days.every((d) => Array.isArray(d.availableDoctorIds))).toBe(true)
+  })
+
   it('list applies optional year/month filters', async () => {
     query.mockResolvedValue({ rows: [scheduleRow()] })
     await list({ year: 2026, month: 9 })
@@ -132,11 +157,30 @@ describe('schedule.service', () => {
     await expect(getById(99)).rejects.toMatchObject({ status: 404 })
   })
 
+  it('getById blanks eligibility for a doctor viewing a published schedule', async () => {
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM schedules') && sql.includes('WHERE id =')) {
+        return { rows: [scheduleRow({ status: 'published' })] }
+      }
+      if (sql.includes('FROM duties du')) return { rows: [] }
+      return { rows: [] }
+    })
+    const detail = await getById(1, { id: 5, role: 'doctor' })
+    expect(detail.schedule.status).toBe('published')
+    expect(detail.days).toHaveLength(30)
+    expect(detail.days.every((d) => d.eligibleDoctorIds.length === 0)).toBe(true)
+    expect(detail.days.every((d) => d.availableDoctorIds.length === 0)).toBe(true)
+    // Non-admins must not fund the admin eligibility queries.
+    expect(query.mock.calls.some((c) => String(c[0]).includes('FROM doctors d JOIN users'))).toBe(false)
+  })
+
   it('remove deletes the schedule (404 when missing)', async () => {
     query.mockResolvedValueOnce({ rows: [{ year: 2026, month: 9, status: 'draft' }] })
+    query.mockResolvedValueOnce({ rows: [{ status: 'draft' }] })
     query.mockResolvedValueOnce({ rows: [] })
     await remove(1, { id: 2, role: 'administrator' })
-    expect((query.mock.calls[1]?.[0] as string).includes('DELETE FROM schedules')).toBe(true)
+    expect((query.mock.calls[2]?.[0] as string).includes('DELETE FROM schedules')).toBe(true)
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'schedule.deleted', entityId: 1 }),
@@ -183,19 +227,22 @@ describe('schedule.service', () => {
   it('addDuty inserts the duty and records the audit row in-transaction', async () => {
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
+      if (sql.includes('FOR UPDATE')) return { rows: [{ status: 'draft' }] }
       if (sql.includes('FROM schedules') && sql.includes('WHERE id =')) {
         return { rows: [scheduleRow()] }
       }
       if (sql.includes('FROM duties WHERE schedule_id = $1 AND duty_date =')) {
         return { rows: [{ n: 0 }] }
       }
-      if (sql.includes('FROM doctors d JOIN users')) {
+      if (sql.includes('FROM doctors d JOIN users') && sql.includes('WHERE d.id = $1')) {
         return { rows: [{ max_monthly_duties: 7, is_active: true }] }
       }
+      if (sql.includes('WHERE u.is_active = TRUE')) return { rows: [{ n: 8 }] }
       if (sql.includes('FROM unavailability WHERE doctor_id')) return { rows: [] }
       if (sql.includes('FROM duties WHERE schedule_id = $1 AND doctor_id')) {
         return { rows: [{ n: 0 }] }
       }
+      if (sql.includes('FROM holidays WHERE date >= $1')) return { rows: [{ n: 0 }] }
       if (sql.includes('EXTRACT(ISODOW')) return { rows: [{ n: 0 }] }
       if (sql.includes('FROM duties WHERE duty_date IN')) return { rows: [] }
       if (sql.includes('FROM holidays WHERE date = $1')) return { rows: [] }
@@ -217,8 +264,12 @@ describe('schedule.service', () => {
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
     query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
+    query.mockResolvedValueOnce({ rows: [{ n: 8 }] })
+    query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
     query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
     query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [{ status: 'draft' }] })
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [dutyRow({ id: 10, doctor_id: 7, reason: 'manual override by admin #2' })] })
     const d = await reassignDuty(10, { doctorId: 7 }, { id: 2, role: 'administrator' })
@@ -239,9 +290,10 @@ describe('schedule.service', () => {
 
   it('removeDuty deletes; 404 when missing', async () => {
     query.mockResolvedValueOnce({ rows: [dutyRow()] })
+    query.mockResolvedValueOnce({ rows: [{ status: 'draft' }] }) // schedule lock
     query.mockResolvedValueOnce({ rows: [] })
     await removeDuty(10, { id: 2, role: 'administrator' })
-    expect((query.mock.calls[1]?.[0] as string).includes('DELETE FROM duties')).toBe(true)
+    expect((query.mock.calls[2]?.[0] as string).includes('DELETE FROM duties')).toBe(true)
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'duty.removed', entityId: 10 }),
@@ -351,6 +403,56 @@ describe('generate plan path', () => {
     ).rejects.toMatchObject({ status: 409 })
   })
 
+  it('409 when a plan exceeds a doctor monthly cap', async () => {
+    mockContext()
+    // Doctor 1 capped at 7; alternate days give 15 duties.
+    const assignments = Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+      doctorId: i % 2 === 0 ? 1 : 2,
+    }))
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator' }, assignments),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('monthly cap') })
+  })
+
+  it('409 when a plan puts a doctor on back-to-back days', async () => {
+    mockContext()
+    const assignments = [
+      ...Array.from({ length: 28 }, (_, i) => ({
+        date: `2026-09-${String(i + 3).padStart(2, '0')}`,
+        doctorId: (i % 10) + 3,
+      })),
+      { date: '2026-09-01', doctorId: 1 },
+      { date: '2026-09-02', doctorId: 1 },
+    ]
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator' }, assignments),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('back-to-back') })
+  })
+
+  it('409 when a plan collides with the prior month last-day duty', async () => {
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
+      if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
+      if (sql.includes('FROM holidays')) return { rows: [] }
+      if (sql.includes('FROM unavailability')) return { rows: [] }
+      if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [{ doctor_id: 1 }] }
+      return { rows: [] }
+    })
+
+    const assignments = [
+      { date: '2026-09-01', doctorId: 1 },
+      ...Array.from({ length: 29 }, (_, i) => ({
+        date: `2026-09-${String(i + 2).padStart(2, '0')}`,
+        doctorId: (i % 10) + 2,
+      })),
+    ]
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator' }, assignments),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('back-to-back') })
+  })
+
   it('treats an empty assignments array as the engine path (not plan path)', async () => {
     mockContext()
     const detail = await generate(2026, 9, { id: 2, role: 'administrator' }, [])
@@ -362,6 +464,15 @@ describe('generate plan path', () => {
 })
 
 describe('publish / unpublish', () => {
+  it('publish 409 when a day is left uncovered', async () => {
+    query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] })
+    query.mockResolvedValueOnce({ rows: [{ n: 29 }] })
+    await expect(publish(1, { id: 2, role: 'administrator' })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining('incomplete'),
+    })
+    expect(recordActivity).not.toHaveBeenCalled()
+  })
   it('publish flips draft->published; 404 missing; 409 already published', async () => {
     query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] })
     query.mockResolvedValueOnce({ rows: [{ n: 30 }] })
@@ -456,6 +567,7 @@ describe('computeEligibility', () => {
     dutyCountByDoctor: new Map<number, number>(),
     saturdayByDoctor: new Map<number, number>(),
     sundayByDoctor: new Map<number, number>(),
+    holidayByDoctor: new Map<number, number>(),
   })
   const doctor = (id: number, maxMonthlyDuties = 7): DoctorSpec => ({
     id,

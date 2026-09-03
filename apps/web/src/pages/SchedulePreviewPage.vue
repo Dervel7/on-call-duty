@@ -110,16 +110,21 @@ const status = computed<{ tone: StatusTone; title: string; detail: string } | nu
   }
 })
 
+let loadSeq = 0
+
 async function load() {
   if (!valid.value) {
     errorMsg.value = ''
     return
   }
+  const seq = ++loadSeq
   loading.value = true
   errorMsg.value = ''
   try {
-    result.value = await scheduleService.preview(year.value, month.value)
-    assignments.value = (result.value?.assignments ?? []).map((a) => ({
+    const res = await scheduleService.preview(year.value, month.value)
+    if (seq !== loadSeq) return
+    result.value = res
+    assignments.value = (res?.assignments ?? []).map((a) => ({
       date: a.date,
       doctorId: a.doctorId,
       firstName: a.doctorFirstName,
@@ -127,9 +132,10 @@ async function load() {
       reason: a.reason,
     }))
   } catch (e) {
+    if (seq !== loadSeq) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to preview'
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 

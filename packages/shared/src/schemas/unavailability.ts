@@ -1,13 +1,14 @@
 import { z } from 'zod'
+import { isoDateSchema } from './common'
 
 const unavailabilityTypeEnum = z.enum(['vacation', 'sick', 'conference', 'other'])
-const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date (YYYY-MM-DD)')
+
 
 const adminFields = z.object({
   doctorId: z.number().int().positive(),
   type: unavailabilityTypeEnum,
-  startDate: dateStr,
-  endDate: dateStr,
+  startDate: isoDateSchema,
+  endDate: isoDateSchema,
   note: z.string().max(500).optional(),
 })
 
@@ -32,8 +33,8 @@ export const createUnavailabilitySelfSchema = selfFields.refine(
 export const updateUnavailabilitySchema = z
   .object({
     type: unavailabilityTypeEnum.optional(),
-    startDate: dateStr.optional(),
-    endDate: dateStr.optional(),
+    startDate: isoDateSchema.optional(),
+    endDate: isoDateSchema.optional(),
     note: z.string().max(500).nullable().optional(),
   })
   .refine((d) => !(d.startDate && d.endDate && d.endDate < d.startDate), {
@@ -43,6 +44,6 @@ export const updateUnavailabilitySchema = z
 
 export const unavailabilityQuerySchema = z.object({
   doctorId: z.coerce.number().int().positive().optional(),
-  from: dateStr.optional(),
-  to: dateStr.optional(),
+  from: isoDateSchema.optional(),
+  to: isoDateSchema.optional(),
 })

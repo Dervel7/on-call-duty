@@ -1,6 +1,6 @@
-import type { QueryResult } from 'pg'
+import type { PoolClient } from 'pg'
 import { env } from '../config/env'
-import { query } from '../db/client'
+import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
 import { generateRefreshToken, hashToken } from '../lib/token'
 
@@ -12,14 +12,11 @@ interface TokenRow {
   replaced_by: number | null
 }
 
+const DAY_MS = 86_400_000
+
+// env.ts enforces the "<n>d" format; parsing cannot fail at runtime.
 export function refreshExpiryMs(): number {
-  const raw = env.JWT_REFRESH_EXPIRES_IN.trim()
-  if (raw.endsWith('d')) {
-    const days = Number(raw.slice(0, -1))
-    if (Number.isFinite(days) && days > 0) return days * 86_400_000
-  }
-  const n = Number(raw)
-  return Number.isFinite(n) && n > 0 ? n : 7 * 86_400_000
+  return Number(env.JWT_REFRESH_EXPIRES_IN.slice(0, -1)) * DAY_MS
 }
 
 function expiryDate(): Date {
@@ -45,33 +42,19 @@ async function getRow(token: string): Promise<TokenRow | undefined> {
   return res.rows[0]
 }
 
+/** Whole rotation chain around a token: every ancestor and descendant. */
 async function collectFamily(startId: number): Promise<number[]> {
-  const ids: number[] = []
-  let rootId = startId
-  for (let i = 0; i < 1000; i++) {
-    const up = await query<{ id: number }>(
-      `SELECT id FROM refresh_tokens WHERE replaced_by = $1`,
-      [rootId],
-    )
-    const prev = up.rows[0]?.id
-    if (prev === undefined) break
-    rootId = prev
-  }
-  const seen = new Set<number>()
-  let cur: number | undefined = rootId
-  for (let i = 0; i < 1000 && cur !== undefined; i++) {
-    if (seen.has(cur)) break
-    seen.add(cur)
-    ids.push(cur)
-    const down: QueryResult<{ id: number; replaced_by: number | null }> = await query(
-      `SELECT id, replaced_by FROM refresh_tokens WHERE id = $1`,
-      [cur],
-    )
-    const row = down.rows[0]
-    if (!row) break
-    cur = row.replaced_by ?? undefined
-  }
-  return ids
+  const res = await query<{ id: number }>(
+    `WITH RECURSIVE family AS (
+       SELECT id, replaced_by FROM refresh_tokens WHERE id = $1
+       UNION
+       SELECT r.id, r.replaced_by FROM refresh_tokens r
+       JOIN family f ON r.replaced_by = f.id OR r.id = f.replaced_by
+     )
+     SELECT id FROM family`,
+    [startId],
+  )
+  return res.rows.map((r) => r.id)
 }
 
 async function revokeFamily(startId: number): Promise<void> {
@@ -94,24 +77,36 @@ export async function rotateRefreshToken(
 ): Promise<{ token: string; userId: number }> {
   const row = await getRow(oldToken)
   if (!row) throw new HttpError(401, 'Invalid refresh token')
-  const now = new Date()
-  const expired = row.expires_at.getTime() < now.getTime()
+  const expired = row.expires_at.getTime() < Date.now()
   if (row.revoked_at || expired) {
     if (row.revoked_at) await revokeFamily(row.id)
     throw new HttpError(401, 'Invalid refresh token')
   }
-  const newToken = generateRefreshToken()
-  const ins = await query<{ id: number }>(
-    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3) RETURNING id`,
-    [row.user_id, hashToken(newToken), expiryDate()],
-  )
-  const newId = ins.rows[0]?.id
-  await query(
-    `UPDATE refresh_tokens SET revoked_at = $1, replaced_by = $2 WHERE id = $3`,
-    [now, newId, row.id],
-  )
-  return { token: newToken, userId: row.user_id }
+  try {
+    return await withTransaction(async (client: PoolClient) => {
+      const newToken = generateRefreshToken()
+      const ins = await client.query<{ id: number }>(
+        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, $3) RETURNING id`,
+        [row.user_id, hashToken(newToken), expiryDate()],
+      )
+      const newId = ins.rows[0]?.id
+      // Atomic claim: zero rows means a concurrent rotation already consumed
+      // this token — treat as reuse and revoke the whole family.
+      const claim = await client.query(
+        `UPDATE refresh_tokens SET revoked_at = NOW(), replaced_by = $1
+         WHERE id = $2 AND revoked_at IS NULL RETURNING id`,
+        [newId, row.id],
+      )
+      if (claim.rows.length === 0) {
+        throw new HttpError(401, 'Invalid refresh token')
+      }
+      return { token: newToken, userId: row.user_id }
+    })
+  } catch (err) {
+    if (err instanceof HttpError) await revokeFamily(row.id)
+    throw err
+  }
 }
 
 export async function revokeRefreshToken(token: string): Promise<number | null> {

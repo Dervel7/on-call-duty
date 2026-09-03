@@ -25,8 +25,9 @@ interface EditState {
   id: number | null
   name: string
   date: string
+  errorMsg: string
 }
-const emptyEdit = (): EditState => ({ open: false, id: null, name: '', date: '' })
+const emptyEdit = (): EditState => ({ open: false, id: null, name: '', date: '', errorMsg: '' })
 const edit = ref<EditState>(emptyEdit())
 
 async function load() {
@@ -45,35 +46,35 @@ function openCreate() {
   edit.value = { ...emptyEdit(), open: true }
 }
 function openUpdate(x: Holiday) {
-  edit.value = { open: true, id: x.id, name: x.name, date: x.date }
+  edit.value = { open: true, id: x.id, name: x.name, date: x.date, errorMsg: '' }
 }
 
 async function save() {
-  errorMsg.value = ''
+  edit.value.errorMsg = ''
   if (edit.value.id === null) {
     const payload: CreateHolidayRequest = { name: edit.value.name, date: edit.value.date }
     const r = createHolidaySchema.safeParse(payload)
     if (!r.success) {
-      errorMsg.value = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
       return
     }
     try {
       await holidayService.create(r.data)
     } catch (e) {
-      errorMsg.value = e instanceof Error ? e.message : 'Failed to create holiday'
+      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to create holiday'
       return
     }
   } else {
     const payload: UpdateHolidayRequest = { name: edit.value.name, date: edit.value.date }
     const r = updateHolidaySchema.safeParse(payload)
     if (!r.success) {
-      errorMsg.value = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
       return
     }
     try {
       await holidayService.update(edit.value.id, r.data)
     } catch (e) {
-      errorMsg.value = e instanceof Error ? e.message : 'Failed to update holiday'
+      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to update holiday'
       return
     }
   }
@@ -144,6 +145,7 @@ onMounted(load)
           <Label for="e-date">Date</Label>
           <Input id="e-date" v-model="edit.date" type="date" />
         </div>
+        <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">
           <Button type="submit">Save</Button>
         </div>

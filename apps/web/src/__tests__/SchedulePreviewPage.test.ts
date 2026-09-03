@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { reactive } from 'vue'
 
 const preview = vi.fn()
 const generate = vi.fn()
@@ -20,8 +21,9 @@ const doctorList = vi.fn()
 vi.mock('@/services/doctor', () => ({
   list: (...a: unknown[]) => doctorList(...a),
 }))
+const routeRef = vi.hoisted(() => ({ route: null as { query: Record<string, string> } | null }))
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: { year: '2026', month: '9' } }),
+  useRoute: () => routeRef.route,
   useRouter: () => ({ push: vi.fn() }),
 }))
 
@@ -42,8 +44,16 @@ function daysFor(year: number, month: number) {
   })
 }
 
+function deferred() {
+  // Promise.withResolvers is unavailable under the repo's ES2022 lib target.
+  let resolve!: (value: unknown) => void
+  const promise = new Promise((res) => { resolve = res })
+  return { promise, resolve }
+}
+
 beforeEach(() => {
   setActivePinia(createPinia())
+  routeRef.route = reactive({ query: { year: '2026', month: '9' } })
   preview.mockReset()
   generate.mockReset()
   doctorList.mockResolvedValue([
@@ -94,5 +104,29 @@ describe('SchedulePreviewPage', () => {
     const sent = generate.mock.calls[0]![2] as Array<{ date: string; doctorId: number }>
     expect(sent.length).toBe(days.length)
     expect(sent.every((a) => a.doctorId === 5)).toBe(true)
+  })
+
+  it('discards a stale preview response when the month changes', async () => {
+    const first = deferred()
+    const second = deferred()
+    preview
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise)
+    const wrapper = mount(SchedulePreviewPage)
+    await flushPromises()
+    expect(preview).toHaveBeenCalledTimes(1)
+    routeRef.route!.query.month = '10'
+    await flushPromises()
+    expect(preview).toHaveBeenCalledTimes(2)
+    second.resolve({ assignments: [], conflicts: [], days: daysFor(2026, 10) })
+    await flushPromises()
+    expect(wrapper.text()).toContain('October 2026')
+    expect(wrapper.text()).toContain('31 day(s) with no doctor')
+    expect(wrapper.findAll('select').length).toBe(62)
+    first.resolve({ assignments: [], conflicts: [], days: daysFor(2026, 9) })
+    await flushPromises()
+    expect(wrapper.findAll('select').length).toBe(62)
+    expect(wrapper.text()).toContain('31 day(s) with no doctor')
+    expect(wrapper.text()).not.toContain('September 2026')
   })
 })

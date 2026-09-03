@@ -6,10 +6,13 @@ const { query, release, connect } = vi.hoisted(() => ({
   connect: vi.fn(),
 }))
 
-vi.mock('../config/env', () => ({ env: { DATABASE_URL: 'postgres://x' } }))
+vi.mock('../config/env', () => ({
+  env: { DATABASE_URL: 'postgres://x', LOG_LEVEL: 'silent', NODE_ENV: 'test' },
+}))
 vi.mock('pg', () => {
   class Pool {
     connect = connect
+    on = vi.fn()
   }
   return { Pool, types: { setTypeParser: () => {} } }
 })
