@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
+import { ApiError } from '@/lib/http'
 
 const list = vi.fn()
 const generate = vi.fn()
@@ -108,8 +109,8 @@ describe('SchedulesPage', () => {
     expect(admin.findAll('button').some((b) => b.text().includes('New schedule'))).toBe(true)
   })
 
-  it('navigates to the preview page when generate fails', async () => {
-    generate.mockRejectedValue(new Error('Schedule cannot be generated'))
+  it('navigates to the preview page when generate fails with 422', async () => {
+    generate.mockRejectedValue(new ApiError('Month cannot be filled', 422))
     const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
@@ -122,5 +123,23 @@ describe('SchedulesPage', () => {
     expect(push).toHaveBeenCalledWith(
       expect.objectContaining({ path: '/schedules/preview', query: expect.anything() }),
     )
+  })
+
+  it('non-422 failures keep the dialog open and show the error', async () => {
+    generate.mockRejectedValue(
+      new ApiError('Schedule already exists for this month; delete it first', 409),
+    )
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
+    await flushPromises()
+    const generateBtn = Array.from(document.body.querySelectorAll('button'))
+      .find((b) => b.textContent?.includes('Generate'))
+    expect(generateBtn).toBeTruthy()
+    generateBtn!.click()
+    await flushPromises()
+    expect(push).not.toHaveBeenCalled()
+    const alert = document.body.querySelector('[role="alert"]')
+    expect(alert?.textContent).toContain('Schedule already exists for this month')
   })
 })

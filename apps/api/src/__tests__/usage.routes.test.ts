@@ -102,6 +102,13 @@ describe('usage routes', () => {
     expect(res.status).toBe(403)
   })
 
+  it('GET /generate-presses is 403 for a doctor', async () => {
+    const res = await request(build())
+      .get('/usage/generate-presses')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+    expect(res.status).toBe(403)
+  })
+
   it('GET /generate-presses returns totals for a superadmin (200)', async () => {
     query.mockResolvedValue({
       rows: [

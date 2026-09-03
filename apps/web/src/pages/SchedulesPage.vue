@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import type { ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import { useAuthStore } from '@/stores/auth'
+import { ApiError } from '@/lib/http'
 import * as scheduleService from '@/services/schedule'
 import * as usageService from '@/services/usage'
 import Button from '@/components/ui/Button.vue'
@@ -87,12 +88,16 @@ async function runGenerate() {
     const detail = await scheduleService.generate(parsed.data.year, parsed.data.month)
     gen.value.open = false
     router.push(`/schedules/${detail.schedule.id}`)
-  } catch {
-    gen.value.open = false
-    router.push({
-      path: '/schedules/preview',
-      query: { year: gen.value.year, month: gen.value.month },
-    })
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 422) {
+      gen.value.open = false
+      router.push({
+        path: '/schedules/preview',
+        query: { year: gen.value.year, month: gen.value.month },
+      })
+    } else {
+      gen.value.errorMsg = e instanceof Error ? e.message : 'Failed to generate'
+    }
   } finally {
     gen.value.generating = false
   }
