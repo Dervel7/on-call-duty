@@ -96,4 +96,20 @@ describe('SchedulesPage', () => {
     await flushPromises()
     expect(admin.findAll('button').some((b) => b.text().includes('New schedule'))).toBe(true)
   })
+
+  it('navigates to the preview page when generate fails', async () => {
+    generate.mockRejectedValue(new Error('Schedule cannot be generated'))
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
+    await flushPromises()
+    const generateBtn = Array.from(document.body.querySelectorAll('button'))
+      .find((b) => b.textContent?.includes('Generate'))
+    expect(generateBtn).toBeTruthy()
+    generateBtn!.click()
+    await flushPromises()
+    expect(push).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/schedules/preview', query: expect.anything() }),
+    )
+  })
 })

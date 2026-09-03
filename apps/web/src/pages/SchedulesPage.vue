@@ -98,8 +98,12 @@ async function runGenerate() {
     const detail = await scheduleService.generate(parsed.data.year, parsed.data.month)
     gen.value.open = false
     router.push(`/schedules/${detail.schedule.id}`)
-  } catch (e) {
-    gen.value.errorMsg = e instanceof Error ? e.message : 'Failed to generate'
+  } catch {
+    gen.value.open = false
+    router.push({
+      path: '/schedules/preview',
+      query: { year: gen.value.year, month: gen.value.month },
+    })
   } finally {
     gen.value.generating = false
   }
