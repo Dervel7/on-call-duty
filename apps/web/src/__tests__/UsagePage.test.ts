@@ -1,17 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import type { GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
+import type { GeneratePressCounts, GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
 
 const summary = vi.fn()
 const generations = vi.fn()
 const alerts = vi.fn()
 const resolveAlert = vi.fn()
+const generatePresses = vi.fn()
 vi.mock('@/services/usage', () => ({
   summary: (...a: unknown[]) => summary(...a),
   generations: (...a: unknown[]) => generations(...a),
   alerts: (...a: unknown[]) => alerts(...a),
   resolveAlert: (...a: unknown[]) => resolveAlert(...a),
+  generatePresses: (...a: unknown[]) => generatePresses(...a),
 }))
 
 import UsagePage from '../pages/UsagePage.vue'
@@ -55,10 +57,16 @@ const alertsFixture: OperatorAlert[] = [
   },
 ]
 
+const pressesFixture: GeneratePressCounts = {
+  total: 23,
+  byUser: [{ userId: 2, username: 'admin1', firstName: 'Ada', lastName: 'Lovelace', presses: 23 }],
+}
+
 function mockResolved() {
   summary.mockResolvedValue(summaryFixture)
   generations.mockResolvedValue(generationsFixture)
   alerts.mockResolvedValue(alertsFixture)
+  generatePresses.mockResolvedValue(pressesFixture)
 }
 
 beforeEach(() => {
@@ -67,6 +75,7 @@ beforeEach(() => {
   generations.mockReset()
   alerts.mockReset()
   resolveAlert.mockReset()
+  generatePresses.mockReset()
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -88,6 +97,9 @@ describe('UsagePage', () => {
     expect(wrapper.text()).toContain('50%')
     expect(wrapper.text()).toContain('allowance_exceeded')
     expect(wrapper.text()).toContain('disjoint_regeneration')
+    expect(wrapper.text()).toContain('Generate button presses')
+    expect(wrapper.text()).toContain('Ada Lovelace (admin1)')
+    expect(wrapper.text()).toContain('23')
   })
 
   it('shows an enabled Resolve button for open alerts and calls resolveAlert on click', async () => {
@@ -122,6 +134,7 @@ describe('UsagePage', () => {
     summary.mockRejectedValue(new Error('nope'))
     generations.mockResolvedValue([])
     alerts.mockResolvedValue([])
+    generatePresses.mockResolvedValue({ total: 0, byUser: [] })
     const wrapper = mount(UsagePage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')

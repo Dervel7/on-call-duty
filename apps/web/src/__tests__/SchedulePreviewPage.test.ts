@@ -21,6 +21,10 @@ const doctorList = vi.fn()
 vi.mock('@/services/doctor', () => ({
   list: (...a: unknown[]) => doctorList(...a),
 }))
+const recordGeneratePress = vi.fn()
+vi.mock('@/services/usage', () => ({
+  recordGeneratePress: (...a: unknown[]) => recordGeneratePress(...a),
+}))
 const routeRef = vi.hoisted(() => ({ route: null as { query: Record<string, string> } | null }))
 vi.mock('vue-router', () => ({
   useRoute: () => routeRef.route,
@@ -56,6 +60,8 @@ beforeEach(() => {
   routeRef.route = reactive({ query: { year: '2026', month: '9' } })
   preview.mockReset()
   generate.mockReset()
+  recordGeneratePress.mockReset()
+  recordGeneratePress.mockResolvedValue(undefined)
   doctorList.mockResolvedValue([
     { id: 5, userId: 5, email: 'j@b.c', username: 'j', firstName: 'Jane', lastName: 'Roe', isActive: true, maxMonthlyDuties: 7, createdAt: '', updatedAt: '' },
     { id: 6, userId: 6, email: 's@b.c', username: 's', firstName: 'Sam', lastName: 'Doe', isActive: true, maxMonthlyDuties: 7, createdAt: '', updatedAt: '' },
@@ -100,6 +106,7 @@ describe('SchedulePreviewPage', () => {
     expect(button.attributes('disabled')).toBeUndefined()
     await button.trigger('click')
     await flushPromises()
+    expect(recordGeneratePress).toHaveBeenCalledTimes(1)
     expect(generate).toHaveBeenCalled()
     const sent = generate.mock.calls[0]![2] as Array<{ date: string; doctorId: number }>
     expect(sent.length).toBe(days.length)

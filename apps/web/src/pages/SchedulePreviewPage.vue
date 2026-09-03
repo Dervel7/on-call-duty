@@ -5,6 +5,7 @@ import type { DayInfo, Doctor, PreviewResult } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import * as scheduleService from '@/services/schedule'
 import * as doctorService from '@/services/doctor'
+import * as usageService from '@/services/usage'
 import Button from '@/components/ui/Button.vue'
 import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 
@@ -176,6 +177,7 @@ function onSelect(date: string, slotIndex: number, doctorId: number | null) {
 }
 
 async function generate() {
+  void usageService.recordGeneratePress().catch(() => {})
   generating.value = true
   errorMsg.value = ''
   try {

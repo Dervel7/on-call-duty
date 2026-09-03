@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import type { GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
+import type { GeneratePressCounts, GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
 import * as usageService from '@/services/usage'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -17,6 +17,7 @@ import TableRow from '@/components/ui/TableRow.vue'
 const summary = ref<UsageSummary | null>(null)
 const generations = ref<GenerationEvent[]>([])
 const alerts = ref<OperatorAlert[]>([])
+const presses = ref<GeneratePressCounts | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
 
@@ -24,14 +25,16 @@ async function load() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const [s, g, a] = await Promise.all([
+    const [s, g, a, p] = await Promise.all([
       usageService.summary(),
       usageService.generations(),
       usageService.alerts(),
+      usageService.generatePresses(),
     ])
     summary.value = s
     generations.value = g
     alerts.value = a
+    presses.value = p
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load usage data'
   } finally {
@@ -100,6 +103,32 @@ onMounted(load)
           Open alerts:
           <span class="text-foreground">{{ summary.openAlerts }}</span>
         </p>
+      </CardContent>
+    </Card>
+
+    <Card v-if="presses">
+      <CardHeader>
+        <CardTitle>Generate button presses</CardTitle>
+      </CardHeader>
+      <CardContent class="flex flex-col gap-2">
+        <p class="text-sm text-muted-foreground">
+          Total:
+          <span class="text-foreground">{{ presses.total }}</span>
+        </p>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>User</TableHead>
+              <TableHead class="text-right">Presses</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="u in presses.byUser" :key="u.userId">
+              <TableCell>{{ u.firstName }} {{ u.lastName }} ({{ u.username }})</TableCell>
+              <TableCell class="text-right">{{ u.presses }}</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
 
