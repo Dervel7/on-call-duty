@@ -175,3 +175,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_live
   ON users (email) WHERE is_deleted = FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_live
   ON users (username) WHERE is_deleted = FALSE;
+
+-- Generate button press counters: one row per user per day, upserted on press.
+-- Minimal by design; read-only for the superadmin via the usage endpoints.
+CREATE TABLE IF NOT EXISTS generate_press_counters (
+  user_id    INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  press_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  count      INTEGER NOT NULL,
+  CONSTRAINT pk_generate_press_counters PRIMARY KEY (user_id, press_date)
+);
