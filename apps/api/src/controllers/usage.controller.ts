@@ -35,4 +35,20 @@ export const usageController = {
       next(err)
     }
   },
+  async recordGeneratePress(req: Request, res: Response, next: NextFunction) {
+    try {
+      await usageService.recordGeneratePress(req.user!.id)
+      res.status(204).send()
+    } catch (err) {
+      next(err)
+    }
+  },
+  async generatePresses(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const presses = await usageService.generatePressCounts()
+      res.status(200).json(ok(presses))
+    } catch (err) {
+      next(err)
+    }
+  },
 }

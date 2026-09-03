@@ -64,4 +64,58 @@ describe('usage routes', () => {
       .set('Authorization', `Bearer ${superadminToken()}`)
     expect(res.status).toBe(404)
   })
+
+  it('POST /generate-presses is 401 unauthenticated', async () => {
+    const res = await request(build()).post('/usage/generate-presses')
+    expect(res.status).toBe(401)
+  })
+
+  it('POST /generate-presses is 403 for a doctor', async () => {
+    const res = await request(build())
+      .post('/usage/generate-presses')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+    expect(res.status).toBe(403)
+  })
+
+  it('POST /generate-presses records the authenticated admin (204)', async () => {
+    query.mockResolvedValue({ rows: [] })
+    const res = await request(build())
+      .post('/usage/generate-presses')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(res.status).toBe(204)
+    expect(query).toHaveBeenCalledTimes(1)
+    expect(query.mock.calls[0]![1]).toEqual([2])
+  })
+
+  it('POST /generate-presses also accepts a superadmin (204)', async () => {
+    query.mockResolvedValue({ rows: [] })
+    const res = await request(build())
+      .post('/usage/generate-presses')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+    expect(res.status).toBe(204)
+  })
+
+  it('GET /generate-presses is 403 for an administrator', async () => {
+    const res = await request(build())
+      .get('/usage/generate-presses')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(res.status).toBe(403)
+  })
+
+  it('GET /generate-presses returns totals for a superadmin (200)', async () => {
+    query.mockResolvedValue({
+      rows: [
+        { user_id: 2, username: 'admin1', first_name: 'Ada', last_name: 'Lovelace', presses: 14 },
+        { user_id: 3, username: 'admin2', first_name: 'Sam', last_name: 'Doe', presses: 9 },
+      ],
+    })
+    const res = await request(build())
+      .get('/usage/generate-presses')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.data.total).toBe(23)
+    expect(res.body.data.byUser).toHaveLength(2)
+    expect(res.body.data.byUser[0]).toMatchObject({ userId: 2, presses: 14 })
+  })
 })

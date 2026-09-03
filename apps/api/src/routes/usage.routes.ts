@@ -11,6 +11,8 @@ usageRouter.use(authenticate)
 usageRouter.get('/summary', authorize('superadmin'), usageController.summary)
 usageRouter.get('/generations', authorize('superadmin'), usageController.generations)
 usageRouter.get('/alerts', authorize('superadmin'), usageController.alerts)
+usageRouter.post('/generate-presses', authorize('administrator'), usageController.recordGeneratePress)
+usageRouter.get('/generate-presses', authorize('superadmin'), usageController.generatePresses)
 usageRouter.patch(
   '/alerts/:id/resolve',
   authorize('superadmin'),

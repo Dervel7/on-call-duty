@@ -1,5 +1,10 @@
 import type { PoolClient } from 'pg'
-import type { GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
+import type {
+  GeneratePressCounts,
+  GenerationEvent,
+  OperatorAlert,
+  UsageSummary,
+} from '@oncall/shared'
 import { license } from '../config/license'
 import { query } from '../db/client'
 import { HttpError } from '../lib/http-error'
@@ -222,4 +227,40 @@ export async function resolveAlert(id: number): Promise<OperatorAlert> {
     throw new HttpError(409, 'Alert already resolved')
   }
   return toAlert(row)
+}
+
+export async function recordGeneratePress(userId: number): Promise<void> {
+  await query(
+    `INSERT INTO generate_press_counters (user_id, press_date, count)
+     VALUES ($1, CURRENT_DATE, 1)
+     ON CONFLICT (user_id, press_date)
+     DO UPDATE SET count = generate_press_counters.count + 1`,
+    [userId],
+  )
+}
+
+interface PressCountRow {
+  user_id: number
+  username: string
+  first_name: string
+  last_name: string
+  presses: number
+}
+
+export async function generatePressCounts(): Promise<GeneratePressCounts> {
+  const res = await query<PressCountRow>(
+    `SELECT u.id AS user_id, u.username, u.first_name, u.last_name,
+            COALESCE(SUM(g.count), 0)::int AS presses
+     FROM generate_press_counters g JOIN users u ON u.id = g.user_id
+     GROUP BY u.id, u.username, u.first_name, u.last_name
+     ORDER BY presses DESC, u.id`,
+  )
+  const byUser = res.rows.map((r) => ({
+    userId: r.user_id,
+    username: r.username,
+    firstName: r.first_name,
+    lastName: r.last_name,
+    presses: r.presses,
+  }))
+  return { total: byUser.reduce((sum, u) => sum + u.presses, 0), byUser }
 }
