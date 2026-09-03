@@ -30,3 +30,16 @@ export interface UsageSummary {
   rollingDistinctDoctors: number
   openAlerts: number
 }
+
+export interface GeneratePressUserCount {
+  userId: number
+  username: string
+  firstName: string
+  lastName: string
+  presses: number
+}
+
+export interface GeneratePressCounts {
+  total: number
+  byUser: GeneratePressUserCount[]
+}
