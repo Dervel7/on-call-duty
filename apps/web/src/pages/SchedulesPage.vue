@@ -5,6 +5,7 @@ import type { ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import { useAuthStore } from '@/stores/auth'
 import * as scheduleService from '@/services/schedule'
+import * as usageService from '@/services/usage'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
@@ -70,20 +71,8 @@ function openGenerate() {
   gen.value.open = true
 }
 
-function goPreview() {
-  const parsed = createScheduleSchema.safeParse({
-    year: Number(gen.value.year),
-    month: Number(gen.value.month),
-  })
-  if (!parsed.success) {
-    gen.value.errorMsg = parsed.error.issues[0]?.message ?? 'Invalid input'
-    return
-  }
-  gen.value.open = false
-  router.push({ path: '/schedules/preview', query: { year: gen.value.year, month: gen.value.month } })
-}
-
 async function runGenerate() {
+  void usageService.recordGeneratePress().catch(() => {})
   gen.value.errorMsg = ''
   const parsed = createScheduleSchema.safeParse({
     year: Number(gen.value.year),
@@ -172,7 +161,6 @@ onMounted(load)
         </div>
 
         <div class="flex items-center gap-2">
-          <Button type="button" variant="outline" @click="goPreview">Preview</Button>
           <Button type="submit" :disabled="gen.generating">
             {{ gen.generating ? 'Generating…' : 'Generate' }}
           </Button>
@@ -180,7 +168,7 @@ onMounted(load)
 
         <p v-if="gen.errorMsg" class="text-sm text-destructive" role="alert">{{ gen.errorMsg }}</p>
         <p v-else class="text-xs text-muted-foreground">
-          Use Preview to review the proposed calendar before generating.
+          If the month cannot be filled, you will be taken to the preview to adjust it.
         </p>
       </form>
     </Dialog>

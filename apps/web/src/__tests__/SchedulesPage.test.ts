@@ -5,6 +5,10 @@ import { useAuthStore } from '@/stores/auth'
 
 const list = vi.fn()
 const generate = vi.fn()
+const recordGeneratePress = vi.fn()
+vi.mock('@/services/usage', () => ({
+  recordGeneratePress: (...a: unknown[]) => recordGeneratePress(...a),
+}))
 vi.mock('@/services/schedule', () => ({
   list: (...a: unknown[]) => list(...a),
   preview: vi.fn(),
@@ -36,6 +40,7 @@ beforeEach(() => {
   setActivePinia(createPinia())
   list.mockReset()
   generate.mockReset()
+  recordGeneratePress.mockReset()
   push.mockReset()
 })
 afterEach(() => vi.restoreAllMocks())
@@ -53,6 +58,7 @@ describe('SchedulesPage', () => {
       lastName: 'Roe',
     }
     list.mockResolvedValue([])
+    recordGeneratePress.mockResolvedValue(undefined)
     return mount(SchedulesPage, { global: { plugins: [pinia] } })
   }
 
@@ -71,20 +77,25 @@ describe('SchedulesPage', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('boom')
   })
 
-  it('Preview button navigates to the preview page with year/month', async () => {
+  it('dialog has no Preview button; Generate records a press before generating', async () => {
+    generate.mockResolvedValue({
+      schedule: { id: 7, year: 2026, month: 9, status: 'draft', createdBy: 1, createdAt: '', updatedAt: '' },
+      duties: [],
+      days: [],
+    })
     const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
     await flushPromises()
-    const previewBtn = Array.from(document.body.querySelectorAll('button'))
-      .map((el) => el)
-      .find((b) => b.textContent?.includes('Preview'))
-    expect(previewBtn).toBeTruthy()
-    previewBtn!.click()
+    const buttons = Array.from(document.body.querySelectorAll('button'))
+    expect(buttons.some((b) => b.textContent?.includes('Preview'))).toBe(false)
+    const generateBtn = buttons.find((b) => b.textContent?.includes('Generate'))
+    expect(generateBtn).toBeTruthy()
+    generateBtn!.click()
     await flushPromises()
-    expect(push).toHaveBeenCalledWith(
-      expect.objectContaining({ path: '/schedules/preview', query: expect.anything() }),
-    )
+    expect(recordGeneratePress).toHaveBeenCalledTimes(1)
+    expect(generate).toHaveBeenCalledWith(expect.any(Number), expect.any(Number))
+    expect(push).toHaveBeenCalledWith('/schedules/7')
   })
 
   it("hides 'New schedule' from doctors and shows it to administrators", async () => {

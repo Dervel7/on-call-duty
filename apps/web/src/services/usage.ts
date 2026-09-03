@@ -1,5 +1,5 @@
-import type { GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
-import { apiGet, apiPatch } from '@/lib/http'
+import type { GenerationEvent, GeneratePressCounts, OperatorAlert, UsageSummary } from '@oncall/shared'
+import { apiGet, apiPatch, apiPost } from '@/lib/http'
 
 export async function summary(): Promise<UsageSummary> {
   const { summary } = await apiGet<{ summary: UsageSummary }>('/usage/summary')
@@ -16,4 +16,11 @@ export async function alerts(): Promise<OperatorAlert[]> {
 export async function resolveAlert(id: number): Promise<OperatorAlert> {
   const { alert } = await apiPatch<{ alert: OperatorAlert }>(`/usage/alerts/${id}/resolve`)
   return alert
+}
+export async function recordGeneratePress(): Promise<void> {
+  await apiPost<void>('/usage/generate-presses', {})
+}
+export async function generatePresses(): Promise<GeneratePressCounts> {
+  const data = await apiGet<GeneratePressCounts>('/usage/generate-presses')
+  return data
 }
