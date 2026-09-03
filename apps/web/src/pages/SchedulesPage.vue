@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
+import { useAuthStore } from '@/stores/auth'
 import * as scheduleService from '@/services/schedule'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
@@ -17,6 +18,7 @@ import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 
 const router = useRouter()
+const auth = useAuthStore()
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -110,7 +112,7 @@ onMounted(load)
   <div class="flex flex-col gap-4">
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-semibold text-foreground">Schedules</h1>
-      <Button @click="openGenerate">New schedule</Button>
+      <Button v-if="auth.isAdmin" @click="openGenerate">New schedule</Button>
     </div>
 
     <div class="flex flex-wrap items-end gap-3">

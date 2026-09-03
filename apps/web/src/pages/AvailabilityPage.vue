@@ -42,6 +42,7 @@ interface EditState {
   startDate: string
   endDate: string
   note: string
+  errorMsg: string
 }
 
 const emptyEdit = (): EditState => ({
@@ -52,6 +53,7 @@ const emptyEdit = (): EditState => ({
   startDate: '',
   endDate: '',
   note: '',
+  errorMsg: '',
 })
 const edit = ref<EditState>(emptyEdit())
 
@@ -85,11 +87,12 @@ function openUpdate(x: Unavailability) {
     startDate: x.startDate,
     endDate: x.endDate,
     note: x.note ?? '',
+    errorMsg: '',
   }
 }
 
 async function save() {
-  errorMsg.value = ''
+  edit.value.errorMsg = ''
   if (edit.value.id === null) {
     const payload = {
       doctorId: Number(edit.value.doctorId),
@@ -100,15 +103,20 @@ async function save() {
     }
     const r = createUnavailabilityAdminSchema.safeParse(payload)
     if (!r.success) {
-      errorMsg.value = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
       return
     }
-    await unavailabilityService.createForDoctor(r.data.doctorId, {
-      type: r.data.type,
-      startDate: r.data.startDate,
-      endDate: r.data.endDate,
-      note: r.data.note,
-    })
+    try {
+      await unavailabilityService.createForDoctor(r.data.doctorId, {
+        type: r.data.type,
+        startDate: r.data.startDate,
+        endDate: r.data.endDate,
+        note: r.data.note,
+      })
+    } catch (e) {
+      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to create availability'
+      return
+    }
   } else {
     const payload: UpdateUnavailabilityRequest = {
       type: edit.value.type,
@@ -118,10 +126,15 @@ async function save() {
     }
     const r = updateUnavailabilitySchema.safeParse(payload)
     if (!r.success) {
-      errorMsg.value = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
       return
     }
-    await unavailabilityService.update(edit.value.id, r.data)
+    try {
+      await unavailabilityService.update(edit.value.id, r.data)
+    } catch (e) {
+      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to update availability'
+      return
+    }
   }
   edit.value = emptyEdit()
   await load()
@@ -136,7 +149,12 @@ async function remove(x: Unavailability) {
     }))
   )
     return
-  await unavailabilityService.remove(x.id)
+  try {
+    await unavailabilityService.remove(x.id)
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : 'Failed to delete availability'
+    return
+  }
   await load()
 }
 
@@ -238,6 +256,7 @@ onMounted(async () => {
           <Label for="e-note">Note (optional)</Label>
           <Input id="e-note" v-model="edit.note" />
         </div>
+        <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">
           <Button type="submit">Save</Button>
         </div>

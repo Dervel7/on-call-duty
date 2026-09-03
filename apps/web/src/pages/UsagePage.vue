@@ -40,7 +40,12 @@ async function load() {
 }
 
 async function resolve(a: OperatorAlert) {
-  await usageService.resolveAlert(a.id)
+  try {
+    await usageService.resolveAlert(a.id)
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : 'Failed to resolve alert'
+    return
+  }
   await load()
 }
 

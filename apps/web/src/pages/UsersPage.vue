@@ -29,6 +29,7 @@ interface EditState {
   lastName: string
   role: Role
   isActive: boolean
+  errorMsg: string
 }
 
 const emptyEdit = (): EditState => ({
@@ -40,6 +41,7 @@ const emptyEdit = (): EditState => ({
   lastName: '',
   role: 'doctor',
   isActive: true,
+  errorMsg: ''
 })
 const edit = ref<EditState>(emptyEdit())
 
@@ -69,6 +71,7 @@ function openUpdate(u: User) {
     lastName: u.lastName,
     role: u.role,
     isActive: u.isActive,
+    errorMsg: ''
   }
 }
 
@@ -85,10 +88,15 @@ async function save() {
     }
     const r = createUserSchema.safeParse(payload)
     if (!r.success) {
-      errorMsg.value = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
       return
     }
-    await userService.create(r.data)
+    try {
+      await userService.create(r.data)
+    } catch (e) {
+      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
+      return
+    }
   } else {
     const payload: UpdateUserRequest = {
       email: edit.value.email,
@@ -100,17 +108,27 @@ async function save() {
     }
     const r = updateUserSchema.safeParse(payload)
     if (!r.success) {
-      errorMsg.value = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
       return
     }
-    await userService.update(edit.value.id, r.data)
+    try {
+      await userService.update(edit.value.id, r.data)
+    } catch (e) {
+      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
+      return
+    }
   }
   edit.value = emptyEdit()
   await load()
 }
 
 async function toggleActive(u: User) {
-  await userService.update(u.id, { isActive: !u.isActive })
+  try {
+    await userService.update(u.id, { isActive: !u.isActive })
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : 'Failed to update user'
+    return
+  }
   await load()
 }
 
@@ -123,7 +141,12 @@ async function remove(u: User) {
     }))
   )
     return
-  await userService.remove(u.id)
+  try {
+    await userService.remove(u.id)
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : 'Failed to delete user'
+    return
+  }
   await load()
 }
 
@@ -203,6 +226,7 @@ onMounted(load)
         <p v-if="edit.id === null" class="text-xs text-muted-foreground">
           Initial password equals the email. The administrator should change it on first login.
         </p>
+        <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">
           <Button type="submit">Save</Button>
         </div>

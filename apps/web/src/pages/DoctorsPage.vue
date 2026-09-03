@@ -28,6 +28,7 @@ interface EditState {
   firstName: string
   lastName: string
   maxMonthlyDuties: string
+  errorMsg: string
 }
 
 const emptyEdit = (): EditState => ({
@@ -38,6 +39,7 @@ const emptyEdit = (): EditState => ({
   firstName: '',
   lastName: '',
   maxMonthlyDuties: '7',
+  errorMsg: ''
 })
 const edit = ref<EditState>(emptyEdit())
 
@@ -66,6 +68,7 @@ function openUpdate(d: Doctor) {
     firstName: d.firstName,
     lastName: d.lastName,
     maxMonthlyDuties: String(d.maxMonthlyDuties),
+    errorMsg: ''
   }
 }
 
@@ -82,10 +85,15 @@ async function save() {
     }
     const r = createDoctorSchema.safeParse(payload)
     if (!r.success) {
-      errorMsg.value = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
       return
     }
-    await doctorService.create(r.data)
+    try {
+      await doctorService.create(r.data)
+    } catch (e) {
+      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save doctor'
+      return
+    }
   } else {
     const payload: UpdateDoctorRequest = {
       email: edit.value.email,
@@ -96,17 +104,27 @@ async function save() {
     }
     const r = updateDoctorSchema.safeParse(payload)
     if (!r.success) {
-      errorMsg.value = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
       return
     }
-    await doctorService.update(edit.value.id, r.data)
+    try {
+      await doctorService.update(edit.value.id, r.data)
+    } catch (e) {
+      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save doctor'
+      return
+    }
   }
   edit.value = emptyEdit()
   await load()
 }
 
 async function toggleActive(d: Doctor) {
-  await doctorService.update(d.id, { isActive: !d.isActive })
+  try {
+    await doctorService.update(d.id, { isActive: !d.isActive })
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : 'Failed to update doctor'
+    return
+  }
   await load()
 }
 
@@ -119,7 +137,12 @@ async function deleteDoctor(d: Doctor) {
     }))
   )
     return
-  await doctorService.remove(d.id)
+  try {
+    await doctorService.remove(d.id)
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : 'Failed to delete doctor'
+    return
+  }
   await load()
 }
 
@@ -192,6 +215,7 @@ onMounted(load)
         <p v-if="edit.id === null" class="text-xs text-muted-foreground">
           Initial password equals the email. The doctor should change it on first login.
         </p>
+        <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">
           <Button type="submit">Save</Button>
         </div>

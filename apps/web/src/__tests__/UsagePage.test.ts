@@ -104,6 +104,20 @@ describe('UsagePage', () => {
     expect(resolveAlert).toHaveBeenCalledWith(2)
   })
 
+  it('shows a page-level error and does not reload when resolveAlert fails', async () => {
+    resolveAlert.mockRejectedValue(new Error('resolve failed'))
+    const wrapper = await mountPage()
+    const openBtn = wrapper
+      .findAll('button')
+      .filter((b) => b.text() === 'Resolve')
+      .find((b) => !(b.element as HTMLButtonElement).disabled)
+    await openBtn!.trigger('click')
+    await flushPromises()
+    expect(resolveAlert).toHaveBeenCalledWith(2)
+    expect(wrapper.find('[role="alert"]').text()).toContain('resolve failed')
+    expect(summary).toHaveBeenCalledTimes(1)
+  })
+
   it('shows an error message when loading fails', async () => {
     summary.mockRejectedValue(new Error('nope'))
     generations.mockResolvedValue([])
