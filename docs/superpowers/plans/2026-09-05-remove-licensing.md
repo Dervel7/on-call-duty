@@ -666,7 +666,7 @@ The file flows directly from the env-files block to `# Logs`. The plain `LICENSE
 - [ ] **Step 6: Verify no license references remain in deployment files**
 
 Run: `grep -riIn "licen" docker-compose.yml .env.example apps/api/.env.example .gitignore .dockerignore || echo CLEAN`
-Expected: `CLEAN`
+Expected: exactly one match — `.dockerignore:<n>:LICENSE` (the intentionally kept repo license text; Step 5 forbids removing it). Any other match is a failure.
 
 - [ ] **Step 7: Commit**
 
