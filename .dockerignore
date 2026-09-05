@@ -16,12 +16,6 @@
 **/.env
 **/.env.*
 
-# License signing keys & signed license files (mounted at runtime, never baked into images)
-**/*.pem
-license.json
-**/license.json
-**/*.license.json
-
 # Logs
 **/*.log
 .pnpm-debug.log*
