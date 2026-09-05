@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import type { GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
+import { computed, onMounted, ref } from 'vue'
+import type { GenerationEvent, OperatorAlert } from '@oncall/shared'
 import * as usageService from '@/services/usage'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -14,22 +14,21 @@ import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 
-const summary = ref<UsageSummary | null>(null)
 const generations = ref<GenerationEvent[]>([])
 const alerts = ref<OperatorAlert[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
 
+const openAlerts = computed(() => alerts.value.filter((a) => a.resolvedAt === null).length)
+
 async function load() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const [s, g, a] = await Promise.all([
-      usageService.summary(),
+    const [g, a] = await Promise.all([
       usageService.generations(),
       usageService.alerts(),
     ])
-    summary.value = s
     generations.value = g
     alerts.value = a
   } catch (e) {
@@ -67,38 +66,14 @@ onMounted(load)
     <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
-    <Card v-if="summary">
+    <Card>
       <CardHeader>
-        <CardTitle>License</CardTitle>
+        <CardTitle>Overview</CardTitle>
       </CardHeader>
       <CardContent class="flex flex-col gap-2">
         <p class="text-sm text-muted-foreground">
-          Licensee:
-          <span class="text-foreground">{{ summary.license.licensee }}</span>
-        </p>
-        <p class="text-sm text-muted-foreground">
-          Expiry:
-          <span class="text-foreground">{{ summary.license.expiresAt ?? 'no expiry (dev)' }}</span>
-        </p>
-        <p class="text-sm text-muted-foreground">
-          Distinct doctors (rolling):
-          <span
-            :class="
-              summary.rollingDistinctDoctors > summary.license.doctorAllowance
-                ? 'font-semibold text-destructive'
-                : 'text-foreground'
-            "
-          >
-            {{ summary.rollingDistinctDoctors }} / {{ summary.license.doctorAllowance }}
-          </span>
-        </p>
-        <p class="text-sm text-muted-foreground">
-          Rolling window:
-          <span class="text-foreground">{{ summary.license.rollingWindowDays }} days</span>
-        </p>
-        <p class="text-sm text-muted-foreground">
           Open alerts:
-          <span class="text-foreground">{{ summary.openAlerts }}</span>
+          <span class="text-foreground">{{ openAlerts }}</span>
         </p>
       </CardContent>
     </Card>

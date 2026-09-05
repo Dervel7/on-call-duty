@@ -1,31 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import type { GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
+import type { GenerationEvent, OperatorAlert } from '@oncall/shared'
 
-const summary = vi.fn()
 const generations = vi.fn()
 const alerts = vi.fn()
 const resolveAlert = vi.fn()
 vi.mock('@/services/usage', () => ({
-  summary: (...a: unknown[]) => summary(...a),
   generations: (...a: unknown[]) => generations(...a),
   alerts: (...a: unknown[]) => alerts(...a),
   resolveAlert: (...a: unknown[]) => resolveAlert(...a),
 }))
 
 import UsagePage from '../pages/UsagePage.vue'
-
-const summaryFixture: UsageSummary = {
-  license: {
-    licensee: 'General Hospital',
-    doctorAllowance: 25,
-    rollingWindowDays: 90,
-    expiresAt: null,
-  },
-  rollingDistinctDoctors: 12,
-  openAlerts: 1,
-}
 
 const generationsFixture: GenerationEvent[] = [
   {
@@ -41,8 +28,8 @@ const generationsFixture: GenerationEvent[] = [
 const alertsFixture: OperatorAlert[] = [
   {
     id: 1,
-    type: 'allowance_exceeded',
-    detail: { rollingDistinctDoctors: 12, doctorAllowance: 25 },
+    type: 'disjoint_regeneration',
+    detail: { overlapPercent: 40 },
     createdAt: '2026-08-02T07:00:00.000Z',
     resolvedAt: '2026-08-03T07:00:00.000Z',
   },
@@ -56,14 +43,12 @@ const alertsFixture: OperatorAlert[] = [
 ]
 
 function mockResolved() {
-  summary.mockResolvedValue(summaryFixture)
   generations.mockResolvedValue(generationsFixture)
   alerts.mockResolvedValue(alertsFixture)
 }
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  summary.mockReset()
   generations.mockReset()
   alerts.mockReset()
   resolveAlert.mockReset()
@@ -78,16 +63,14 @@ async function mountPage() {
 }
 
 describe('UsagePage', () => {
-  it('renders license numbers, generations, and alerts on mount', async () => {
+  it('renders the locally computed open-alert count, generations, and alerts on mount', async () => {
     const wrapper = await mountPage()
-    expect(wrapper.text()).toContain('General Hospital')
-    expect(wrapper.text()).toContain('12 / 25')
-    expect(wrapper.text()).toContain('90 days')
+    expect(wrapper.text()).toContain('Open alerts: 1')
     expect(wrapper.text()).toContain('2026-08')
     expect(wrapper.text()).toContain('Jane Roe, John Doe')
     expect(wrapper.text()).toContain('50%')
-    expect(wrapper.text()).toContain('allowance_exceeded')
     expect(wrapper.text()).toContain('disjoint_regeneration')
+    expect(wrapper.text()).not.toContain('License')
   })
 
   it('shows an enabled Resolve button for open alerts and calls resolveAlert on click', async () => {
@@ -115,12 +98,11 @@ describe('UsagePage', () => {
     await flushPromises()
     expect(resolveAlert).toHaveBeenCalledWith(2)
     expect(wrapper.find('[role="alert"]').text()).toContain('resolve failed')
-    expect(summary).toHaveBeenCalledTimes(1)
+    expect(generations).toHaveBeenCalledTimes(1)
   })
 
   it('shows an error message when loading fails', async () => {
-    summary.mockRejectedValue(new Error('nope'))
-    generations.mockResolvedValue([])
+    generations.mockRejectedValue(new Error('nope'))
     alerts.mockResolvedValue([])
     const wrapper = mount(UsagePage, { global: { plugins: [createPinia()] } })
     await flushPromises()

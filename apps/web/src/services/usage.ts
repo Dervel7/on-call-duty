@@ -1,10 +1,6 @@
-import type { GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
+import type { GenerationEvent, OperatorAlert } from '@oncall/shared'
 import { apiGet, apiPatch } from '@/lib/http'
 
-export async function summary(): Promise<UsageSummary> {
-  const { summary } = await apiGet<{ summary: UsageSummary }>('/usage/summary')
-  return summary
-}
 export async function generations(): Promise<GenerationEvent[]> {
   const { generations } = await apiGet<{ generations: GenerationEvent[] }>('/usage/generations')
   return generations
