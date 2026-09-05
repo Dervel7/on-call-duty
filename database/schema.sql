@@ -137,14 +137,20 @@ SELECT DISTINCT du.doctor_id, s.year, s.month, s.updated_at
 FROM duties du JOIN schedules s ON s.id = du.schedule_id
 WHERE NOT EXISTS (SELECT 1 FROM schedule_generation_log LIMIT 1);
 
--- Alert-only abuse flags, visible to the superadmin only.
+-- Alert-only flags, visible to the superadmin only.
+-- Licensing was removed: only disjoint_regeneration alerts remain. Legacy
+-- allowance_exceeded rows are deleted first so the constraint swap is safe.
 CREATE TABLE IF NOT EXISTS operator_alerts (
   id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  type        TEXT NOT NULL CHECK (type IN ('allowance_exceeded', 'disjoint_regeneration')),
+  type        TEXT NOT NULL CHECK (type IN ('disjoint_regeneration')),
   detail      JSONB NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   resolved_at TIMESTAMPTZ
 );
+DELETE FROM operator_alerts WHERE type = 'allowance_exceeded';
+ALTER TABLE operator_alerts DROP CONSTRAINT IF EXISTS operator_alerts_type_check;
+ALTER TABLE operator_alerts ADD CONSTRAINT operator_alerts_type_check
+  CHECK (type IN ('disjoint_regeneration'));
 CREATE INDEX IF NOT EXISTS idx_operator_alerts_open
   ON operator_alerts (type, resolved_at);
 
