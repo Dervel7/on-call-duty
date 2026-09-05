@@ -8,7 +8,6 @@ import { idParams } from '../validators/user'
 export const usageRouter = Router()
 
 usageRouter.use(authenticate)
-usageRouter.get('/summary', authorize('superadmin'), usageController.summary)
 usageRouter.get('/generations', authorize('superadmin'), usageController.generations)
 usageRouter.get('/alerts', authorize('superadmin'), usageController.alerts)
 usageRouter.patch(

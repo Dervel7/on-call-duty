@@ -7,7 +7,6 @@ if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL
 
 const { query, withTransaction } = await import('../db/client')
 const { overlapPercent, recordGeneration } = await import('../services/usage.service')
-const { license } = await import('../config/license')
 
 describe('overlapPercent', () => {
   it('returns 100 for identical sets', () => {
@@ -34,19 +33,10 @@ describe('overlapPercent', () => {
 
 const YEAR = 2030
 const MONTH = 7
-const SYNTHETIC_EMAIL_PREFIX = 'usage-t+'
-const SYNTHETIC_COUNT = license.doctorAllowance + 2
 
 let runStart = new Date(0)
 let groupA: number[] = []
 let groupB: number[] = []
-
-function unresolvedCount(type: string): Promise<number> {
-  return query<{ n: number }>(
-    `SELECT COUNT(*)::int AS n FROM operator_alerts WHERE type = $1 AND resolved_at IS NULL`,
-    [type],
-  ).then((r) => r.rows[0]?.n ?? 0)
-}
 
 function unresolvedDisjointForMonth(): Promise<number> {
   return query<{ n: number }>(
@@ -60,26 +50,16 @@ function unresolvedDisjointForMonth(): Promise<number> {
 async function cleanup(): Promise<void> {
   await query(
     `DELETE FROM operator_alerts
-     WHERE type IN ('allowance_exceeded', 'disjoint_regeneration') AND created_at >= $1`,
+     WHERE type = 'disjoint_regeneration' AND created_at >= $1`,
     [runStart],
   )
-  await query(
-    `DELETE FROM schedule_generation_log
-     WHERE year = $1
-        OR doctor_id IN (
-          SELECT d.id FROM doctors d JOIN users u ON u.id = d.user_id
-          WHERE u.email LIKE $2 || '%'
-        )`,
-    [YEAR, SYNTHETIC_EMAIL_PREFIX],
-  )
-  await query(`DELETE FROM users WHERE email LIKE $1 || '%'`, [SYNTHETIC_EMAIL_PREFIX])
+  await query(`DELETE FROM schedule_generation_log WHERE year = $1`, [YEAR])
 }
 
 async function deleteLeftoverAlerts(): Promise<void> {
   await query(
     `DELETE FROM operator_alerts
-     WHERE (type = 'disjoint_regeneration' AND detail->>'year' = $1 AND detail->>'month' = $2)
-        OR (type = 'allowance_exceeded' AND resolved_at IS NULL)`,
+     WHERE type = 'disjoint_regeneration' AND detail->>'year' = $1 AND detail->>'month' = $2`,
     [String(YEAR), String(MONTH)],
   )
 }
@@ -105,7 +85,6 @@ describe('recordGeneration (real database)', () => {
     )
     expect(logged.rows[0]?.n).toBe(groupA.length)
     expect(await unresolvedDisjointForMonth()).toBe(0)
-    expect(await unresolvedCount('allowance_exceeded')).toBe(0)
   })
 
   it('raises exactly one disjoint_regeneration alert for a <50% overlap regeneration', async () => {
@@ -127,30 +106,6 @@ describe('recordGeneration (real database)', () => {
 
   it('raises no new alert when regenerating with the same roster', async () => {
     await withTransaction((client) => recordGeneration(client, YEAR, MONTH, groupA))
-    expect(await unresolvedDisjointForMonth()).toBe(1)
-  })
-
-  it('raises exactly one allowance_exceeded alert when distinct doctors exceed the allowance', async () => {
-    await query(
-      `INSERT INTO users (email, username, password_hash, role, first_name, last_name, is_active)
-       SELECT $1 || g || '@oncall.test', 'usage-t-' || g, 'not-a-real-hash', 'doctor', 'Usage', 'Test' || g, TRUE
-       FROM generate_series(1, $2) AS g`,
-      [SYNTHETIC_EMAIL_PREFIX, SYNTHETIC_COUNT],
-    )
-    await query(
-      `INSERT INTO doctors (user_id, max_monthly_duties)
-       SELECT id, 7 FROM users WHERE email LIKE $1 || '%'`,
-      [SYNTHETIC_EMAIL_PREFIX],
-    )
-    await query(
-      `INSERT INTO schedule_generation_log (doctor_id, year, month)
-       SELECT d.id, $1, $2 FROM doctors d JOIN users u ON u.id = d.user_id
-       WHERE u.email LIKE $3 || '%'`,
-      [YEAR, MONTH + 1, SYNTHETIC_EMAIL_PREFIX],
-    )
-
-    await withTransaction((client) => recordGeneration(client, YEAR, MONTH, groupA))
-    expect(await unresolvedCount('allowance_exceeded')).toBe(1)
     expect(await unresolvedDisjointForMonth()).toBe(1)
   })
 })

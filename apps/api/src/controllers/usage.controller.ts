@@ -3,14 +3,6 @@ import { ok } from '../lib/envelope'
 import * as usageService from '../services/usage.service'
 
 export const usageController = {
-  async summary(_req: Request, res: Response, next: NextFunction) {
-    try {
-      const summary = await usageService.summary()
-      res.status(200).json(ok({ summary }))
-    } catch (err) {
-      next(err)
-    }
-  },
   async generations(_req: Request, res: Response, next: NextFunction) {
     try {
       const generations = await usageService.generations()

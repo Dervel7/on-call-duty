@@ -1,6 +1,5 @@
 import type { PoolClient } from 'pg'
-import type { GenerationEvent, OperatorAlert, UsageSummary } from '@oncall/shared'
-import { license } from '../config/license'
+import type { GenerationEvent, OperatorAlert } from '@oncall/shared'
 import { query } from '../db/client'
 import { HttpError } from '../lib/http-error'
 
@@ -30,26 +29,6 @@ export async function recordGeneration(
     await client.query(
       'INSERT INTO schedule_generation_log (doctor_id, year, month) VALUES ($1, $2, $3)',
       [doctorId, year, month],
-    )
-  }
-
-  // Rule 1: rolling allowance over distinct doctors within the window.
-  const rolling = await client.query<{ n: number }>(
-    `SELECT COUNT(DISTINCT doctor_id)::int AS n FROM schedule_generation_log
-     WHERE created_at >= NOW() - ($1 || ' days')::interval`,
-    [license.rollingWindowDays],
-  )
-  const distinct = rolling.rows[0]?.n ?? 0
-  if (distinct > license.doctorAllowance) {
-    await client.query(
-      `INSERT INTO operator_alerts (type, detail)
-       SELECT 'allowance_exceeded',
-              jsonb_build_object('distinctDoctors', $1::int, 'allowance', $2::int, 'windowDays', $3::int)
-       WHERE NOT EXISTS (
-         SELECT 1 FROM operator_alerts
-         WHERE type = 'allowance_exceeded' AND resolved_at IS NULL
-       )`,
-      [distinct, license.doctorAllowance, license.rollingWindowDays],
     )
   }
 
@@ -113,7 +92,7 @@ export async function recordGeneration(
 
 interface AlertRow {
   id: number
-  type: 'allowance_exceeded' | 'disjoint_regeneration'
+  type: 'disjoint_regeneration'
   detail: Record<string, unknown>
   created_at: Date
   resolved_at: Date | null
@@ -126,27 +105,6 @@ function toAlert(row: AlertRow): OperatorAlert {
     detail: row.detail,
     createdAt: row.created_at.toISOString(),
     resolvedAt: row.resolved_at ? row.resolved_at.toISOString() : null,
-  }
-}
-
-export async function summary(): Promise<UsageSummary> {
-  const res = await query<{ n: number }>(
-    `SELECT COUNT(DISTINCT doctor_id)::int AS n FROM schedule_generation_log
-     WHERE created_at >= NOW() - ($1 || ' days')::interval`,
-    [license.rollingWindowDays],
-  )
-  const open = await query<{ n: number }>(
-    'SELECT COUNT(*)::int AS n FROM operator_alerts WHERE resolved_at IS NULL',
-  )
-  return {
-    license: {
-      licensee: license.licensee,
-      doctorAllowance: license.doctorAllowance,
-      rollingWindowDays: license.rollingWindowDays,
-      expiresAt: license.expiresAt,
-    },
-    rollingDistinctDoctors: res.rows[0]?.n ?? 0,
-    openAlerts: open.rows[0]?.n ?? 0,
   }
 }
 

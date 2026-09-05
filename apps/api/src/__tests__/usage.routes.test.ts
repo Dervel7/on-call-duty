@@ -27,40 +27,45 @@ beforeEach(() => query.mockReset())
 
 describe('usage routes', () => {
   it('unauthenticated is 401', async () => {
-    const res = await request(build()).get('/usage/summary')
+    const res = await request(build()).get('/usage/generations')
     expect(res.status).toBe(401)
   })
 
-  it('administrator is forbidden from the usage summary (403)', async () => {
+  it('administrator is forbidden from usage (403)', async () => {
     const res = await request(build())
-      .get('/usage/summary')
+      .get('/usage/generations')
       .set('Authorization', `Bearer ${adminToken()}`)
     expect(res.status).toBe(403)
   })
 
-  it('doctor is forbidden from the usage summary (403)', async () => {
+  it('doctor is forbidden from usage (403)', async () => {
     const res = await request(build())
-      .get('/usage/summary')
+      .get('/usage/alerts')
       .set('Authorization', `Bearer ${doctorToken()}`)
     expect(res.status).toBe(403)
   })
 
-  it('superadmin reads the usage summary (200, license allowance present)', async () => {
-    query.mockResolvedValue({ rows: [{ n: 3 }] })
+  it('superadmin reads generation history (200)', async () => {
+    query.mockResolvedValue({ rows: [] })
     const res = await request(build())
-      .get('/usage/summary')
+      .get('/usage/generations')
       .set('Authorization', `Bearer ${superadminToken()}`)
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
-    expect(typeof res.body.data.summary.license.doctorAllowance).toBe('number')
-    expect(res.body.data.summary.rollingDistinctDoctors).toBe(3)
-    expect(res.body.data.summary.openAlerts).toBe(3)
+    expect(res.body.data.generations).toEqual([])
   })
 
   it('superadmin resolving a missing alert is 404', async () => {
     query.mockResolvedValue({ rows: [] })
     const res = await request(build())
       .patch('/usage/alerts/999999/resolve')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+    expect(res.status).toBe(404)
+  })
+
+  it('usage summary no longer exists (404)', async () => {
+    const res = await request(build())
+      .get('/usage/summary')
       .set('Authorization', `Bearer ${superadminToken()}`)
     expect(res.status).toBe(404)
   })

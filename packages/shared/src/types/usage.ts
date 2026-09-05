@@ -1,10 +1,3 @@
-export interface LicenseInfo {
-  licensee: string
-  doctorAllowance: number
-  rollingWindowDays: number
-  expiresAt: string | null
-}
-
 export interface GenerationEvent {
   year: number
   month: number
@@ -15,7 +8,7 @@ export interface GenerationEvent {
   overlapPercent: number | null
 }
 
-export type OperatorAlertType = 'allowance_exceeded' | 'disjoint_regeneration'
+export type OperatorAlertType = 'disjoint_regeneration'
 
 export interface OperatorAlert {
   id: number
@@ -23,10 +16,4 @@ export interface OperatorAlert {
   detail: Record<string, unknown>
   createdAt: string
   resolvedAt: string | null
-}
-
-export interface UsageSummary {
-  license: LicenseInfo
-  rollingDistinctDoctors: number
-  openAlerts: number
 }
