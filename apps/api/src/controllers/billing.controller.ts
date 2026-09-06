@@ -11,6 +11,14 @@ export const billingController = {
       next(err)
     }
   },
+  async paymentAlert(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const paymentAlert = await billingService.getPaymentAlert()
+      res.status(200).json(ok({ paymentAlert }))
+    } catch (err) {
+      next(err)
+    }
+  },
   async setPaidThrough(req: Request, res: Response, next: NextFunction) {
     try {
       const billing = await billingService.setPaidThrough(req.body, req.user!)
@@ -18,5 +26,5 @@ export const billingController = {
     } catch (err) {
       next(err)
     }
-  },
+  }
 }

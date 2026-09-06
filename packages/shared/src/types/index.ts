@@ -47,7 +47,7 @@ export type {
   MeStats,
 } from './stats'
 export type { ReportQuery, MonthlyReport } from './reports'
-export type { BillingState, UpdateBillingRequest } from './settings'
+export type { BillingState, PaymentAlert, UpdateBillingRequest } from './settings'
 export * from './usage'
 export type {
   ActivityActor,

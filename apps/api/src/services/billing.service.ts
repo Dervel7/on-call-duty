@@ -1,4 +1,4 @@
-import type { AuthUser, BillingState, UpdateBillingRequest } from '@oncall/shared'
+import type { AuthUser, BillingState, PaymentAlert, UpdateBillingRequest } from '@oncall/shared'
 import { query } from '../db/client'
 import { logActivity } from './activity.service'
 
@@ -26,6 +26,18 @@ export async function getState(): Promise<BillingState> {
   const row = res.rows[0]
   if (!row) return { paidThrough: null, locked: false }
   return { paidThrough: row.value, locked: row.locked }
+}
+
+/**
+ * Days remaining before the deadline, computed in SQL against the database's
+ * CURRENT_DATE like the lock check. Null when no deadline is set.
+ */
+export async function getPaymentAlert(): Promise<PaymentAlert> {
+  const res = await query<{ days_left: number | null }>(
+    `SELECT (value::date - CURRENT_DATE) AS days_left FROM app_meta WHERE key = $1`,
+    [KEY],
+  )
+  return { daysLeft: res.rows[0]?.days_left ?? null }
 }
 
 export async function setPaidThrough(

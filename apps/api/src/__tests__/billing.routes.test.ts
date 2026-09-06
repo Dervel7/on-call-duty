@@ -5,10 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const isLocked = vi.fn()
 const getState = vi.fn()
 const setPaidThrough = vi.fn()
+const getPaymentAlert = vi.fn()
 vi.mock('../services/billing.service', () => ({
   isLocked: (...a: unknown[]) => isLocked(...a),
   getState: (...a: unknown[]) => getState(...a),
   setPaidThrough: (...a: unknown[]) => setPaidThrough(...a),
+  getPaymentAlert: (...a: unknown[]) => getPaymentAlert(...a),
 }))
 
 import { signAccessToken } from '../lib/jwt'
@@ -32,6 +34,7 @@ beforeEach(() => {
   isLocked.mockResolvedValue(false)
   getState.mockReset()
   setPaidThrough.mockReset()
+  getPaymentAlert.mockReset()
 })
 
 describe('billing routes', () => {
@@ -87,5 +90,21 @@ describe('billing routes', () => {
       .send({ paidThrough: '2026-02-30' })
     expect(impossible.status).toBe(400)
     expect(setPaidThrough).not.toHaveBeenCalled()
+  })
+
+  it('payment-alert: administrator reads it (200), doctor is 403', async () => {
+    getPaymentAlert.mockResolvedValue({ daysLeft: 3 })
+    const res = await request(build())
+      .get('/billing/payment-alert')
+      .set('Authorization', `Bearer ${administratorToken()}`)
+    expect(res.status).toBe(200)
+    expect(res.body.data.paymentAlert).toEqual({ daysLeft: 3 })
+    expect(getPaymentAlert).toHaveBeenCalledTimes(1)
+
+    const denied = await request(build())
+      .get('/billing/payment-alert')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+    expect(denied.status).toBe(403)
+    expect(denied.body.error).toBe('Forbidden')
   })
 })

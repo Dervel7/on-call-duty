@@ -17,6 +17,7 @@ import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 import * as statsService from '@/services/stats'
+import * as billingService from '@/services/billing'
 
 const router = useRouter()
 const MONTHS = [
@@ -30,9 +31,17 @@ const month = ref(String(now.getUTCMonth() + 1))
 
 const stats = ref<AdminStats | null>(null)
 const loading = ref(false)
+const paymentDaysLeft = ref<number | null>(null)
 const errorMsg = ref('')
 
+const paymentLabel = computed(() => {
+  const days = paymentDaysLeft.value
+  if (days === null || days < 0 || days > 3) return ''
+  if (days === 0) return 'Payment deadline: due today'
+  return `Payment deadline: ${days} ${days === 1 ? 'day' : 'days'} left`
+})
 const monthLabel = computed(() => `${MONTHS[Number(month.value) - 1]} ${year.value}`)
+
 const maxInSet = computed(() =>
   stats.value ? Math.max(1, ...stats.value.workload.map((w) => w.duties)) : 1,
 )
@@ -56,15 +65,31 @@ async function load() {
   }
 }
 
+async function loadPaymentAlert() {
+  // Advisory only — a failed fetch must never break the dashboard.
+  try {
+    paymentDaysLeft.value = (await billingService.paymentAlert()).daysLeft
+  } catch {
+    paymentDaysLeft.value = null
+  }
+}
+
 function gotoSchedules() {
   router.push('/schedules')
 }
 
 onMounted(load)
+onMounted(loadPaymentAlert)
 </script>
 
 <template>
   <div class="flex flex-col gap-4">
+    <div
+      v-if="paymentLabel"
+      role="alert"
+      class="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+      {{ paymentLabel }}
+    </div>
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
         <Label for="s-year">Year</Label>

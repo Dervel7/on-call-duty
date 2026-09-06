@@ -13,7 +13,7 @@ vi.mock('../services/activity.service', () => ({
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
 
-import { getState, isLocked, setPaidThrough } from '../services/billing.service'
+import { getPaymentAlert, getState, isLocked, setPaidThrough } from '../services/billing.service'
 
 const KEY = 'billing_paid_through'
 
@@ -35,6 +35,12 @@ beforeEach(() => {
     // on ISO dates is the same comparison.
     const locked = value < new Date().toISOString().slice(0, 10)
     if (sql.includes('SELECT value,')) return { rows: [{ value, locked }] }
+    if (sql.includes('AS days_left')) {
+      // Postgres date subtraction yields whole calendar days; mirror in JS.
+      const today = new Date().toISOString().slice(0, 10)
+      const daysLeft = Math.round((Date.parse(value) - Date.parse(today)) / 86_400_000)
+      return { rows: [{ days_left: daysLeft }] }
+    }
     if (sql.includes('AS locked')) return { rows: [{ locked }] }
     return { rows: [{ value }] }
   })
@@ -76,5 +82,17 @@ describe('billing.service', () => {
     expect(logActivity).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 1, detail: { previous: null, paidThrough } }),
     )
+  })
+
+  it('getPaymentAlert: no deadline set means null daysLeft', async () => {
+    await expect(getPaymentAlert()).resolves.toEqual({ daysLeft: null })
+  })
+
+  it('getPaymentAlert: counts whole days until the deadline', async () => {
+    const shift = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+    appMeta.set(KEY, shift(3))
+    await expect(getPaymentAlert()).resolves.toEqual({ daysLeft: 3 })
+    appMeta.set(KEY, shift(0))
+    await expect(getPaymentAlert()).resolves.toEqual({ daysLeft: 0 })
   })
 })

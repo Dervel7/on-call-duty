@@ -5,6 +5,7 @@ import type { ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import { useAuthStore } from '@/stores/auth'
 import * as scheduleService from '@/services/schedule'
+import { ApiError } from '@/lib/http'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
@@ -70,19 +71,6 @@ function openGenerate() {
   gen.value.open = true
 }
 
-function goPreview() {
-  const parsed = createScheduleSchema.safeParse({
-    year: Number(gen.value.year),
-    month: Number(gen.value.month),
-  })
-  if (!parsed.success) {
-    gen.value.errorMsg = parsed.error.issues[0]?.message ?? 'Invalid input'
-    return
-  }
-  gen.value.open = false
-  router.push({ path: '/schedules/preview', query: { year: gen.value.year, month: gen.value.month } })
-}
-
 async function runGenerate() {
   gen.value.errorMsg = ''
   const parsed = createScheduleSchema.safeParse({
@@ -99,6 +87,14 @@ async function runGenerate() {
     gen.value.open = false
     router.push(`/schedules/${detail.schedule.id}`)
   } catch (e) {
+    if (e instanceof ApiError && e.status === 422) {
+      gen.value.open = false
+      router.push({
+        path: '/schedules/preview',
+        query: { year: gen.value.year, month: gen.value.month },
+      })
+      return
+    }
     gen.value.errorMsg = e instanceof Error ? e.message : 'Failed to generate'
   } finally {
     gen.value.generating = false
@@ -168,16 +164,12 @@ onMounted(load)
         </div>
 
         <div class="flex items-center gap-2">
-          <Button type="button" variant="outline" @click="goPreview">Preview</Button>
           <Button type="submit" :disabled="gen.generating">
             {{ gen.generating ? 'Generating…' : 'Generate' }}
           </Button>
         </div>
 
         <p v-if="gen.errorMsg" class="text-sm text-destructive" role="alert">{{ gen.errorMsg }}</p>
-        <p v-else class="text-xs text-muted-foreground">
-          Use Preview to review the proposed calendar before generating.
-        </p>
       </form>
     </Dialog>
   </div>

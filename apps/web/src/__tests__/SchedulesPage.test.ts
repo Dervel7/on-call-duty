@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
+import { ApiError } from '@/lib/http'
 
 const list = vi.fn()
 const generate = vi.fn()
@@ -71,20 +72,61 @@ describe('SchedulesPage', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('boom')
   })
 
-  it('Preview button navigates to the preview page with year/month', async () => {
+  it('Generate creates the schedule and opens its plan', async () => {
     const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
     await flushPromises()
-    const previewBtn = Array.from(document.body.querySelectorAll('button'))
-      .map((el) => el)
-      .find((b) => b.textContent?.includes('Preview'))
-    expect(previewBtn).toBeTruthy()
-    previewBtn!.click()
+
+    const dialogButtons = Array.from(document.body.querySelectorAll('button'))
+      .map((b) => b.textContent ?? '')
+    expect(dialogButtons.some((t) => t.includes('Preview'))).toBe(false)
+
+    const form = document.body.querySelector('form')!
+    const year = form.querySelector('#g-year') as HTMLInputElement
+    year.value = '2027'
+    year.dispatchEvent(new Event('input', { bubbles: true }))
+    const month = form.querySelector('#g-month') as HTMLSelectElement
+    month.value = '3'
+    month.dispatchEvent(new Event('change', { bubbles: true }))
+
+    generate.mockResolvedValue({ schedule: { id: 7 } })
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     await flushPromises()
-    expect(push).toHaveBeenCalledWith(
-      expect.objectContaining({ path: '/schedules/preview', query: expect.anything() }),
+
+    expect(generate).toHaveBeenCalledWith(2027, 3)
+    expect(push).toHaveBeenCalledWith('/schedules/7')
+    expect(document.body.querySelector('form')).toBeNull()
+  })
+
+  it('Generate with unfillable days opens the preview to resolve conflicts', async () => {
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
+    await flushPromises()
+
+    const form = document.body.querySelector('form')!
+    const year = form.querySelector('#g-year') as HTMLInputElement
+    year.value = '2027'
+    year.dispatchEvent(new Event('input', { bubbles: true }))
+    const month = form.querySelector('#g-month') as HTMLSelectElement
+    month.value = '3'
+    month.dispatchEvent(new Event('change', { bubbles: true }))
+
+    generate.mockRejectedValue(
+      new ApiError(
+        'Schedule has 4 unfillable day(s); Preview the schedule and resolve conflicts before generating a plan',
+        422,
+      ),
     )
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+
+    expect(push).toHaveBeenCalledWith({
+      path: '/schedules/preview',
+      query: { year: '2027', month: '3' },
+    })
+    expect(document.body.querySelector('form')).toBeNull()
   })
 
   it("hides 'New schedule' from doctors and shows it to administrators", async () => {

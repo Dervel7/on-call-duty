@@ -7,6 +7,10 @@ vi.mock('@/services/stats', () => ({
   admin: (...a: unknown[]) => admin(...a),
   me: vi.fn(),
 }))
+const paymentAlert = vi.fn()
+vi.mock('@/services/billing', () => ({
+  paymentAlert: (...a: unknown[]) => paymentAlert(...a),
+}))
 const push = vi.fn()
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
@@ -57,6 +61,8 @@ beforeEach(() => {
   setActivePinia(createPinia())
   admin.mockReset()
   push.mockReset()
+  paymentAlert.mockReset()
+  paymentAlert.mockResolvedValue({ daysLeft: null })
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -106,5 +112,35 @@ describe('AdminDashboard', () => {
     await apply.trigger('click')
     await flushPromises()
     expect(admin).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows a red payment alert when the deadline is 3 days out', async () => {
+    admin.mockResolvedValue(fullStats())
+    paymentAlert.mockResolvedValue({ daysLeft: 3 })
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(w.find('[role="alert"]').exists()).toBe(true)
+    expect(w.text()).toContain('Payment deadline: 3 days left')
+  })
+
+  it('shows due today on the deadline day and 1 day left the day before', async () => {
+    admin.mockResolvedValue(fullStats())
+    paymentAlert.mockResolvedValue({ daysLeft: 1 })
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(w.text()).toContain('Payment deadline: 1 day left')
+
+    paymentAlert.mockResolvedValue({ daysLeft: 0 })
+    const w0 = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(w0.text()).toContain('Payment deadline: due today')
+  })
+
+  it('shows no payment alert beyond 3 days or without a deadline', async () => {
+    admin.mockResolvedValue(fullStats())
+    paymentAlert.mockResolvedValue({ daysLeft: 12 })
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(w.find('[role="alert"]').exists()).toBe(false)
   })
 })
