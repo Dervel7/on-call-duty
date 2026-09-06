@@ -1,3 +1,5 @@
+import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
+
 const BASE_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000'
 
@@ -20,6 +22,12 @@ type RefreshHandler = () => Promise<string | null>
 let refreshHandler: RefreshHandler | null = null
 export function setRefreshHandler(fn: RefreshHandler | null): void {
   refreshHandler = fn
+}
+
+type LockedHandler = () => void
+let lockedHandler: LockedHandler | null = null
+export function setLockedHandler(fn: LockedHandler | null): void {
+  lockedHandler = fn
 }
 
 interface Envelope {
@@ -67,6 +75,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   const json = await parseEnvelope(res)
   if (res.ok && json.success === true) return json.data as T
+  if (res.status === 403 && json.error === SYSTEM_LOCKED_MESSAGE) lockedHandler?.()
   throw new ApiError(json.error ?? 'Request failed', res.status)
 }
 

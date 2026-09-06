@@ -8,6 +8,7 @@ import { notFound } from './middleware/not-found'
 import { requestLogger } from './middleware/request-logger'
 import { authRouter } from './routes/auth.routes'
 import { activityRouter } from './routes/activity.routes'
+import { billingRouter } from './routes/billing.routes'
 import { doctorRouter } from './routes/doctor.routes'
 import { healthRouter } from './routes/health.routes'
 import { holidayRouter } from './routes/holiday.routes'
@@ -32,6 +33,7 @@ app.use(requestLogger)
 
 app.use('/health', healthRouter)
 app.use('/auth', authRouter)
+app.use('/billing', billingRouter)
 app.use('/activity', activityRouter)
 app.use('/users', userRouter)
 app.use('/doctors', doctorRouter)

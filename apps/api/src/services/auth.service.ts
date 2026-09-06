@@ -3,6 +3,8 @@ import { query } from '../db/client'
 import { HttpError } from '../lib/http-error'
 import { signAccessToken } from '../lib/jwt'
 import type { AuthUser, ChangePasswordRequest, LoginRequest, Role } from '@oncall/shared'
+import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
+import * as billingService from './billing.service'
 import { logActivity } from './activity.service'
 import * as tokenService from './token.service'
 
@@ -69,6 +71,11 @@ export async function login(
   const ok = await bcrypt.compare(input.password, hash)
   if (!row || !ok) throw new HttpError(401, 'Invalid credentials')
   if (!row.is_active) throw new HttpError(403, 'Account disabled')
+  // Lock check after credential/is_active checks so lock state is never
+  // leaked to unauthenticated callers.
+  if (row.role !== 'superadmin' && (await billingService.isLocked())) {
+    throw new HttpError(403, SYSTEM_LOCKED_MESSAGE)
+  }
   const accessToken = signAccessToken({ sub: row.id, role: row.role })
   const refreshToken = await tokenService.issueRefreshToken(row.id)
   await logActivity({ userId: row.id, action: 'auth.login', entityType: 'auth', entityId: null })
@@ -82,6 +89,9 @@ export async function refresh(
   const row = await findUserById(userId)
   if (!row) throw new HttpError(401, 'Invalid refresh token')
   if (!row.is_active) throw new HttpError(403, 'Account disabled')
+  if (row.role !== 'superadmin' && (await billingService.isLocked())) {
+    throw new HttpError(403, SYSTEM_LOCKED_MESSAGE)
+  }
   const accessToken = signAccessToken({ sub: row.id, role: row.role })
   return { user: toAuthUser(row), accessToken, refreshToken: newToken }
 }

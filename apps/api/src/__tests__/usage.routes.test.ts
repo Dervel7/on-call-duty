@@ -6,6 +6,9 @@ const query = vi.fn()
 vi.mock('../db/client', () => ({
   query: (...a: unknown[]) => query(...a),
 }))
+// authenticate consults the billing lock on every request; route tests stub it unlocked.
+vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+
 
 import { errorHandler } from '../middleware/error-handler'
 import { signAccessToken } from '../lib/jwt'

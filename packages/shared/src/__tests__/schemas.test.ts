@@ -234,3 +234,13 @@ describe('schedule schemas', () => {
     ).toBe(false)
   })
 })
+
+import { updateBillingSchema } from '../index'
+
+describe('billing schemas', () => {
+  it('updateBillingSchema accepts a real calendar date and rejects malformed ones', () => {
+    expect(updateBillingSchema.safeParse({ paidThrough: '2026-12-31' }).success).toBe(true)
+    expect(updateBillingSchema.safeParse({ paidThrough: '2026-02-30' }).success).toBe(false)
+    expect(updateBillingSchema.safeParse({ paidThrough: 'oops' }).success).toBe(false)
+  })
+})

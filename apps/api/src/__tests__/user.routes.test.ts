@@ -5,6 +5,9 @@ vi.mock('../db/client', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
+// authenticate consults the billing lock on every request; route tests stub it unlocked.
+vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+
 
 const logActivity = vi.fn()
 const recordActivity = vi.fn()

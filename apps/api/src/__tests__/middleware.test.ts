@@ -1,6 +1,14 @@
+import { beforeEach, expect, test, vi } from 'vitest'
+
+const isLocked = vi.fn()
+vi.mock('../services/billing.service', () => ({
+  isLocked: (...a: unknown[]) => isLocked(...a),
+}))
+
 import express from 'express'
 import request from 'supertest'
 import { z } from 'zod'
+import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
 import { signAccessToken } from '../lib/jwt'
 import { errorHandler } from '../middleware/error-handler'
 import { validate } from '../middleware/validate'
@@ -22,6 +30,11 @@ function build() {
   app.use(errorHandler)
   return app
 }
+
+beforeEach(() => {
+  isLocked.mockReset()
+  isLocked.mockResolvedValue(false)
+})
 
 test('validate rejects bad body with 400', async () => {
   const res = await request(build()).post('/v').send({ x: 'a' })
@@ -46,4 +59,20 @@ test('authorize forbids non-admin (403) and allows admin (200)', async () => {
   const adm = signAccessToken({ sub: 2, role: 'administrator' })
   expect((await request(app).get('/admin').set('Authorization', `Bearer ${doc}`)).status).toBe(403)
   expect((await request(app).get('/admin').set('Authorization', `Bearer ${adm}`)).status).toBe(200)
+})
+
+test('authenticate blocks doctor with 403 SYSTEM_LOCKED_MESSAGE while locked', async () => {
+  isLocked.mockResolvedValue(true)
+  const token = signAccessToken({ sub: 7, role: 'doctor' })
+  const res = await request(build()).get('/me').set('Authorization', `Bearer ${token}`)
+  expect(res.status).toBe(403)
+  expect(res.body.error).toBe(SYSTEM_LOCKED_MESSAGE)
+})
+
+test('authenticate lets superadmin through while locked', async () => {
+  isLocked.mockResolvedValue(true)
+  const token = signAccessToken({ sub: 7, role: 'superadmin' })
+  const res = await request(build()).get('/me').set('Authorization', `Bearer ${token}`)
+  expect(res.status).toBe(200)
+  expect(res.body.data).toEqual({ id: 7, role: 'superadmin' })
 })

@@ -18,6 +18,12 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true },
   },
   {
+    path: '/locked',
+    name: 'locked',
+    component: () => import('../pages/LockedPage.vue'),
+    meta: { public: true },
+  },
+  {
     path: '/',
     component: () => import('../layouts/DefaultLayout.vue'),
     children: [

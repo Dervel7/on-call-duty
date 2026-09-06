@@ -138,8 +138,9 @@ FROM duties du JOIN schedules s ON s.id = du.schedule_id
 WHERE NOT EXISTS (SELECT 1 FROM schedule_generation_log LIMIT 1);
 
 -- Alert-only flags, visible to the superadmin only.
--- Licensing was removed: only disjoint_regeneration alerts remain. Legacy
--- allowance_exceeded rows are deleted first so the constraint swap is safe.
+-- operator_alerts stays disjoint_regeneration-only; the Phase 13 billing
+-- lockdown lives in app_meta, not here. Legacy allowance_exceeded rows are
+-- still deleted first so the constraint swap is safe.
 CREATE TABLE IF NOT EXISTS operator_alerts (
   id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   type        TEXT NOT NULL CHECK (type IN ('disjoint_regeneration')),
@@ -181,3 +182,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_live
   ON users (email) WHERE is_deleted = FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_live
   ON users (username) WHERE is_deleted = FALSE;
+
+-- Phase 13: Billing lockdown
+-- app_meta key 'billing_paid_through' (value 'YYYY-MM-DD'): non-superadmin
+-- access is refused while CURRENT_DATE > value. A missing row means unlocked
+-- (paidThrough reported as null). No DDL needed — app_meta exists since Phase 1.

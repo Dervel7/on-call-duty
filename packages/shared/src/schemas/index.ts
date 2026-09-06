@@ -27,4 +27,5 @@ export {
 export { statsQuerySchema } from './stats'
 export { reportQuerySchema } from './reports'
 export { ACTIVITY_ACTIONS, activityQuerySchema } from './audit'
+export { updateBillingSchema, SYSTEM_LOCKED_MESSAGE } from './settings'
 export type { ActivityAction } from './audit'

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { AuthUser } from '@oncall/shared'
-import { setRefreshHandler } from '@/lib/http'
+import { setLockedHandler, setRefreshHandler } from '@/lib/http'
 import * as authService from '@/services/auth'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -52,6 +52,14 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   setRefreshHandler(refresh)
+
+  setLockedHandler(() => {
+    user.value = null
+    accessToken.value = null
+    import('@/router')
+      .then(({ router }) => router.push({ name: 'locked' }))
+      .catch(() => {})
+  })
 
   return {
     user,

@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
 import {
   ApiError,
   apiDelete,
   apiGet,
   apiPost,
   setAccessToken,
+  setLockedHandler,
   setRefreshHandler,
 } from '../lib/http'
 
@@ -22,6 +24,7 @@ function jsonRes(body: unknown, status: number): Response {
 beforeEach(() => {
   setAccessToken(null)
   setRefreshHandler(null)
+  setLockedHandler(null)
 })
 
 afterEach(() => {
@@ -74,5 +77,30 @@ describe('http client', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
     await expect(apiDelete<void>('/x')).resolves.toBeUndefined()
+  })
+
+  it('invokes the locked handler and still throws on a system-locked 403', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      jsonRes({ success: false, error: SYSTEM_LOCKED_MESSAGE }, 403),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const locked = vi.fn()
+    setLockedHandler(locked)
+    await expect(apiGet('/users')).rejects.toMatchObject({
+      status: 403,
+      message: SYSTEM_LOCKED_MESSAGE,
+    })
+    expect(locked).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not invoke the locked handler on an ordinary 403', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      jsonRes(envelope(undefined, false), 403),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const locked = vi.fn()
+    setLockedHandler(locked)
+    await expect(apiGet('/users')).rejects.toBeInstanceOf(ApiError)
+    expect(locked).not.toHaveBeenCalled()
   })
 })

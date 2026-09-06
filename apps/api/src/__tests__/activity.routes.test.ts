@@ -6,6 +6,8 @@ const list = vi.fn()
 vi.mock('../services/activity.service', () => ({
   list: (...a: unknown[]) => list(...a),
 }))
+vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+
 
 import { signAccessToken } from '../lib/jwt'
 import { errorHandler } from '../middleware/error-handler'

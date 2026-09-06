@@ -24,6 +24,8 @@ vi.mock('../services/schedule.service', () => ({
   publish: (...a: unknown[]) => publish(...a),
   unpublish: (...a: unknown[]) => unpublish(...a),
 }))
+vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+
 
 import { signAccessToken } from '../lib/jwt'
 import { errorHandler } from '../middleware/error-handler'

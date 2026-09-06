@@ -6,6 +6,8 @@ const monthlyReport = vi.fn()
 vi.mock('../services/reports.service', () => ({
   monthlyReport: (...a: unknown[]) => monthlyReport(...a),
 }))
+vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+
 vi.mock('../services/stats.service', () => ({
   currentYearMonthUTC: () => {
     const now = new Date()

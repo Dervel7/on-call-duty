@@ -12,6 +12,8 @@ vi.mock('../services/stats.service', () => ({
     return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }
   },
 }))
+vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+
 
 import { errorHandler } from '../middleware/error-handler'
 import { signAccessToken } from '../lib/jwt'

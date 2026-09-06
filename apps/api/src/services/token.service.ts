@@ -88,7 +88,8 @@ export async function rotateRefreshToken(
       const ins = await client.query<{ id: number }>(
         `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
          VALUES ($1, $2, $3) RETURNING id`,
-        [row.user_id, hashToken(newToken), expiryDate()],
+        // Absolute cap: rotation never extends the session deadline set at login.
+        [row.user_id, hashToken(newToken), new Date(Math.min(Date.now() + refreshExpiryMs(), row.expires_at.getTime()))],
       )
       const newId = ins.rows[0]?.id
       // Atomic claim: zero rows means a concurrent rotation already consumed

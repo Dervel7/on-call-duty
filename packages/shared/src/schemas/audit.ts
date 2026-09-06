@@ -28,6 +28,7 @@ export const ACTIVITY_ACTIONS = [
   'duty.assigned',
   'duty.reassigned',
   'duty.removed',
+  'billing.updated',
 ] as const
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]

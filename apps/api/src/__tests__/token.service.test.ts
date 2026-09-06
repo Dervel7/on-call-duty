@@ -100,4 +100,19 @@ describe('token.service', () => {
     expect(sql).toContain('UPDATE refresh_tokens')
     expect((query.mock.calls[0]?.[1] as unknown[])[0]).toBe(3)
   })
+
+  it('rotateRefreshToken never extends the original session deadline', async () => {
+    // A token with ~2h left must rotate to a token that still dies at the
+    // original deadline — not now + 1 day.
+    const deadline = new Date(Date.now() + 2 * 3600_000)
+    query.mockResolvedValueOnce({ rows: [liveRow({ expires_at: deadline })] })
+    query.mockResolvedValueOnce({ rows: [{ id: 2 }] }) // INSERT new token
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // atomic claim
+    await rotateRefreshToken('short-lived')
+    const insertCall = query.mock.calls[1]
+    expect(String(insertCall?.[0])).toContain('INSERT INTO refresh_tokens')
+    const insertedExpiry = insertCall?.[1]?.[2] as Date
+    expect(Math.abs(insertedExpiry.getTime() - deadline.getTime())).toBeLessThan(1000)
+    expect(insertedExpiry.getTime()).toBeLessThan(Date.now() + 3 * 3600_000)
+  })
 })

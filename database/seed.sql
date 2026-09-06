@@ -85,3 +85,9 @@ VALUES (
   TRUE
 )
 ON CONFLICT (email) WHERE is_deleted = FALSE DO NOTHING;
+
+-- Phase 13: seed the billing deadline 30 days ahead. DO NOTHING is deliberate:
+-- re-seeding must never extend an existing deadline.
+INSERT INTO app_meta (key, value)
+VALUES ('billing_paid_through', to_char(CURRENT_DATE + INTERVAL '30 days', 'YYYY-MM-DD'))
+ON CONFLICT (key) DO NOTHING;

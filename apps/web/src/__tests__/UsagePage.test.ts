@@ -5,11 +5,17 @@ import type { GenerationEvent, OperatorAlert } from '@oncall/shared'
 
 const generations = vi.fn()
 const alerts = vi.fn()
+const billingState = vi.fn()
+const billingUpdate = vi.fn()
 const resolveAlert = vi.fn()
 vi.mock('@/services/usage', () => ({
   generations: (...a: unknown[]) => generations(...a),
   alerts: (...a: unknown[]) => alerts(...a),
   resolveAlert: (...a: unknown[]) => resolveAlert(...a),
+}))
+vi.mock('@/services/billing', () => ({
+  state: (...a: unknown[]) => billingState(...a),
+  update: (...a: unknown[]) => billingUpdate(...a),
 }))
 
 import UsagePage from '../pages/UsagePage.vue'
@@ -45,6 +51,7 @@ const alertsFixture: OperatorAlert[] = [
 function mockResolved() {
   generations.mockResolvedValue(generationsFixture)
   alerts.mockResolvedValue(alertsFixture)
+  billingState.mockResolvedValue({ paidThrough: '2026-12-31', locked: false })
 }
 
 beforeEach(() => {
@@ -52,6 +59,8 @@ beforeEach(() => {
   generations.mockReset()
   alerts.mockReset()
   resolveAlert.mockReset()
+  billingState.mockReset()
+  billingUpdate.mockReset()
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -104,8 +113,48 @@ describe('UsagePage', () => {
   it('shows an error message when loading fails', async () => {
     generations.mockRejectedValue(new Error('nope'))
     alerts.mockResolvedValue([])
+    billingState.mockResolvedValue({ paidThrough: null, locked: false })
     const wrapper = mount(UsagePage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
+  })
+
+  it('renders the billing card with paid-through date and an Active badge', async () => {
+    const wrapper = await mountPage()
+    expect(wrapper.text()).toContain('Billing')
+    expect(wrapper.text()).toContain('Paid through:')
+    expect(wrapper.text()).toContain('2026-12-31')
+    expect(wrapper.text()).toContain('Active')
+    expect(wrapper.text()).not.toContain('Locked')
+  })
+
+  it('shows Not set and a Locked badge when billing is locked without a date', async () => {
+    mockResolved()
+    billingState.mockResolvedValue({ paidThrough: null, locked: true })
+    const wrapper = mount(UsagePage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Not set')
+    expect(wrapper.text()).toContain('Locked')
+  })
+
+  it('prefills the date input and calls update on Save, refreshing the displayed state', async () => {
+    const wrapper = await mountPage()
+    const input = wrapper.find('#billing-date')
+    expect((input.element as HTMLInputElement).value).toBe('2026-12-31')
+    await input.setValue('2027-06-30')
+    billingUpdate.mockResolvedValue({ paidThrough: '2027-06-30', locked: false })
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(billingUpdate).toHaveBeenCalledWith('2027-06-30')
+    expect(wrapper.text()).toContain('2027-06-30')
+  })
+
+  it('shows an inline billing error when save fails', async () => {
+    const wrapper = await mountPage()
+    billingUpdate.mockRejectedValue(new Error('save denied'))
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(billingUpdate).toHaveBeenCalledWith('2026-12-31')
+    expect(wrapper.find('[role="alert"]').text()).toContain('save denied')
   })
 })

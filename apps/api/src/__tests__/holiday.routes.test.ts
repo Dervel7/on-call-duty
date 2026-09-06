@@ -12,6 +12,8 @@ vi.mock('../services/holiday.service', () => ({
   update: (...a: unknown[]) => update(...a),
   remove: (...a: unknown[]) => remove(...a),
 }))
+vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+
 
 import { signAccessToken } from '../lib/jwt'
 import { errorHandler } from '../middleware/error-handler'
