@@ -37,7 +37,6 @@ function daysFor(year: number, month: number) {
     return {
       date: iso,
       isWeekend: dow === 0 || dow === 6,
-      isHoliday: false,
       eligibleDoctorIds: [],
       availableDoctorIds: [5, 6],
     }

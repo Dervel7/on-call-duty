@@ -36,7 +36,7 @@ const emptyStats = () => ({
   schedule: null,
   coverage: { daysInMonth: 31, filled: 0, gaps: [] },
   workload: [],
-  fairness: { dutySpread: null, weekendSpread: null, holidaySpread: null },
+  fairness: { dutySpread: null, weekendSpread: null },
 })
 
 beforeEach(() => {
@@ -88,7 +88,6 @@ describe('stats routes', () => {
         published: false,
         duties: 0,
         weekend: 0,
-        holiday: 0,
         maxMonthly: 7,
       },
       upcoming: [],

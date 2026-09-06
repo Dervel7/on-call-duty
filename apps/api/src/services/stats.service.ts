@@ -91,23 +91,21 @@ export async function adminStats(year: number, month: number): Promise<AdminStat
      FROM doctors d JOIN users u ON u.id = d.user_id
      WHERE u.is_active = TRUE`,
   )
-  const counts = new Map<number, { total: number; weekend: number; holiday: number }>()
+  const counts = new Map<number, { total: number; weekend: number }>()
   if (scheduleRow) {
     const cRes = await query<{
       doctor_id: number
       total: number
       weekend: number
-      holiday: number
     }>(
       `SELECT doctor_id,
               COUNT(*)::int AS total,
-              COUNT(*) FILTER (WHERE is_weekend)::int AS weekend,
-              COUNT(*) FILTER (WHERE is_holiday)::int AS holiday
+              COUNT(*) FILTER (WHERE is_weekend)::int AS weekend
        FROM duties WHERE schedule_id = $1 GROUP BY doctor_id`,
       [scheduleRow.id],
     )
     for (const r of cRes.rows)
-      counts.set(r.doctor_id, { total: r.total, weekend: r.weekend, holiday: r.holiday })
+      counts.set(r.doctor_id, { total: r.total, weekend: r.weekend })
   }
 
   const byId = new Map<number, AdminWorkloadItem>()
@@ -121,7 +119,6 @@ export async function adminStats(year: number, month: number): Promise<AdminStat
       duties: 0,
       weekday: 0,
       weekend: 0,
-      holiday: 0,
     })
   }
   if (scheduleRow) {
@@ -148,7 +145,6 @@ export async function adminStats(year: number, month: number): Promise<AdminStat
           duties: 0,
           weekday: 0,
           weekend: 0,
-          holiday: 0,
         })
     }
   }
@@ -159,7 +155,6 @@ export async function adminStats(year: number, month: number): Promise<AdminStat
     if (c) {
       item.duties = c.total
       item.weekend = c.weekend
-      item.holiday = c.holiday
       item.weekday = c.total - c.weekend
     }
     workload.push(item)
@@ -174,7 +169,6 @@ export async function adminStats(year: number, month: number): Promise<AdminStat
   const fairness: AdminFairness = {
     dutySpread: spread(assignedDoctors.map((w) => w.duties)),
     weekendSpread: spread(assignedDoctors.map((w) => w.weekend)),
-    holidaySpread: spread(assignedDoctors.map((w) => w.holiday)),
   }
 
   return { year, month, schedule, coverage, workload, fairness }
@@ -190,18 +184,17 @@ export async function meStats(userId: number): Promise<MeStats> {
   )
   const published = pubRes.rows.length > 0
 
-  const countsRes = await query<{ total: number; weekend: number; holiday: number }>(
+  const countsRes = await query<{ total: number; weekend: number }>(
     `SELECT COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE du.is_weekend)::int AS weekend,
-            COUNT(*) FILTER (WHERE du.is_holiday)::int AS holiday
+            COUNT(*) FILTER (WHERE du.is_weekend)::int AS weekend
      FROM duties du JOIN schedules s ON s.id = du.schedule_id
      WHERE s.status = 'published' AND s.year = $1 AND s.month = $2 AND du.doctor_id = $3`,
     [year, month, doctor.id],
   )
-  const c = countsRes.rows[0] ?? { total: 0, weekend: 0, holiday: 0 }
+  const c = countsRes.rows[0] ?? { total: 0, weekend: 0 }
 
-  const upcomingRes = await query<{ duty_date: string; is_weekend: boolean; is_holiday: boolean }>(
-    `SELECT du.duty_date, du.is_weekend, du.is_holiday
+  const upcomingRes = await query<{ duty_date: string; is_weekend: boolean }>(
+    `SELECT du.duty_date, du.is_weekend
      FROM duties du JOIN schedules s ON s.id = du.schedule_id
      WHERE s.status = 'published' AND du.doctor_id = $1 AND du.duty_date >= $2
      ORDER BY du.duty_date LIMIT 10`,
@@ -213,12 +206,11 @@ export async function meStats(userId: number): Promise<MeStats> {
   const onCallRes = await query<{
     duty_date: string
     is_weekend: boolean
-    is_holiday: boolean
     first_name: string
     last_name: string
     doctor_id: number
   }>(
-    `SELECT du.duty_date, du.is_weekend, du.is_holiday, u.first_name, u.last_name, du.doctor_id
+    `SELECT du.duty_date, du.is_weekend, u.first_name, u.last_name, du.doctor_id
      FROM duties du JOIN schedules s ON s.id = du.schedule_id
      JOIN doctors d ON d.id = du.doctor_id JOIN users u ON u.id = d.user_id
      WHERE s.status = 'published' AND du.duty_date BETWEEN $1 AND $2
@@ -230,7 +222,6 @@ export async function meStats(userId: number): Promise<MeStats> {
     doctorFirstName: r.first_name,
     doctorLastName: r.last_name,
     isWeekend: r.is_weekend,
-    isHoliday: r.is_holiday,
     isMine: r.doctor_id === doctor.id,
   }))
 
@@ -247,13 +238,11 @@ export async function meStats(userId: number): Promise<MeStats> {
       published,
       duties: c.total,
       weekend: c.weekend,
-      holiday: c.holiday,
       maxMonthly: doctor.maxMonthlyDuties,
     },
     upcoming: upcomingRes.rows.map((r) => ({
       dutyDate: r.duty_date,
       isWeekend: r.is_weekend,
-      isHoliday: r.is_holiday,
     })),
     onCall,
   }

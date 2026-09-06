@@ -64,15 +64,6 @@ FROM doctors d JOIN users u ON u.id = d.user_id
 WHERE u.email = 'dr2@oncall.local' AND u.is_deleted = FALSE
 AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id AND x.start_date = '2026-09-15' AND x.end_date = '2026-09-15');
 
--- Phase 5: seed sample holidays (fixed sample month 2026-09)
-INSERT INTO holidays (name, date)
-SELECT 'Sample Holiday', '2026-09-01'
-WHERE NOT EXISTS (SELECT 1 FROM holidays WHERE date = '2026-09-01');
-
-INSERT INTO holidays (name, date)
-SELECT 'Another Holiday', '2026-09-17'
-WHERE NOT EXISTS (SELECT 1 FROM holidays WHERE date = '2026-09-17');
-
 -- Phase 10: seed superadmin (vendor audit account, password: changeme123)
 INSERT INTO users (email, username, password_hash, role, first_name, last_name, is_active)
 VALUES (

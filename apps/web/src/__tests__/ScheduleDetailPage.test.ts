@@ -37,7 +37,7 @@ function daysFor(year: number, month: number) {
   return Array.from({ length: total }, (_, i) => {
     const iso = `${year}-${String(month).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
     const dow = new Date(`${iso}T00:00:00`).getDay()
-    return { date: iso, isWeekend: dow === 0 || dow === 6, isHoliday: false, eligibleDoctorIds: [5], availableDoctorIds: [5] }
+    return { date: iso, isWeekend: dow === 0 || dow === 6, eligibleDoctorIds: [5], availableDoctorIds: [5] }
   })
 }
 
@@ -51,7 +51,7 @@ function detail(status: 'draft' | 'published') {
       {
         id: 10, scheduleId: 1, dutyDate: '2026-09-05', doctorId: 5,
         doctorFirstName: 'Jane', doctorLastName: 'Roe',
-        isWeekend: false, isHoliday: false, reason: 'score 1',
+        isWeekend: false, reason: 'score 1',
         createdAt: '2026-09-01T00:00:00.000Z',
       },
     ],

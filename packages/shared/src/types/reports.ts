@@ -6,11 +6,6 @@ export interface ReportQuery {
   month?: number
 }
 
-export interface ReportHoliday {
-  date: string
-  name: string
-}
-
 export interface MonthlyReport {
   year: number
   month: number
@@ -20,5 +15,4 @@ export interface MonthlyReport {
   coverage: AdminCoverage
   workload: AdminWorkloadItem[]
   fairness: AdminFairness
-  holidays: ReportHoliday[]
 }

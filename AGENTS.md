@@ -94,7 +94,7 @@ Per workspace: `pnpm --filter @oncall/api <script>` (same for `@oncall/web`, `@o
 - Seed scripts required (`database/seed.sql`, idempotent upserts).
 - Parameterized queries only — never concatenate SQL.
 - Indexes on frequently queried columns (`idx_<table>_<cols>` naming).
-- Tables: `app_meta`, `users`, `refresh_tokens`, `doctors`, `unavailability`, `holidays`, `schedules`, `duties`.
+- Tables: `app_meta`, `users`, `refresh_tokens`, `doctors`, `unavailability`, `schedules`, `duties`.
 
 ## Architecture Rules
 
@@ -126,6 +126,7 @@ Implement:
 - Role-Based Access Control via `authenticate` + `authorize('administrator')` middleware.
 
 Roles:
+- Superadmin
 - Administrator
 - Doctor
 
@@ -148,8 +149,7 @@ Rules:
 - Vacation exclusions
 - Consecutive duty prevention (including across month boundaries)
 - Weekend balancing (±1 across eligible doctors)
-- Holiday balancing (±1 across eligible doctors)
-- Fair workload distribution
+/- Fair workload distribution
 
 The algorithm must always:
 1. Respect hard constraints.

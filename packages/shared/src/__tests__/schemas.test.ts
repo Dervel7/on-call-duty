@@ -2,17 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   changePasswordSchema,
   createDutySchema,
-  createHolidaySchema,
   createScheduleSchema,
   createUserSchema,
   generateScheduleSchema,
-  holidayQuerySchema,
   isoDateSchema,
   loginSchema,
   reassignDutySchema,
   roleSchema,
   scheduleQuerySchema,
-  updateHolidaySchema,
   updateUserSchema,
   usernameSchema,
 } from '../index'
@@ -26,10 +23,6 @@ describe('date and password primitives', () => {
     expect(isoDateSchema.safeParse('2026-9-7').success).toBe(false)
   })
 
-  it('holiday dates share the calendar validation', () => {
-    expect(createHolidaySchema.safeParse({ name: 'X', date: '2026-09-31' }).success).toBe(false)
-    expect(createHolidaySchema.safeParse({ name: 'X', date: '2026-09-30' }).success).toBe(true)
-  })
 
   it('passwords over 72 bytes are rejected (bcrypt truncation)', () => {
     expect(loginSchema.safeParse({ identifier: 'a', password: 'x'.repeat(72) }).success).toBe(true)
@@ -179,28 +172,15 @@ describe('schedule schemas', () => {
     expect(createScheduleSchema.safeParse({ year: 2026, month: 9 }).success).toBe(true)
   })
 
-  it('scheduleQuerySchema and holidayQuerySchema coerce/accept strings', () => {
+  it('scheduleQuerySchema coerces/accepts strings', () => {
     const r = scheduleQuerySchema.safeParse({ year: '2026', month: '9' })
     expect(r.success).toBe(true)
     if (r.success) {
       expect(r.data.year).toBe(2026)
       expect(r.data.month).toBe(9)
     }
-    expect(holidayQuerySchema.safeParse({ from: '2026-09-01', to: '2026-09-30' }).success).toBe(true)
-    expect(holidayQuerySchema.safeParse({ from: '09-01-2026' }).success).toBe(false)
   })
 
-  it('createHolidaySchema rejects bad date and empty name', () => {
-    expect(createHolidaySchema.safeParse({ name: '', date: '2026-09-01' }).success).toBe(false)
-    expect(createHolidaySchema.safeParse({ name: 'Day', date: '2026-9-1' }).success).toBe(false)
-    expect(createHolidaySchema.safeParse({ name: 'Day', date: '2026-09-01' }).success).toBe(true)
-  })
-
-  it('updateHolidaySchema accepts partials', () => {
-    expect(updateHolidaySchema.safeParse({ name: 'X' }).success).toBe(true)
-    expect(updateHolidaySchema.safeParse({ date: '2026-09-01' }).success).toBe(true)
-    expect(updateHolidaySchema.safeParse({ date: 'bad' }).success).toBe(false)
-  })
 
   it('createDutySchema and reassignDutySchema reject non-positive doctorId', () => {
     expect(createDutySchema.safeParse({ date: '2026-09-01', doctorId: 0 }).success).toBe(false)

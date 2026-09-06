@@ -21,7 +21,6 @@ export type {
 } from './unavailability'
 export type {
   ScheduleStatus,
-  Holiday,
   ScheduleSummary,
   Duty,
   DayInfo,
@@ -31,9 +30,6 @@ export type {
   ScheduleDetail,
   CreateScheduleRequest,
   ScheduleQuery,
-  HolidayQuery,
-  CreateHolidayRequest,
-  UpdateHolidayRequest,
   CreateDutyRequest,
   ReassignDutyRequest,
   GenerateAssignment,
@@ -50,7 +46,7 @@ export type {
   OnCallEntry,
   MeStats,
 } from './stats'
-export type { ReportQuery, ReportHoliday, MonthlyReport } from './reports'
+export type { ReportQuery, MonthlyReport } from './reports'
 export type { BillingState, UpdateBillingRequest } from './settings'
 export * from './usage'
 export type {

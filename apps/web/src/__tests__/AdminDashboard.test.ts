@@ -36,7 +36,6 @@ function fullStats(overrides: Record<string, unknown> = {}) {
         duties: 7,
         weekday: 5,
         weekend: 2,
-        holiday: 0,
       },
       {
         doctorId: 2,
@@ -47,10 +46,9 @@ function fullStats(overrides: Record<string, unknown> = {}) {
         duties: 1,
         weekday: 1,
         weekend: 0,
-        holiday: 0,
       },
     ],
-    fairness: { dutySpread: 6, weekendSpread: 2, holidaySpread: 0 },
+    fairness: { dutySpread: 6, weekendSpread: 2 },
     ...overrides,
   }
 }
@@ -76,7 +74,7 @@ describe('AdminDashboard', () => {
 
   it('shows Well balanced when dutySpread <= 1', async () => {
     admin.mockResolvedValue(
-      fullStats({ fairness: { dutySpread: 1, weekendSpread: 0, holidaySpread: 0 } }),
+      fullStats({ fairness: { dutySpread: 1, weekendSpread: 0 } }),
     )
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
     await flushPromises()
@@ -89,7 +87,7 @@ describe('AdminDashboard', () => {
         schedule: null,
         coverage: { daysInMonth: 31, filled: 0, gaps: [] },
         workload: [],
-        fairness: { dutySpread: null, weekendSpread: null, holidaySpread: null },
+        fairness: { dutySpread: null, weekendSpread: null },
       }),
     )
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })

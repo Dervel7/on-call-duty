@@ -1,7 +1,21 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import type { CreateUserRequest, Role, UpdateUserRequest, User } from '@oncall/shared'
-import { createUserSchema, updateUserSchema } from '@oncall/shared'
+import { computed, onMounted, ref } from 'vue'
+import type {
+  CreateDoctorRequest,
+  CreateUserRequest,
+  Doctor,
+  Role,
+  UpdateDoctorRequest,
+  UpdateUserRequest,
+  User,
+} from '@oncall/shared'
+import {
+  createDoctorSchema,
+  createUserSchema,
+  updateDoctorSchema,
+  updateUserSchema,
+} from '@oncall/shared'
+import * as doctorService from '@/services/doctor'
 import * as userService from '@/services/user'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
@@ -16,32 +30,41 @@ import TableRow from '@/components/ui/TableRow.vue'
 import { useConfirm } from '@/composables/useConfirm'
 
 const users = ref<User[]>([])
+const doctors = ref<Doctor[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
 const { confirm } = useConfirm()
 
+const doctorByUserId = computed(() => {
+  const map = new Map<number, Doctor>()
+  for (const d of doctors.value) map.set(d.userId, d)
+  return map
+})
+
 interface EditState {
   open: boolean
   id: number | null
+  doctorId: number | null
   email: string
   username: string
   firstName: string
   lastName: string
   role: Role
-  isActive: boolean
+  maxMonthlyDuties: string
   errorMsg: string
 }
 
 const emptyEdit = (): EditState => ({
   open: false,
   id: null,
+  doctorId: null,
   email: '',
   username: '',
   firstName: '',
   lastName: '',
-  role: 'doctor',
-  isActive: true,
-  errorMsg: ''
+  role: 'administrator',
+  maxMonthlyDuties: '7',
+  errorMsg: '',
 })
 const edit = ref<EditState>(emptyEdit())
 
@@ -49,7 +72,7 @@ async function load() {
   loading.value = true
   errorMsg.value = ''
   try {
-    users.value = await userService.list()
+    ;[users.value, doctors.value] = await Promise.all([userService.list(), doctorService.list()])
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load users'
   } finally {
@@ -62,37 +85,80 @@ function openCreate() {
 }
 
 function openUpdate(u: User) {
+  const d = doctorByUserId.value.get(u.id)
   edit.value = {
     open: true,
     id: u.id,
+    doctorId: d?.id ?? null,
     email: u.email,
     username: u.username,
     firstName: u.firstName,
     lastName: u.lastName,
     role: u.role,
-    isActive: u.isActive,
-    errorMsg: ''
+    maxMonthlyDuties: d ? String(d.maxMonthlyDuties) : '7',
+    errorMsg: '',
   }
 }
 
 async function save() {
   errorMsg.value = ''
   if (edit.value.id === null) {
-    const payload: CreateUserRequest = {
+    if (edit.value.role === 'doctor') {
+      const payload: CreateDoctorRequest = {
+        email: edit.value.email,
+        username: edit.value.username,
+        password: edit.value.email,
+        firstName: edit.value.firstName,
+        lastName: edit.value.lastName,
+        maxMonthlyDuties: Number(edit.value.maxMonthlyDuties),
+      }
+      const r = createDoctorSchema.safeParse(payload)
+      if (!r.success) {
+        edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
+        return
+      }
+      try {
+        await doctorService.create(r.data)
+      } catch (e) {
+        edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
+        return
+      }
+    } else {
+      const payload: CreateUserRequest = {
+        email: edit.value.email,
+        username: edit.value.username,
+        password: edit.value.email,
+        role: edit.value.role,
+        firstName: edit.value.firstName,
+        lastName: edit.value.lastName,
+      }
+      const r = createUserSchema.safeParse(payload)
+      if (!r.success) {
+        edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
+        return
+      }
+      try {
+        await userService.create(r.data)
+      } catch (e) {
+        edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
+        return
+      }
+    }
+  } else if (edit.value.doctorId !== null) {
+    const payload: UpdateDoctorRequest = {
       email: edit.value.email,
       username: edit.value.username,
-      password: edit.value.email,
-      role: 'administrator',
       firstName: edit.value.firstName,
       lastName: edit.value.lastName,
+      maxMonthlyDuties: Number(edit.value.maxMonthlyDuties),
     }
-    const r = createUserSchema.safeParse(payload)
+    const r = updateDoctorSchema.safeParse(payload)
     if (!r.success) {
       edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
       return
     }
     try {
-      await userService.create(r.data)
+      await doctorService.update(edit.value.doctorId, r.data)
     } catch (e) {
       edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
       return
@@ -104,7 +170,6 @@ async function save() {
       role: edit.value.role,
       firstName: edit.value.firstName,
       lastName: edit.value.lastName,
-      isActive: edit.value.isActive,
     }
     const r = updateUserSchema.safeParse(payload)
     if (!r.success) {
@@ -133,16 +198,14 @@ async function toggleActive(u: User) {
 }
 
 async function remove(u: User) {
-  if (
-    !(await confirm({
-      title: 'Delete user',
-      message: `Delete ${u.email}?`,
-      confirmText: 'Delete',
-    }))
-  )
-    return
+  const d = doctorByUserId.value.get(u.id)
+  const message = d
+    ? `Delete doctor ${u.email}? They will be permanently hidden from the list. Past duties in published schedules are kept. This cannot be undone.`
+    : `Delete ${u.email}?`
+  if (!(await confirm({ title: 'Delete user', message, confirmText: 'Delete' }))) return
   try {
-    await userService.remove(u.id)
+    if (d) await doctorService.remove(d.id)
+    else await userService.remove(u.id)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to delete user'
     return
@@ -170,16 +233,18 @@ onMounted(load)
           <TableHead>Email</TableHead>
           <TableHead>Username</TableHead>
           <TableHead>Role</TableHead>
+          <TableHead>Max monthly duties</TableHead>
           <TableHead>Status</TableHead>
           <TableHead class="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow v-for="u in users" :key="u.id">
+        <TableRow v-for="u in users" :key="u.id" :class="u.isActive ? undefined : 'bg-destructive/10'">
           <TableCell>{{ u.firstName }} {{ u.lastName }}</TableCell>
           <TableCell>{{ u.email }}</TableCell>
           <TableCell>{{ u.username }}</TableCell>
           <TableCell>{{ u.role }}</TableCell>
+          <TableCell>{{ doctorByUserId.get(u.id)?.maxMonthlyDuties ?? '—' }}</TableCell>
           <TableCell>{{ u.isActive ? 'active' : 'disabled' }}</TableCell>
           <TableCell class="text-right">
             <div class="inline-flex gap-2">
@@ -194,7 +259,7 @@ onMounted(load)
       </TableBody>
     </Table>
 
-    <Dialog v-model:open="edit.open" :title="edit.id === null ? 'New administrator' : 'Edit user'">
+    <Dialog v-model:open="edit.open" :title="edit.id === null ? 'New user' : 'Edit user'">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="save">
         <div class="flex flex-col gap-1">
           <Label for="e-email">Email</Label>
@@ -212,19 +277,24 @@ onMounted(load)
           <Label for="e-last">Last name</Label>
           <Input id="e-last" v-model="edit.lastName" />
         </div>
-        <div v-if="edit.id !== null" class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1">
           <Label for="e-role">Role</Label>
           <select
             id="e-role"
             v-model="edit.role"
+            :disabled="edit.id !== null"
             class="h-10 rounded-md border border-input bg-background px-3 text-sm"
           >
             <option value="doctor">doctor</option>
             <option value="administrator">administrator</option>
           </select>
         </div>
+        <div v-if="edit.doctorId !== null || (edit.id === null && edit.role === 'doctor')" class="flex flex-col gap-1">
+          <Label for="e-max">Max monthly duties (1–7)</Label>
+          <Input id="e-max" v-model="edit.maxMonthlyDuties" type="number" />
+        </div>
         <p v-if="edit.id === null" class="text-xs text-muted-foreground">
-          Initial password equals the email. The administrator should change it on first login.
+          Initial password equals the email. The user should change it on first login.
         </p>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">

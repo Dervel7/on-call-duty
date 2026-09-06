@@ -19,17 +19,15 @@ function fullMe(overrides: Record<string, unknown> = {}) {
       published: true,
       duties: 4,
       weekend: 1,
-      holiday: 0,
       maxMonthly: 7,
     },
-    upcoming: [{ dutyDate: '2099-01-01', isWeekend: false, isHoliday: false }],
+    upcoming: [{ dutyDate: '2099-01-01', isWeekend: false }],
     onCall: [
       {
         date: '2099-01-01',
         doctorFirstName: 'Jane',
         doctorLastName: 'Roe',
         isWeekend: false,
-        isHoliday: false,
         isMine: true,
       },
       {
@@ -37,7 +35,6 @@ function fullMe(overrides: Record<string, unknown> = {}) {
         doctorFirstName: 'Other',
         doctorLastName: 'Doc',
         isWeekend: true,
-        isHoliday: false,
         isMine: false,
       },
       {
@@ -45,7 +42,6 @@ function fullMe(overrides: Record<string, unknown> = {}) {
         doctorFirstName: 'Second',
         doctorLastName: 'Doc',
         isWeekend: true,
-        isHoliday: false,
         isMine: false,
       },
     ],
@@ -90,7 +86,6 @@ describe('DoctorDashboard', () => {
           published: false,
           duties: 0,
           weekend: 0,
-          holiday: 0,
           maxMonthly: 7,
         },
         upcoming: [],

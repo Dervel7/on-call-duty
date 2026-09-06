@@ -38,7 +38,6 @@ function fullReport(overrides: Record<string, unknown> = {}) {
         doctorFirstName: 'Jane',
         doctorLastName: 'Roe',
         isWeekend: false,
-        isHoliday: false,
         reason: 'engine',
         createdAt: '',
       },
@@ -54,11 +53,9 @@ function fullReport(overrides: Record<string, unknown> = {}) {
         duties: 1,
         weekday: 1,
         weekend: 0,
-        holiday: 0,
       },
     ],
-    fairness: { dutySpread: 0, weekendSpread: 0, holidaySpread: 0 },
-    holidays: [{ date: '2026-08-15', name: 'Assumption' }],
+    fairness: { dutySpread: 0, weekendSpread: 0 },
     ...overrides,
   }
 }
@@ -79,8 +76,7 @@ describe('ReportsPage', () => {
         roster: [],
         coverage: { daysInMonth: 31, filled: 0, gaps: [] },
         workload: [],
-        fairness: { dutySpread: null, weekendSpread: null, holidaySpread: null },
-        holidays: [],
+        fairness: { dutySpread: null, weekendSpread: null },
       }),
     )
     const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
@@ -91,7 +87,7 @@ describe('ReportsPage', () => {
     expect(push).toHaveBeenCalledWith('/schedules')
   })
 
-  it('renders header, roster, workload, fairness, and holidays', async () => {
+  it('renders header, roster, workload, and fairness', async () => {
     monthly.mockResolvedValue(fullReport())
     const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
@@ -99,7 +95,6 @@ describe('ReportsPage', () => {
     expect(w.text()).toContain('Published')
     expect(w.text()).toContain('Jane Roe')
     expect(w.text()).toContain('Well balanced')
-    expect(w.text()).toContain('Assumption')
   })
 
   it('marks an unassigned gap day in the roster', async () => {
@@ -129,7 +124,7 @@ describe('ReportsPage', () => {
     expect(downloadCsv).toHaveBeenCalledTimes(1)
     const [filename, csv] = downloadCsv.mock.calls[0]!
     expect(filename).toMatch(/^oncall-\d{4}-\d{2}\.csv$/)
-    expect(csv).toContain('Date,Weekday,Doctor,Weekend,Holiday,Reason')
+    expect(csv).toContain('Date,Weekday,Doctor,Weekend,Reason')
     expect(csv).toContain('Jane Roe')
   })
 

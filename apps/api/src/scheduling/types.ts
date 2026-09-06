@@ -10,7 +10,6 @@ export interface DaySpec {
   date: string
   dayOfWeek: number // 0=Sun … 6=Sat
   isWeekend: boolean
-  isHoliday: boolean
 }
 
 export interface SchedulingContext {
@@ -26,7 +25,6 @@ export interface CandidateScore {
   score: number
   workload: number
   weekend: number
-  holiday: number
   friday: number
 }
 
@@ -36,7 +34,6 @@ export interface AssignmentPlan {
   doctorFirstName: string
   doctorLastName: string
   isWeekend: boolean
-  isHoliday: boolean
   reason: string
 }
 

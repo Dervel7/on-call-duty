@@ -42,12 +42,6 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['administrator'] },
       },
       {
-        path: 'doctors',
-        name: 'doctors',
-        component: () => import('../pages/DoctorsPage.vue'),
-        meta: { roles: ['administrator'] },
-      },
-      {
         path: 'availability',
         name: 'availability',
         component: () => import('../pages/AvailabilityPage.vue'),
@@ -70,12 +64,6 @@ const routes: RouteRecordRaw[] = [
         name: 'schedule-detail',
         component: () => import('../pages/ScheduleDetailPage.vue'),
         meta: { roles: ['administrator', 'doctor'] },
-      },
-      {
-        path: 'holidays',
-        name: 'holidays',
-        component: () => import('../pages/HolidaysPage.vue'),
-        meta: { roles: ['administrator'] },
       },
       {
         path: 'reports',

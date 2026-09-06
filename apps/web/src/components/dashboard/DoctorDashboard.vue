@@ -12,7 +12,6 @@ interface OnCallRow {
   date: string
   names: string[]
   isWeekend: boolean
-  isHoliday: boolean
   isMine: boolean
 }
 
@@ -33,7 +32,6 @@ const onCallRows = computed<OnCallRow[]>(() => {
         date: e.date,
         names: [fullName],
         isWeekend: e.isWeekend,
-        isHoliday: e.isHoliday,
         isMine: e.isMine,
       })
     }
@@ -99,7 +97,7 @@ onMounted(load)
             This month's schedule isn't published yet.
           </p>
           <p class="text-xs text-muted-foreground">
-            Weekend {{ stats.currentMonth.weekend }} · Holiday {{ stats.currentMonth.holiday }}
+            Weekend {{ stats.currentMonth.weekend }}
           </p>
         </CardContent>
       </Card>
@@ -132,12 +130,6 @@ onMounted(load)
                 >
                   Weekend
                 </span>
-                <span
-                  v-if="e.isHoliday"
-                  class="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-                >
-                  Holiday
-                </span>
               </span>
             </li>
           </ul>
@@ -161,12 +153,6 @@ onMounted(load)
                   class="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
                 >
                   Weekend
-                </span>
-                <span
-                  v-if="u.isHoliday"
-                  class="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-                >
-                  Holiday
                 </span>
               </span>
             </li>

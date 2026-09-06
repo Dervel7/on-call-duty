@@ -64,7 +64,6 @@ const duty = (id: number, doctorId: number) => ({
   doctorFirstName: 'A',
   doctorLastName: 'B',
   isWeekend: false,
-  isHoliday: false,
   reason: 'manual override by admin #1',
   createdAt: '',
 })

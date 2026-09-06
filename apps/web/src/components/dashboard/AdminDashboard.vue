@@ -120,8 +120,7 @@ onMounted(load)
               {{ fairnessBadge.text }}
             </span>
             <p class="text-xs text-muted-foreground">
-              Weekend spread {{ stats.fairness.weekendSpread ?? 'N/A' }} · Holiday spread
-              {{ stats.fairness.holidaySpread ?? 'N/A' }}
+              Weekend spread {{ stats.fairness.weekendSpread ?? 'N/A' }}
             </p>
           </CardContent>
         </Card>
@@ -136,7 +135,6 @@ onMounted(load)
                 <TableHead>Doctor</TableHead>
                 <TableHead>Duties</TableHead>
                 <TableHead class="text-right">Weekend</TableHead>
-                <TableHead class="text-right">Holiday</TableHead>
                 <TableHead class="text-right">Cap</TableHead>
               </TableRow>
             </TableHeader>
@@ -165,7 +163,6 @@ onMounted(load)
                   </div>
                 </TableCell>
                 <TableCell class="text-right">{{ w.weekend }}</TableCell>
-                <TableCell class="text-right">{{ w.holiday }}</TableCell>
                 <TableCell class="text-right">{{ w.maxMonthly }}</TableCell>
               </TableRow>
             </TableBody>

@@ -17,9 +17,6 @@ export {
 export {
   createScheduleSchema,
   scheduleQuerySchema,
-  holidayQuerySchema,
-  createHolidaySchema,
-  updateHolidaySchema,
   createDutySchema,
   reassignDutySchema,
   generateScheduleSchema,

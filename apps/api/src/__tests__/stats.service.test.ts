@@ -57,7 +57,7 @@ describe('stats.service — adminStats', () => {
       if (sql.includes('WHERE u.is_active = TRUE'))
         return { rows: [{ id: 5, first_name: 'Jane', last_name: 'Roe', max_monthly_duties: 7 }] }
       if (sql.includes('GROUP BY doctor_id'))
-        return { rows: [{ doctor_id: 5, total: 29, weekend: 8, holiday: 1 }] }
+        return { rows: [{ doctor_id: 5, total: 29, weekend: 8 }] }
       if (sql.includes('u.is_active = FALSE')) return { rows: [] }
       return { rows: [] }
     })
@@ -92,7 +92,7 @@ describe('stats.service — adminStats', () => {
       if (sql.includes('WHERE u.is_active = TRUE'))
         return { rows: [{ id: 5, first_name: 'Jane', last_name: 'Roe', max_monthly_duties: 7 }] }
       if (sql.includes('GROUP BY doctor_id'))
-        return { rows: [{ doctor_id: 6, total: 1, weekend: 0, holiday: 0 }] }
+        return { rows: [{ doctor_id: 6, total: 1, weekend: 0 }] }
       if (sql.includes('u.is_active = FALSE'))
         return { rows: [{ id: 6, first_name: 'Old', last_name: 'Doc', max_monthly_duties: 7 }] }
       return { rows: [] }
@@ -133,8 +133,8 @@ describe('stats.service — adminStats', () => {
       if (sql.includes('GROUP BY doctor_id'))
         return {
           rows: [
-            { doctor_id: 1, total: 5, weekend: 2, holiday: 0 },
-            { doctor_id: 2, total: 7, weekend: 1, holiday: 1 },
+            { doctor_id: 1, total: 5, weekend: 2 },
+            { doctor_id: 2, total: 7, weekend: 1 },
           ],
         }
       if (sql.includes('u.is_active = FALSE')) return { rows: [] }
@@ -158,7 +158,7 @@ describe('stats.service — meStats', () => {
       const sql = String(text)
       if (sql.includes('FROM schedules WHERE status')) return { rows: [] }
       if (sql.includes('FILTER (WHERE du.is_weekend)'))
-        return { rows: [{ total: 0, weekend: 0, holiday: 0 }] }
+        return { rows: [{ total: 0, weekend: 0 }] }
       if (sql.includes('du.duty_date >= $2')) return { rows: [] }
       if (sql.includes('du.duty_date BETWEEN')) return { rows: [] }
       return { rows: [] }
@@ -176,16 +176,15 @@ describe('stats.service — meStats', () => {
       const sql = String(text)
       if (sql.includes('FROM schedules WHERE status')) return { rows: [{ '?column?': 1 }] }
       if (sql.includes('FILTER (WHERE du.is_weekend)'))
-        return { rows: [{ total: 4, weekend: 1, holiday: 0 }] }
+        return { rows: [{ total: 4, weekend: 1 }] }
       if (sql.includes('du.duty_date >= $2'))
-        return { rows: [{ duty_date: '2099-01-01', is_weekend: false, is_holiday: false }] }
+        return { rows: [{ duty_date: '2099-01-01', is_weekend: false }] }
       if (sql.includes('du.duty_date BETWEEN'))
         return {
           rows: [
             {
               duty_date: '2099-01-01',
               is_weekend: false,
-              is_holiday: false,
               first_name: 'Jane',
               last_name: 'Roe',
               doctor_id: 5,
@@ -193,7 +192,6 @@ describe('stats.service — meStats', () => {
             {
               duty_date: '2099-01-02',
               is_weekend: true,
-              is_holiday: false,
               first_name: 'Other',
               last_name: 'Doc',
               doctor_id: 6,

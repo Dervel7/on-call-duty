@@ -11,18 +11,6 @@ export const scheduleQuerySchema = z.object({
   year: z.coerce.number().int().min(1970).max(2100).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
 })
-export const holidayQuerySchema = z.object({
-  from: isoDateSchema.optional(),
-  to: isoDateSchema.optional(),
-})
-export const createHolidaySchema = z.object({
-  name: z.string().min(1).max(200),
-  date: isoDateSchema,
-})
-export const updateHolidaySchema = z.object({
-  name: z.string().min(1).max(200).optional(),
-  date: isoDateSchema.optional(),
-})
 export const createDutySchema = z.object({
   date: isoDateSchema,
   doctorId: z.number().int().positive(),

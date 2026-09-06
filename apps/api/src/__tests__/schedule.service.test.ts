@@ -51,8 +51,7 @@ function dutyRow(overrides: Partial<Record<string, unknown>> = {}) {
     first_name: 'Jane',
     last_name: 'Roe',
     is_weekend: false,
-    is_holiday: false,
-    reason: 'score 1 (workload +1, weekend +0, holiday +0, friday +0)',
+    reason: 'score 1 (workload +1, weekend +0, friday +0)',
     created_at: new Date('2026-08-01'),
     ...overrides,
   }
@@ -92,7 +91,6 @@ describe('schedule.service', () => {
       const sql = String(text)
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
       if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
-      if (sql.includes('FROM holidays')) return { rows: [] }
       if (sql.includes('FROM unavailability')) return { rows: [] }
       if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [] }
       if (sql.includes('INSERT INTO schedules')) return { rows: [{ id: 42 }] }
@@ -242,10 +240,8 @@ describe('schedule.service', () => {
       if (sql.includes('FROM duties WHERE schedule_id = $1 AND doctor_id')) {
         return { rows: [{ n: 0 }] }
       }
-      if (sql.includes('FROM holidays WHERE date >= $1')) return { rows: [{ n: 0 }] }
       if (sql.includes('EXTRACT(ISODOW')) return { rows: [{ n: 0 }] }
       if (sql.includes('FROM duties WHERE duty_date IN')) return { rows: [] }
-      if (sql.includes('FROM holidays WHERE date = $1')) return { rows: [] }
       if (sql.includes('INSERT INTO duties')) return { rows: [{ id: 11 }] }
       if (sql.includes('FROM duties du')) return { rows: [dutyRow({ id: 11 })] }
       return { rows: [] }
@@ -266,8 +262,6 @@ describe('schedule.service', () => {
     query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
     query.mockResolvedValueOnce({ rows: [{ n: 8 }] })
     query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
-    query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
-    query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [{ status: 'draft' }] })
     query.mockResolvedValueOnce({ rows: [] })
@@ -322,7 +316,6 @@ describe('generate plan path', () => {
       const sql = String(text)
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
       if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
-      if (sql.includes('FROM holidays')) return { rows: [] }
       if (sql.includes('FROM unavailability')) return { rows: [] }
       if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [] }
       if (sql.includes('INSERT INTO schedules')) return { rows: [{ id: 7 }] }
@@ -365,7 +358,6 @@ describe('generate plan path', () => {
       const sql = String(text)
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
       if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
-      if (sql.includes('FROM holidays')) return { rows: [] }
       if (sql.includes('FROM unavailability'))
         return { rows: [{ doctor_id: 1, start_date: '2026-09-01', end_date: '2026-09-30' }] }
       if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [] }
@@ -435,7 +427,6 @@ describe('generate plan path', () => {
       const sql = String(text)
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
       if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
-      if (sql.includes('FROM holidays')) return { rows: [] }
       if (sql.includes('FROM unavailability')) return { rows: [] }
       if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [{ doctor_id: 1 }] }
       return { rows: [] }
@@ -556,18 +547,16 @@ describe('published lock', () => {
 })
 
 describe('computeEligibility', () => {
-  const day = (date: string, isWeekend = false, isHoliday = false) => ({
+  const day = (date: string, isWeekend = false) => ({
     date,
     dayOfWeek: new Date(`${date}T00:00:00Z`).getUTCDay(),
     isWeekend,
-    isHoliday,
   })
   const empty = () => ({
     dutiesByDate: new Map<string, Set<number>>(),
     dutyCountByDoctor: new Map<number, number>(),
     saturdayByDoctor: new Map<number, number>(),
     sundayByDoctor: new Map<number, number>(),
-    holidayByDoctor: new Map<number, number>(),
   })
   const doctor = (id: number, maxMonthlyDuties = 7): DoctorSpec => ({
     id,
@@ -585,7 +574,7 @@ describe('computeEligibility', () => {
       ...empty(),
     })
     expect(result).toEqual([
-      { date: '2026-09-10', isWeekend: false, isHoliday: false, eligibleDoctorIds: [1], availableDoctorIds: [1] },
+      { date: '2026-09-10', isWeekend: false, eligibleDoctorIds: [1], availableDoctorIds: [1] },
     ])
   })
 

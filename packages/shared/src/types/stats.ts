@@ -16,7 +16,6 @@ export interface AdminWorkloadItem {
   duties: number
   weekday: number
   weekend: number
-  holiday: number
 }
 
 export interface AdminCoverage {
@@ -28,7 +27,6 @@ export interface AdminCoverage {
 export interface AdminFairness {
   dutySpread: number | null
   weekendSpread: number | null
-  holidaySpread: number | null
 }
 
 export interface AdminStats {
@@ -48,14 +46,12 @@ export interface MeCurrentMonth {
   published: boolean
   duties: number
   weekend: number
-  holiday: number
   maxMonthly: number
 }
 
 export interface MeUpcomingDuty {
   dutyDate: string
   isWeekend: boolean
-  isHoliday: boolean
 }
 
 export interface OnCallEntry {
@@ -63,7 +59,6 @@ export interface OnCallEntry {
   doctorFirstName: string
   doctorLastName: string
   isWeekend: boolean
-  isHoliday: boolean
   isMine: boolean
 }
 

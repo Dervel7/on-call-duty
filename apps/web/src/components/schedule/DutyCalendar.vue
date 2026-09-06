@@ -42,7 +42,6 @@ interface Cell {
   date: string | null
   dayNum: number | null
   isWeekend: boolean
-  isHoliday: boolean
   slots: (CalendarAssignment | undefined)[]
   conflict?: string
   options: number[][]
@@ -66,7 +65,7 @@ const cells = computed<Cell[]>(() => {
   const firstJs = new Date(`${first.date}T00:00:00`)
   const lead = (firstJs.getDay() + 6) % 7
   for (let i = 0; i < lead; i++) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isHoliday: false, slots: [], options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, slots: [], options: [] })
   }
   for (const day of props.days) {
     const slotsArr = props.assignmentByDate.get(day.date) ?? []
@@ -79,14 +78,13 @@ const cells = computed<Cell[]>(() => {
       date: day.date,
       dayNum: js.getDate(),
       isWeekend: day.isWeekend,
-      isHoliday: day.isHoliday,
       slots,
       conflict: props.conflictsByDate.get(day.date),
       options,
     })
   }
   while (out.length % 7 !== 0) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isHoliday: false, slots: [], options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, slots: [], options: [] })
   }
   return out
 })
@@ -145,7 +143,6 @@ function cellBg(c: Cell): string {
           :class="[
             'min-h-[112px] p-2',
             cellBg(c),
-            !c.blank && c.isHoliday && 'border border-destructive/40',
             !c.blank && c.conflict && 'border border-destructive/60',
           ]"
         >
@@ -157,11 +154,6 @@ function cellBg(c: Cell): string {
                   v-if="c.isWeekend"
                   class="inline-flex rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
                   >WE</span
-                >
-                <span
-                  v-if="c.isHoliday"
-                  class="inline-flex rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive"
-                  >HOL</span
                 >
               </span>
             </div>

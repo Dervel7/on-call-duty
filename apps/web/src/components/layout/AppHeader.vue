@@ -23,10 +23,8 @@ const navItems = computed(() => {
   if (auth.isAdmin) {
     items.push(
       { to: '/users', label: 'Users' },
-      { to: '/doctors', label: 'Doctors' },
       { to: '/availability', label: 'Availability' },
       { to: '/schedules', label: 'Schedules' },
-      { to: '/holidays', label: 'Holidays' },
       { to: '/reports', label: 'Reports' },
       { to: '/activity', label: 'Activity' },
     )

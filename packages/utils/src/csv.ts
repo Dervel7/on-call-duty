@@ -3,7 +3,6 @@ export interface CsvDutyRow {
   doctorFirstName: string
   doctorLastName: string
   isWeekend: boolean
-  isHoliday: boolean
   reason: string
 }
 
@@ -13,7 +12,7 @@ export function escapeCsvField(value: string): string {
   return value
 }
 
-const CSV_HEADERS = ['Date', 'Weekday', 'Doctor', 'Weekend', 'Holiday', 'Reason']
+const CSV_HEADERS = ['Date', 'Weekday', 'Doctor', 'Weekend', 'Reason']
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 /** Serialize roster rows to CSV (RFC 4180; CRLF line endings). The header row is always present. */
@@ -26,7 +25,6 @@ export function dutiesToCsv(rows: CsvDutyRow[]): string {
       WEEKDAYS[d.getUTCDay()] ?? '',
       `${r.doctorFirstName} ${r.doctorLastName}`,
       r.isWeekend ? 'Yes' : 'No',
-      r.isHoliday ? 'Yes' : 'No',
       r.reason,
     ].map(escapeCsvField)
     lines.push(fields.join(','))

@@ -39,8 +39,7 @@ function emptyReport(overrides: Record<string, unknown> = {}) {
     roster: [],
     coverage: { daysInMonth: 31, filled: 0, gaps: [] },
     workload: [],
-    fairness: { dutySpread: null, weekendSpread: null, holidaySpread: null },
-    holidays: [],
+    fairness: { dutySpread: null, weekendSpread: null },
     ...overrides,
   }
 }

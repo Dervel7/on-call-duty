@@ -283,13 +283,6 @@ watch([year, month], load)
               >
               Weekend
             </span>
-            <span class="inline-flex items-center gap-1.5">
-              <span
-                class="inline-flex rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive"
-                >HOL</span
-              >
-              Holiday
-            </span>
           </div>
         </div>
 

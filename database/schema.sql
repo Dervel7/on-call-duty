@@ -72,13 +72,10 @@ CREATE INDEX IF NOT EXISTS idx_unavailability_dates ON unavailability (start_dat
 
 -- Phase 5: Scheduling Engine
 
-CREATE TABLE IF NOT EXISTS holidays (
-  id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  name       TEXT NOT NULL,
-  date       DATE NOT NULL UNIQUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+-- Holidays removed: drop the table and the denormalized duty flag on existing
+-- databases (is_holiday was NOT NULL with no default, so duty inserts would
+-- fail if the column lingered).
+DROP TABLE IF EXISTS holidays;
 
 CREATE TABLE IF NOT EXISTS schedules (
   id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -97,10 +94,10 @@ CREATE TABLE IF NOT EXISTS duties (
   duty_date   DATE NOT NULL,
   doctor_id   INTEGER NOT NULL REFERENCES doctors (id) ON DELETE RESTRICT,
   is_weekend  BOOLEAN NOT NULL,
-  is_holiday  BOOLEAN NOT NULL,
   reason      TEXT NOT NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE duties DROP COLUMN IF EXISTS is_holiday;
 CREATE INDEX IF NOT EXISTS idx_duties_schedule ON duties (schedule_id);
 CREATE INDEX IF NOT EXISTS idx_duties_doctor_date ON duties (doctor_id, duty_date);
 CREATE INDEX IF NOT EXISTS idx_duties_date ON duties (duty_date);

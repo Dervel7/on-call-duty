@@ -22,7 +22,7 @@ describe('escapeCsvField', () => {
 
 describe('dutiesToCsv', () => {
   it('emits only the header row for empty input', () => {
-    expect(dutiesToCsv([])).toBe('Date,Weekday,Doctor,Weekend,Holiday,Reason')
+    expect(dutiesToCsv([])).toBe('Date,Weekday,Doctor,Weekend,Reason')
   })
 
   it('emits one CRLF-terminated line per row in the right column order', () => {
@@ -32,13 +32,12 @@ describe('dutiesToCsv', () => {
         doctorFirstName: 'Jane',
         doctorLastName: 'Roe',
         isWeekend: false,
-        isHoliday: false,
         reason: 'engine',
       },
     ])
     const lines = csv.split('\r\n')
-    expect(lines[0]).toBe('Date,Weekday,Doctor,Weekend,Holiday,Reason')
-    expect(lines[1]).toBe('2026-08-07,Friday,Jane Roe,No,No,engine')
+    expect(lines[0]).toBe('Date,Weekday,Doctor,Weekend,Reason')
+    expect(lines[1]).toBe('2026-08-07,Friday,Jane Roe,No,engine')
     expect(lines).toHaveLength(2)
   })
 
@@ -49,12 +48,11 @@ describe('dutiesToCsv', () => {
         doctorFirstName: 'A',
         doctorLastName: 'B',
         isWeekend: true,
-        isHoliday: false,
         reason: 'x',
       },
     ])
     // 2026-08-09 is a Sunday
-    expect(csv.split('\r\n')[1]).toBe('2026-08-09,Sunday,A B,Yes,No,x')
+    expect(csv.split('\r\n')[1]).toBe('2026-08-09,Sunday,A B,Yes,x')
   })
 
   it('quotes a reason that contains a comma', () => {
@@ -64,10 +62,9 @@ describe('dutiesToCsv', () => {
         doctorFirstName: 'Jane',
         doctorLastName: 'Roe',
         isWeekend: false,
-        isHoliday: false,
         reason: 'manual override, admin #2',
       },
     ])
-    expect(csv.split('\r\n')[1]).toBe('2026-08-07,Friday,Jane Roe,No,No,"manual override, admin #2"')
+    expect(csv.split('\r\n')[1]).toBe('2026-08-07,Friday,Jane Roe,No,"manual override, admin #2"')
   })
 })

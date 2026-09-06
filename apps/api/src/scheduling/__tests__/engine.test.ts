@@ -29,11 +29,10 @@ const dr = (id: number, max = 7): DoctorSpec => ({
   maxMonthlyDuties: max,
   isActive: true,
 })
-const day = (d: string, isWeekend = false, isHoliday = false): DaySpec => ({
+const day = (d: string, isWeekend = false): DaySpec => ({
   date: d,
   dayOfWeek: dayOfWeekISO(d),
   isWeekend,
-  isHoliday,
 })
 
 describe('engine.generate', () => {
@@ -47,7 +46,7 @@ describe('engine.generate', () => {
       expect(new Set(picked).size).toBe(DOCTORS_PER_DAY) // distinct
     }
     expect(assignments[0]?.reason).toMatch(
-      /^score \d+ \(workload \+\d+, weekend \+\d+, holiday \+\d+, friday \+\d+\)/,
+      /^score \d+ \(workload \+\d+, weekend \+\d+, friday \+\d+\)/,
     )
   })
 
