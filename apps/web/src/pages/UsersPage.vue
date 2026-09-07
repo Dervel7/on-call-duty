@@ -21,6 +21,7 @@ import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
+import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -279,15 +280,10 @@ onMounted(load)
         </div>
         <div class="flex flex-col gap-1">
           <Label for="e-role">Role</Label>
-          <select
-            id="e-role"
-            v-model="edit.role"
-            :disabled="edit.id !== null"
-            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          >
+          <Select id="e-role" v-model="edit.role" :disabled="edit.id !== null">
             <option value="doctor">doctor</option>
             <option value="administrator">administrator</option>
-          </select>
+          </Select>
         </div>
         <div v-if="edit.doctorId !== null || (edit.id === null && edit.role === 'doctor')" class="flex flex-col gap-1">
           <Label for="e-max">Max monthly duties (1–7)</Label>

@@ -13,6 +13,7 @@ vi.mock('@/services/user', () => ({
 }))
 
 import ActivityPage from '../pages/ActivityPage.vue'
+import { pickOption } from './pick-option'
 
 function page(overrides: Record<string, unknown> = {}): PaginatedActivity {
   return {
@@ -72,8 +73,7 @@ describe('ActivityPage', () => {
     getActivity.mockResolvedValue(page())
     const wrapper = mount(ActivityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    const select = wrapper.find('#f-action')
-    await select.setValue('auth.login')
+    await pickOption(wrapper.element, '#f-action', 'auth.login')
     await flushPromises()
     expect(getActivity).toHaveBeenLastCalledWith(
       expect.objectContaining({ action: 'auth.login', page: 1, limit: 50 }),

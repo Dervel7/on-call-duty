@@ -28,6 +28,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import SchedulePreviewPage from '../pages/SchedulePreviewPage.vue'
+import { pickOptionFrom } from './pick-option'
 
 function daysFor(year: number, month: number) {
   const total = new Date(year, month, 0).getDate()
@@ -68,7 +69,7 @@ describe('SchedulePreviewPage', () => {
     const wrapper = mount(SchedulePreviewPage)
     await flushPromises()
     expect(wrapper.text()).toContain('September 2026')
-    expect(wrapper.findAll('select').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('[role="combobox"]').length).toBeGreaterThan(0)
   })
 
   it('blocks Generate while any day has no doctor; shows error banner', async () => {
@@ -90,9 +91,9 @@ describe('SchedulePreviewPage', () => {
     })
     const wrapper = mount(SchedulePreviewPage)
     await flushPromises()
-    const selects = wrapper.findAll('select')
-    for (const sel of selects) {
-      await sel.setValue('5')
+    const triggers = wrapper.findAll('[role="combobox"]')
+    for (const t of triggers) {
+      await pickOptionFrom(t.element, '5')
     }
     await flushPromises()
     const button = wrapper.findAll('button').find((b) => b.text().includes('Generate'))!
@@ -121,10 +122,10 @@ describe('SchedulePreviewPage', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('October 2026')
     expect(wrapper.text()).toContain('31 day(s) with no doctor')
-    expect(wrapper.findAll('select').length).toBe(62)
+    expect(wrapper.findAll('[role="combobox"]').length).toBe(62)
     first.resolve({ assignments: [], conflicts: [], days: daysFor(2026, 9) })
     await flushPromises()
-    expect(wrapper.findAll('select').length).toBe(62)
+    expect(wrapper.findAll('[role="combobox"]').length).toBe(62)
     expect(wrapper.text()).toContain('31 day(s) with no doctor')
     expect(wrapper.text()).not.toContain('September 2026')
   })

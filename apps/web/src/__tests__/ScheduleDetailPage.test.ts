@@ -31,6 +31,7 @@ vi.mock('vue-router', () => ({
 
 import ScheduleDetailPage from '../pages/ScheduleDetailPage.vue'
 import { useAuthStore } from '../stores/auth'
+import { pickOption } from './pick-option'
 
 function daysFor(year: number, month: number) {
   const total = new Date(year, month, 0).getDate()
@@ -91,7 +92,7 @@ describe('ScheduleDetailPage', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('September 2026')
     expect(wrapper.text()).toContain('Roe J.')
-    expect(wrapper.findAll('select').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('[role="combobox"]').length).toBeGreaterThan(0)
   })
 
   it('locks to read-only when published (no selects)', async () => {
@@ -100,7 +101,7 @@ describe('ScheduleDetailPage', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Published')
     expect(wrapper.text()).toContain('Revert to draft')
-    expect(wrapper.findAll('select').length).toBe(0)
+    expect(wrapper.findAll('[role="combobox"]').length).toBe(0)
   })
 
   it('doctor sees read-only names even when doctor list is forbidden (no selects, no publish buttons)', async () => {
@@ -109,7 +110,7 @@ describe('ScheduleDetailPage', () => {
     const wrapper = mountAs('doctor')
     await flushPromises()
     expect(wrapper.text()).toContain('Roe J.')
-    expect(wrapper.findAll('select').length).toBe(0)
+    expect(wrapper.findAll('[role="combobox"]').length).toBe(0)
     expect(wrapper.text()).not.toContain('Revert to draft')
   })
 
@@ -119,8 +120,7 @@ describe('ScheduleDetailPage', () => {
     get.mockResolvedValue(detail('draft'))
     const wrapper = mountAs('administrator')
     await flushPromises()
-    const select = wrapper.find('select')
-    await select.setValue('5')
+    await pickOption(wrapper.element, '[role="combobox"]', '5')
     await flushPromises()
     expect(addDuty).toHaveBeenCalledWith(1, { date: '2026-09-01', doctorId: 5 })
     expect(get).toHaveBeenCalledTimes(2)

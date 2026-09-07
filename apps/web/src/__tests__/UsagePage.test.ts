@@ -19,6 +19,7 @@ vi.mock('@/services/billing', () => ({
 }))
 
 import UsagePage from '../pages/UsagePage.vue'
+import { pickDate } from './pick-date'
 
 const generationsFixture: GenerationEvent[] = [
   {
@@ -139,9 +140,9 @@ describe('UsagePage', () => {
 
   it('prefills the date input and calls update on Save, refreshing the displayed state', async () => {
     const wrapper = await mountPage()
-    const input = wrapper.find('#billing-date')
-    expect((input.element as HTMLInputElement).value).toBe('2026-12-31')
-    await input.setValue('2027-06-30')
+    const trigger = wrapper.find('#billing-date')
+    expect(trigger.text()).toContain('31 Dec 2026')
+    await pickDate(wrapper.element, '#billing-date', '2027-06-30')
     billingUpdate.mockResolvedValue({ paidThrough: '2027-06-30', locked: false })
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()

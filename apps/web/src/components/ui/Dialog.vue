@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { onClickOutside, useEventListener } from '@vueuse/core'
+import { useEventListener } from '@vueuse/core'
 import Button from './Button.vue'
 
 const props = defineProps<{ open: boolean; title?: string }>()
@@ -12,7 +12,14 @@ function close() {
   if (props.open) emit('update:open', false)
 }
 
-onClickOutside(panel, close)
+// Clicks inside a popover layer (e.g. a Select's teleported option list)
+// belong to this dialog's surface, not to the outside.
+useEventListener(document, 'click', (e) => {
+  if (!props.open) return
+  const t = e.target as HTMLElement
+  if (panel.value?.contains(t) || t.closest('[data-popover-layer]')) return
+  close()
+})
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   if (props.open && e.key === 'Escape') close()
 })

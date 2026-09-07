@@ -26,6 +26,8 @@ vi.mock('@/services/doctor', () => ({
 
 import AvailabilityPage from '../pages/AvailabilityPage.vue'
 import { useConfirmState } from '../composables/useConfirm'
+import { pickDate } from './pick-date'
+import { pickOption } from './pick-option'
 
 const { settle } = useConfirmState()
 
@@ -72,11 +74,7 @@ function bodyButton(label: string): HTMLButtonElement | undefined {
   )
 }
 
-function setBodyValue(selector: string, value: string) {
-  const el = document.body.querySelector(selector) as HTMLSelectElement | HTMLInputElement
-  el.value = value
-  el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input'))
-}
+
 
 describe('AvailabilityPage', () => {
   it('renders the list on mount', async () => {
@@ -104,9 +102,9 @@ describe('AvailabilityPage', () => {
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'New exclusion')!.trigger('click')
     await flushPromises()
-    setBodyValue('#e-doctor', '5')
-    setBodyValue('#e-start', '2026-09-07')
-    setBodyValue('#e-end', '2026-09-11')
+    await pickOption(document.body, '#e-doctor', '5')
+    await pickDate(document.body, '#e-start', '2026-09-07')
+    await pickDate(document.body, '#e-end', '2026-09-11')
     await flushPromises()
     bodyButton('Save')!.click()
     await flushPromises()

@@ -8,7 +8,7 @@ import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
-import Input from '@/components/ui/Input.vue'
+import DatePicker from '@/components/ui/DatePicker.vue'
 import Label from '@/components/ui/Label.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
@@ -120,7 +120,7 @@ onMounted(loadBilling)
         <form class="flex items-end gap-2" novalidate @submit.prevent="saveBilling">
           <div class="flex flex-col gap-1">
             <Label for="billing-date">Paid through</Label>
-            <Input id="billing-date" v-model="billingDate" type="date" />
+            <DatePicker id="billing-date" v-model="billingDate" placeholder="Pick a date" class="w-44" />
           </div>
           <Button type="submit" :disabled="billingSaving">Save</Button>
         </form>

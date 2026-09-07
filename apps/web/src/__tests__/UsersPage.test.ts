@@ -30,6 +30,7 @@ vi.mock('@/services/doctor', () => ({
 
 import UsersPage from '../pages/UsersPage.vue'
 import { useConfirmState } from '../composables/useConfirm'
+import { pickOption } from './pick-option'
 
 const { settle } = useConfirmState()
 
@@ -94,11 +95,6 @@ function setBodyValue(selector: string, value: string) {
   el.dispatchEvent(new Event('input'))
 }
 
-function setBodySelect(selector: string, value: string) {
-  const el = document.body.querySelector(selector) as HTMLSelectElement
-  el.value = value
-  el.dispatchEvent(new Event('change'))
-}
 
 describe('UsersPage', () => {
   it('renders users with role, doctor duty caps and admin placeholders', async () => {
@@ -147,7 +143,7 @@ describe('UsersPage', () => {
     await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
     await flushPromises()
     expect(document.body.querySelector('#e-max')).toBeNull()
-    setBodySelect('#e-role', 'doctor')
+    await pickOption(document.body, '#e-role', 'doctor')
     await flushPromises()
     setBodyValue('#e-email', 'dr@h.com')
     setBodyValue('#e-username', 'drsmith')

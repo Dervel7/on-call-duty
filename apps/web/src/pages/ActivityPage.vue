@@ -7,7 +7,7 @@ import * as userService from '@/services/user'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
-import Input from '@/components/ui/Input.vue'
+import DatePicker from '@/components/ui/DatePicker.vue'
 import Label from '@/components/ui/Label.vue'
 import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
@@ -148,11 +148,11 @@ onMounted(() => {
         </div>
         <div class="flex flex-col gap-1">
           <Label for="f-from">From</Label>
-          <Input id="f-from" v-model="filters.from" type="date" />
+          <DatePicker id="f-from" v-model="filters.from" placeholder="Any date" />
         </div>
         <div class="flex flex-col gap-1">
           <Label for="f-to">To</Label>
-          <Input id="f-to" v-model="filters.to" type="date" />
+          <DatePicker id="f-to" v-model="filters.to" placeholder="Any date" />
         </div>
         <Button variant="outline" @click="clearFilters">Clear filters</Button>
       </CardContent>

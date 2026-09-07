@@ -9,6 +9,7 @@ import { createUnavailabilitySelfSchema, updateUnavailabilitySchema } from '@onc
 import * as unavailabilityService from '@/services/unavailability'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
+import DatePicker from '@/components/ui/DatePicker.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import Select from '@/components/ui/Select.vue'
@@ -192,11 +193,11 @@ onMounted(load)
         </div>
         <div class="flex flex-col gap-1">
           <Label for="m-start">Start date</Label>
-          <Input id="m-start" v-model="edit.startDate" type="date" />
+          <DatePicker id="m-start" v-model="edit.startDate" placeholder="Pick a date" />
         </div>
         <div class="flex flex-col gap-1">
           <Label for="m-end">End date</Label>
-          <Input id="m-end" v-model="edit.endDate" type="date" />
+          <DatePicker id="m-end" v-model="edit.endDate" placeholder="Pick a date" />
         </div>
         <div class="flex flex-col gap-1">
           <Label for="m-note">Note (optional)</Label>

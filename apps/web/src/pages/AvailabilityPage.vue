@@ -11,6 +11,7 @@ import * as unavailabilityService from '@/services/unavailability'
 import * as doctorService from '@/services/doctor'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
+import DatePicker from '@/components/ui/DatePicker.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import Select from '@/components/ui/Select.vue'
@@ -187,11 +188,11 @@ onMounted(async () => {
       </div>
       <div class="flex flex-col gap-1">
         <Label for="f-from">From</Label>
-        <Input id="f-from" v-model="filterFrom" type="date" />
+        <DatePicker id="f-from" v-model="filterFrom" placeholder="Any date" class="w-44" />
       </div>
       <div class="flex flex-col gap-1">
         <Label for="f-to">To</Label>
-        <Input id="f-to" v-model="filterTo" type="date" />
+        <DatePicker id="f-to" v-model="filterTo" placeholder="Any date" class="w-44" />
       </div>
       <Button variant="outline" @click="load">Apply</Button>
     </div>
@@ -246,11 +247,11 @@ onMounted(async () => {
         </div>
         <div class="flex flex-col gap-1">
           <Label for="e-start">Start date</Label>
-          <Input id="e-start" v-model="edit.startDate" type="date" />
+          <DatePicker id="e-start" v-model="edit.startDate" placeholder="Pick a date" />
         </div>
         <div class="flex flex-col gap-1">
           <Label for="e-end">End date</Label>
-          <Input id="e-end" v-model="edit.endDate" type="date" />
+          <DatePicker id="e-end" v-model="edit.endDate" placeholder="Pick a date" />
         </div>
         <div class="flex flex-col gap-1">
           <Label for="e-note">Note (optional)</Label>

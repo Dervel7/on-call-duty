@@ -24,6 +24,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import SchedulesPage from '../pages/SchedulesPage.vue'
+import { pickOption } from './pick-option'
 
 function summary(overrides: Record<string, unknown> = {}) {
   return {
@@ -86,9 +87,7 @@ describe('SchedulesPage', () => {
     const year = form.querySelector('#g-year') as HTMLInputElement
     year.value = '2027'
     year.dispatchEvent(new Event('input', { bubbles: true }))
-    const month = form.querySelector('#g-month') as HTMLSelectElement
-    month.value = '3'
-    month.dispatchEvent(new Event('change', { bubbles: true }))
+    await pickOption(document.body, '#g-month', '3')
 
     generate.mockResolvedValue({ schedule: { id: 7 } })
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
@@ -109,9 +108,7 @@ describe('SchedulesPage', () => {
     const year = form.querySelector('#g-year') as HTMLInputElement
     year.value = '2027'
     year.dispatchEvent(new Event('input', { bubbles: true }))
-    const month = form.querySelector('#g-month') as HTMLSelectElement
-    month.value = '3'
-    month.dispatchEvent(new Event('change', { bubbles: true }))
+    await pickOption(document.body, '#g-month', '3')
 
     generate.mockRejectedValue(
       new ApiError(
