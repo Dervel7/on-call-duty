@@ -44,9 +44,9 @@ VALUES
   ((SELECT id FROM users WHERE email = 'dr3@oncall.local' AND is_deleted = FALSE), 7),
   ((SELECT id FROM users WHERE email = 'dr4@oncall.local' AND is_deleted = FALSE), 7),
   ((SELECT id FROM users WHERE email = 'dr5@oncall.local' AND is_deleted = FALSE), 7),
-  ((SELECT id FROM users WHERE email = 'dr6@oncall.local' AND is_deleted = FALSE), 6),
-  ((SELECT id FROM users WHERE email = 'dr7@oncall.local' AND is_deleted = FALSE), 6),
-  ((SELECT id FROM users WHERE email = 'dr8@oncall.local' AND is_deleted = FALSE), 6)
+  ((SELECT id FROM users WHERE email = 'dr6@oncall.local' AND is_deleted = FALSE), 7),
+  ((SELECT id FROM users WHERE email = 'dr7@oncall.local' AND is_deleted = FALSE), 7),
+  ((SELECT id FROM users WHERE email = 'dr8@oncall.local' AND is_deleted = FALSE), 7)
 ON CONFLICT (user_id) DO UPDATE SET
   max_monthly_duties = EXCLUDED.max_monthly_duties,
   updated_at         = NOW();

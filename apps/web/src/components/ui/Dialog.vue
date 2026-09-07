@@ -31,10 +31,13 @@ watch(
 <template>
   <Teleport to="body">
     <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-foreground/40 backdrop-blur-sm" @click="close" />
+      <div
+        class="animate-dialog-backdrop absolute inset-0 bg-foreground/40 backdrop-blur-sm"
+        @click="close"
+      />
       <div
         ref="panel"
-        class="relative z-10 w-full max-w-md rounded-xl border border-border/80 bg-card p-6 shadow-pop"
+        class="animate-dialog-panel relative z-10 w-full max-w-md rounded-xl border border-border/80 bg-card p-6 shadow-pop"
       >
         <h2 v-if="title" class="mb-4 text-lg font-semibold tracking-tight text-foreground">
           {{ title }}

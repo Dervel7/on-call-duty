@@ -198,6 +198,26 @@
   }
 }
 
+@keyframes dialog-pop {
+  from {
+    transform: scale(0.05);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @layer utilities {
   .page-enter-active,
   .page-leave-active {
@@ -220,6 +240,15 @@
 
   .pulse-ring {
     animation: pulse-ring 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .animate-dialog-panel {
+    transform-origin: center;
+    animation: dialog-pop 0.52s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-dialog-backdrop {
+    animation: dialog-fade 1.18s ease-out;
   }
 }
 
