@@ -47,7 +47,7 @@ afterEach(() => {
   // removed by innerHTML = '' crashes the next mount.
   wrapper?.unmount()
   wrapper = undefined
-  document.body.innerHTML = ''
+  vi.restoreAllMocks()
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight')
   vi.unstubAllGlobals()
 })
