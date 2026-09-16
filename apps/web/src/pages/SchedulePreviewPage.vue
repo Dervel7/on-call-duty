@@ -29,7 +29,15 @@ interface PreviewAssignment {
   lastName: string
   reason: string
 }
-const assignments = ref<PreviewAssignment[]>([])
+
+// Per-day slots aligned with DutyCalendar's two selects. A null marks a slot
+// the user cleared, so remaining doctors keep their position instead of
+// shifting into the select that was just emptied.
+const slotsByDate = ref(new Map<string, (PreviewAssignment | null)[]>())
+
+function setDaySlots(date: string, slots: (PreviewAssignment | null)[]) {
+  slotsByDate.value = new Map(slotsByDate.value).set(date, slots)
+}
 
 const year = computed(() => Number(route.query.year))
 const month = computed(() => Number(route.query.month))
@@ -48,12 +56,17 @@ const doctorsById = computed(() => {
 const assignmentByDate = computed(() => {
   const m = new Map<
     string,
-    { doctorId: number; firstName: string; lastName: string; reason: string }[]
+    ({ doctorId: number; firstName: string; lastName: string; reason: string } | null)[]
   >()
-  for (const a of assignments.value) {
-    const arr = m.get(a.date) ?? []
-    arr.push({ doctorId: a.doctorId, firstName: a.firstName, lastName: a.lastName, reason: a.reason })
-    m.set(a.date, arr)
+  for (const [date, slots] of slotsByDate.value) {
+    m.set(
+      date,
+      slots.map((s) =>
+        s
+          ? { doctorId: s.doctorId, firstName: s.firstName, lastName: s.lastName, reason: s.reason }
+          : null,
+      ),
+    )
   }
   return m
 })
@@ -68,7 +81,9 @@ const days = computed<DayInfo[]>(() => result.value?.days ?? [])
 
 const countByDate = computed(() => {
   const m = new Map<string, number>()
-  for (const a of assignments.value) m.set(a.date, (m.get(a.date) ?? 0) + 1)
+  for (const [date, slots] of slotsByDate.value) {
+    m.set(date, slots.filter((s) => s !== null).length)
+  }
   return m
 })
 const errorCount = computed(
@@ -87,6 +102,14 @@ const STATUS_TONE: Record<StatusTone, string> = {
   warning: 'border-amber-500/40 bg-amber-50 text-amber-800',
   success: 'border-success/30 bg-success/5 text-green-700',
 }
+
+const totalAssignments = computed(() =>
+  [...slotsByDate.value.values()].reduce(
+    (sum, slots) => sum + slots.filter((s) => s !== null).length,
+    0,
+  ),
+)
+
 const status = computed<{ tone: StatusTone; title: string; detail: string } | null>(() => {
   if (!result.value) return null
   if (errorCount.value > 0) {
@@ -106,7 +129,7 @@ const status = computed<{ tone: StatusTone; title: string; detail: string } | nu
   return {
     tone: 'success',
     title: 'All days covered',
-    detail: `${assignments.value.length} assignment(s) ready. No conflicts.`,
+    detail: `${totalAssignments.value} assignment(s) ready. No conflicts.`,
   }
 })
 
@@ -124,13 +147,19 @@ async function load() {
     const res = await scheduleService.preview(year.value, month.value)
     if (seq !== loadSeq) return
     result.value = res
-    assignments.value = (res?.assignments ?? []).map((a) => ({
-      date: a.date,
-      doctorId: a.doctorId,
-      firstName: a.doctorFirstName,
-      lastName: a.doctorLastName,
-      reason: a.reason,
-    }))
+    const m = new Map<string, (PreviewAssignment | null)[]>()
+    for (const a of res?.assignments ?? []) {
+      const arr = m.get(a.date) ?? []
+      arr.push({
+        date: a.date,
+        doctorId: a.doctorId,
+        firstName: a.doctorFirstName,
+        lastName: a.doctorLastName,
+        reason: a.reason,
+      })
+      m.set(a.date, arr)
+    }
+    slotsByDate.value = m
   } catch (e) {
     if (seq !== loadSeq) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to preview'
@@ -140,39 +169,29 @@ async function load() {
 }
 
 function onSelect(date: string, slotIndex: number, doctorId: number | null) {
-  const current = assignments.value.filter((a) => a.date === date)
+  const slots = slotsByDate.value.get(date) ?? []
+  const current = slots[slotIndex] ?? null
   if (doctorId === null) {
-    if (slotIndex >= current.length) return
-    const target = current[slotIndex]
-    if (!target) return
-    assignments.value = assignments.value.filter((a) => a !== target)
+    if (!current) return
+    const next = [...slots]
+    next[slotIndex] = null
+    setDaySlots(date, next)
     return
   }
-  if (slotIndex < current.length) {
-    const target = current[slotIndex]
-    if (!target || target.doctorId === doctorId) return
-    const doc = doctorsById.value.get(doctorId)
-    if (!doc) return
-    const idx = assignments.value.indexOf(target)
-    const next = [...assignments.value]
-    next[idx] = {
-      date,
-      doctorId,
-      firstName: doc.firstName,
-      lastName: doc.lastName,
-      reason: 'manual override',
-    }
-    assignments.value = next
-    return
-  }
-  if (current.length >= 2) return
-  if (current.some((a) => a.doctorId === doctorId)) return
   const doc = doctorsById.value.get(doctorId)
   if (!doc) return
-  assignments.value = [
-    ...assignments.value,
-    { date, doctorId, firstName: doc.firstName, lastName: doc.lastName, reason: 'manual override' },
-  ]
+  if (current?.doctorId === doctorId) return
+  if (!current && slots.some((s) => s?.doctorId === doctorId)) return
+  const next: (PreviewAssignment | null)[] = [...slots]
+  while (next.length <= slotIndex) next.push(null)
+  next[slotIndex] = {
+    date,
+    doctorId,
+    firstName: doc.firstName,
+    lastName: doc.lastName,
+    reason: 'manual override',
+  }
+  setDaySlots(date, next)
 }
 
 async function generate() {
@@ -182,7 +201,10 @@ async function generate() {
     const detail = await scheduleService.generate(
       year.value,
       month.value,
-      assignments.value.map((a) => ({ date: a.date, doctorId: a.doctorId, reason: a.reason })),
+      [...slotsByDate.value.values()]
+        .flat()
+        .filter((s): s is PreviewAssignment => s !== null)
+        .map((s) => ({ date: s.date, doctorId: s.doctorId, reason: s.reason })),
     )
     router.push(`/schedules/${detail.schedule.id}`)
   } catch (e) {

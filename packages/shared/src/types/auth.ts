@@ -7,6 +7,7 @@ export interface AuthUser {
   role: Role
   firstName: string
   lastName: string
+  darkMode: boolean
 }
 
 export interface User extends AuthUser {
@@ -45,4 +46,7 @@ export interface UpdateUserRequest {
   firstName?: string
   lastName?: string
   isActive?: boolean
+}
+export interface UpdateThemeRequest {
+  darkMode: boolean
 }

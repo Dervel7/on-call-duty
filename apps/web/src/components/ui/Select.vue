@@ -26,6 +26,8 @@ interface Option {
   value: string
   label: string
   disabled: boolean
+  /** Position in the flattened option list; used for DOM ids and aria. */
+  flatIndex: number
 }
 interface Group {
   label: string
@@ -59,10 +61,15 @@ function optionOf(v: VNode): Option {
     value: String(v.props?.value ?? ''),
     label: textOf(v.children).trim(),
     disabled: v.props?.disabled === true || v.props?.disabled === '',
+    flatIndex: 0,
   }
 }
 
-const groups = computed<Group[]>(() => {
+// Options are parsed from the slot on every call instead of being memoized in
+// a computed: the slot closes over parent render locals (v-for state, cell
+// data) that are not reactive here, so a cached parse would keep stale option
+// lists after the parent re-rendered with different <option>s.
+function parseGroups(): Group[] {
   const ungrouped: Option[] = []
   const out: Group[] = [{ label: '', options: ungrouped }]
   for (const v of childVnodes(slots.default?.())) {
@@ -74,13 +81,25 @@ const groups = computed<Group[]>(() => {
       out.push({ label: String(v.props?.label ?? ''), options })
     }
   }
+  let i = 0
+  for (const g of out) for (const o of g.options) o.flatIndex = i++
   return out
-})
+}
 
-const flatOptions = computed<Option[]>(() => groups.value.flatMap((g) => g.options))
+function flatOptions(): Option[] {
+  return parseGroups().flatMap((g) => g.options)
+}
 const selectedValue = computed(() => String(props.modelValue ?? ''))
-const selected = computed(() => flatOptions.value.find((o) => o.value === selectedValue.value))
-const active = computed(() => flatOptions.value.find((o) => o.value === activeValue.value))
+function selected(): Option | undefined {
+  return flatOptions().find((o) => o.value === selectedValue.value)
+}
+function active(): Option | undefined {
+  return flatOptions().find((o) => o.value === activeValue.value)
+}
+function ariaActiveDescendant(): string | undefined {
+  const a = active()
+  return a ? `${uid}-opt-${a.flatIndex}` : undefined
+}
 
 const open = ref(false)
 const activeValue = ref('')
@@ -118,7 +137,7 @@ function choose(o: Option) {
 }
 
 function move(delta: number) {
-  const opts = flatOptions.value
+  const opts = flatOptions()
   if (!opts.length) return
   let i = opts.findIndex((o) => o.value === activeValue.value)
   for (let step = 0; step < opts.length; step++) {
@@ -138,15 +157,16 @@ function onKeydown(e: KeyboardEvent) {
     move(e.key === 'ArrowDown' ? 1 : -1)
   } else if (e.key === 'Home') {
     e.preventDefault()
-    const o = firstEnabled(flatOptions.value)
+    const o = firstEnabled(flatOptions())
     if (o) activeValue.value = o.value
   } else if (e.key === 'End') {
     e.preventDefault()
-    const o = firstEnabled([...flatOptions.value].reverse())
+    const o = firstEnabled([...flatOptions()].reverse())
     if (o) activeValue.value = o.value
   } else if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault()
-    if (active.value) choose(active.value)
+    const a = active()
+    if (a) choose(a)
   } else if (e.key === 'Tab') {
     open.value = false
   }
@@ -205,8 +225,8 @@ useEventListener(
       class="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-2 text-left text-sm text-foreground shadow-sm transition-colors hover:border-input/80 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
       @click="toggle"
     >
-      <span class="truncate" :class="!selected && 'text-muted-foreground/70'">
-        {{ selected?.label ?? selectedValue }}
+      <span class="truncate" :class="!selected() && 'text-muted-foreground/70'">
+        {{ selected()?.label ?? selectedValue }}
       </span>
       <ChevronDown
         :class="cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')"
@@ -226,11 +246,11 @@ useEventListener(
           role="listbox"
           tabindex="-1"
           data-popover-layer
-          :aria-activedescendant="active ? `${uid}-opt-${flatOptions.indexOf(active)}` : undefined"
+          :aria-activedescendant="ariaActiveDescendant()"
           class="fixed z-50 overflow-y-auto rounded-xl border border-border/80 bg-popover p-1.5 shadow-pop focus-visible:outline-none focus-visible:shadow-none"
           @keydown="onKeydown"
         >
-          <template v-for="g in groups" :key="g.label">
+          <template v-for="g in parseGroups()" :key="g.label">
             <div
               v-if="g.label"
               class="px-2.5 pb-1 pt-2 text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground"
@@ -239,7 +259,7 @@ useEventListener(
             </div>
             <button
               v-for="o in g.options"
-              :id="`${uid}-opt-${flatOptions.indexOf(o)}`"
+              :id="`${uid}-opt-${o.flatIndex}`"
               :key="o.value"
               type="button"
               role="option"

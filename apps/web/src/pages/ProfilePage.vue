@@ -11,8 +11,9 @@ import CardContent from '@/components/ui/CardContent.vue'
 import CardDescription from '@/components/ui/CardDescription.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
-import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
+import Input from '@/components/ui/Input.vue'
+import Switch from '@/components/ui/Switch.vue'
 
 const currentPassword = ref('')
 const newPassword = ref('')
@@ -28,6 +29,8 @@ const heading = computed(() =>
 const myDoctor = ref<Doctor | null>(null)
 const doctorError = ref('')
 const isDoctor = computed(() => auth.user?.role === 'doctor')
+const darkMode = computed(() => auth.user?.darkMode ?? false)
+const themeError = ref('')
 
 async function loadMyDoctor() {
   if (!isDoctor.value) return
@@ -36,6 +39,15 @@ async function loadMyDoctor() {
     myDoctor.value = await doctorService.me()
   } catch (e) {
     doctorError.value = e instanceof Error ? e.message : 'Could not load profile'
+  }
+}
+
+async function onToggleDarkMode(value: boolean) {
+  themeError.value = ''
+  try {
+    await auth.setDarkMode(value)
+  } catch (e) {
+    themeError.value = e instanceof ApiError ? e.message : 'Could not save theme preference'
   }
 }
 
@@ -87,6 +99,20 @@ async function onSubmit() {
           <p v-if="success" class="text-sm text-success" role="status">Password updated.</p>
           <Button type="submit" :disabled="submitting">Update password</Button>
         </form>
+      </CardContent>
+    </Card>
+
+    <Card class="mt-4">
+      <CardHeader>
+        <CardTitle>Appearance</CardTitle>
+        <CardDescription>Dark mode is saved to your account and applied after sign-in. The sign-in page always stays light.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div class="flex items-center justify-between gap-4">
+          <Label for="dark-mode">Dark mode</Label>
+          <Switch id="dark-mode" :model-value="darkMode" @update:model-value="onToggleDarkMode" />
+        </div>
+        <p v-if="themeError" class="mt-3 text-sm text-destructive" role="alert">{{ themeError }}</p>
       </CardContent>
     </Card>
     <Card v-if="isDoctor" class="mt-4">

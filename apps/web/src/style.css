@@ -45,6 +45,48 @@
   --radius: 0.65rem;
 }
 
+/*
+ * Dark theme — applied by toggling the `dark` class on <html>. Same token
+ * set as :root; utilities consume the variables, so this re-themes the app.
+ */
+.dark {
+  color-scheme: dark;
+
+  /* surfaces */
+  --background: 215 28% 8%;
+  --background-tint: 215 28% 10%;
+  --foreground: 210 30% 94%;
+  --card: 215 26% 11%;
+  --card-foreground: 210 30% 94%;
+  --popover: 215 26% 12%;
+  --popover-foreground: 210 30% 94%;
+
+  /* brand — medical blue, lifted for dark surfaces */
+  --primary: 215 90% 52%;
+  --primary-foreground: 0 0% 100%;
+
+  /* scrub teal accent */
+  --accent: 173 58% 45%;
+  --accent-foreground: 0 0% 100%;
+
+  /* semantic */
+  --secondary: 215 24% 16%;
+  --secondary-foreground: 210 30% 94%;
+  --muted: 215 24% 15%;
+  --muted-foreground: 215 14% 66%;
+  --info: 199 85% 60%;
+  --info-foreground: 0 0% 100%;
+  --success: 142 65% 48%;
+  --success-foreground: 0 0% 100%;
+  --destructive: 0 72% 58%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* lines + focus */
+  --border: 215 20% 21%;
+  --input: 215 20% 24%;
+  --ring: 215 90% 62%;
+}
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-background-tint: hsl(var(--background-tint));

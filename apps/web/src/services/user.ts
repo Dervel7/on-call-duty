@@ -17,6 +17,10 @@ export async function update(id: number, input: UpdateUserRequest): Promise<User
   const { user } = await apiPatch<{ user: User }>(`/users/${id}`, input)
   return user
 }
+export async function updateTheme(darkMode: boolean): Promise<User> {
+  const { user } = await apiPatch<{ user: User }>('/users/me/theme', { darkMode })
+  return user
+}
 export async function remove(id: number): Promise<void> {
   await apiDelete<void>(`/users/${id}`)
 }

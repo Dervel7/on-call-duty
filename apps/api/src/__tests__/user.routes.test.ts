@@ -29,7 +29,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
     role: 'doctor',
     first_name: 'Jane',
     last_name: 'Roe',
-    is_active: true,
+    dark_mode: false,
     created_at: new Date('2026-01-01'),
     ...overrides,
   }
@@ -101,5 +101,33 @@ describe('DELETE /users/:id (admin)', () => {
     query.mockResolvedValueOnce({ rows: [] })
     const notFound = await request(app).delete('/users/99').set('Authorization', `Bearer ${token}`)
     expect(notFound.status).toBe(404)
+  })
+})
+
+describe('PATCH /users/me/theme (self-service)', () => {
+  it('lets any authenticated role set their own preference', async () => {
+    query.mockResolvedValueOnce({ rows: [row({ dark_mode: true })] })
+    const token = signAccessToken({ sub: 1, role: 'doctor' })
+    const res = await request(app)
+      .patch('/users/me/theme')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ darkMode: true })
+    expect(res.status).toBe(200)
+    expect(res.body.data.user.darkMode).toBe(true)
+    expect(query.mock.calls[0]?.[1]).toEqual([true, 1])
+  })
+
+  it('returns 401 without auth', async () => {
+    const res = await request(app).patch('/users/me/theme').send({ darkMode: true })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 400 on a non-boolean body', async () => {
+    const token = signAccessToken({ sub: 1, role: 'doctor' })
+    const res = await request(app)
+      .patch('/users/me/theme')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ darkMode: 'yes' })
+    expect(res.status).toBe(400)
   })
 })

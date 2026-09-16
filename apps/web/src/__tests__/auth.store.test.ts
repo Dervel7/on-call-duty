@@ -29,6 +29,9 @@ vi.mock('@/services/auth', () => ({
   })),
 }))
 
+const updateTheme = vi.fn()
+vi.mock('@/services/user', () => ({ updateTheme: (...a: unknown[]) => updateTheme(...a) }))
+
 import { useAuthStore } from '../stores/auth'
 
 beforeEach(() => setActivePinia(createPinia()))
@@ -60,5 +63,15 @@ describe('auth store', () => {
     vi.mocked(logout).mockRejectedValueOnce(new Error('net'))
     await auth.logout()
     expect(auth.isAuthenticated).toBe(false)
+  })
+
+  it('setDarkMode persists the preference and updates the stored user', async () => {
+    const auth = useAuthStore()
+    await auth.login('a@b.com', 'secret1')
+    expect(auth.user?.darkMode ?? false).toBe(false)
+    updateTheme.mockResolvedValue({ ...auth.user, darkMode: true })
+    await auth.setDarkMode(true)
+    expect(updateTheme).toHaveBeenCalledWith(true)
+    expect(auth.user?.darkMode).toBe(true)
   })
 })

@@ -53,6 +53,7 @@ describe('SchedulesPage', () => {
       role,
       firstName: 'Jane',
       lastName: 'Roe',
+      darkMode: false,
     }
     list.mockResolvedValue([])
     return mount(SchedulesPage, { global: { plugins: [pinia] } })

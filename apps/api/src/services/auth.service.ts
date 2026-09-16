@@ -21,6 +21,7 @@ interface UserRow {
   first_name: string
   last_name: string
   is_active: boolean
+  dark_mode: boolean
   created_at: Date
 }
 
@@ -32,10 +33,11 @@ function toAuthUser(row: UserRow): AuthUser {
     role: row.role,
     firstName: row.first_name,
     lastName: row.last_name,
+    darkMode: row.dark_mode,
   }
 }
 
-const USER_COLUMNS = `id, email, username, password_hash, role, first_name, last_name, is_active, created_at`
+const USER_COLUMNS = `id, email, username, password_hash, role, first_name, last_name, is_active, dark_mode, created_at`
 
 async function findUserByEmail(email: string): Promise<UserRow | undefined> {
   const res = await query<UserRow>(

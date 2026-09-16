@@ -11,6 +11,7 @@ import {
   roleSchema,
   scheduleQuerySchema,
   updateUserSchema,
+  updateThemeSchema,
   usernameSchema,
 } from '../index'
 
@@ -76,6 +77,13 @@ describe('auth schemas', () => {
   it('updateUserSchema accepts partial updates', () => {
     expect(updateUserSchema.safeParse({ isActive: false }).success).toBe(true)
     expect(updateUserSchema.safeParse({ email: 'nope' }).success).toBe(false)
+  })
+
+  it('updateThemeSchema accepts only a boolean darkMode', () => {
+    expect(updateThemeSchema.safeParse({ darkMode: true }).success).toBe(true)
+    expect(updateThemeSchema.safeParse({ darkMode: false }).success).toBe(true)
+    expect(updateThemeSchema.safeParse({ darkMode: 'yes' }).success).toBe(false)
+    expect(updateThemeSchema.safeParse({}).success).toBe(false)
   })
 })
 

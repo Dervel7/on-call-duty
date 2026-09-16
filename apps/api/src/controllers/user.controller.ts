@@ -43,4 +43,13 @@ export const userController = {
       next(err)
     }
   },
+
+  async updateTheme(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await userService.updateTheme(req.user!.id, req.body.darkMode)
+      res.status(200).json(ok({ user }))
+    } catch (err) {
+      next(err)
+    }
+  },
 }

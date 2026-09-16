@@ -9,6 +9,7 @@ export type {
   ChangePasswordRequest,
   CreateUserRequest,
   UpdateUserRequest,
+  UpdateThemeRequest,
 } from './auth'
 export type { Doctor, CreateDoctorRequest, UpdateDoctorRequest } from './doctor'
 export type {

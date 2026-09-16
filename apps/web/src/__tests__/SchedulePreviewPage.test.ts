@@ -91,9 +91,12 @@ describe('SchedulePreviewPage', () => {
     })
     const wrapper = mount(SchedulePreviewPage)
     await flushPromises()
+    // Two selects per day; filling the first slot of each day is enough.
+    // (A day's second select no longer offers a doctor already taken by the
+    // first, so only slot 0 can pick doctor 5.)
     const triggers = wrapper.findAll('[role="combobox"]')
-    for (const t of triggers) {
-      await pickOptionFrom(t.element, '5')
+    for (let i = 0; i < triggers.length; i += 2) {
+      await pickOptionFrom(triggers[i]!.element, '5')
     }
     await flushPromises()
     const button = wrapper.findAll('button').find((b) => b.text().includes('Generate'))!
@@ -104,6 +107,41 @@ describe('SchedulePreviewPage', () => {
     const sent = generate.mock.calls[0]![2] as Array<{ date: string; doctorId: number }>
     expect(sent.length).toBe(days.length)
     expect(sent.every((a) => a.doctorId === 5)).toBe(true)
+  })
+
+  it('clearing the first of two assigned doctors empties only the chosen select', async () => {
+    preview.mockResolvedValue({
+      assignments: [
+        { date: '2026-09-01', doctorId: 5, doctorFirstName: 'Jane', doctorLastName: 'Roe', reason: 'engine' },
+        { date: '2026-09-01', doctorId: 6, doctorFirstName: 'Sam', doctorLastName: 'Doe', reason: 'engine' },
+      ],
+      conflicts: [],
+      days: daysFor(2026, 9),
+    })
+    const wrapper = mount(SchedulePreviewPage)
+    await flushPromises()
+    const day1 = () => wrapper.findAll('[role="combobox"]').slice(0, 2)
+    expect(day1().map((c) => c.text())).toEqual(['Roe J.', 'Doe S.'])
+
+    await pickOptionFrom(day1()[0]!.element, '')
+    await flushPromises()
+
+    // The cleared select is the one that empties; the second doctor keeps its
+    // slot and the button never falls back to a raw doctor id.
+    expect(day1().map((c) => c.text())).toEqual(['Assign…', 'Doe S.'])
+  })
+
+  it('assigning via the second select keeps the first slot empty', async () => {
+    preview.mockResolvedValue({ assignments: [], conflicts: [], days: daysFor(2026, 9) })
+    const wrapper = mount(SchedulePreviewPage)
+    await flushPromises()
+    const combos = wrapper.findAll('[role="combobox"]')
+
+    await pickOptionFrom(combos[1]!.element, '6')
+    await flushPromises()
+
+    const day1 = wrapper.findAll('[role="combobox"]').slice(0, 2)
+    expect(day1.map((c) => c.text())).toEqual(['Assign…', 'Doe S.'])
   })
 
   it('discards a stale preview response when the month changes', async () => {

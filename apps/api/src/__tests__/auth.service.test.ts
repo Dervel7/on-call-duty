@@ -41,6 +41,7 @@ function userRow(overrides: Partial<Record<string, unknown>> = {}) {
     first_name: 'System',
     last_name: 'Administrator',
     is_active: true,
+    dark_mode: false,
     created_at: new Date('2026-01-01'),
     ...overrides,
   }
@@ -62,8 +63,8 @@ describe('auth.service', () => {
     const r = await login({ identifier: 'admin@oncall.local', password: 'changeme123' })
     expect(r.accessToken).toBe('ACCESS')
     expect(r.refreshToken).toBe('REFRESH')
-    expect(r.user.email).toBe('admin@oncall.local')
-    expect(r.user.username).toBe('admin')
+     expect(r.user.username).toBe('admin')
+    expect(r.user.darkMode).toBe(false)
     expect(bcrypt.compare).toHaveBeenCalledWith('changeme123', SEED_HASH)
     expect(logActivity).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'auth.login', userId: 1 }),

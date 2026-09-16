@@ -22,10 +22,11 @@ interface UserRow {
   first_name: string
   last_name: string
   is_active: boolean
+  dark_mode: boolean
   created_at: Date
 }
 
-const COLUMNS = `id, email, username, password_hash, role, first_name, last_name, is_active, created_at`
+const COLUMNS = `id, email, username, password_hash, role, first_name, last_name, is_active, dark_mode, created_at`
 
 function toUser(row: UserRow): User {
   return {
@@ -35,6 +36,7 @@ function toUser(row: UserRow): User {
     role: row.role,
     firstName: row.first_name,
     lastName: row.last_name,
+    darkMode: row.dark_mode,
     isActive: row.is_active,
     createdAt: row.created_at.toISOString(),
   }
@@ -228,4 +230,16 @@ export async function remove(id: number, actor: Actor): Promise<void> {
     })
   })
   await tokenService.revokeAllForUser(id)
+}
+
+// Self-service UI preference: any authenticated user toggles their own theme.
+// Not part of admin update() — admins never touch another user's dark mode.
+export async function updateTheme(userId: number, darkMode: boolean): Promise<User> {
+  const res = await query<UserRow>(
+    `UPDATE users SET dark_mode = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING ${COLUMNS}`,
+    [darkMode, userId],
+  )
+  const row = oneRow(res.rows)
+  if (!row) throw new HttpError(404, 'User not found')
+  return toUser(row)
 }

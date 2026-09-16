@@ -15,6 +15,9 @@ vi.mock('@/services/auth', () => ({
   changePassword: (...a: unknown[]) => changePassword(...a),
 }))
 
+const updateTheme = vi.fn()
+vi.mock('@/services/user', () => ({ updateTheme: (...a: unknown[]) => updateTheme(...a) }))
+
 import ProfilePage from '../pages/ProfilePage.vue'
 
 beforeEach(() => {
@@ -35,6 +38,7 @@ describe('ProfilePage doctor self-view', () => {
       role: 'doctor',
       firstName: 'Jane',
       lastName: 'Roe',
+      darkMode: false,
     }
     me.mockResolvedValue({
       id: 1,
@@ -68,6 +72,7 @@ describe('ProfilePage change password', () => {
       role: 'administrator',
       firstName: 'Ada',
       lastName: 'Admin',
+      darkMode: false,
     }
     changePassword.mockResolvedValue({ user: { ...auth.user } })
     const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
@@ -83,5 +88,60 @@ describe('ProfilePage change password', () => {
     expect(status.text()).toContain('Password updated.')
     expect(status.classes()).toContain('text-success')
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+})
+
+describe('ProfilePage dark mode', () => {
+  it('toggles dark mode through the store and reflects the saved state', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.user = {
+      id: 2,
+      email: 'admin@h.com',
+      username: 'admin',
+      role: 'administrator',
+      firstName: 'Ada',
+      lastName: 'Admin',
+      darkMode: false,
+    }
+    updateTheme.mockResolvedValue({ ...auth.user, darkMode: true })
+    const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
+    await wrapper.vm.$nextTick()
+
+    const toggle = wrapper.find('[role="switch"]')
+    expect(toggle.attributes('aria-checked')).toBe('false')
+    await toggle.trigger('click')
+    await flushPromises()
+
+    expect(updateTheme).toHaveBeenCalledWith(true)
+    expect(auth.user?.darkMode).toBe(true)
+    expect(wrapper.find('[role="switch"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('shows an error and keeps the old state when saving fails', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.user = {
+      id: 2,
+      email: 'admin@h.com',
+      username: 'admin',
+      role: 'administrator',
+      firstName: 'Ada',
+      lastName: 'Admin',
+      darkMode: false,
+    }
+    updateTheme.mockRejectedValueOnce(new Error('net'))
+    const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[role="switch"]').trigger('click')
+    await flushPromises()
+
+    expect(auth.user?.darkMode).toBe(false)
+    expect(wrapper.find('[role="switch"]').attributes('aria-checked')).toBe('false')
+    expect(wrapper.find('[role="alert"]').text()).toContain('Could not save theme preference')
   })
 })

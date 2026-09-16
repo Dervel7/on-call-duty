@@ -36,3 +36,7 @@ export const updateUserSchema = z.object({
   lastName: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
 })
+
+export const updateThemeSchema = z.object({
+  darkMode: z.boolean(),
+})

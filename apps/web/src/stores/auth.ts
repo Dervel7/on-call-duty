@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { AuthUser } from '@oncall/shared'
 import { setLockedHandler, setRefreshHandler } from '@/lib/http'
 import * as authService from '@/services/auth'
+import * as userService from '@/services/user'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null)
@@ -51,6 +52,12 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = await authService.changePassword(currentPassword, newPassword)
   }
 
+  async function setDarkMode(darkMode: boolean): Promise<void> {
+    const updated = await userService.updateTheme(darkMode)
+    // Keep the stored AuthUser shape; only the preference changes.
+    if (user.value) user.value = { ...user.value, darkMode: updated.darkMode }
+  }
+
   setRefreshHandler(refresh)
 
   setLockedHandler(() => {
@@ -72,5 +79,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     fetchMe,
     changePassword,
+    setDarkMode,
   }
 })

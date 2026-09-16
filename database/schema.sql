@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   first_name    TEXT NOT NULL,
   last_name     TEXT NOT NULL,
   is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  dark_mode     BOOLEAN NOT NULL DEFAULT FALSE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (username ~ '^[A-Za-z0-9._-]{3,32}$')
@@ -184,3 +185,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_live
 -- app_meta key 'billing_paid_through' (value 'YYYY-MM-DD'): non-superadmin
 -- access is refused while CURRENT_DATE > value. A missing row means unlocked
 -- (paidThrough reported as null). No DDL needed — app_meta exists since Phase 1.
+
+-- Dark mode UI preference (per user, applied after sign-in; the login page
+-- always renders light). Evolution line covers pre-existing databases.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT FALSE;

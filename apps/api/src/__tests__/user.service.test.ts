@@ -16,7 +16,7 @@ vi.mock('../services/activity.service', () => ({
 const { hash } = vi.hoisted(() => ({ hash: vi.fn(async () => 'HASH') }))
 vi.mock('bcrypt', () => ({ default: { hash } }))
 
-import { create, getById, list, remove, update } from '../services/user.service'
+import { create, getById, list, remove, update, updateTheme } from '../services/user.service'
 
 function row(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -27,7 +27,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
     role: 'doctor',
     first_name: 'Jane',
     last_name: 'Roe',
-    is_active: true,
+    dark_mode: false,
     created_at: new Date('2026-01-01'),
     ...overrides,
   }
@@ -298,5 +298,20 @@ describe('user.service', () => {
     ).catch(() => undefined)
     expect(query.mock.calls[0]?.[0]).toContain('AND is_deleted = FALSE')
     expect(query.mock.calls[1]?.[0]).toContain('AND is_deleted = FALSE')
+  })
+
+  it('updateTheme persists the preference and returns the user', async () => {
+    query.mockResolvedValue({ rows: [row({ dark_mode: true })] })
+    const user = await updateTheme(1, true)
+    expect(user.darkMode).toBe(true)
+    const sql = query.mock.calls[0]?.[0] as string
+    expect(sql).toContain('UPDATE users SET dark_mode = $1')
+    expect(sql).toContain('RETURNING')
+    expect(query.mock.calls[0]?.[1]).toEqual([true, 1])
+  })
+
+  it('updateTheme throws 404 when the user does not exist', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await expect(updateTheme(99, true)).rejects.toMatchObject({ status: 404 })
   })
 })
