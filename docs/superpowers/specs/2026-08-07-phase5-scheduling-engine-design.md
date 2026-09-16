@@ -226,7 +226,7 @@ A doctor is **eligible** for a day only if all pass. Each predicate returns `{ o
 - **Active & profile** — `doctor.isActive` (the caller loads only active doctors, so this is structural).
 - **Available** — no `unavailability` range for that doctor covers the date: `start <= date && date <= end` (inclusive, lexicographic on `'YYYY-MM-DD'`).
 - **Under cap** — `dutiesThisMonth(doctor) < doctor.maxMonthlyDuties`.
-- **No back-to-back** — the doctor is not on duty the previous day. During generation the previous day is the running assignment for `date - 1`; for day 1 it is `context.priorDayDoctorIds`. Override re-validation checks both neighbours (`date - 1`, `date + 1`) from the stored schedule plus the cross-month prior-day set.
+- **No back-to-back** — the doctor is on duty neither the previous nor the next day. During generation the previous day is the running assignment for `date - 1` (for day 1 it is `context.priorDayDoctorIds`); the next day matters from slot pass 1 onward, which may top up a day whose neighbour already holds a pass-0 duty. Override re-validation checks both neighbours (`date - 1`, `date + 1`) from the stored schedule plus the cross-month prior-day set.
 
 When a day has zero eligible doctors, `generate` records a `ConflictPlan` with an aggregate `detail` computed by tallying elimination reasons across all active doctors (e.g. `"5 doctors: 2 unavailable, 2 at cap, 1 back-to-back"`).
 
@@ -250,12 +250,13 @@ if day.isHoliday: score += max(0, HOLIDAY_BUDGET - holidayDuties) * W_HOLIDAY
 
 ### 5.4 `engine.ts` — `generate(context)`
 
-Deterministic orchestrator:
-1. Iterate `context.days` in order (1st → last). Maintain running per-doctor counters: `dutiesThisMonth`, `weekendDuties`, `holidayDuties`, plus a map `date -> doctorId` of assignments made so far.
-2. For each day: filter eligible doctors (§5.2); if none, push a `ConflictPlan` and continue.
-3. Score each eligible doctor (§5.3); pick the winner by the deterministic tie-break.
-4. Record the `AssignmentPlan`, increment the winner's counters, store the day's assignment.
-5. Return `{ assignments, conflicts }`.
+Deterministic orchestrator (coverage-first, two slot passes):
+1. Maintain running per-doctor counters: `dutiesThisMonth`, `weekendDuties`, `saturdayDuties`, `sundayDuties`, `fridayDuties`, plus a `date -> Set<doctorId>` map of assignments made so far.
+2. **Slot pass 0:** iterate `context.days` in order (1st → last) and assign the single best eligible doctor to each day. Every day gets its first doctor before any day receives a second, so monthly caps and the no-back-to-back rule are spent on covering the whole month before doubling up any single day.
+3. **Slot pass 1:** iterate the days again and add the second doctor where constraints still allow it. A doctor already holding the day's other slot is skipped (tallied as `already on duty`); back-to-back is checked against **both** neighbours because the next day may already hold a pass-0 duty.
+4. For each fill attempt: filter eligible doctors (§5.2); if none, push a `ConflictPlan` (`only N of 2 doctors assigned; …`) and leave the day short.
+5. Score each eligible doctor (§5.3); pick the winner by the deterministic tie-break, record the `AssignmentPlan`, increment the winner's counters.
+6. Return `{ assignments, conflicts }`.
 
 **Deterministic tie-break (in order):** highest `score` → fewest `dutiesThisMonth` → fewest `weekendDuties` → lower `doctorId`. Fully reproducible — the same context always yields the same roster.
 

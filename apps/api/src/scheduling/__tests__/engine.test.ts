@@ -59,12 +59,30 @@ describe('engine.generate', () => {
     expect(conflicts[0]?.detail).toContain('only 1 of 2')
   })
 
-  it('enforces no back-to-back across two-doctor days', () => {
+  it('enforces no back-to-back with two doctors over two consecutive days', () => {
     const days = [day('2026-09-01'), day('2026-09-02')]
     const { assignments, conflicts } = generate(ctx(days, [dr(1), dr(2)]))
-    // day1: {1,2}; day2: both blocked (back-to-back) → conflict, no assignment
-    expect(assignments.filter((a) => a.date === '2026-09-02')).toHaveLength(0)
-    expect(conflicts.some((c) => c.date === '2026-09-02' && c.detail.includes('back-to-back'))).toBe(true)
+    // Coverage first gives each day one doctor; neither doctor may hold both
+    // days, and the second slots are unfillable (back-to-back).
+    const day1 = assignments.filter((a) => a.date === '2026-09-01').map((a) => a.doctorId)
+    const day2 = assignments.filter((a) => a.date === '2026-09-02').map((a) => a.doctorId)
+    expect(day1).toHaveLength(1)
+    expect(day2).toHaveLength(1)
+    expect(day1).not.toEqual(day2)
+    expect(conflicts).toHaveLength(2)
+    expect(conflicts.every((c) => c.detail.includes('back-to-back'))).toBe(true)
+  })
+
+  it('covers every day with one doctor before assigning second doctors', () => {
+    // Two doctors capped at 2 duties: doubling up day 1 (the old strategy)
+    // starved days 3 and 4 to zero doctors; coverage-first fills all days.
+    const days = ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04'].map((d) => day(d))
+    const { assignments, conflicts } = generate(ctx(days, [dr(1, 2), dr(2, 2)]))
+    for (const { date } of days) {
+      expect(assignments.filter((a) => a.date === date)).toHaveLength(1)
+    }
+    expect(conflicts).toHaveLength(4)
+    expect(conflicts.every((c) => c.detail.includes('only 1 of 2'))).toBe(true)
   })
 
   it('enforces the monthly cap', () => {

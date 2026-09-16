@@ -1,4 +1,4 @@
-import { prevDate } from './dates'
+import { nextDate, prevDate } from './dates'
 import {
   balanceCap,
   DOCTORS_PER_DAY,
@@ -11,6 +11,7 @@ import type {
   AssignmentPlan,
   CandidateScore,
   ConflictPlan,
+  DaySpec,
   DoctorSpec,
   GenerateResult,
   SchedulingContext,
@@ -35,6 +36,7 @@ interface Tally {
   'at cap': number
   'at weekend cap': number
   'back-to-back': number
+  'already on duty': number
 }
 
 /** Per-doctor upper bounds derived from the ±1 balance rule, fixed for the run. */
@@ -82,16 +84,34 @@ export function generate(ctx: SchedulingContext): GenerateResult {
   const firstDay = ctx.days[0]
   const firstDayPrev = firstDay ? prevDate(firstDay.date) : ''
 
-  for (const day of ctx.days) {
+  // Coverage first: every day gets its first doctor before any day receives
+  // a second one, so monthly caps and the no-back-to-back rule are spent on
+  // covering the whole month before doubling up any single day.
+  for (let slot = 0; slot < DOCTORS_PER_DAY; slot++) {
+    for (const day of ctx.days) {
+      if ((state.byDate.get(day.date)?.size ?? 0) !== slot) continue
+      fillDay(day)
+    }
+  }
+
+  return { assignments, conflicts }
+
+  /** Assigns the single best-scoring eligible doctor to `day`, or records why nobody could. */
+  function fillDay(day: DaySpec): void {
     const eligible: Eligible[] = []
     const tally: Tally = {
       unavailable: 0,
       'at cap': 0,
       'at weekend cap': 0,
       'back-to-back': 0,
+      'already on duty': 0,
     }
 
     for (const doctor of ctx.doctors) {
+      if (state.byDate.get(day.date)?.has(doctor.id)) {
+        tally['already on duty']++
+        continue
+      }
       const ranges = ctx.unavailability.get(doctor.id)
       if (!isAvailable(doctor.id, day.date, ranges).ok) {
         tally.unavailable++
@@ -114,7 +134,10 @@ export function generate(ctx: SchedulingContext): GenerateResult {
         prev === firstDayPrev
           ? ctx.priorDayDoctorIds.has(doctor.id)
           : state.byDate.get(prev)?.has(doctor.id) ?? false
-      if (!notConsecutive(onDutyYesterday).ok) {
+      // Later slot passes must also look at the next day: it may already
+      // hold an earlier-pass duty, and the pair would be back-to-back.
+      const onDutyTomorrow = state.byDate.get(nextDate(day.date))?.has(doctor.id) ?? false
+      if (!notConsecutive(onDutyYesterday || onDutyTomorrow).ok) {
         tally['back-to-back']++
         continue
       }
@@ -133,8 +156,10 @@ export function generate(ctx: SchedulingContext): GenerateResult {
     }
 
     if (eligible.length === 0) {
-      conflicts.push(conflictFor(day.date, activeCount, tally, 0))
-      continue
+      conflicts.push(
+        conflictFor(day.date, activeCount, tally, state.byDate.get(day.date)?.size ?? 0),
+      )
+      return
     }
 
     eligible.sort(
@@ -145,46 +170,36 @@ export function generate(ctx: SchedulingContext): GenerateResult {
         a.doctor.id - b.doctor.id,
     )
 
-    // Snapshot the tallies the sort actually compared against, so persisted
-    // reasons describe the real tie-break and not state mutated by the first
-    // winner of the day.
-    const totalsBefore = new Map(state.total)
-    const weekendsBefore = new Map(state.weekend)
-
-    const winners = eligible.slice(0, DOCTORS_PER_DAY)
-    for (const winner of winners) {
-      assignments.push({
-        date: day.date,
-        doctorId: winner.doctor.id,
-        doctorFirstName: winner.doctor.firstName,
-        doctorLastName: winner.doctor.lastName,
-        isWeekend: day.isWeekend,
-        reason: `score ${winner.score.score} (workload +${winner.score.workload}, weekend +${winner.score.weekend}, friday +${winner.score.friday})${describeTiebreak(winner, eligible, totalsBefore, weekendsBefore)}`,
-      })
-      state.total.set(winner.doctor.id, (state.total.get(winner.doctor.id) ?? 0) + 1)
-      state.byDate.set(day.date, (state.byDate.get(day.date) ?? new Set()).add(winner.doctor.id))
-      if (day.isWeekend)
-        state.weekend.set(winner.doctor.id, (state.weekend.get(winner.doctor.id) ?? 0) + 1)
-      if (day.dayOfWeek === 6)
-        state.saturday.set(winner.doctor.id, (state.saturday.get(winner.doctor.id) ?? 0) + 1)
-      if (day.dayOfWeek === 0)
-        state.sunday.set(winner.doctor.id, (state.sunday.get(winner.doctor.id) ?? 0) + 1)
-      if (day.dayOfWeek === 5)
-        state.friday.set(winner.doctor.id, (state.friday.get(winner.doctor.id) ?? 0) + 1)
-    }
-
-    if (winners.length < DOCTORS_PER_DAY) {
-      conflicts.push(conflictFor(day.date, activeCount, tally, winners.length))
-    }
+    const winner = eligible[0]!
+    assignments.push({
+      date: day.date,
+      doctorId: winner.doctor.id,
+      doctorFirstName: winner.doctor.firstName,
+      doctorLastName: winner.doctor.lastName,
+      isWeekend: day.isWeekend,
+      reason: `score ${winner.score.score} (workload +${winner.score.workload}, weekend +${winner.score.weekend}, friday +${winner.score.friday})${describeTiebreak(winner, eligible, state.total, state.weekend)}`,
+    })
+    state.total.set(winner.doctor.id, (state.total.get(winner.doctor.id) ?? 0) + 1)
+    state.byDate.set(day.date, (state.byDate.get(day.date) ?? new Set()).add(winner.doctor.id))
+    if (day.isWeekend)
+      state.weekend.set(winner.doctor.id, (state.weekend.get(winner.doctor.id) ?? 0) + 1)
+    if (day.dayOfWeek === 6)
+      state.saturday.set(winner.doctor.id, (state.saturday.get(winner.doctor.id) ?? 0) + 1)
+    if (day.dayOfWeek === 0)
+      state.sunday.set(winner.doctor.id, (state.sunday.get(winner.doctor.id) ?? 0) + 1)
+    if (day.dayOfWeek === 5)
+      state.friday.set(winner.doctor.id, (state.friday.get(winner.doctor.id) ?? 0) + 1)
   }
-
-  return { assignments, conflicts }
 }
 
 function conflictFor(date: string, activeCount: number, tally: Tally, assigned: number): ConflictPlan {
+  // Only top-up passes can skip a doctor because they already hold this day's
+  // other slot; keep the detail identical to the classic format otherwise.
+  const onDutyNote =
+    tally['already on duty'] > 0 ? `, ${tally['already on duty']} already on duty` : ''
   return {
     date,
-    detail: `only ${assigned} of ${DOCTORS_PER_DAY} doctors assigned; of ${activeCount} active doctor(s): ${tally.unavailable} unavailable, ${tally['at cap']} at monthly cap, ${tally['at weekend cap']} at weekend cap, ${tally['back-to-back']} back-to-back`,
+    detail: `only ${assigned} of ${DOCTORS_PER_DAY} doctors assigned; of ${activeCount} active doctor(s): ${tally.unavailable} unavailable, ${tally['at cap']} at monthly cap, ${tally['at weekend cap']} at weekend cap, ${tally['back-to-back']} back-to-back${onDutyNote}`,
   }
 }
 
