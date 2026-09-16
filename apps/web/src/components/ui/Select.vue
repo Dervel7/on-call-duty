@@ -111,10 +111,26 @@ function positionPanel() {
   const p = panel.value
   if (!btn || !p) return
   const r = btn.getBoundingClientRect()
+  const gap = 6
+  const margin = 16
+  const spaceBelow = window.innerHeight - r.bottom - margin
+  const spaceAbove = r.top - margin
   p.style.left = `${r.left}px`
-  p.style.top = `${r.bottom + 6}px`
   p.style.width = `${Math.max(r.width, 176)}px`
-  p.style.maxHeight = `${Math.max(180, window.innerHeight - r.bottom - 16)}px`
+  // Clear the previous open's constraints so scrollHeight measures the full
+  // content height before the direction is decided.
+  p.style.maxHeight = ''
+  p.style.top = ''
+  p.style.bottom = ''
+  // Flip the listbox above the button when the content cannot fit below and
+  // there is more room above (e.g. the last calendar row of a month).
+  if (p.scrollHeight > spaceBelow - gap && spaceAbove > spaceBelow) {
+    p.style.bottom = `${window.innerHeight - r.top + gap}px`
+    p.style.maxHeight = `${Math.max(180, spaceAbove)}px`
+  } else {
+    p.style.top = `${r.bottom + gap}px`
+    p.style.maxHeight = `${Math.max(180, spaceBelow)}px`
+  }
 }
 
 async function toggle() {
