@@ -7,5 +7,5 @@ import { activityQuerySchema } from '../validators/activity'
 
 export const activityRouter = Router()
 
-activityRouter.use(authenticate, authorize('administrator'))
+activityRouter.use(authenticate, authorize('superadmin'))
 activityRouter.get('/', validate(activityQuerySchema, 'query'), activityController.list)

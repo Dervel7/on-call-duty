@@ -21,22 +21,28 @@ function build() {
   return app
 }
 
-const adminToken = () => signAccessToken({ sub: 1, role: 'administrator' })
+const superadminToken = () => signAccessToken({ sub: 1, role: 'superadmin' })
+const adminToken = () => signAccessToken({ sub: 2, role: 'administrator' })
 const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor' })
 
 beforeEach(() => list.mockReset())
 
 describe('activity routes', () => {
-  it('admin lists activity (200); unauthenticated is 401; doctor is 403', async () => {
+  it('superadmin lists activity (200); unauthenticated is 401; admin and doctor are 403', async () => {
     list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 50 })
     const ok200 = await request(build())
       .get('/activity')
-      .set('Authorization', `Bearer ${adminToken()}`)
+      .set('Authorization', `Bearer ${superadminToken()}`)
     expect(ok200.status).toBe(200)
     expect(ok200.body.data.activity.total).toBe(0)
 
     const unauth = await request(build()).get('/activity')
     expect(unauth.status).toBe(401)
+
+    const adminForbidden = await request(build())
+      .get('/activity')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(adminForbidden.status).toBe(403)
 
     const forbidden = await request(build())
       .get('/activity')
@@ -48,7 +54,7 @@ describe('activity routes', () => {
     list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 50 })
     const res = await request(build())
       .get('/activity?action=auth.login&userId=2&from=2026-08-01&to=2026-08-31&page=3&limit=25')
-      .set('Authorization', `Bearer ${adminToken()}`)
+      .set('Authorization', `Bearer ${superadminToken()}`)
     expect(res.status).toBe(200)
     expect(list).toHaveBeenCalledWith({
       action: 'auth.login',
@@ -63,7 +69,7 @@ describe('activity routes', () => {
   it('rejects invalid query with 400', async () => {
     const res = await request(build())
       .get('/activity?action=bogus.action')
-      .set('Authorization', `Bearer ${adminToken()}`)
+      .set('Authorization', `Bearer ${superadminToken()}`)
     expect(res.status).toBe(400)
   })
 })
