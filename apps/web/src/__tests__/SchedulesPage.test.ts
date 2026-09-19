@@ -19,8 +19,18 @@ vi.mock('@/services/schedule', () => ({
   removeDuty: vi.fn(),
 }))
 const push = vi.fn()
+const route = { query: {} as Record<string, string> }
+const replace = vi.fn()
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, replace }),
+  useRoute: () => route,
+}))
+
+const clinicsList = vi.fn()
+vi.mock('@/services/clinics', () => ({
+  list: (...a: unknown[]) => clinicsList(...a),
+  create: vi.fn(),
+  update: vi.fn(),
 }))
 
 import SchedulesPage from '../pages/SchedulesPage.vue'
@@ -36,14 +46,17 @@ function summary(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  route.query = {}
   list.mockReset()
   generate.mockReset()
   push.mockReset()
+  replace.mockReset()
+  clinicsList.mockReset()
 })
 afterEach(() => vi.restoreAllMocks())
 
 describe('SchedulesPage', () => {
-  function mountAs(role: 'doctor' | 'administrator') {
+  function mountAs(role: 'doctor' | 'administrator' | 'manager') {
     const pinia = createPinia()
     setActivePinia(pinia)
     useAuthStore(pinia).user = {
@@ -54,10 +67,14 @@ describe('SchedulesPage', () => {
       firstName: 'Jane',
       lastName: 'Roe',
       darkMode: false,
-      clinicId: 1,
-      clinicName: 'Radiology',
+      clinicId: role === 'manager' ? null : 1,
+      clinicName: role === 'manager' ? null : 'Radiology',
     }
     list.mockResolvedValue([])
+    clinicsList.mockResolvedValue([
+      { id: 1, name: 'Radiology', isActive: true, doctorCount: 3, adminCount: 1 },
+      { id: 2, name: 'Cardiology', isActive: true, doctorCount: 3, adminCount: 1 },
+    ])
     return mount(SchedulesPage, { global: { plugins: [pinia] } })
   }
 
@@ -137,5 +154,15 @@ describe('SchedulesPage', () => {
     const admin = mountAs('administrator')
     await flushPromises()
     expect(admin.findAll('button').some((b) => b.text().includes('New schedule'))).toBe(true)
+  })
+
+  it('manager mode: clinic selector shown, no create control, list scoped to selected clinic', async () => {
+    route.query = { clinic: '2' }
+    const wrapper = mountAs('manager')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="clinic-selector"]').exists()).toBe(true)
+    expect(wrapper.findAll('button').some((b) => b.text().includes('New schedule'))).toBe(false)
+    expect(list).toHaveBeenCalledWith({ clinicId: 2 })
   })
 })

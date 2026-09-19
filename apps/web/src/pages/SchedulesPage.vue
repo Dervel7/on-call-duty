@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { ScheduleSummary } from '@oncall/shared'
+import type { ScheduleQuery, ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import { useAuthStore } from '@/stores/auth'
 import * as scheduleService from '@/services/schedule'
+import ClinicSelector from '@/components/layout/ClinicSelector.vue'
+import { useClinicSelection } from '@/composables/useClinicSelection'
 import { ApiError } from '@/lib/http'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
@@ -32,12 +34,20 @@ const records = ref<ScheduleSummary[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
 const filterYear = ref('')
+const { selectedClinicId } = useClinicSelection()
+
+watch(selectedClinicId, () => {
+  if (auth.isManager) void load()
+})
 
 async function load() {
   loading.value = true
   errorMsg.value = ''
   try {
-    const query = filterYear.value ? { year: Number(filterYear.value) } : undefined
+    const query: ScheduleQuery = filterYear.value ? { year: Number(filterYear.value) } : {}
+    if (auth.isManager && selectedClinicId.value !== undefined) {
+      query.clinicId = selectedClinicId.value
+    }
     records.value = await scheduleService.list(query)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load schedules'
@@ -116,6 +126,7 @@ onMounted(load)
         <Label for="f-year">Year</Label>
         <Input id="f-year" v-model="filterYear" type="number" />
       </div>
+      <ClinicSelector />
       <Button variant="outline" @click="load">Apply</Button>
     </div>
 
