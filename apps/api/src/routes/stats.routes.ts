@@ -8,5 +8,5 @@ import { statsQuerySchema } from '../validators/stats'
 export const statsRouter = Router()
 
 statsRouter.use(authenticate)
-statsRouter.get('/admin', authorize('administrator'), validate(statsQuerySchema, 'query'), statsController.admin)
+statsRouter.get('/admin', authorize('administrator', 'manager'), validate(statsQuerySchema, 'query'), statsController.admin)
 statsRouter.get('/me', statsController.me)

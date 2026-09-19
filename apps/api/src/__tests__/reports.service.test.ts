@@ -11,6 +11,9 @@ vi.mock('../services/schedule.service', () => ({
 }))
 
 import { monthlyReport } from '../services/reports.service'
+import type { ClinicScope } from '../lib/scope'
+
+const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
 
 beforeEach(() => {
   adminStats.mockReset()
@@ -26,7 +29,7 @@ describe('reports.service — monthlyReport', () => {
       fairness: { dutySpread: null, weekendSpread: null },
     })
 
-    const report = await monthlyReport(2026, 8)
+    const report = await monthlyReport(2026, 8, scope)
 
     expect(report.schedule).toBeNull()
     expect(report.roster).toEqual([])
@@ -76,7 +79,7 @@ describe('reports.service — monthlyReport', () => {
     ]
     getScheduleDuties.mockResolvedValue({ schedule, duties })
 
-    const report = await monthlyReport(2026, 9)
+    const report = await monthlyReport(2026, 9, scope)
 
     expect(getScheduleDuties).toHaveBeenCalledWith(7)
     expect(report.roster).toEqual(duties)

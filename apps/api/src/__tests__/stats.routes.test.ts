@@ -29,6 +29,8 @@ function build() {
 
 const adminToken = () => signAccessToken({ sub: 1, role: 'administrator', clinicId: 1 })
 const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 10 })
+const managerToken = () => signAccessToken({ sub: 2, role: 'manager', clinicId: null })
+const superadminToken = () => signAccessToken({ sub: 3, role: 'superadmin', clinicId: null })
 
 const emptyStats = () => ({
   year: 2026,
@@ -77,6 +79,42 @@ describe('stats routes', () => {
     expect(adminStats).toHaveBeenCalledTimes(1)
     const now = new Date()
     expect(adminStats.mock.calls[0]?.[0]).toBe(now.getUTCFullYear())
+  })
+
+  it('I15: manager without clinicId gets 400; with clinicId sees that clinic (I16)', async () => {
+    adminStats.mockResolvedValue(emptyStats())
+    const bad = await request(build())
+      .get('/stats/admin')
+      .set('Authorization', `Bearer ${managerToken()}`)
+    expect(bad.status).toBe(400)
+    expect(adminStats).not.toHaveBeenCalled()
+
+    const good = await request(build())
+      .get('/stats/admin?clinicId=2')
+      .set('Authorization', `Bearer ${managerToken()}`)
+    expect(good.status).toBe(200)
+    expect(adminStats).toHaveBeenCalledTimes(1)
+    expect(adminStats.mock.calls[0]?.[2]).toEqual({ kind: 'clinic', clinicId: 2 })
+  })
+
+  it('superadmin without clinicId gets 400 (scope is explicit, never global)', async () => {
+    const res = await request(build())
+      .get('/stats/admin')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+    expect(res.status).toBe(400)
+  })
+
+  it('administrator passing a foreign clinicId gets 403; own clinicId is forced', async () => {
+    adminStats.mockResolvedValue(emptyStats())
+    const forbidden = await request(build())
+      .get('/stats/admin?clinicId=9')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(forbidden.status).toBe(403)
+
+    await request(build())
+      .get('/stats/admin')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(adminStats.mock.calls[0]?.[2]).toEqual({ kind: 'clinic', clinicId: 1 })
   })
 
   it('me 200 for doctor; 404 for admin (no profile); 401 unauth', async () => {

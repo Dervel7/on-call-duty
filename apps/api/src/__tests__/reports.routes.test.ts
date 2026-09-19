@@ -89,6 +89,6 @@ describe('reports routes', () => {
     await request(build())
       .get('/reports/monthly?year=2025&month=12')
       .set('Authorization', `Bearer ${adminToken()}`)
-    expect(monthlyReport).toHaveBeenCalledWith(2025, 12)
+    expect(monthlyReport).toHaveBeenCalledWith(2025, 12, { kind: 'clinic', clinicId: 1 })
   })
 })
