@@ -2,14 +2,16 @@ import type { NextFunction, Request, Response } from 'express'
 import type { UnavailabilityQuery } from '@oncall/shared'
 import { ok } from '../lib/envelope'
 import { HttpError } from '../lib/http-error'
+import { resolveClinicScope } from '../lib/scope'
 import * as unavailabilityService from '../services/unavailability.service'
 
 export const unavailabilityController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const unavailability = await unavailabilityService.listAll(
-        req.query as UnavailabilityQuery,
-      )
+      // req.query is typed by validate(unavailabilityQuerySchema) upstream.
+      const { clinicId, ...filters } = req.query as UnavailabilityQuery & { clinicId?: number }
+      const scope = resolveClinicScope(req.user!, clinicId)
+      const unavailability = await unavailabilityService.listAll(filters, scope)
       res.status(200).json(ok({ unavailability }))
     } catch (err) {
       next(err)
@@ -26,7 +28,15 @@ export const unavailabilityController = {
   },
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const unavailability = await unavailabilityService.create(req.body.doctorId, req.body, req.user!)
+      // req.query is typed by validate(unavailabilityQuerySchema) upstream.
+      const { clinicId } = req.query as { clinicId?: number }
+      const scope = resolveClinicScope(req.user!, clinicId)
+      const unavailability = await unavailabilityService.create(
+        req.body.doctorId,
+        req.body,
+        req.user!,
+        scope,
+      )
       res.status(201).json(ok({ unavailability }))
     } catch (err) {
       next(err)
