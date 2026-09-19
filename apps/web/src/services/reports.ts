@@ -6,6 +6,7 @@ function toQuery(query?: ReportQuery): string {
   const parts: string[] = []
   if (query.year !== undefined) parts.push(`year=${query.year}`)
   if (query.month !== undefined) parts.push(`month=${query.month}`)
+  if (query.clinicId !== undefined) parts.push(`clinicId=${query.clinicId}`)
   return parts.length > 0 ? `?${parts.join('&')}` : ''
 }
 

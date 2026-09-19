@@ -1,8 +1,9 @@
 import type { CreateUserRequest, UpdateUserRequest, User } from '@oncall/shared'
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/http'
 
-export async function list(): Promise<User[]> {
-  const { users } = await apiGet<{ users: User[] }>('/users')
+export async function list(clinicId?: number): Promise<User[]> {
+  const qs = clinicId !== undefined ? `?clinicId=${clinicId}` : ''
+  const { users } = await apiGet<{ users: User[] }>(`/users${qs}`)
   return users
 }
 export async function get(id: number): Promise<User> {

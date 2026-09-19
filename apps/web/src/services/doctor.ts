@@ -1,8 +1,9 @@
 import type { CreateDoctorRequest, Doctor, UpdateDoctorRequest } from '@oncall/shared'
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/http'
 
-export async function list(): Promise<Doctor[]> {
-  const { doctors } = await apiGet<{ doctors: Doctor[] }>('/doctors')
+export async function list(clinicId?: number): Promise<Doctor[]> {
+  const qs = clinicId !== undefined ? `?clinicId=${clinicId}` : ''
+  const { doctors } = await apiGet<{ doctors: Doctor[] }>(`/doctors${qs}`)
   return doctors
 }
 export async function get(id: number): Promise<Doctor> {

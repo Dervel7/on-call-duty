@@ -5,6 +5,7 @@ export async function getActivity(query: ActivityQuery = {}): Promise<PaginatedA
   const params = new URLSearchParams()
   if (query.action) params.set('action', query.action)
   if (query.userId) params.set('userId', String(query.userId))
+  if (query.clinicId) params.set('clinicId', String(query.clinicId))
   if (query.from) params.set('from', query.from)
   if (query.to) params.set('to', query.to)
   if (query.page) params.set('page', String(query.page))

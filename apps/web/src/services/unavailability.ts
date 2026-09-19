@@ -12,6 +12,7 @@ function toQuery(query?: UnavailabilityQuery): string {
   if (query.doctorId !== undefined) parts.push(`doctorId=${query.doctorId}`)
   if (query.from !== undefined) parts.push(`from=${query.from}`)
   if (query.to !== undefined) parts.push(`to=${query.to}`)
+  if (query.clinicId !== undefined) parts.push(`clinicId=${query.clinicId}`)
   return parts.length > 0 ? `?${parts.join('&')}` : ''
 }
 
