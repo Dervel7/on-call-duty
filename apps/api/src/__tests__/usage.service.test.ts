@@ -6,7 +6,7 @@ const { parsed } = config({ path: resolve(import.meta.dirname, '../../.env') })
 if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL
 
 const { query, withTransaction } = await import('../db/client')
-const { overlapPercent, recordGeneration } = await import('../services/usage.service')
+const { generations, overlapPercent, recordGeneration } = await import('../services/usage.service')
 
 describe('overlapPercent', () => {
   it('returns 100 for identical sets', () => {
@@ -107,5 +107,97 @@ describe('recordGeneration (real database)', () => {
   it('raises no new alert when regenerating with the same roster', async () => {
     await withTransaction((client) => recordGeneration(client, 1, YEAR, MONTH, groupA))
     expect(await unresolvedDisjointForMonth()).toBe(1)
+  })
+})
+
+describe('per-clinic partitioning (I22, real database)', () => {
+  const YEAR2 = 2031
+  const MONTH2 = 9
+  let clinicA = 0
+  let clinicB = 0
+  let clinicBName = ''
+  let docsA: number[] = []
+  let docsB: number[] = []
+  let docsB2: number[] = []
+
+  async function seedClinicWithDoctors(
+    name: string,
+    prefix: string,
+    doctorCount: number,
+  ): Promise<{ clinicId: number; doctorIds: number[] }> {
+    const clinic = await query<{ id: number }>(`INSERT INTO clinics (name) VALUES ($1) RETURNING id`, [
+      name,
+    ])
+    const clinicId = clinic.rows[0]!.id
+    await query(
+      `INSERT INTO users (email, username, password_hash, role, first_name, last_name, clinic_id)
+       SELECT $2 || n || '@test.local', $2 || n, 'dummy', 'doctor', 'I22', 'Doc' || n, $1
+       FROM generate_series(1, $3) AS n`,
+      [clinicId, prefix, doctorCount],
+    )
+    const doctors = await query<{ id: number }>(
+      `INSERT INTO doctors (user_id, clinic_id, max_monthly_duties)
+       SELECT id, $1, 7 FROM users WHERE clinic_id = $1 AND email LIKE $2 || '%'
+       ORDER BY id RETURNING id`,
+      [clinicId, prefix],
+    )
+    return { clinicId, doctorIds: doctors.rows.map((r) => r.id) }
+  }
+
+  function unresolvedFor(year: number, month: number): Promise<number> {
+    return query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM operator_alerts
+       WHERE type = 'disjoint_regeneration' AND resolved_at IS NULL
+         AND detail->>'year' = $1 AND detail->>'month' = $2`,
+      [String(year), String(month)],
+    ).then((r) => r.rows[0]?.n ?? 0)
+  }
+
+  beforeAll(async () => {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    await query(`DELETE FROM operator_alerts WHERE detail->>'year' = $1`, [String(YEAR2)])
+    await query(`DELETE FROM schedule_generation_log WHERE year = $1`, [YEAR2])
+    const a = await seedClinicWithDoctors(`I22 Clinic A ${suffix}`, `i22a${suffix}`, 4)
+    const b = await seedClinicWithDoctors(`I22 Clinic B ${suffix}`, `i22b${suffix}`, 8)
+    clinicA = a.clinicId
+    clinicB = b.clinicId
+    clinicBName = `I22 Clinic B ${suffix}`
+    docsA = a.doctorIds
+    docsB = b.doctorIds.slice(0, 4)
+    docsB2 = b.doctorIds.slice(4, 8)
+  })
+
+  afterAll(async () => {
+    await query(`DELETE FROM operator_alerts WHERE detail->>'year' = $1`, [String(YEAR2)])
+    await query(`DELETE FROM schedule_generation_log WHERE year = $1`, [YEAR2])
+    await query(`DELETE FROM doctors WHERE clinic_id IN ($1, $2)`, [clinicA, clinicB])
+    await query(`DELETE FROM users WHERE clinic_id IN ($1, $2)`, [clinicA, clinicB])
+    await query(`DELETE FROM clinics WHERE id IN ($1, $2)`, [clinicA, clinicB])
+  })
+
+  it('two clinics generating the same month with disjoint pools raise NO alert (I22)', async () => {
+    await withTransaction((client) => recordGeneration(client, clinicA, YEAR2, MONTH2, docsA))
+    await withTransaction((client) => recordGeneration(client, clinicB, YEAR2, MONTH2, docsB))
+    expect(await unresolvedFor(YEAR2, MONTH2)).toBe(0)
+
+    const events = (await generations()).filter((e) => e.year === YEAR2 && e.month === MONTH2)
+    expect(events).toHaveLength(2)
+    const clinicIds = new Set(events.map((e) => e.clinicId))
+    expect(clinicIds.size).toBe(2)
+    expect(events.every((e) => e.overlapPercent === null)).toBe(true)
+  })
+
+  it('within one clinic a disjoint regeneration still alerts, carrying clinicId/clinicName', async () => {
+    await withTransaction((client) => recordGeneration(client, clinicB, YEAR2, MONTH2, docsB2))
+    expect(await unresolvedFor(YEAR2, MONTH2)).toBe(1)
+    const alert = await query<{ clinicId: string; clinicName: string }>(
+      `SELECT detail->>'clinicId' AS "clinicId", detail->>'clinicName' AS "clinicName"
+       FROM operator_alerts
+       WHERE type = 'disjoint_regeneration' AND resolved_at IS NULL
+         AND detail->>'year' = $1 AND detail->>'month' = $2`,
+      [String(YEAR2), String(MONTH2)],
+    )
+    expect(alert.rows[0]?.clinicId).toBe(String(clinicB))
+    expect(alert.rows[0]?.clinicName).toBe(clinicBName)
   })
 })

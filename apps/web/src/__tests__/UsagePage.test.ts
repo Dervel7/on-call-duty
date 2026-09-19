@@ -25,6 +25,8 @@ const generationsFixture: GenerationEvent[] = [
   {
     year: 2026,
     month: 8,
+    clinicId: 1,
+    clinicName: 'Radiology',
     generatedAt: '2026-08-01T07:00:00.000Z',
     doctorIds: [1, 2],
     doctorNames: ['Jane Roe', 'John Doe'],

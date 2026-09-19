@@ -1,12 +1,12 @@
 export interface GenerationEvent {
   year: number
   month: number
-  clinicId?: number
-  clinicName?: string
+  clinicId: number
+  clinicName: string
   generatedAt: string
   doctorIds: number[]
   doctorNames: string[]
-  /** Overlap with the previous generation of the same month; null when there is no previous one. */
+  /** Overlap with the previous generation of the same month in the same clinic; null when there is no previous one. */
   overlapPercent: number | null
 }
 
