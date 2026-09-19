@@ -10,6 +10,7 @@ export const createScheduleSchema = z.object(yearMonth)
 export const scheduleQuerySchema = z.object({
   year: z.coerce.number().int().min(1970).max(2100).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
+  clinicId: z.coerce.number().int().positive().optional(),
 })
 export const createDutySchema = z.object({
   date: isoDateSchema,

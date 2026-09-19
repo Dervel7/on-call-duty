@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { passwordSchema } from './common'
 
-export const roleSchema = z.enum(['administrator', 'doctor', 'superadmin'])
+export const roleSchema = z.enum(['superadmin', 'manager', 'administrator', 'doctor'])
 
 export const usernameSchema = z.string().regex(/^[A-Za-z0-9._-]{3,32}$/, 'Invalid username')
 

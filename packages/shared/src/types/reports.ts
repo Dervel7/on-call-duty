@@ -4,6 +4,7 @@ import type { Duty, ScheduleSummary } from './schedule'
 export interface ReportQuery {
   year?: number
   month?: number
+  clinicId?: number
 }
 
 export interface MonthlyReport {

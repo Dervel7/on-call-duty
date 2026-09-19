@@ -33,6 +33,7 @@ export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]
 export const activityQuerySchema = z.object({
   action: z.enum(ACTIVITY_ACTIONS).optional(),
   userId: z.coerce.number().int().positive().optional(),
+  clinicId: z.coerce.number().int().positive().optional(),
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),

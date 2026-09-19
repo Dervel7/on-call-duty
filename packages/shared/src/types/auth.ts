@@ -1,4 +1,4 @@
-export type Role = 'administrator' | 'doctor' | 'superadmin'
+export type Role = 'superadmin' | 'manager' | 'administrator' | 'doctor'
 
 export interface AuthUser {
   id: number
@@ -8,6 +8,9 @@ export interface AuthUser {
   firstName: string
   lastName: string
   darkMode: boolean
+  /** Clinic the user belongs to; null for manager/superadmin (hospital/vendor level). */
+  clinicId?: number | null
+  clinicName?: string | null
 }
 
 export interface User extends AuthUser {
@@ -38,6 +41,8 @@ export interface CreateUserRequest {
   role: Role
   firstName: string
   lastName: string
+  /** Target clinic of the new account (required for manager-created administrators). */
+  clinicId?: number
 }
 export interface UpdateUserRequest {
   email?: string
@@ -46,6 +51,8 @@ export interface UpdateUserRequest {
   firstName?: string
   lastName?: string
   isActive?: boolean
+  /** Clinic reassignment; superadmin (any account) or manager (administrator accounts). */
+  clinicId?: number
 }
 export interface UpdateThemeRequest {
   darkMode: boolean

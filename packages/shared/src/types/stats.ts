@@ -3,6 +3,7 @@ import type { ScheduleSummary } from './schedule'
 export interface StatsQuery {
   year?: number
   month?: number
+  clinicId?: number
 }
 
 // ---- Admin dashboard ----

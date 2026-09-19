@@ -1,6 +1,8 @@
 export interface GenerationEvent {
   year: number
   month: number
+  clinicId?: number
+  clinicName?: string
   generatedAt: string
   doctorIds: number[]
   doctorNames: string[]
