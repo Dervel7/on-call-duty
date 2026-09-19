@@ -78,7 +78,7 @@ ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
   is_active     = TRUE,
   updated_at    = NOW();
 
--- Seed sample doctors (password: changeme123 - change on first login)
+-- Seed sample doctors (password = email, change on first login)
 -- dr1-dr3 Radiology, dr4-dr6 Cardiology, dr7-dr8 Neurology.
 INSERT INTO users (email, username, password_hash, role, first_name, last_name, is_active, clinic_id)
 VALUES

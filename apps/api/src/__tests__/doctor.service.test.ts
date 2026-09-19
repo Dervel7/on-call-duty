@@ -114,6 +114,7 @@ describe('doctor.service', () => {
   it('create rejects duplicate email with 409', async () => {
     query.mockImplementation(async (...args: unknown[]) => {
       const sql = String(args[0] ?? '')
+      if (sql.includes('FROM clinics')) return { rows: [{ is_active: true }] }
       if (sql.includes('WHERE email =')) return { rows: [{ id: 9 }] }
       return { rows: [] }
     })
@@ -124,6 +125,30 @@ describe('doctor.service', () => {
         scope(1),
       ),
     ).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('create into an unknown clinic is 404, inactive clinic is 403', async () => {
+    query.mockImplementation(async () => ({ rows: [] }))
+    await expect(
+      create(
+        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' },
+        actor,
+        scope(99),
+      ),
+    ).rejects.toMatchObject({ status: 404 })
+
+    query.mockImplementation(async (...args: unknown[]) => {
+      const sql = String(args[0] ?? '')
+      if (sql.includes('FROM clinics')) return { rows: [{ is_active: false }] }
+      return { rows: [] }
+    })
+    await expect(
+      create(
+        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' },
+        actor,
+        scope(1),
+      ),
+    ).rejects.toMatchObject({ status: 403 })
   })
 
   it('create writes the scope clinic into BOTH users and doctors (equality invariant, I5)', async () => {
@@ -237,7 +262,9 @@ describe('doctor.service', () => {
       actor,
       scope(1),
     )
-    expect(String(query.mock.calls[0]?.[0])).toContain('AND is_deleted = FALSE')
-    expect(String(query.mock.calls[1]?.[0])).toContain('AND is_deleted = FALSE')
+    const emailCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE email ='))
+    const usernameCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE username ='))
+    expect(String(emailCheck?.[0])).toContain('AND is_deleted = FALSE')
+    expect(String(usernameCheck?.[0])).toContain('AND is_deleted = FALSE')
   })
 })

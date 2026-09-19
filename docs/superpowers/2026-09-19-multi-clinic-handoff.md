@@ -11,6 +11,16 @@ This handoff covers Tasks 1–9 (done, committed) and what the next agent must d
 - After Task 9 every commit must keep: root `pnpm typecheck` = 0 errors, `pnpm --filter @oncall/api lint` = clean, full API suite green.
 - Live Postgres IS running: `postgres://postgres:excalibur@localhost:5432/oncall_duty` (from `apps/api/.env`). DB was dropped/recreated and seeded with the multi-clinic baseline (Task 3).
 
+## START HERE (first 5 minutes for the next agent)
+
+1. `git log --oneline -15` on branch `multi-clinic-hospital` — Tasks 1–9 are one commit each (plus the plan doc, this handoff, and a post-T9 fixup commit).
+2. Run the gates once to confirm the baseline you inherit (each command separately; check the visible exit code):
+   `pnpm typecheck` · `pnpm --filter @oncall/api lint` · `pnpm --filter @oncall/api test -- --run` · `pnpm --filter @oncall/web test -- --run`
+   Expected: root typecheck 0 errors; API lint clean; API **33 files / 284 tests passed**; web **24 files / 119 tests passed**.
+3. Read plan §2.2 (`resolveClinicScope` — the single scope choke point), §2.5 (endpoint scope matrix — the spec you implement against), §2.6 (the four cross-clinic bug patterns; all four already killed for schedules — keep the discipline for stats/reports/usage/activity).
+4. Start at **Task 10** below. One task per commit; run gates before each commit; never pipe a gate into `| tail && git commit`.
+5. Do NOT touch `apps/api/src/scheduling/` (read-only per plan §3).
+
 ## Done so far (Tasks 1–9, one commit each; `git log --oneline` for exact messages)
 
 - **T1** branch + baseline recorded (baseline was fully green incl. live-DB tests).
@@ -23,7 +33,15 @@ This handoff covers Tasks 1–9 (done, committed) and what the next agent must d
 - **T8** unavailability: `listAll(filters, scope?)` via `d.clinic_id`; create locks doctor in scope (cross-clinic 404); update/remove: manager 403 in service, admin cross-clinic 404; audit rows carry clinicId.
 - **T9** schedules (the big one): `buildContext(year, month, clinicId)` (pool/unavailability/adjacency all scoped), §2.6.1 neighbor JOINs, `generate(..., scope, ...)` per-clinic pre-check + `clinic_id` insert, `recordGeneration(client, clinicId, year, month, ids)` clinic-partitioned (this ALSO made the live `usage.service.test.ts` green again), `monthCaps`/`validateAssignment` clinic-scoped, publish/unpublish/remove/addDuty/reassign/removeDuty object-scoped 404, list admits manager via `?clinicId=`, doctor forced own clinic. Live `schedule.isolation.test.ts` covers I7–I11.
 
-Current state: root typecheck 0 errors, API lint clean, **full API suite 33 files / 281 tests passed**; web suite green at Task 6 fixture level (119 tests as of T6).
+### Post-Task-9 fixups (same session, one commit after T9)
+
+Three defects found by review after T9 was committed; fixed before handoff, so the tree you inherit is clean:
+
+1. **Two published-lock tests had been silently dropped** during the T9 test rework (`addDuty 409 when published`, `reassignDuty 409 when published`). Restored in `schedule.service.test.ts` (both are one-mock tests; the block now covers addDuty/reassignDuty/removeDuty/remove-schedule).
+2. **`doctor.service.create` did not validate the target clinic** — a superadmin `POST /doctors?clinicId=<unknown>` hit the FK and returned 500, and creation into a deactivated clinic was not blocked (both violate §2.2/D10). Now: unknown clinic → 404, inactive clinic → 403, before the transaction. Tests added in `doctor.service.test.ts` (`create into an unknown clinic is 404, inactive clinic is 403`); note `create` issues an extra leading `SELECT is_active FROM clinics` query, so SQL-keyed mocks (not call-order mocks) are required for create flows.
+3. **`database/seed.sql` doctors comment misdocumented credentials** — it said `password: changeme123` for dr1–dr8, but their hashes match their **email address** (verified by bcrypt compare; the three per-clinic admins + manager/superadmin do use `changeme123`). Comment corrected to `password = email`.
+
+Current state (all verified immediately before this handoff): root `pnpm typecheck` 0 errors; `pnpm --filter @oncall/api lint` clean; **API 33 files / 284 tests passed**; web 24 files / 119 tests passed; `pnpm db:setup` re-applies cleanly (idempotent).
 
 ## Remaining work
 
@@ -70,4 +88,4 @@ Read plan §Task 14 line by line. Highlights: auth store carries clinicId/clinic
 ```
 pnpm typecheck && pnpm --filter @oncall/api lint && pnpm --filter @oncall/api test -- --run
 ```
-(33 files / 281 tests; web: `pnpm --filter @oncall/web test -- --run`.)
+(Expected: 33 files / 284 tests; web: `pnpm --filter @oncall/web test -- --run` → 24 files / 119 tests.)

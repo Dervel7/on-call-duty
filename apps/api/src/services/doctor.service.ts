@@ -99,6 +99,14 @@ export async function create(
   scope: ClinicScope,
 ): Promise<Doctor> {
   const clinicId = scope.clinicId
+  // Unknown clinic → 404; deactivated clinic blocks user creation (D10, §2.2).
+  const clinic = await query<{ is_active: boolean }>(
+    `SELECT is_active FROM clinics WHERE id = $1`,
+    [clinicId],
+  )
+  const clinicRow = clinic.rows[0]
+  if (!clinicRow) throw new HttpError(404, 'Clinic not found')
+  if (!clinicRow.is_active) throw new HttpError(403, 'Clinic is deactivated')
   const doctorId = await withTransaction(async (client) => {
     const dupEmail = await client.query(
       'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE',

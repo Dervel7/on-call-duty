@@ -544,6 +544,29 @@ describe('publish / unpublish', () => {
     })
   })
 
+  it('addDuty 409 when published', async () => {
+    query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] })
+    await expect(
+      addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 }),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('reassignDuty 409 when published', async () => {
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
+        return { rows: [dutyRow({ schedule_status: 'published' })] }
+      }
+      if (sql.includes('FROM schedules s JOIN clinics')) {
+        return { rows: [scheduleRow({ status: 'published' })] }
+      }
+      return { rows: [] }
+    })
+    await expect(
+      reassignDuty(10, { doctorId: 7 }, { id: 2, role: 'administrator', clinicId: 1 }),
+    ).rejects.toMatchObject({ status: 409 })
+  })
+
   it('removeDuty 409 when published', async () => {
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
