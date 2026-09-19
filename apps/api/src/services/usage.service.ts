@@ -21,33 +21,36 @@ export const DISJOINT_MIN_SET_SIZE = 4
  */
 export async function recordGeneration(
   client: PoolClient,
+  clinicId: number,
   year: number,
   month: number,
   doctorIds: number[],
 ): Promise<void> {
   for (const doctorId of doctorIds) {
     await client.query(
-      'INSERT INTO schedule_generation_log (doctor_id, year, month) VALUES ($1, $2, $3)',
-      [doctorId, year, month],
+      'INSERT INTO schedule_generation_log (doctor_id, clinic_id, year, month) VALUES ($1, $2, $3, $4)',
+      [doctorId, clinicId, year, month],
     )
   }
 
-  // Rule 2: disjoint regeneration vs the most recent prior generation of this month.
+  // Rule 2: disjoint regeneration vs the most recent prior generation of this
+  // month **in the same clinic** — two clinics generating the same month with
+  // disjoint pools must not read as a regeneration (§2.6.4).
   // Rows written by this transaction share NOW(), so `created_at < NOW()` cleanly
   // selects only prior generations. The batch timestamp travels as text because
   // node-postgres truncates timestamptz microseconds when parsing to a JS Date,
   // which would break the exact equality match below.
   const prevBatch = await client.query<{ created_at: string | null }>(
     `SELECT MAX(created_at)::text AS created_at FROM schedule_generation_log
-     WHERE year = $1 AND month = $2 AND created_at < NOW()`,
-    [year, month],
+     WHERE clinic_id = $1 AND year = $2 AND month = $3 AND created_at < NOW()`,
+    [clinicId, year, month],
   )
   const prevTime = prevBatch.rows[0]?.created_at
   if (prevTime) {
     const prevDocs = await client.query<{ doctor_id: number }>(
       `SELECT DISTINCT doctor_id FROM schedule_generation_log
-       WHERE year = $1 AND month = $2 AND created_at = $3::timestamptz`,
-      [year, month, prevTime],
+       WHERE clinic_id = $1 AND year = $2 AND month = $3 AND created_at = $4::timestamptz`,
+      [clinicId, year, month, prevTime],
     )
     const prevIds = prevDocs.rows.map((r) => r.doctor_id)
     const overlap = overlapPercent(prevIds, doctorIds)

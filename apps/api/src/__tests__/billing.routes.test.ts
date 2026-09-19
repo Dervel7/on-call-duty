@@ -72,7 +72,7 @@ describe('billing routes', () => {
     expect(patch.body.data.billing).toEqual({ paidThrough: '2026-12-31', locked: false })
     expect(setPaidThrough).toHaveBeenCalledWith(
       { paidThrough: '2026-12-31' },
-      { id: 1, role: 'superadmin' },
+      { id: 1, role: 'superadmin', clinicId: null },
     )
   })
 

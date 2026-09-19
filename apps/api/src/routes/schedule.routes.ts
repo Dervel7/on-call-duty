@@ -16,15 +16,36 @@ export const scheduleRouter = Router()
 
 scheduleRouter.use(authenticate)
 
+// Reads: manager is read-only drill-down (D5/D9); doctors see own clinic's
+// published schedules only (enforced in the service).
 scheduleRouter.get(
   '/',
-  authorize('administrator', 'doctor'),
+  authorize('administrator', 'doctor', 'manager'),
   validate(scheduleQuerySchema, 'query'),
   scheduleController.list,
 )
-scheduleRouter.post('/preview', authorize('administrator'), validate(createScheduleSchema, 'body'), scheduleController.preview)
-scheduleRouter.post('/', authorize('administrator'), validate(generateScheduleSchema, 'body'), scheduleController.generate)
-scheduleRouter.get('/:id', authorize('administrator', 'doctor'), validate(idParams, 'params'), scheduleController.getById)
+scheduleRouter.get(
+  '/:id',
+  authorize('administrator', 'doctor', 'manager'),
+  validate(idParams, 'params'),
+  scheduleController.getById,
+)
+// Writes (preview/generate included) stay administrator-only; the clinic
+// comes from ?clinicId= (superadmin) or the JWT (administrator).
+scheduleRouter.post(
+  '/preview',
+  authorize('administrator'),
+  validate(scheduleQuerySchema, 'query'),
+  validate(createScheduleSchema, 'body'),
+  scheduleController.preview,
+)
+scheduleRouter.post(
+  '/',
+  authorize('administrator'),
+  validate(scheduleQuerySchema, 'query'),
+  validate(generateScheduleSchema, 'body'),
+  scheduleController.generate,
+)
 scheduleRouter.post('/:id/publish', authorize('administrator'), validate(idParams, 'params'), scheduleController.publish)
 scheduleRouter.post('/:id/unpublish', authorize('administrator'), validate(idParams, 'params'), scheduleController.unpublish)
 scheduleRouter.delete('/:id', authorize('administrator'), validate(idParams, 'params'), scheduleController.remove)

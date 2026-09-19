@@ -35,7 +35,7 @@ describe('stats.service — adminStats', () => {
     for (let d = 1; d <= 29; d++) assigned.push(`2026-09-${String(d).padStart(2, '0')}`)
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
-      if (sql.includes('FROM schedules WHERE year'))
+      if (sql.includes('FROM schedules s JOIN clinics')&& sql.includes('s.year ='))
         return {
           rows: [
             {
@@ -74,7 +74,7 @@ describe('stats.service — adminStats', () => {
   it('inactive doctor with duties is included and flagged isActive=false', async () => {
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
-      if (sql.includes('FROM schedules WHERE year'))
+      if (sql.includes('FROM schedules s JOIN clinics')&& sql.includes('s.year ='))
         return {
           rows: [
             {
@@ -107,7 +107,7 @@ describe('stats.service — adminStats', () => {
   it('fairness spread = max - min over doctors with duties > 0', async () => {
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
-      if (sql.includes('FROM schedules WHERE year'))
+      if (sql.includes('FROM schedules s JOIN clinics')&& sql.includes('s.year ='))
         return {
           rows: [
             {

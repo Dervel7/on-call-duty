@@ -5,8 +5,8 @@ export interface ScheduleSummary {
   year: number
   month: number
   status: ScheduleStatus
-  clinicId?: number
-  clinicName?: string
+  clinicId: number
+  clinicName: string
   createdBy: number | null
   createdAt: string
   updatedAt: string

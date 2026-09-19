@@ -78,7 +78,7 @@ describe('recordGeneration (real database)', () => {
   afterAll(cleanup)
 
   it('logs the batch and raises no alerts on the first generation of a month', async () => {
-    await withTransaction((client) => recordGeneration(client, YEAR, MONTH, groupA))
+    await withTransaction((client) => recordGeneration(client, 1, YEAR, MONTH, groupA))
     const logged = await query<{ n: number }>(
       'SELECT COUNT(*)::int AS n FROM schedule_generation_log WHERE year = $1 AND month = $2 AND doctor_id = ANY($3)',
       [YEAR, MONTH, groupA],
@@ -88,7 +88,7 @@ describe('recordGeneration (real database)', () => {
   })
 
   it('raises exactly one disjoint_regeneration alert for a <50% overlap regeneration', async () => {
-    await withTransaction((client) => recordGeneration(client, YEAR, MONTH, groupB))
+    await withTransaction((client) => recordGeneration(client, 1, YEAR, MONTH, groupB))
     expect(await unresolvedDisjointForMonth()).toBe(1)
     const alert = await query<{ overlap: number }>(
       `SELECT (detail->>'overlapPercent')::int AS overlap FROM operator_alerts
@@ -100,12 +100,12 @@ describe('recordGeneration (real database)', () => {
   })
 
   it('deduplicates: a third disjoint regeneration leaves exactly one unresolved alert', async () => {
-    await withTransaction((client) => recordGeneration(client, YEAR, MONTH, groupA))
+    await withTransaction((client) => recordGeneration(client, 1, YEAR, MONTH, groupA))
     expect(await unresolvedDisjointForMonth()).toBe(1)
   })
 
   it('raises no new alert when regenerating with the same roster', async () => {
-    await withTransaction((client) => recordGeneration(client, YEAR, MONTH, groupA))
+    await withTransaction((client) => recordGeneration(client, 1, YEAR, MONTH, groupA))
     expect(await unresolvedDisjointForMonth()).toBe(1)
   })
 })

@@ -17,6 +17,8 @@ interface ScheduleRow {
   year: number
   month: number
   status: string
+  clinic_id: number
+  clinic_name: string
   created_by: number | null
   created_at: Date
   updated_at: Date
@@ -28,6 +30,8 @@ function toSchedule(row: ScheduleRow): ScheduleSummary {
     year: row.year,
     month: row.month,
     status: row.status as ScheduleStatus,
+    clinicId: row.clinic_id,
+    clinicName: row.clinic_name,
     createdBy: row.created_by,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -56,8 +60,10 @@ function spread(values: number[]): number | null {
 
 export async function adminStats(year: number, month: number): Promise<AdminStats> {
   const sres = await query<ScheduleRow>(
-    `SELECT id, year, month, status, created_by, created_at, updated_at
-     FROM schedules WHERE year = $1 AND month = $2`,
+    `SELECT s.id, s.year, s.month, s.status, s.clinic_id, c.name AS clinic_name,
+       s.created_by, s.created_at, s.updated_at
+     FROM schedules s JOIN clinics c ON c.id = s.clinic_id
+     WHERE s.year = $1 AND s.month = $2`,
     [year, month],
   )
   const scheduleRow = sres.rows[0] ?? null
