@@ -10,11 +10,10 @@ function to(fullPath: string, meta: Partial<RouteLocationNormalized['meta']> = {
   } as RouteLocationNormalized
 }
 
-const authed = (role: 'administrator' | 'doctor' | 'superadmin'): GuardAuth => ({
+const authed = (role: 'administrator' | 'doctor' | 'superadmin' | 'manager'): GuardAuth => ({
   isAuthenticated: true,
   user: { role },
 })
-
 describe('resolveGuard', () => {
   it('allows public routes regardless of auth', () => {
     expect(resolveGuard(to('/login', { public: true }), { isAuthenticated: false, user: null })).toBe(true)
@@ -51,5 +50,28 @@ describe('resolveGuard', () => {
 
   it('allows any authenticated user on an open route', () => {
     expect(resolveGuard(to('/profile'), authed('doctor'))).toBe(true)
+  })
+
+  it('allows a manager on every drill-down route', () => {
+    const drillDown = ['/schedules', '/schedules/12', '/roster', '/reports', '/activity', '/users', '/availability']
+    for (const path of drillDown) {
+      expect(resolveGuard(to(path, { roles: ['administrator', 'doctor', 'manager'] }), authed('manager'))).toBe(true)
+    }
+  })
+
+  it('redirects a manager away from preview and usage to home', () => {
+    expect(resolveGuard(to('/schedules/preview', { roles: ['administrator'] }), authed('manager'))).toEqual({ name: 'home' })
+    expect(resolveGuard(to('/usage', { roles: ['superadmin'] }), authed('manager'))).toEqual({ name: 'home' })
+  })
+
+  it('allows a manager on the clinics route; superadmin is locked out of it', () => {
+    expect(resolveGuard(to('/clinics', { roles: ['manager'] }), authed('manager'))).toBe(true)
+    expect(resolveGuard(to('/clinics', { roles: ['manager'] }), authed('superadmin'))).toEqual({ name: 'home' })
+  })
+
+  it('superadmin still passes administrator-gated routes after the manager widening', () => {
+    expect(
+      resolveGuard(to('/users', { roles: ['administrator', 'manager'] }), authed('superadmin')),
+    ).toBe(true)
   })
 })
