@@ -12,8 +12,43 @@ vi.mock('@/services/user', () => ({
   list: (...a: unknown[]) => listUsers(...a),
 }))
 
+const route = { query: {} as Record<string, string> }
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => route,
+}))
+
+const clinicsList = vi.fn()
+vi.mock('@/services/clinics', () => ({
+  list: (...a: unknown[]) => clinicsList(...a),
+  create: vi.fn(),
+  update: vi.fn(),
+}))
+
 import ActivityPage from '../pages/ActivityPage.vue'
+import { useAuthStore } from '../stores/auth'
 import { pickOption } from './pick-option'
+
+function mountAsManager() {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useAuthStore(pinia).user = {
+    id: 1,
+    email: 'm@oncall.local',
+    username: 'manager',
+    role: 'manager',
+    firstName: 'Max',
+    lastName: 'Manager',
+    darkMode: false,
+    clinicId: null,
+    clinicName: null,
+  }
+  clinicsList.mockResolvedValue([
+    { id: 1, name: 'Radiology', isActive: true, doctorCount: 3, adminCount: 1 },
+    { id: 2, name: 'Cardiology', isActive: true, doctorCount: 3, adminCount: 1 },
+  ])
+  return mount(ActivityPage, { global: { plugins: [pinia] } })
+}
 
 function page(overrides: Record<string, unknown> = {}): PaginatedActivity {
   return {
@@ -43,9 +78,11 @@ function page(overrides: Record<string, unknown> = {}): PaginatedActivity {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  route.query = {}
   getActivity.mockReset()
   listUsers.mockReset()
   listUsers.mockResolvedValue([])
+  clinicsList.mockReset()
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -96,5 +133,23 @@ describe('ActivityPage', () => {
     const wrapper = mount(ActivityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
+  })
+
+  it('manager mode: log and user filter scoped to the selected clinic', async () => {
+    route.query = { clinic: '2' }
+    getActivity.mockResolvedValue(page())
+    const wrapper = mountAsManager()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="clinic-selector"]').exists()).toBe(true)
+    expect(getActivity).toHaveBeenCalledWith(expect.objectContaining({ clinicId: 2, page: 1, limit: 50 }))
+    expect(listUsers).toHaveBeenCalledWith(2)
+  })
+
+  it('manager mode without a clinic selection skips the fetch', async () => {
+    const wrapper = mountAsManager()
+    await flushPromises()
+    expect(getActivity).not.toHaveBeenCalled()
+    expect(listUsers).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Select a clinic above to view its activity.')
   })
 })

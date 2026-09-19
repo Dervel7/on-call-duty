@@ -24,12 +24,47 @@ vi.mock('@/services/doctor', () => ({
   remove: vi.fn(),
 }))
 
-import AvailabilityPage from '../pages/AvailabilityPage.vue'
-import { useConfirmState } from '../composables/useConfirm'
-import { pickDate } from './pick-date'
-import { pickOption } from './pick-option'
+const route = { query: {} as Record<string, string> }
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => route,
+}))
 
-const { settle } = useConfirmState()
+const clinicsList = vi.fn()
+vi.mock('@/services/clinics', () => ({
+  list: (...a: unknown[]) => clinicsList(...a),
+  create: vi.fn(),
+  update: vi.fn(),
+}))
+ 
+ import AvailabilityPage from '../pages/AvailabilityPage.vue'
+import { useAuthStore } from '../stores/auth'
+ import { useConfirmState } from '../composables/useConfirm'
+ import { pickDate } from './pick-date'
+ import { pickOption } from './pick-option'
+ 
+ const { settle } = useConfirmState()
+
+function mountAs(role: 'administrator' | 'manager') {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useAuthStore(pinia).user = {
+    id: 2,
+    email: 'a@b.com',
+    username: 'admin',
+    role,
+    firstName: 'Ada',
+    lastName: 'Ops',
+    darkMode: false,
+    clinicId: role === 'manager' ? null : 1,
+    clinicName: role === 'manager' ? null : 'Radiology',
+  }
+  clinicsList.mockResolvedValue([
+    { id: 1, name: 'Radiology', isActive: true, doctorCount: 3, adminCount: 1 },
+    { id: 2, name: 'Cardiology', isActive: true, doctorCount: 3, adminCount: 1 },
+  ])
+  return mount(AvailabilityPage, { global: { plugins: [pinia] } })
+}
 
 const doctor = {
   id: 5,
@@ -59,11 +94,13 @@ const record = {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  route.query = {}
   listAll.mockReset()
   doctorList.mockReset()
   createForDoctor.mockReset()
   update.mockReset()
   remove.mockReset()
+  clinicsList.mockReset()
   settle(false)
 })
 afterEach(() => vi.restoreAllMocks())
@@ -80,7 +117,7 @@ describe('AvailabilityPage', () => {
   it('renders the list on mount', async () => {
     doctorList.mockResolvedValue([])
     listAll.mockResolvedValue([record])
-    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     expect(wrapper.text()).toContain('Jane')
     expect(wrapper.text()).toContain('2026-09-07')
@@ -89,7 +126,7 @@ describe('AvailabilityPage', () => {
   it('shows an error when listing fails', async () => {
     doctorList.mockResolvedValue([])
     listAll.mockRejectedValue(new Error('nope'))
-    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
   })
@@ -98,7 +135,7 @@ describe('AvailabilityPage', () => {
     doctorList.mockResolvedValue([doctor])
     listAll.mockResolvedValue([])
     createForDoctor.mockRejectedValue(new Error('create failed'))
-    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'New exclusion')!.trigger('click')
     await flushPromises()
@@ -122,7 +159,7 @@ describe('AvailabilityPage', () => {
     doctorList.mockResolvedValue([])
     listAll.mockResolvedValue([record])
     update.mockRejectedValue(new Error('update failed'))
-    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
     await flushPromises()
@@ -139,12 +176,35 @@ describe('AvailabilityPage', () => {
     doctorList.mockResolvedValue([])
     listAll.mockResolvedValue([record])
     remove.mockRejectedValue(new Error('delete failed'))
-    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'Delete')!.trigger('click')
     settle(true)
     await flushPromises()
     expect(remove).toHaveBeenCalledWith(1)
     expect(wrapper.find('[role="alert"]').text()).toContain('delete failed')
+  })
+
+  it('manager mode: no lifecycle controls, records and doctors scoped to the clinic', async () => {
+    route.query = { clinic: '2' }
+    doctorList.mockResolvedValue([])
+    listAll.mockResolvedValue([record])
+    const wrapper = mountAs('manager')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="clinic-selector"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('New exclusion')
+    expect(wrapper.text()).not.toContain('Edit')
+    expect(wrapper.text()).not.toContain('Delete')
+    expect(listAll).toHaveBeenCalledWith(expect.objectContaining({ clinicId: 2 }))
+    expect(doctorList).toHaveBeenCalledWith(2)
+  })
+
+  it('manager mode without a clinic selection skips the fetch', async () => {
+    const wrapper = mountAs('manager')
+    await flushPromises()
+    expect(listAll).not.toHaveBeenCalled()
+    expect(doctorList).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Select a clinic above to view its availability.')
   })
 })

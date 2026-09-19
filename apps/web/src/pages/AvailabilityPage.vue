@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type {
   CreateUnavailabilitySelfRequest,
   Doctor,
   Unavailability,
+  UnavailabilityQuery,
   UpdateUnavailabilityRequest,
 } from '@oncall/shared'
 import { createUnavailabilityAdminSchema, updateUnavailabilitySchema } from '@oncall/shared'
 import * as unavailabilityService from '@/services/unavailability'
 import * as doctorService from '@/services/doctor'
+import ClinicSelector from '@/components/layout/ClinicSelector.vue'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
@@ -22,6 +24,8 @@ import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { useClinicSelection } from '@/composables/useClinicSelection'
+import { useAuthStore } from '@/stores/auth'
 
 const TYPES = ['vacation', 'sick', 'conference', 'other'] as const
 
@@ -29,7 +33,12 @@ const records = ref<Unavailability[]>([])
 const doctors = ref<Doctor[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
+const auth = useAuthStore()
+const { selectedClinicId } = useClinicSelection()
 const { confirm } = useConfirm()
+
+const canEdit = computed(() => auth.isAdmin)
+const needsClinic = computed(() => auth.isManager && selectedClinicId.value === undefined)
 
 const filterDoctorId = ref<string>('')
 const filterFrom = ref('')
@@ -59,14 +68,19 @@ const emptyEdit = (): EditState => ({
 const edit = ref<EditState>(emptyEdit())
 
 async function load() {
+  if (needsClinic.value) {
+    records.value = []
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   try {
-    const query = {
+    const query: UnavailabilityQuery = {
       doctorId: filterDoctorId.value ? Number(filterDoctorId.value) : undefined,
       from: filterFrom.value || undefined,
       to: filterTo.value || undefined,
     }
+    if (auth.isManager) query.clinicId = selectedClinicId.value
     records.value = await unavailabilityService.listAll(query)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load availability'
@@ -74,6 +88,10 @@ async function load() {
     loading.value = false
   }
 }
+
+watch(selectedClinicId, () => {
+  if (auth.isManager) void load()
+})
 
 function openCreate() {
   edit.value = { ...emptyEdit(), open: true }
@@ -160,22 +178,28 @@ async function remove(x: Unavailability) {
 }
 
 onMounted(async () => {
+  if (needsClinic.value) return
   try {
-    doctors.value = await doctorService.list()
+    doctors.value = await doctorService.list(auth.isManager ? selectedClinicId.value : undefined)
   } catch {
     doctors.value = []
   }
   await load()
 })
+
 </script>
 
 <template>
   <div class="flex flex-col gap-4">
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-semibold text-foreground">Availability</h1>
-      <Button @click="openCreate">New exclusion</Button>
+      <div class="flex items-center gap-3">
+        <ClinicSelector />
+        <Button v-if="canEdit" @click="openCreate">New exclusion</Button>
+      </div>
     </div>
 
+    <p v-if="needsClinic" class="text-sm text-muted-foreground">Select a clinic above to view its availability.</p>
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
         <Label for="f-doctor">Doctor</Label>
@@ -219,10 +243,11 @@ onMounted(async () => {
           <TableCell>{{ x.endDate }}</TableCell>
           <TableCell>{{ x.note ?? '' }}</TableCell>
           <TableCell class="text-right">
-            <div class="inline-flex gap-2">
+            <div v-if="canEdit" class="inline-flex gap-2">
               <Button size="sm" variant="outline" @click="openUpdate(x)">Edit</Button>
               <Button size="sm" variant="destructive" @click="remove(x)">Delete</Button>
             </div>
+            <span v-else class="text-sm text-muted-foreground">—</span>
           </TableCell>
         </TableRow>
       </TableBody>

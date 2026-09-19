@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import type { ActivityLogEntry, ActivityQuery, PaginatedActivity, User } from '@oncall/shared'
 import { ACTIVITY_ACTIONS } from '@oncall/shared'
 import * as activityService from '@/services/activity'
+import ClinicSelector from '@/components/layout/ClinicSelector.vue'
 import * as userService from '@/services/user'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -16,6 +17,8 @@ import TableCell from '@/components/ui/TableCell.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
+import { useClinicSelection } from '@/composables/useClinicSelection'
+import { useAuthStore } from '@/stores/auth'
 
 const PAGE_SIZE = 50
 
@@ -36,8 +39,16 @@ const data = ref<PaginatedActivity | null>(null)
 const users = ref<User[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
+const auth = useAuthStore()
+const { selectedClinicId } = useClinicSelection()
+
+const needsClinic = computed(() => auth.isManager && selectedClinicId.value === undefined)
 
 async function load() {
+  if (needsClinic.value) {
+    data.value = null
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   try {
@@ -46,11 +57,27 @@ async function load() {
     if (filters.value.userId) query.userId = Number(filters.value.userId)
     if (filters.value.from) query.from = filters.value.from
     if (filters.value.to) query.to = filters.value.to
+    if (auth.isManager) query.clinicId = selectedClinicId.value
     data.value = await activityService.getActivity(query)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load activity'
   } finally {
     loading.value = false
+  }
+}
+
+watch(selectedClinicId, () => {
+  if (!auth.isManager) return
+  page.value = 1
+  void load()
+  void loadUsers()
+})
+
+async function loadUsers() {
+  try {
+    users.value = await userService.list(auth.isManager ? selectedClinicId.value : undefined)
+  } catch {
+    // Filter dropdown stays empty; the log itself still loads.
   }
 }
 
@@ -108,15 +135,9 @@ const rangeText = computed(() => {
 })
 
 onMounted(() => {
+  if (needsClinic.value) return
   void load()
-  void userService
-    .list()
-    .then((u) => {
-      users.value = u
-    })
-    .catch(() => {
-      // Filter dropdown stays empty; the log itself still loads.
-    })
+  void loadUsers()
 })
 </script>
 
@@ -154,12 +175,15 @@ onMounted(() => {
           <Label for="f-to">To</Label>
           <DatePicker id="f-to" v-model="filters.to" placeholder="Any date" />
         </div>
+        <ClinicSelector />
         <Button variant="outline" @click="clearFilters">Clear filters</Button>
       </CardContent>
     </Card>
 
     <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
+
+    <p v-if="needsClinic" class="text-sm text-muted-foreground">Select a clinic above to view its activity.</p>
 
     <Table>
       <TableHeader>
