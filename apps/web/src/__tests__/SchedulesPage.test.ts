@@ -165,4 +165,11 @@ describe('SchedulesPage', () => {
     expect(wrapper.findAll('button').some((b) => b.text().includes('New schedule'))).toBe(false)
     expect(list).toHaveBeenCalledWith({ clinicId: 2 })
   })
+
+  it('manager mode without a clinic selection skips the fetch', async () => {
+    const wrapper = mountAs('manager')
+    await flushPromises()
+    expect(list).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Select a clinic above to view its schedules.')
+  })
 })

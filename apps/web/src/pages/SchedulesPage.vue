@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ScheduleQuery, ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
@@ -35,19 +35,22 @@ const loading = ref(false)
 const errorMsg = ref('')
 const filterYear = ref('')
 const { selectedClinicId } = useClinicSelection()
+const needsClinic = computed(() => auth.isManager && selectedClinicId.value === undefined)
 
 watch(selectedClinicId, () => {
   if (auth.isManager) void load()
 })
 
 async function load() {
+  if (needsClinic.value) {
+    records.value = []
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   try {
     const query: ScheduleQuery = filterYear.value ? { year: Number(filterYear.value) } : {}
-    if (auth.isManager && selectedClinicId.value !== undefined) {
-      query.clinicId = selectedClinicId.value
-    }
+    if (auth.isManager) query.clinicId = selectedClinicId.value
     records.value = await scheduleService.list(query)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load schedules'
@@ -123,6 +126,7 @@ onMounted(load)
 
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
+
         <Label for="f-year">Year</Label>
         <Input id="f-year" v-model="filterYear" type="number" />
       </div>
@@ -132,6 +136,8 @@ onMounted(load)
 
     <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
+
+    <p v-if="needsClinic" class="text-sm text-muted-foreground">Select a clinic above to view its schedules.</p>
 
     <Table>
       <TableHeader>

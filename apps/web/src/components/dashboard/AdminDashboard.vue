@@ -38,6 +38,7 @@ const stats = ref<AdminStats | null>(null)
 const loading = ref(false)
 const paymentDaysLeft = ref<number | null>(null)
 const errorMsg = ref('')
+const needsClinic = computed(() => auth.isManager && selectedClinicId.value === undefined)
 
 const paymentLabel = computed(() => {
   const days = paymentDaysLeft.value
@@ -59,6 +60,10 @@ const fairnessBadge = computed(() => {
 })
 
 async function load() {
+  if (needsClinic.value) {
+    stats.value = null
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   try {
@@ -120,7 +125,16 @@ watch(selectedClinicId, () => {
     <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
-    <Card v-if="stats && !stats.schedule">
+    <Card v-if="needsClinic">
+      <CardHeader>
+        <CardTitle>Select a clinic</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p class="text-sm text-muted-foreground">Pick a clinic above to view its statistics.</p>
+      </CardContent>
+    </Card>
+
+    <Card v-else-if="stats && !stats.schedule">
       <CardHeader>
         <CardTitle>No schedule for {{ monthLabel }}</CardTitle>
       </CardHeader>
