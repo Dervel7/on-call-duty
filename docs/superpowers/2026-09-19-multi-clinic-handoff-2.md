@@ -185,7 +185,9 @@ Then `pnpm --filter @oncall/web typecheck`, `pnpm --filter @oncall/web test -- -
    variants WITHOUT the `mockReset` hook all pass. For this reason `ClinicSelector.test.ts` has
    no error-path test (the component was verified correct by a manual repro: error rendered,
    exactly one service call). If you need an error-path test on a component, either skip the
-   `mockReset` hook in that file or reset mocks at the end of each test instead.
+   `mockReset` hook in that file, use `mockClear()` instead (clears calls, keeps implementations —
+   untested variant, try it first), or reset mocks at the end of each test instead. Candidate to
+   re-add: an error-path test for `ClinicSelector` via the `mockClear` route.
 2. **Manager with NO clinic selected → API 400 surfaces as a page error (UX NIT, decide in
    14.7+):** manager drill-down pages call e.g. `stats.admin({year, month})` without `clinicId`
    until a clinic is picked; the API answers 400 "clinicId query parameter is required" and the
