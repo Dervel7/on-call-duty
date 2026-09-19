@@ -29,6 +29,7 @@ function build() {
 
 const adminToken = () => signAccessToken({ sub: 1, role: 'administrator', clinicId: 1 })
 const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 10 })
+const managerToken = () => signAccessToken({ sub: 2, role: 'manager', clinicId: null })
 
 function emptyReport(overrides: Record<string, unknown> = {}) {
   return {
@@ -89,6 +90,34 @@ describe('reports routes', () => {
     await request(build())
       .get('/reports/monthly?year=2025&month=12')
       .set('Authorization', `Bearer ${adminToken()}`)
-    expect(monthlyReport).toHaveBeenCalledWith(2025, 12, { kind: 'clinic', clinicId: 1 })
+    expect(monthlyReport).toHaveBeenCalledWith(
+      2025,
+      12,
+      { id: 1, role: 'administrator', clinicId: 1 },
+      { kind: 'clinic', clinicId: 1 },
+    )
+  })
+
+  it('manager: 400 without clinicId; happy path with clinicId (drill-down)', async () => {
+    monthlyReport.mockResolvedValue(emptyReport())
+    const bad = await request(build())
+      .get('/reports/monthly')
+      .set('Authorization', `Bearer ${managerToken()}`)
+    expect(bad.status).toBe(400)
+    expect(monthlyReport).not.toHaveBeenCalled()
+
+    const good = await request(build())
+      .get('/reports/monthly?clinicId=2')
+      .set('Authorization', `Bearer ${managerToken()}`)
+    expect(good.status).toBe(200)
+    expect(monthlyReport).toHaveBeenCalledTimes(1)
+    expect(monthlyReport.mock.calls[0]?.[3]).toEqual({ kind: 'clinic', clinicId: 2 })
+  })
+
+  it('administrator passing a foreign clinicId gets 403', async () => {
+    const res = await request(build())
+      .get('/reports/monthly?clinicId=9')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(res.status).toBe(403)
   })
 })
