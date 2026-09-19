@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { LogOut } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import { useClinicSelection } from '@/composables/useClinicSelection'
+import { list as listClinics } from '@/services/clinics'
 import Button from '@/components/ui/Button.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
+const { selectedClinicId } = useClinicSelection()
 
 async function onLogout() {
   await auth.logout()
@@ -16,11 +19,11 @@ async function onLogout() {
 
 const navItems = computed(() => {
   const items: { to: string; label: string }[] = [{ to: '/', label: 'Home' }]
-  if (auth.isAuthenticated && !auth.isAdmin) {
+  if (auth.user?.role === 'doctor') {
     items.push({ to: '/roster', label: 'Duty roster' })
     items.push({ to: '/my-availability', label: 'My availability' })
   }
-  if (auth.isAdmin) {
+  if (auth.isAdmin || auth.isManager) {
     items.push(
       { to: '/users', label: 'Users' },
       { to: '/availability', label: 'Availability' },
@@ -29,11 +32,36 @@ const navItems = computed(() => {
       { to: '/activity', label: 'Activity' },
     )
   }
+  if (auth.isManager) {
+    items.push({ to: '/clinics', label: 'Clinics' })
+  }
   if (auth.isSuperadmin) {
     items.push({ to: '/usage', label: 'Usage' })
   }
   items.push({ to: '/profile', label: 'Profile' })
   return items
+})
+
+const clinicNames = ref(new Map<number, string>())
+
+onMounted(async () => {
+  if (!auth.isManager) return
+  try {
+    clinicNames.value = new Map((await listClinics()).map((c) => [c.id, c.name]))
+  } catch {
+    // Chip falls back to "All clinics"; the drill-down pages surface load errors.
+  }
+})
+
+const clinicChip = computed(() => {
+  const user = auth.user
+  if (!user) return ''
+  if (user.role === 'administrator' || user.role === 'doctor') return user.clinicName ?? ''
+  if (user.role === 'manager') {
+    const id = selectedClinicId.value
+    return id === undefined ? 'All clinics' : clinicNames.value.get(id) ?? 'All clinics'
+  }
+  return ''
 })
 
 function isActive(to: string): boolean {
@@ -69,6 +97,13 @@ const initials = computed(() => {
           </span>
         </span>
       </RouterLink>
+      <span
+        v-if="clinicChip"
+        data-testid="clinic-chip"
+        class="hidden shrink-0 rounded-full border border-border bg-card px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground md:inline"
+      >
+        {{ clinicChip }}
+      </span>
 
       <nav
         v-if="auth.isAuthenticated"
