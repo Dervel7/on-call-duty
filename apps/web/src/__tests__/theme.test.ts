@@ -18,6 +18,8 @@ function darkUser(darkMode: boolean): AuthUser {
     firstName: 'A',
     lastName: 'B',
     darkMode,
+    clinicId: 1,
+    clinicName: 'Radiology',
   }
 }
 

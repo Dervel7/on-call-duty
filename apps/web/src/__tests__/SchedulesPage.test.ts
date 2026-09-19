@@ -54,6 +54,8 @@ describe('SchedulesPage', () => {
       firstName: 'Jane',
       lastName: 'Roe',
       darkMode: false,
+      clinicId: 1,
+      clinicName: 'Radiology',
     }
     list.mockResolvedValue([])
     return mount(SchedulesPage, { global: { plugins: [pinia] } })

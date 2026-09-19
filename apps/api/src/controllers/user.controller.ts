@@ -1,11 +1,14 @@
 import type { NextFunction, Request, Response } from 'express'
 import { ok } from '../lib/envelope'
+import { resolveClinicScope } from '../lib/scope'
 import * as userService from '../services/user.service'
-
 export const userController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const users = await userService.list(req.user!)
+      // req.query is typed by validate(userQuerySchema) upstream.
+      const { clinicId } = req.query as { clinicId?: number }
+      const scope = resolveClinicScope(req.user!, clinicId)
+      const users = await userService.list(req.user!, scope)
       res.status(200).json(ok({ users }))
     } catch (err) {
       next(err)

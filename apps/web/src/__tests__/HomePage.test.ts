@@ -14,7 +14,7 @@ import HomePage from '../pages/HomePage.vue'
 import { useAuthStore } from '@/stores/auth'
 
 function user(role: AuthUser['role']): AuthUser {
-  return { id: 1, email: 'a@b.c', username: 'admin', role, firstName: 'A', lastName: 'B', darkMode: false }
+  return { id: 1, email: 'a@b.c', username: 'admin', role, firstName: 'A', lastName: 'B', darkMode: false, clinicId: 1, clinicName: 'Radiology' }
 }
 
 beforeEach(() => setActivePinia(createPinia()))

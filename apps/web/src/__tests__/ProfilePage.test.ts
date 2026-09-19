@@ -31,15 +31,7 @@ describe('ProfilePage doctor self-view', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
-    auth.user = {
-      id: 10,
-      email: 'dr@h.com',
-      username: 'dr1',
-      role: 'doctor',
-      firstName: 'Jane',
-      lastName: 'Roe',
-      darkMode: false,
-    }
+    auth.user = { id: 10, email: 'dr@h.com', username: 'dr1', role: 'doctor', firstName: 'Jane', lastName: 'Roe', darkMode: false, clinicId: 1, clinicName: 'Radiology' }
     me.mockResolvedValue({
       id: 1,
       userId: 10,
@@ -65,15 +57,7 @@ describe('ProfilePage change password', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
-    auth.user = {
-      id: 2,
-      email: 'admin@h.com',
-      username: 'admin',
-      role: 'administrator',
-      firstName: 'Ada',
-      lastName: 'Admin',
-      darkMode: false,
-    }
+    auth.user = { id: 2, email: 'admin@h.com', username: 'admin', role: 'administrator', firstName: 'Ada', lastName: 'Admin', darkMode: false, clinicId: 1, clinicName: 'Radiology' }
     changePassword.mockResolvedValue({ user: { ...auth.user } })
     const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
     await wrapper.vm.$nextTick()
@@ -96,15 +80,7 @@ describe('ProfilePage dark mode', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
-    auth.user = {
-      id: 2,
-      email: 'admin@h.com',
-      username: 'admin',
-      role: 'administrator',
-      firstName: 'Ada',
-      lastName: 'Admin',
-      darkMode: false,
-    }
+    auth.user = { id: 2, email: 'admin@h.com', username: 'admin', role: 'administrator', firstName: 'Ada', lastName: 'Admin', darkMode: false, clinicId: 1, clinicName: 'Radiology' }
     updateTheme.mockResolvedValue({ ...auth.user, darkMode: true })
     const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
     await wrapper.vm.$nextTick()
@@ -124,15 +100,7 @@ describe('ProfilePage dark mode', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
-    auth.user = {
-      id: 2,
-      email: 'admin@h.com',
-      username: 'admin',
-      role: 'administrator',
-      firstName: 'Ada',
-      lastName: 'Admin',
-      darkMode: false,
-    }
+    auth.user = { id: 2, email: 'admin@h.com', username: 'admin', role: 'administrator', firstName: 'Ada', lastName: 'Admin', darkMode: false, clinicId: 1, clinicName: 'Radiology' }
     updateTheme.mockRejectedValueOnce(new Error('net'))
     const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
     await wrapper.vm.$nextTick()

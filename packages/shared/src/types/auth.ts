@@ -9,8 +9,8 @@ export interface AuthUser {
   lastName: string
   darkMode: boolean
   /** Clinic the user belongs to; null for manager/superadmin (hospital/vendor level). */
-  clinicId?: number | null
-  clinicName?: string | null
+  clinicId: number | null
+  clinicName: string | null
 }
 
 export interface User extends AuthUser {
