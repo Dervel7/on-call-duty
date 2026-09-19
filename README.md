@@ -20,7 +20,7 @@ Production-ready doctor on-call duty scheduling system for medium-sized hospital
 
 **Phase 8 — Reporting** is complete. This phase delivers an admin-only **Reports** page at `/reports`: an administrator selects a month and sees a consolidated on-call report — a header with the schedule status badge and generation time, a day-by-day duty roster (with weekend badges and gap days marked), a coverage summary, a fairness badge, and a per-doctor workload table. The admin can **export the roster as CSV** (downloads `oncall-{year}-{month}.csv`, generated client-side by a pure RFC 4180 helper in `@oncall/utils`) and **print / save as PDF** via the browser's native print over a scoped `@media print` stylesheet. No schedule for the selected month → an empty state linking to `/schedules`. A new read-only `GET /reports/monthly` endpoint composes Phase 7's `statsService.adminStats` (coverage/workload/fairness) + Phase 5's `scheduleService.getById` (roster) — no aggregation duplication, no DB migration, no new dependencies. The entire `/reports` router is admin-only (`authenticate` + `authorize('administrator')`): doctors get 403 and see no nav link; invalid `year`/`month` → 400; no query → the current UTC month.
 
-**Multi-Clinic Hospital Edition** is complete. The hospital is now a set of **clinics** (Radiology, Cardiology, Neurology in the seed), and every schedule, doctor, user, unavailability record, report, and activity entry belongs to exactly one clinic. Administrators and doctors are pinned to their clinic by the JWT; a new **manager** role drills down into any clinic via a clinic selector (`?clinic=<id>` in the URL, shareable and back-button friendly) with strictly read-only analytics (stats, rosters, reports, users, availability, activity). Clinic lifecycle (create/rename/deactivate/reactivate) and per-clinic administrator lifecycle live in the manager-only **Clinics** page. Usage metering and billing alerts are partitioned per clinic for the superadmin. This was a **fresh start**: the old single-clinic `oncall_duty` database is superseded by `oncall_duty_multi_clinic` (see `apps/api/.env`); re-run `pnpm db:setup` against the new database.
+**Multi-Clinic Hospital Edition** is complete. The hospital is now a set of **clinics** (Cardiology A/B, Neurology A/B, Radiology A/B in the seed), and every schedule, doctor, user, unavailability record, report, and activity entry belongs to exactly one clinic. Administrators and doctors are pinned to their clinic by the JWT; a new **manager** role drills down into any clinic via a clinic selector (`?clinic=<id>` in the URL, shareable and back-button friendly) with strictly read-only analytics (stats, rosters, reports, users, availability, activity). Clinic lifecycle (create/rename/deactivate/reactivate) and per-clinic administrator lifecycle live in the manager-only **Clinics** page. Usage metering and billing alerts are partitioned per clinic for the superadmin. This was a **fresh start**: the old single-clinic `oncall_duty` database is superseded by `oncall_duty_multi_clinic` (see `apps/api/.env`); re-run `pnpm db:setup` against the new database.
 
 ## Roadmap
 
@@ -120,12 +120,12 @@ pnpm db:seed
 
 ### Default accounts
 
-`pnpm db:setup` seeds three clinics (Radiology, Cardiology, Neurology) with:
+`pnpm db:setup` seeds six clinics (Cardiology A, Cardiology B, Neurology A, Neurology B, Radiology A, Radiology B), ten doctors in each:
 
 - Manager: `manager@oncall.local` / `changeme123` — clinic lifecycle + read-only drill-down into every clinic.
-- Per-clinic administrators: `radiology.admin@oncall.local`, `cardiology.admin@oncall.local`, `neurology.admin@oncall.local` / `changeme123` — each pinned to their own clinic.
+- Per-clinic administrators: `cardiology-a.admin@oncall.local`, `cardiology-b.admin@oncall.local`, `neurology-a.admin@oncall.local`, `neurology-b.admin@oncall.local`, `radiology-a.admin@oncall.local`, `radiology-b.admin@oncall.local` / `changeme123` — each pinned to their own clinic.
 - Superadmin: `superadmin@oncall.local` / `changeme123` — usage metering and billing.
-- Doctors: `dr1@oncall.local` … `dr8@oncall.local` (dr1–dr3 Radiology, dr4–dr6 Cardiology, dr7–dr8 Neurology) — the initial password for each is the email itself (change on first login).
+- Doctors: `dr1@oncall.local` … `dr60@oncall.local` (dr1–dr10 Cardiology A, dr11–dr20 Cardiology B, dr21–dr30 Neurology A, dr31–dr40 Neurology B, dr41–dr50 Radiology A, dr51–dr60 Radiology B) — the initial password for each is the email itself (change on first login).
 
 All documented passwords MUST be changed on first login (Profile → Change password). The seeded bcrypt hashes (cost 12) live in `database/seed.sql`; the plaintexts exist only in documentation.
 
