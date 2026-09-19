@@ -47,7 +47,7 @@ test('authenticate requires bearer token', async () => {
 })
 
 test('authenticate attaches req.user from valid token', async () => {
-  const token = signAccessToken({ sub: 42, role: 'doctor' })
+  const token = signAccessToken({ sub: 42, role: 'doctor', clinicId: 10 })
   const res = await request(build()).get('/me').set('Authorization', `Bearer ${token}`)
   expect(res.status).toBe(200)
   expect(res.body.data).toEqual({ id: 42, role: 'doctor' })
@@ -55,15 +55,15 @@ test('authenticate attaches req.user from valid token', async () => {
 
 test('authorize forbids non-admin (403) and allows admin (200)', async () => {
   const app = build()
-  const doc = signAccessToken({ sub: 1, role: 'doctor' })
-  const adm = signAccessToken({ sub: 2, role: 'administrator' })
+  const doc = signAccessToken({ sub: 1, role: 'doctor', clinicId: 10 })
+  const adm = signAccessToken({ sub: 2, role: 'administrator', clinicId: 1 })
   expect((await request(app).get('/admin').set('Authorization', `Bearer ${doc}`)).status).toBe(403)
   expect((await request(app).get('/admin').set('Authorization', `Bearer ${adm}`)).status).toBe(200)
 })
 
 test('authenticate blocks doctor with 403 SYSTEM_LOCKED_MESSAGE while locked', async () => {
   isLocked.mockResolvedValue(true)
-  const token = signAccessToken({ sub: 7, role: 'doctor' })
+  const token = signAccessToken({ sub: 7, role: 'doctor', clinicId: 10 })
   const res = await request(build()).get('/me').set('Authorization', `Bearer ${token}`)
   expect(res.status).toBe(403)
   expect(res.body.error).toBe(SYSTEM_LOCKED_MESSAGE)
@@ -71,7 +71,7 @@ test('authenticate blocks doctor with 403 SYSTEM_LOCKED_MESSAGE while locked', a
 
 test('authenticate lets superadmin through while locked', async () => {
   isLocked.mockResolvedValue(true)
-  const token = signAccessToken({ sub: 7, role: 'superadmin' })
+  const token = signAccessToken({ sub: 7, role: 'superadmin', clinicId: null })
   const res = await request(build()).get('/me').set('Authorization', `Bearer ${token}`)
   expect(res.status).toBe(200)
   expect(res.body.data).toEqual({ id: 7, role: 'superadmin' })

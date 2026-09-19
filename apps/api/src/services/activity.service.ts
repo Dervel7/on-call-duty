@@ -13,14 +13,23 @@ export interface ActivityInput {
   action: ActivityAction
   entityType: string
   entityId: number | null
+  /** Clinic the acted-on entity belongs to; null for hospital/vendor/self-service events. */
+  clinicId?: number | null
   detail?: Record<string, unknown>
 }
 
 /** Must run inside the caller's transaction: a failed audit write fails the business change. */
 export async function recordActivity(client: PoolClient, input: ActivityInput): Promise<void> {
   await client.query(
-    'INSERT INTO activity_log (user_id, action, entity_type, entity_id, detail) VALUES ($1, $2, $3, $4, $5)',
-    [input.userId, input.action, input.entityType, input.entityId, JSON.stringify(input.detail ?? {})],
+    'INSERT INTO activity_log (user_id, clinic_id, action, entity_type, entity_id, detail) VALUES ($1, $2, $3, $4, $5, $6)',
+    [
+      input.userId,
+      input.clinicId ?? null,
+      input.action,
+      input.entityType,
+      input.entityId,
+      JSON.stringify(input.detail ?? {}),
+    ],
   )
 }
 

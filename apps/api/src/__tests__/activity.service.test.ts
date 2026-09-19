@@ -39,7 +39,14 @@ describe('activity.service', () => {
     })
     const [sql, params] = query.mock.calls[0] as unknown as [string, unknown[]]
     expect(sql).toContain('INSERT INTO activity_log')
-    expect(params).toEqual([2, 'availability.created', 'unavailability', 12, '{"type":"vacation"}'])
+    expect(params).toEqual([
+      2,
+      null,
+      'availability.created',
+      'unavailability',
+      12,
+      '{"type":"vacation"}',
+    ])
   })
 
   it('recordActivity defaults detail to an empty JSON object', async () => {
@@ -52,6 +59,7 @@ describe('activity.service', () => {
     })
     expect((query.mock.calls[0] as unknown as unknown[])[1]).toEqual([
       2,
+      null,
       'auth.login',
       'auth',
       null,

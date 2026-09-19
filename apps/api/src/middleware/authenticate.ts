@@ -19,7 +19,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     } catch {
       throw new HttpError(401, 'Unauthorized')
     }
-    req.user = { id: payload.sub, role: payload.role }
+    req.user = { id: payload.sub, role: payload.role, clinicId: payload.clinicId }
     if (req.user.role !== 'superadmin' && (await billingService.isLocked())) {
       throw new HttpError(403, SYSTEM_LOCKED_MESSAGE)
     }

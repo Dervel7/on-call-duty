@@ -25,9 +25,9 @@ function build() {
   return app
 }
 
-const superadminToken = () => signAccessToken({ sub: 1, role: 'superadmin' })
-const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor' })
-const administratorToken = () => signAccessToken({ sub: 2, role: 'administrator' })
+const superadminToken = () => signAccessToken({ sub: 1, role: 'superadmin', clinicId: null })
+const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 10 })
+const administratorToken = () => signAccessToken({ sub: 2, role: 'administrator', clinicId: 1 })
 
 beforeEach(() => {
   isLocked.mockReset()

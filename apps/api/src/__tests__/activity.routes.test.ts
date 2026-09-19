@@ -21,8 +21,8 @@ function build() {
   return app
 }
 
-const adminToken = () => signAccessToken({ sub: 1, role: 'administrator' })
-const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor' })
+const adminToken = () => signAccessToken({ sub: 1, role: 'administrator', clinicId: 1 })
+const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 10 })
 
 beforeEach(() => list.mockReset())
 
