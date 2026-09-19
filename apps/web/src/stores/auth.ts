@@ -14,6 +14,7 @@ export const useAuthStore = defineStore('auth', () => {
     () => user.value?.role === 'administrator' || user.value?.role === 'superadmin',
   )
   const isSuperadmin = computed(() => user.value?.role === 'superadmin')
+  const isManager = computed(() => user.value?.role === 'manager')
 
   async function login(identifier: string, password: string): Promise<void> {
     const data = await authService.login(identifier, password)
@@ -74,6 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     isAdmin,
     isSuperadmin,
+    isManager,
     login,
     refresh,
     logout,
