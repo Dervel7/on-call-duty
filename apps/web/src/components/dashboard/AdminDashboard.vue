@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { AdminStats } from '@oncall/shared'
+import type { AdminStats, StatsQuery } from '@oncall/shared'
+import ClinicSelector from '@/components/layout/ClinicSelector.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -16,10 +17,14 @@ import TableCell from '@/components/ui/TableCell.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
+import { useClinicSelection } from '@/composables/useClinicSelection'
+import { useAuthStore } from '@/stores/auth'
 import * as statsService from '@/services/stats'
 import * as billingService from '@/services/billing'
 
 const router = useRouter()
+const auth = useAuthStore()
+const { selectedClinicId } = useClinicSelection()
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -57,7 +62,9 @@ async function load() {
   loading.value = true
   errorMsg.value = ''
   try {
-    stats.value = await statsService.admin({ year: Number(year.value), month: Number(month.value) })
+    const query: StatsQuery = { year: Number(year.value), month: Number(month.value) }
+    if (auth.isManager) query.clinicId = selectedClinicId.value
+    stats.value = await statsService.admin(query)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load statistics'
   } finally {
@@ -80,6 +87,11 @@ function gotoSchedules() {
 
 onMounted(load)
 onMounted(loadPaymentAlert)
+
+watch(selectedClinicId, () => {
+  // Manager drill-down: a different clinic means a different month's numbers.
+  if (auth.isManager) void load()
+})
 </script>
 
 <template>
@@ -101,6 +113,7 @@ onMounted(loadPaymentAlert)
           <option v-for="(m, i) in MONTHS" :key="m" :value="String(i + 1)">{{ m }}</option>
         </Select>
       </div>
+      <ClinicSelector />
       <Button variant="outline" @click="load">Apply</Button>
     </div>
 

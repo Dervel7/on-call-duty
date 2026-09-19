@@ -36,6 +36,14 @@ describe('HomePage', () => {
     useAuthStore(pinia).user = user('doctor')
     const w = mount(HomePage, { global: { plugins: [pinia] } })
     expect(w.find('[data-test="doctor"]').exists()).toBe(true)
-    expect(w.find('[data-test="admin"]').exists()).toBe(false)
+  })
+
+  it('renders AdminDashboard for a manager (drill-down home)', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useAuthStore(pinia).user = user('manager')
+    const w = mount(HomePage, { global: { plugins: [pinia] } })
+    expect(w.find('[data-test="admin"]').exists()).toBe(true)
+    expect(w.find('[data-test="doctor"]').exists()).toBe(false)
   })
 })

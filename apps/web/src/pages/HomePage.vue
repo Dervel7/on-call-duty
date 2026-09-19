@@ -7,6 +7,6 @@ const auth = useAuthStore()
 </script>
 
 <template>
-  <AdminDashboard v-if="auth.isAdmin" />
+  <AdminDashboard v-if="auth.isAdmin || auth.isManager" />
   <DoctorDashboard v-else />
 </template>

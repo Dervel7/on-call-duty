@@ -11,10 +11,16 @@ const paymentAlert = vi.fn()
 vi.mock('@/services/billing', () => ({
   paymentAlert: (...a: unknown[]) => paymentAlert(...a),
 }))
+const listClinics = vi.fn()
+vi.mock('@/services/clinics', () => ({
+  list: (...a: unknown[]) => listClinics(...a),
+}))
+const route = { query: {} as Record<string, string> }
 const push = vi.fn()
-vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push }), useRoute: () => route }))
 
 import AdminDashboard from '../components/dashboard/AdminDashboard.vue'
+import { useAuthStore } from '@/stores/auth'
 
 function fullStats(overrides: Record<string, unknown> = {}) {
   return {
@@ -63,6 +69,7 @@ beforeEach(() => {
   push.mockReset()
   paymentAlert.mockReset()
   paymentAlert.mockResolvedValue({ daysLeft: null })
+  route.query = {}
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -142,5 +149,28 @@ describe('AdminDashboard', () => {
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
     await flushPromises()
     expect(w.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('manager drill-down: passes the selected clinicId to stats.admin and renders the selector', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useAuthStore(pinia).user = {
+      id: 2,
+      email: 'm@h.local',
+      username: 'manager',
+      role: 'manager',
+      firstName: 'M',
+      lastName: 'G',
+      darkMode: false,
+      clinicId: null,
+      clinicName: null,
+    }
+    route.query = { clinic: '2' }
+    listClinics.mockResolvedValue([])
+    admin.mockResolvedValue(fullStats())
+    const wrapper = mount(AdminDashboard, { global: { plugins: [pinia] } })
+    await flushPromises()
+    expect(admin.mock.calls[0]?.[0]).toMatchObject({ clinicId: 2 })
+    expect(wrapper.find('[data-testid="clinic-selector"]').exists()).toBe(true)
   })
 })
