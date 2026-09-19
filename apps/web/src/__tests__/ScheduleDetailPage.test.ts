@@ -60,7 +60,7 @@ function detail(status: 'draft' | 'published') {
   }
 }
 
-function mountAs(role: 'administrator' | 'doctor' = 'administrator') {
+function mountAs(role: 'administrator' | 'doctor' | 'manager' = 'administrator') {
   const pinia = createPinia()
   setActivePinia(pinia)
   const auth = useAuthStore()
@@ -112,6 +112,19 @@ describe('ScheduleDetailPage', () => {
     expect(wrapper.text()).toContain('Roe J.')
     expect(wrapper.findAll('[role="combobox"]').length).toBe(0)
     expect(wrapper.text()).not.toContain('Revert to draft')
+  })
+
+  it('manager sees a read-only plan: no edit controls, calendar renders', async () => {
+    get.mockResolvedValue(detail('draft'))
+    const wrapper = mountAs('manager')
+    await flushPromises()
+    expect(wrapper.text()).toContain('September 2026')
+    expect(wrapper.text()).toContain('Roe J.')
+    expect(wrapper.findAll('[role="combobox"]').length).toBe(0)
+    const buttons = wrapper.findAll('button').map((b) => b.text())
+    expect(buttons.some((t) => t.includes('Publish'))).toBe(false)
+    expect(buttons.some((t) => t.includes('Delete schedule'))).toBe(false)
+    expect(buttons.some((t) => t.includes('Revert to draft'))).toBe(false)
   })
 
   it('adds a duty via the inline select and reloads', async () => {
