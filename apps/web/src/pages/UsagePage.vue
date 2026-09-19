@@ -149,6 +149,7 @@ onMounted(loadBilling)
           <TableHeader>
             <TableRow>
               <TableHead>Generated at</TableHead>
+              <TableHead>Clinic</TableHead>
               <TableHead>Month</TableHead>
               <TableHead>Doctors</TableHead>
               <TableHead>Overlap</TableHead>
@@ -157,6 +158,7 @@ onMounted(loadBilling)
           <TableBody>
             <TableRow v-for="(e, i) in generations" :key="i">
               <TableCell>{{ new Date(e.generatedAt).toLocaleString() }}</TableCell>
+              <TableCell>{{ e.clinicName }}</TableCell>
               <TableCell>{{ monthLabel(e) }}</TableCell>
               <TableCell>{{ e.doctorNames.join(', ') }}</TableCell>
               <TableCell>{{ overlapLabel(e) }}</TableCell>

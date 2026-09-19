@@ -160,4 +160,12 @@ describe('UsagePage', () => {
     expect(billingUpdate).toHaveBeenCalledWith('2026-12-31')
     expect(wrapper.find('[role="alert"]').text()).toContain('save denied')
   })
+
+  it('shows the clinic name column in the generation history', async () => {
+    const wrapper = await mountPage()
+    const heads = wrapper.findAll('th').map((h) => h.text())
+    expect(heads).toContain('Clinic')
+    const row = wrapper.findAll('tbody tr')[0]!
+    expect(row.text()).toContain('Radiology')
+  })
 })
