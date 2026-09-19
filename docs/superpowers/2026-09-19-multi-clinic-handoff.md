@@ -33,7 +33,7 @@ This handoff covers Tasks 1–9 (done, committed) and what the next agent must d
 - **T8** unavailability: `listAll(filters, scope?)` via `d.clinic_id`; create locks doctor in scope (cross-clinic 404); update/remove: manager 403 in service, admin cross-clinic 404; audit rows carry clinicId.
 - **T9** schedules (the big one): `buildContext(year, month, clinicId)` (pool/unavailability/adjacency all scoped), §2.6.1 neighbor JOINs, `generate(..., scope, ...)` per-clinic pre-check + `clinic_id` insert, `recordGeneration(client, clinicId, year, month, ids)` clinic-partitioned (this ALSO made the live `usage.service.test.ts` green again), `monthCaps`/`validateAssignment` clinic-scoped, publish/unpublish/remove/addDuty/reassign/removeDuty object-scoped 404, list admits manager via `?clinicId=`, doctor forced own clinic. Live `schedule.isolation.test.ts` covers I7–I11.
 
-### Post-Task-9 fixups (same session, one commit after T9)
+### Post-Task-9 fixups (commit `be913c9`, same session)
 
 Three defects found by review after T9 was committed; fixed before handoff, so the tree you inherit is clean:
 
@@ -42,6 +42,25 @@ Three defects found by review after T9 was committed; fixed before handoff, so t
 3. **`database/seed.sql` doctors comment misdocumented credentials** — it said `password: changeme123` for dr1–dr8, but their hashes match their **email address** (verified by bcrypt compare; the three per-clinic admins + manager/superadmin do use `changeme123`). Comment corrected to `password = email`.
 
 Current state (all verified immediately before this handoff): root `pnpm typecheck` 0 errors; `pnpm --filter @oncall/api lint` clean; **API 33 files / 284 tests passed**; web 24 files / 119 tests passed; `pnpm db:setup` re-applies cleanly (idempotent).
+
+## Commit ledger (branch `multi-clinic-hospital`)
+
+```
+be913c9 fix(api): post-review fixups - restore published-lock tests, validate doctor clinic, correct seed credential comment
+fc72b8d docs: add multi-clinic implementation handoff for Tasks 10-15
+9b618fa feat(api): scope schedules and duties to clinics - kill all four cross-clinic patterns   (Task 9)
+3741834 feat(api): filter unavailability through the doctor clinic                              (Task 8)
+0062a0e feat(api): anchor doctors domain to clinics                                              (Task 7)
+9066c38 feat(api): scope users domain to clinics with manager lifecycle rules                    (Task 6)
+e3119fa feat(api): clinics domain - list/create/rename/deactivate for manager+superadmin        (Task 5)
+59507b7 feat(api): clinic scope plumbing - JWT clinicId claim, req.user, resolveClinicScope     (Task 4)
+9d6ae97 feat(db): multi-clinic fresh baseline - clinics table, clinic_id tenancy keys, 4-role users check (Task 3)
+ee0df48 feat(shared): add clinic types, manager role and clinicId query schemas                 (Task 2)
+1309346 docs: add multi-clinic hospital implementation plan                                      (Task 1: branch + plan doc)
+58a2c2d select position fix in schedule preview                                                   <- branch point (== main)
+```
+
+Nothing is merged to `main` and nothing is pushed. `main` and `biggest_structure` still point at `58a2c2d`; this branch is not.
 
 ## Remaining work
 
@@ -82,6 +101,9 @@ Read plan §Task 14 line by line. Highlights: auth store carries clinicId/clinic
 4. **Mocked tests are SQL-keyed:** most route/service tests route `query` mocks by SQL substrings. When you change SQL, update the keys (e.g. `WHERE s.id =`, `du.duty_date IN`). Live-DB tests (doctor/schedule isolation, usage.service) must dynamically import `./helpers/clinic-fixtures` FIRST (env bootstrap), then `../db/client`.
 5. **`pnpm -r` exit codes:** `pnpm --filter X typecheck 2>&1 | grep -c error` returns 0 lines on success but grep exits 1 — check output, not shell color.
 6. Isolation matrix rows already covered: I1–I5, I6(route), I7–I11, I12, I13, I17, I18, I24, I25 + user/doctor/clinic/unavailability/schedule suites. Still to cover: I15/I16/I20 (T10), I22 listing (T12), I21 (already implicitly via login tests + T4), I23 (T13), I19 (doctor GET /schedules own clinic — service test asserts clinic predicate; route-level covered by list scoping).
+7. **Half-migrated spots — do NOT mistake for done.** `stats.service.adminStats` got the `clinics` JOIN in T9 (compile fix only) but has **no clinic predicate yet**; `meStats` is entirely unscoped — both are Task 10's job. `usage.service.generations()` still groups by `(year, month, created_at)` without clinic_id and `GenerationEvent.clinicId/clinicName` are still **optional** in shared — Task 12 does both. `activity.service.list` has no clinic filter — Task 13.
+8. **Web suite state:** passes today (24 files / 119 tests) with the fixture-level `clinicId/clinicName` added during T6; Task 14 restructures those pages, so expect fixture churn — re-run `pnpm --filter @oncall/web test -- --run` after each web change. Web `AuthUser` fixtures now REQUIRE `clinicId`/`clinicName` (copy the shape from `apps/web/src/__tests__/HomePage.test.ts`).
+9. **`doctor.service.create` runs an extra leading query** (`SELECT is_active FROM clinics`) before its transaction — mock it by SQL (`FROM clinics`), never by call index. Same pattern as `user.service.create`.
 
 ## Quick verification (should all be green right now)
 
