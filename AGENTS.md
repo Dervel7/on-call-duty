@@ -94,7 +94,7 @@ Per workspace: `pnpm --filter @oncall/api <script>` (same for `@oncall/web`, `@o
 - Seed scripts required (`database/seed.sql`, idempotent upserts).
 - Parameterized queries only — never concatenate SQL.
 - Indexes on frequently queried columns (`idx_<table>_<cols>` naming).
-- Tables: `app_meta`, `users`, `refresh_tokens`, `doctors`, `unavailability`, `schedules`, `duties`.
+- Tables: `app_meta`, `clinics`, `users`, `refresh_tokens`, `doctors`, `unavailability`, `schedules`, `duties`, `schedule_generation_log`, `activity_log`, `operator_alerts`.
 
 ## Architecture Rules
 
@@ -128,6 +128,7 @@ Implement:
 Roles:
 - Superadmin
 - Administrator
+- Manager
 - Doctor
 
 Never trust client-provided permissions. Frontend route guards (`meta.roles`) are UX only — the server enforces every rule.
@@ -139,6 +140,8 @@ Never trust client-provided permissions. Frontend route guards (`meta.roles`) ar
 - Max **7 on-call duties per month** per doctor (the cap on `doctors.max_monthly_duties`, 1–7).
 - Max **1 consecutive on-call duty** — a doctor cannot be assigned on back-to-back days. Fixed system rule consumed by the scheduling engine.
 - On-call duties can fall on **any day**, including weekends.
+- **Clinics** partition the hospital: every user (except superadmin/manager), doctor, schedule, unavailability record, report, and activity entry belongs to exactly one clinic (`clinic_id` on `users`, `doctors`, `schedules`, `schedule_generation_log`, `activity_log`). Administrators and doctors are pinned to their JWT clinic; a doctor belongs to their clinic's scheduling pool only; `schedules` are unique per `(clinic_id, year, month)`.
+- **Manager role**: hospital-wide, clinic-less (`clinic_id NULL`). Managers run clinic lifecycle (`GET/POST/PATCH /clinics`) and per-clinic administrator lifecycle, and drill down into any clinic's read-only analytics by passing `?clinicId=`; every clinic-scoped endpoint resolves scope through `resolveClinicScope` (missing `clinicId` for manager/superadmin → 400). Managers never mutate schedules, duties, users, or unavailability.
 
 ## Scheduling Engine Requirements
 Scheduling quality is the highest-priority business feature.

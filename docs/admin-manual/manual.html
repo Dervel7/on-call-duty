@@ -143,7 +143,7 @@
 <section class="toc">
   <h2>Contents</h2>
   <ol>
-    <li>Introduction <span class="d">Purpose, roles, and how to read this manual</span></li>
+    <li>Introduction <span class="d">Purpose, roles, clinics, and how to read this manual</span></li>
     <li>Signing In <span class="d">Login, first-time password, sessions, sign-out</span></li>
     <li>The Administrator Dashboard <span class="d">Coverage, fairness, and workload at a glance</span></li>
     <li>Managing Users <span class="d">Accounts, doctor profiles, and the monthly duty cap</span></li>
@@ -169,11 +169,13 @@ respects each doctor's monthly duty limit, prevents back-to-back duties, avoids 
 unavailable, and balances weekend workload across the team.</p>
 
 <h2>1.2 Who uses the system</h2>
-<p>There are two roles. This manual covers the <strong>administrator</strong> role in full.</p>
+<p>There are four roles. This manual covers the <strong>administrator</strong> role in full.</p>
 <table class="grid">
   <tr><th style="width:34mm">Role</th><th>What they do</th></tr>
-  <tr><td><strong>Administrator</strong></td><td>Plans and publishes duty schedules. Manages users, doctors, availability, schedules, and reports. This is the audience of this manual.</td></tr>
+  <tr><td><strong>Administrator</strong></td><td>Plans and publishes duty schedules for <em>their own clinic</em>. Manages users, doctors, availability, schedules, and reports. This is the audience of this manual.</td></tr>
+  <tr><td><strong>Manager</strong></td><td>Oversees every clinic: creates, renames, and deactivates clinics, manages each clinic's administrator accounts, and reviews any clinic's statistics, rosters, reports, users, availability, and activity — strictly read-only. See §1.5.</td></tr>
   <tr><td><strong>Doctor</strong></td><td>Views their own published duties and personal dashboard, and records their own unavailability (vacation, sick, etc.). Doctors cannot edit schedules.</td></tr>
+  <tr><td><strong>Superadmin</strong></td><td>Operates the system itself: usage metering per clinic and billing state. The superadmin account is provisioned by the seed data.</td></tr>
 </table>
 
 <h2>1.3 The administrator's navigation</h2>
@@ -198,6 +200,37 @@ pages, that is a mistake — administrator access is granted only on the <em>Use
       <span class="note warn" style="display:inline-block;width:auto;margin:0;padding:.6mm 2mm"><span class="t" style="display:inline">Caution</span></span>
       <span class="note danger" style="display:inline-block;width:auto;margin:0;padding:.6mm 2mm"><span class="t" style="display:inline">Important</span></span></li>
 </ul>
+
+<h2>1.5 Clinics and the Manager role</h2>
+<p>The hospital is organised into <strong>clinics</strong> (for example Radiology, Cardiology, Neurology).
+Every user, doctor, schedule, unavailability record, report, and activity entry belongs to exactly one
+clinic. Administrators and doctors are permanently attached to their clinic when their account is
+created — everything they see is automatically limited to their own clinic, and the header next to the
+brand shows your clinic's name.</p>
+
+<h3>What a manager does</h3>
+<p>The <strong>manager</strong> is hospital-wide and belongs to no single clinic. The header shows
+<em>All clinics</em> until a clinic is chosen. Managers use two kinds of screens:</p>
+<ul>
+  <li><strong>Clinics</strong> — the clinic lifecycle table: create a clinic, rename it, deactivate it
+      (its users can no longer sign in; history stays readable), and reactivate it. Under the table,
+      each clinic's <strong>administrators</strong> can be created, deactivated, and reactivated.</li>
+  <li><strong>Drill-down pages</strong> — Home, Users, Availability, Schedules, Roster, Reports, and
+      Activity each show a <em>Select a clinic</em> control. Picking a clinic loads that clinic's data
+      only; the choice is stored in the page address (for example <span class="kbd">?clinic=2</span>),
+      so a filtered view can be bookmarked or shared, and the browser back button steps through your
+      previous selections. Until a clinic is picked, these pages show a "Select a clinic" prompt
+      instead of data.</li>
+</ul>
+
+<div class="note warn"><span class="t">Caution</span>
+  <p>Manager access is <strong>read-only</strong> everywhere except the Clinics page. A manager cannot
+  generate, edit, publish, or delete schedules, and cannot create or modify users, doctors, or
+  availability records. If a management action is needed, it belongs to that clinic's administrator.</p>
+</div>
+
+<p>The superadmin's <strong>Usage</strong> page lists generation history with a <em>Clinic</em> column,
+so metering and billing alerts are attributed to the right clinic.</p>
 
 <!-- ============================ 2. SIGNING IN ============================ -->
 <h1 class="chapter"><span class="num">2.</span> Signing In</h1>

@@ -226,8 +226,8 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 
 **Files:** none (git only).
 
-- [ ] From repo root: `git checkout -b multi-clinic-hospital` (from up-to-date `main`).
-- [ ] Record baseline: `pnpm typecheck && pnpm lint && pnpm test` — report outcomes verbatim (known `ECONNREFUSED` on DB-backed API tests without a live Postgres is acceptable to note; everything else must pass before proceeding).
+- [x] From repo root: `git checkout -b multi-clinic-hospital` (from up-to-date `main`).
+- [x] Record baseline: `pnpm typecheck && pnpm lint && pnpm test` — report outcomes verbatim (known `ECONNREFUSED` on DB-backed API tests without a live Postgres is acceptable to note; everything else must pass before proceeding).
 
 ### Task 2: Shared package — role, clinic types, schemas (additive)
 
@@ -245,9 +245,9 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 
 **Interfaces (produces):** everything above is additive — no consumer breaks; Tasks 4-14 rely on these names.
 
-- [ ] Implement; run `pnpm --filter @oncall/shared typecheck && pnpm --filter @oncall/shared test -- --run`. Expect PASS.
-- [ ] Run `pnpm typecheck` at root (web+api compile against widened `Role` — `AuthUser.clinicId` is additive, no breakage expected).
-- [ ] Commit.
+- [x] Implement; run `pnpm --filter @oncall/shared typecheck && pnpm --filter @oncall/shared test -- --run`. Expect PASS.
+- [x] Run `pnpm typecheck` at root (web+api compile against widened `Role` — `AuthUser.clinicId` is additive, no breakage expected).
+- [x] Commit.
 
 ### Task 3: Database — fresh multi-clinic baseline + seed
 
@@ -263,10 +263,10 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
   - `app_meta` seeds unchanged (D7).
 - No changes to `database/scripts/setup-db.ts` / `seed-only.ts` (they apply files).
 
-- [ ] Reset local DB: drop and recreate the database pointed at by `apps/api/.env` `DATABASE_URL` (psql or your GUI; report the commands used).
-- [ ] `pnpm db:setup` — expect clean apply, no errors.
-- [ ] Verify: `SELECT c.name, count(DISTINCT d.id) AS doctors FROM clinics c LEFT JOIN doctors d ON d.clinic_id = c.id GROUP BY c.name ORDER BY c.name;` → Radiology 3, Cardiology 3, Neurology 2. Verify `SELECT count(*) FROM users WHERE clinic_id IS NULL AND role IN ('superadmin','manager');` → 2. Verify `SELECT count(*) FROM doctors d JOIN users u ON u.id = d.user_id WHERE d.clinic_id <> u.clinic_id;` → 0.
-- [ ] Commit.
+- [x] Reset local DB: drop and recreate the database pointed at by `apps/api/.env` `DATABASE_URL` (psql or your GUI; report the commands used).
+- [x] `pnpm db:setup` — expect clean apply, no errors.
+- [x] Verify: `SELECT c.name, count(DISTINCT d.id) AS doctors FROM clinics c LEFT JOIN doctors d ON d.clinic_id = c.id GROUP BY c.name ORDER BY c.name;` → Radiology 3, Cardiology 3, Neurology 2. Verify `SELECT count(*) FROM users WHERE clinic_id IS NULL AND role IN ('superadmin','manager');` → 2. Verify `SELECT count(*) FROM doctors d JOIN users u ON u.id = d.user_id WHERE d.clinic_id <> u.clinic_id;` → 0.
+- [x] Commit.
 
 ### Task 4: API scope plumbing — JWT claim, req.user, auth service, scope helper
 
@@ -282,9 +282,9 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 
 **Interfaces (produces):** `req.user.clinicId` available to all controllers; `resolveClinicScope(user, requestedClinicId)` for Tasks 5-11.
 
-- [ ] Implement; `pnpm --filter @oncall/api typecheck` → clean.
-- [ ] `pnpm --filter @oncall/api test -- --run src/__tests__/auth.service.test.ts src/__tests__/token.service.test.ts src/__tests__/usage.routes.test.ts` → PASS (DB-backed cases need the Task 3 DB).
-- [ ] Commit.
+- [x] Implement; `pnpm --filter @oncall/api typecheck` → clean.
+- [x] `pnpm --filter @oncall/api test -- --run src/__tests__/auth.service.test.ts src/__tests__/token.service.test.ts src/__tests__/usage.routes.test.ts` → PASS (DB-backed cases need the Task 3 DB).
+- [x] Commit.
 
 ### Task 5: Clinics domain (new)
 
@@ -295,8 +295,8 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 - Create: `apps/api/src/__tests__/clinic.routes.test.ts` — supertest + mocked `query` (pattern: `usage.routes.test.ts`): manager CRUD happy path; administrator → 403 on all three; doctor → 403; duplicate name → 409; unknown id → 404; rename + deactivate flows.
 - Modify: `apps/api/src/__tests__/helpers/` — create `clinic-fixtures.ts`: `seedTwoClinics()` returning `{ clinicA, clinicB, adminA, adminB, doctorA, doctorB }` IDs for Tasks 6-11 isolation tests (runs against live DB, cleans up after itself; pattern: `stats.service.test.ts` beforeAll/afterAll).
 
-- [ ] Implement; typecheck + targeted tests → PASS.
-- [ ] Commit.
+- [x] Implement; typecheck + targeted tests → PASS.
+- [x] Commit.
 
 ### Task 6: Users domain — scoping + role/clinic rules
 
@@ -312,8 +312,8 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 - Modify: `apps/api/src/routes/user.routes.ts` — list/get routes: `authorize('administrator', 'manager')`; write routes: `authorize('administrator', 'manager')` (manager writes allowed **only** for administrator accounts — enforced in service; route stays open, service rejects doctor-targeted writes with 403).
 - Modify: `apps/api/src/__tests__/user.routes.test.ts`, `user.service.test.ts` — add isolation matrix (see §5). Existing cases updated for clinic fixtures.
 
-- [ ] Implement; typecheck + targeted tests → PASS.
-- [ ] Commit.
+- [x] Implement; typecheck + targeted tests → PASS.
+- [x] Commit.
 
 ### Task 7: Doctors domain — clinic anchor
 
@@ -322,8 +322,8 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 - Modify: `apps/api/src/controllers/doctor.controller.ts`, `routes/doctor.routes.ts` — GET list/get: `authorize('administrator', 'manager')`; writes: `authorize('administrator')` (manager excluded per D5); scope from `resolveClinicScope`.
 - Modify: `apps/api/src/__tests__` doctor test file(s) — isolation matrix + **the equality invariant test**: create a doctor via the service, assert `doctors.clinic_id = users.clinic_id`; move-user-clinic via superadmin updates both.
 
-- [ ] Implement; typecheck + targeted tests → PASS.
-- [ ] Commit.
+- [x] Implement; typecheck + targeted tests → PASS.
+- [x] Commit.
 
 ### Task 8: Unavailability — clinic filtering
 
@@ -332,8 +332,8 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 - Modify: `apps/api/src/controllers/unavailability.controller.ts`, `routes/unavailability.routes.ts` — GET `/` : `authorize('administrator', 'manager')`; POST `/`, PATCH/DELETE `/:id` : `authorize('administrator')` on the admin paths (note: PATCH/DELETE currently rely on service-level ownership checks for doctors — keep that, add the clinic check in service; route-level `authorize('administrator')` would break doctor self-service, so leave those two routes as authenticate-only with service checks, and add an explicit manager 403 check in the service).
 - Modify: unavailability tests — cross-clinic create/update/delete → 404; doctor self paths unchanged; manager read works with `clinicId`, write 403.
 
-- [ ] Implement; typecheck + targeted tests → PASS.
-- [ ] Commit.
+- [x] Implement; typecheck + targeted tests → PASS.
+- [x] Commit.
 
 ### Task 9: Schedules & duties — the core scoping (kill all four §2.6 patterns)
 
@@ -351,9 +351,9 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 
 **Interfaces:** `schedule.service` exported functions that took `(…)` now take a trailing/`scope` param — controllers are the only callers (verify with `lsp references` before changing signatures).
 
-- [ ] Implement; `pnpm --filter @oncall/api typecheck` (expect fallout in stats/reports/usage tests referencing old signatures — fix compile errors minimally; their behavioral updates are Tasks 10-12).
-- [ ] Targeted schedule tests → PASS.
-- [ ] Commit.
+- [x] Implement; `pnpm --filter @oncall/api typecheck` (expect fallout in stats/reports/usage tests referencing old signatures — fix compile errors minimally; their behavioral updates are Tasks 10-12).
+- [x] Targeted schedule tests → PASS.
+- [x] Commit.
 
 ### Task 10: Stats — admin per clinic, me per doctor's clinic
 
@@ -362,8 +362,8 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 - Modify: `apps/api/src/controllers/stats.controller.ts`, `routes/stats.routes.ts` — `/admin` : `authorize('administrator', 'manager')`, scope via query; `/me` unchanged.
 - Modify: `apps/api/src/__tests__/stats.*.test.ts` — clinic fixtures; manager with `clinicId` sees that clinic's numbers only.
 
-- [ ] Implement; typecheck + targeted tests → PASS.
-- [ ] Commit.
+- [x] Implement; typecheck + targeted tests → PASS.
+- [x] Commit.
 
 ### Task 11: Reports — pass-through scope
 
@@ -372,8 +372,8 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 - Modify: `apps/api/src/controllers/reports.controller.ts`, `routes/reports.routes.ts` — `authorize('administrator', 'manager')`, scope via query.
 - Modify: reports tests — manager happy path + cross-clinic 404.
 
-- [ ] Implement; typecheck + targeted tests → PASS.
-- [ ] Commit.
+- [x] Implement; typecheck + targeted tests → PASS.
+- [x] Commit.
 
 ### Task 12: Usage metering — per-clinic partitioning
 
@@ -381,8 +381,8 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 - Modify: `apps/api/src/services/usage.service.ts` — `generations()` groups by `(clinic_id, year, month, created_at)` and joins clinic name; alert `detail` gains `clinicId`, `clinicName`. (`recordGeneration`'s signature + clinic partitioning already landed in Task 9 — do not duplicate it here.)
 - Modify: `apps/api/src/__tests__/usage.service.test.ts` — the decisive case: clinic A and clinic B each generate the same month with disjoint doctor sets → **no** alert; within one clinic, disjoint regeneration → alert (existing behavior).
 
-- [ ] Implement; typecheck + targeted tests → PASS.
-- [ ] Commit.
+- [x] Implement; typecheck + targeted tests → PASS.
+- [x] Commit.
 
 ### Task 13: Activity log — clinic column
 
@@ -391,8 +391,8 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 - Modify: `apps/api/src/routes/activity.routes.ts`, controller — `authorize('administrator', 'manager')`, scope via query.
 - Modify: activity tests — entries carry clinic; admin sees own clinic only; manager drills down.
 
-- [ ] Implement; typecheck + targeted tests → PASS.
-- [ ] Commit.
+- [x] Implement; typecheck + targeted tests → PASS.
+- [x] Commit.
 
 ### Task 14: Web — auth surface, guard, manager pages, clinic selector
 
@@ -413,9 +413,9 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 
 **Acceptance (visual, not just tests):** run `pnpm dev`, and with the seeded DB capture: (1) `radiology.admin` login → header shows "Radiology", schedules/users/doctors show only Radiology rows; (2) `manager` login → `/clinics` management works, drill-down to each clinic shows its own stats and rosters, no edit buttons anywhere; (3) `superadmin` → usage shows clinic names. Report what was verified per persona.
 
-- [ ] Implement; `pnpm --filter @oncall/web typecheck && pnpm --filter @oncall/web test -- --run` → PASS.
-- [ ] Manual persona walkthrough (above) — report observations.
-- [ ] Commit.
+- [x] Implement; `pnpm --filter @oncall/web typecheck && pnpm --filter @oncall/web test -- --run` → PASS.
+- [x] Manual persona walkthrough (above) — report observations.
+- [x] Commit.
 
 ### Task 15: Final gates + docs
 
@@ -423,9 +423,9 @@ These are the silent-leak/global-pool sites found in the audit; every one has a 
 - Modify: `README.md` — remove "Multi-hospital is out of scope"; describe the clinic model, manager role, and fresh-start schema note.
 - Modify: `AGENTS.md` — Domain Rules: add clinics table to the table list; roles list gains Manager (hospital read-only + clinic/admin lifecycle) and clarifies superadmin = vendor audit; Auth section role list updated.
 - Modify: `docs/admin-manual/manual.html` — add a "Clinics and the Manager role" section (concept, clinic lifecycle, administrator management, drill-down) and update screenshots-dependent text minimally (text-only addition acceptable).
-- [ ] `pnpm db:setup` (re-run idempotency on the populated DB — must be a clean no-op pass).
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` at root — all pass (live-DB-dependent API tests included). Report verbatim outcomes.
-- [ ] Commit.
+- [x] `pnpm db:setup` (re-run idempotency on the populated DB — must be a clean no-op pass).
+- [x] `pnpm typecheck && pnpm lint && pnpm test` at root — all pass (live-DB-dependent API tests included). Report verbatim outcomes.
+- [x] Commit.
 
 ---
 
