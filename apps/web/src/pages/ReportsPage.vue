@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { Duty, MonthlyReport } from '@oncall/shared'
+import type { Duty, MonthlyReport, ReportQuery } from '@oncall/shared'
 import { dutiesToCsv } from '@oncall/utils'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -11,6 +11,7 @@ import CardTitle from '@/components/ui/CardTitle.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import Select from '@/components/ui/Select.vue'
+import ClinicSelector from '@/components/layout/ClinicSelector.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -18,9 +19,13 @@ import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 import * as reportsService from '@/services/reports'
-import { downloadCsv } from '@/lib/download'
+import { useClinicSelection } from '@/composables/useClinicSelection'
+import { useAuthStore } from '@/stores/auth'
+import { csvFilename, downloadCsv } from '@/lib/download'
 
 const router = useRouter()
+const auth = useAuthStore()
+const { selectedClinicId } = useClinicSelection()
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -35,6 +40,7 @@ const month = ref(String(now.getUTCMonth() + 1))
 const report = ref<MonthlyReport | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
+const needsClinic = computed(() => auth.isManager && selectedClinicId.value === undefined)
 
 const monthLabel = computed(() => `${MONTHS[Number(month.value) - 1]} ${year.value}`)
 const isPublished = computed(() => report.value?.schedule?.status === 'published')
@@ -95,10 +101,16 @@ function fmtGenerated(iso: string): string {
 }
 
 async function load() {
+  if (needsClinic.value) {
+    report.value = null
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   try {
-    report.value = await reportsService.monthly({ year: Number(year.value), month: Number(month.value) })
+    const query: ReportQuery = { year: Number(year.value), month: Number(month.value) }
+    if (auth.isManager) query.clinicId = selectedClinicId.value
+    report.value = await reportsService.monthly(query)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load report'
   } finally {
@@ -106,10 +118,14 @@ async function load() {
   }
 }
 
+watch(selectedClinicId, () => {
+  if (auth.isManager) void load()
+})
+
 function exportCsv() {
   if (!report.value?.roster.length) return
   const csv = dutiesToCsv(report.value.roster)
-  downloadCsv(`oncall-${year.value}-${String(month.value).padStart(2, '0')}.csv`, csv)
+  downloadCsv(csvFilename(Number(year.value), Number(month.value), report.value.clinicName), csv)
 }
 
 function printReport() {
@@ -136,13 +152,23 @@ onMounted(load)
           <option v-for="(m, i) in MONTHS" :key="m" :value="String(i + 1)">{{ m }}</option>
         </Select>
       </div>
+      <ClinicSelector />
       <Button variant="outline" @click="load">Apply</Button>
     </div>
 
     <p v-if="loading" class="no-print text-sm text-muted-foreground">Loading…</p>
     <p v-if="errorMsg" class="no-print text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
-    <Card v-if="report && !report.schedule">
+    <Card v-if="needsClinic">
+      <CardHeader>
+        <CardTitle>Select a clinic</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p class="text-sm text-muted-foreground">Pick a clinic above to view its monthly report.</p>
+      </CardContent>
+    </Card>
+
+    <Card v-else-if="report && !report.schedule">
       <CardHeader>
         <CardTitle>No schedule for {{ monthLabel }}</CardTitle>
       </CardHeader>
@@ -160,6 +186,9 @@ onMounted(load)
 
       <div class="flex flex-col gap-1">
         <h1 class="text-xl font-semibold text-foreground">On-Call Duty</h1>
+        <p v-if="report.clinicName" class="text-sm font-medium text-muted-foreground">
+          {{ report.clinicName }}
+        </p>
         <p class="text-lg font-medium text-foreground">{{ monthLabel }}</p>
         <div class="flex flex-wrap items-center gap-3">
           <span

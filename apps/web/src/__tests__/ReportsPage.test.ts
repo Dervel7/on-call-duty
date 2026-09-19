@@ -7,13 +7,27 @@ vi.mock('@/services/reports', () => ({
   monthly: (...a: unknown[]) => monthly(...a),
 }))
 const downloadCsv = vi.fn()
-vi.mock('@/lib/download', () => ({
-  downloadCsv: (...a: unknown[]) => downloadCsv(...a),
-}))
+vi.mock('@/lib/download', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/download')>()
+  return {
+    downloadCsv: (...a: unknown[]) => downloadCsv(...a),
+    csvFilename: actual.csvFilename,
+  }
+})
+const route = { query: {} as Record<string, string> }
 const push = vi.fn()
-vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push }), useRoute: () => route }))
 
+const clinicsList = vi.fn()
+vi.mock('@/services/clinics', () => ({
+  list: (...a: unknown[]) => clinicsList(...a),
+  create: vi.fn(),
+  update: vi.fn(),
+}))
+ 
 import ReportsPage from '../pages/ReportsPage.vue'
+import { useAuthStore } from '../stores/auth'
+
 
 function fullReport(overrides: Record<string, unknown> = {}) {
   return {
@@ -62,11 +76,34 @@ function fullReport(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  route.query = {}
   monthly.mockReset()
   downloadCsv.mockReset()
   push.mockReset()
+  clinicsList.mockReset()
 })
 afterEach(() => vi.restoreAllMocks())
+
+function mountAsManager() {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useAuthStore(pinia).user = {
+    id: 1,
+    email: 'm@oncall.local',
+    username: 'manager',
+    role: 'manager',
+    firstName: 'Max',
+    lastName: 'Manager',
+    darkMode: false,
+    clinicId: null,
+    clinicName: null,
+  }
+  clinicsList.mockResolvedValue([
+    { id: 1, name: 'Radiology', isActive: true, doctorCount: 3, adminCount: 1 },
+    { id: 2, name: 'Cardiology', isActive: true, doctorCount: 3, adminCount: 1 },
+  ])
+  return mount(ReportsPage, { global: { plugins: [pinia] } })
+}
 
 describe('ReportsPage', () => {
   it('renders the empty state and navigates to /schedules when no schedule', async () => {
@@ -143,4 +180,30 @@ describe('ReportsPage', () => {
       window.print = original
     }
   })
+  it('manager mode: selector present, report scoped to the selected clinic with its name', async () => {
+    route.query = { clinic: '2' }
+    monthly.mockResolvedValue(fullReport({ clinicName: 'Cardiology' }))
+    const w = mountAsManager()
+    await flushPromises()
+    expect(w.find('[data-testid="clinic-selector"]').exists()).toBe(true)
+    expect(monthly).toHaveBeenCalledWith(expect.objectContaining({ clinicId: 2 }))
+    expect(w.text()).toContain('Cardiology')
+
+    const exportBtn = w.findAll('button').find((b) => b.text().includes('Export CSV'))!
+    await exportBtn.trigger('click')
+    const now = new Date()
+    const monthPart = String(now.getUTCMonth() + 1).padStart(2, '0')
+    expect(downloadCsv).toHaveBeenCalledWith(
+      `oncall-cardiology-${now.getUTCFullYear()}-${monthPart}.csv`,
+      expect.any(String),
+    )
+  })
+
+  it('manager mode without a clinic selection shows the select-a-clinic state and skips the fetch', async () => {
+    const w = mountAsManager()
+    await flushPromises()
+    expect(monthly).not.toHaveBeenCalled()
+    expect(w.text()).toContain('Select a clinic')
+  })
 })
+

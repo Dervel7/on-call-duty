@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { downloadCsv } from '../lib/download'
+import { csvFilename, downloadCsv } from '../lib/download'
 
 describe('downloadCsv', () => {
   const origCreate = URL.createObjectURL
@@ -31,5 +31,19 @@ describe('downloadCsv', () => {
     expect(clickSpy).toHaveBeenCalledTimes(1)
     expect(revokeUrl).toHaveBeenCalledWith('blob:fake')
     createSpy.mockRestore()
+  })
+})
+
+describe('csvFilename', () => {
+  it('slugs the clinic name into the filename', () => {
+    expect(csvFilename(2026, 8, 'Cardiology')).toBe('oncall-cardiology-2026-08.csv')
+    expect(csvFilename(2027, 3, 'St. Mary & Bones (West)')).toBe('oncall-st-mary-bones-west-2027-03.csv')
+    expect(csvFilename(2026, 12, '  --Neurology--  ')).toBe('oncall-neurology-2026-12.csv')
+  })
+
+  it('falls back to the bare filename without a clinic name', () => {
+    expect(csvFilename(2026, 8, null)).toBe('oncall-2026-08.csv')
+    expect(csvFilename(2026, 8, undefined)).toBe('oncall-2026-08.csv')
+    expect(csvFilename(2026, 8, '***')).toBe('oncall-2026-08.csv')
   })
 })

@@ -9,3 +9,18 @@ export function downloadCsv(filename: string, csv: string): void {
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
+
+/**
+ * Clinic-aware CSV filename: `oncall-{slug(clinic)}-{year}-{month}.csv`.
+ * Falls back to `oncall-{year}-{month}.csv` when no clinic name exists.
+ */
+export function csvFilename(year: number, month: number, clinicName?: string | null): string {
+  const monthPart = String(month).padStart(2, '0')
+  const clinic = clinicName
+    ? clinicName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+    : ''
+  return clinic ? `oncall-${clinic}-${year}-${monthPart}.csv` : `oncall-${year}-${monthPart}.csv`
+}
