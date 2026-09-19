@@ -23,6 +23,7 @@ function build() {
 
 const adminToken = () => signAccessToken({ sub: 1, role: 'administrator', clinicId: 1 })
 const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 10 })
+const managerToken = () => signAccessToken({ sub: 2, role: 'manager', clinicId: null })
 
 beforeEach(() => list.mockReset())
 
@@ -50,14 +51,39 @@ describe('activity routes', () => {
       .get('/activity?action=auth.login&userId=2&from=2026-08-01&to=2026-08-31&page=3&limit=25')
       .set('Authorization', `Bearer ${adminToken()}`)
     expect(res.status).toBe(200)
-    expect(list).toHaveBeenCalledWith({
-      action: 'auth.login',
-      userId: 2,
-      from: '2026-08-01',
-      to: '2026-08-31',
-      page: 3,
-      limit: 25,
-    })
+    expect(list).toHaveBeenCalledWith(
+      {
+        action: 'auth.login',
+        userId: 2,
+        from: '2026-08-01',
+        to: '2026-08-31',
+        page: 3,
+        limit: 25,
+      },
+      { kind: 'clinic', clinicId: 1 },
+    )
+  })
+
+  it('manager: 400 without clinicId; drill-down with clinicId (I23)', async () => {
+    list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 50 })
+    const bad = await request(build())
+      .get('/activity')
+      .set('Authorization', `Bearer ${managerToken()}`)
+    expect(bad.status).toBe(400)
+    expect(list).not.toHaveBeenCalled()
+
+    const good = await request(build())
+      .get('/activity?clinicId=2')
+      .set('Authorization', `Bearer ${managerToken()}`)
+    expect(good.status).toBe(200)
+    expect(list).toHaveBeenCalledWith({ page: 1, limit: 50 }, { kind: 'clinic', clinicId: 2 })
+  })
+
+  it('administrator passing a foreign clinicId gets 403', async () => {
+    const res = await request(build())
+      .get('/activity?clinicId=9')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(res.status).toBe(403)
   })
 
   it('rejects invalid query with 400', async () => {

@@ -7,6 +7,9 @@ vi.mock('../db/client', () => ({
 }))
 
 import { list, logActivity, recordActivity } from '../services/activity.service'
+import type { ClinicScope } from '../lib/scope'
+
+const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
 
 function entryRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -75,7 +78,7 @@ describe('activity.service', () => {
   it('list runs count then page, ordered newest first', async () => {
     query.mockResolvedValueOnce({ rows: [{ n: 51 }] })
     query.mockResolvedValueOnce({ rows: [entryRow()] })
-    const page = await list({ page: 2, limit: 50 })
+    const page = await list({ page: 2, limit: 50 }, scope)
     expect(page.total).toBe(51)
     expect(page.page).toBe(2)
     expect(page.items[0]?.actor?.firstName).toBe('Ada')
@@ -86,7 +89,7 @@ describe('activity.service', () => {
 
   it('list emits one WHERE clause per filter', async () => {
     query.mockResolvedValue({ rows: [] })
-    await list({ action: 'auth.login', userId: 5, from: '2026-08-01', to: '2026-08-31' })
+    await list({ action: 'auth.login', userId: 5, from: '2026-08-01', to: '2026-08-31' }, scope)
     const countSql = query.mock.calls[0]?.[0] as string
     expect(countSql).toContain('a.action')
     expect(countSql).toContain('a.user_id')
@@ -107,7 +110,19 @@ describe('activity.service', () => {
         }),
       ],
     })
-    const page = await list({})
+    const page = await list({}, scope)
     expect(page.items[0]?.actor).toBeNull()
+  })
+
+  it('list always filters on the resolved clinic (I23)', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await list({}, { kind: 'clinic', clinicId: 7 })
+    const countSql = query.mock.calls[0]?.[0] as string
+    const pageSql = query.mock.calls[1]?.[0] as string
+    expect(countSql).toContain('a.clinic_id = $1')
+    expect(pageSql).toContain('a.clinic_id = $1')
+    // The clinic takes $1; pagination is pushed after, so it starts at $2.
+    expect(pageSql).toContain('LIMIT $2 OFFSET $3')
+    expect(query.mock.calls[1]?.[1]).toEqual([7, 50, 0])
   })
 })

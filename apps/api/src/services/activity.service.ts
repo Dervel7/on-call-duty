@@ -7,6 +7,7 @@ import type {
   Role,
 } from '@oncall/shared'
 import { query, withTransaction } from '../db/client'
+import type { ClinicScope } from '../lib/scope'
 
 export interface ActivityInput {
   userId: number
@@ -78,11 +79,13 @@ function toEntry(row: ActivityRow): ActivityLogEntry {
   }
 }
 
-export async function list(filters: ActivityQuery): Promise<PaginatedActivity> {
+export async function list(filters: ActivityQuery, scope: ClinicScope): Promise<PaginatedActivity> {
   const page = filters.page ?? 1
   const limit = filters.limit ?? 50
   const where: string[] = []
   const params: unknown[] = []
+  where.push(`a.clinic_id = $${params.length + 1}`)
+  params.push(scope.clinicId)
   if (filters.action !== undefined) {
     params.push(filters.action)
     where.push(`a.action = $${params.length}`)
