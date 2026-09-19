@@ -99,11 +99,21 @@ export async function seedTwoClinics(): Promise<TwoClinicFixture> {
     throw new Error('clinic fixture doctor seeding failed')
   }
 
-  const userIds = [adminA, adminB, doctorA, doctorB]
-
   async function dispose() {
-    await query(`DELETE FROM doctors WHERE user_id IN ($1, $2, $3, $4)`, userIds)
-    await query(`DELETE FROM users WHERE id IN ($1, $2, $3, $4)`, userIds)
+    // Everything a test can anchor to these two clinics, child-first.
+    await query(
+      `DELETE FROM unavailability WHERE doctor_id IN (SELECT d.id FROM doctors d WHERE d.clinic_id IN ($1, $2))`,
+      [clinicA, clinicB],
+    )
+    await query(
+      `DELETE FROM duties WHERE schedule_id IN (SELECT s.id FROM schedules s WHERE s.clinic_id IN ($1, $2))`,
+      [clinicA, clinicB],
+    )
+    await query(`DELETE FROM schedule_generation_log WHERE clinic_id IN ($1, $2)`, [clinicA, clinicB])
+    await query(`DELETE FROM schedules WHERE clinic_id IN ($1, $2)`, [clinicA, clinicB])
+    await query(`DELETE FROM doctors WHERE clinic_id IN ($1, $2)`, [clinicA, clinicB])
+    await query(`DELETE FROM activity_log WHERE clinic_id IN ($1, $2)`, [clinicA, clinicB])
+    await query(`DELETE FROM users WHERE clinic_id IN ($1, $2)`, [clinicA, clinicB])
     await query(`DELETE FROM clinics WHERE id IN ($1, $2)`, [clinicA, clinicB])
   }
 

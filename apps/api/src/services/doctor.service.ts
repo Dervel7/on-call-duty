@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt'
 import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
+import type { ClinicScope } from '../lib/scope'
 import type {
   AuthUser,
   CreateDoctorRequest,
@@ -10,7 +11,7 @@ import type {
 import { recordActivity } from './activity.service'
 import * as tokenService from './token.service'
 
-type Actor = Pick<AuthUser, 'id' | 'role'>
+type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 
 interface DoctorRow {
   id: number
@@ -21,13 +22,15 @@ interface DoctorRow {
   last_name: string
   is_active: boolean
   max_monthly_duties: number
+  clinic_id: number
+  clinic_name: string
   created_at: Date
   updated_at: Date
 }
 
-const SELECT = `SELECT d.id, d.user_id, d.max_monthly_duties, d.created_at, d.updated_at,
-  u.email, u.username, u.first_name, u.last_name, u.is_active
-  FROM doctors d JOIN users u ON u.id = d.user_id`
+const SELECT = `SELECT d.id, d.user_id, d.max_monthly_duties, d.clinic_id, d.created_at, d.updated_at,
+  u.email, u.username, u.first_name, u.last_name, u.is_active, c.name AS clinic_name
+  FROM doctors d JOIN users u ON u.id = d.user_id JOIN clinics c ON c.id = d.clinic_id`
 
 function toDoctor(row: DoctorRow): Doctor {
   return {
@@ -39,23 +42,44 @@ function toDoctor(row: DoctorRow): Doctor {
     lastName: row.last_name,
     isActive: row.is_active,
     maxMonthlyDuties: row.max_monthly_duties,
+    clinicId: row.clinic_id,
+    clinicName: row.clinic_name,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   }
 }
 
-export async function list(): Promise<Doctor[]> {
+function oneRow(rows: DoctorRow[]): DoctorRow | undefined {
+  return rows[0]
+}
+
+/**
+ * Object-level access: administrator/doctor may only see rows of their own
+ * clinic (mismatch → 404, existence hidden); manager and superadmin pass.
+ */
+function assertRowVisible(row: DoctorRow, actor: Actor): void {
+  if (
+    (actor.role === 'administrator' || actor.role === 'doctor') &&
+    row.clinic_id !== actor.clinicId
+  ) {
+    throw new HttpError(404, 'Doctor not found')
+  }
+}
+
+export async function list(scope: ClinicScope): Promise<Doctor[]> {
   const res = await query<DoctorRow>(
-    `${SELECT} WHERE u.is_deleted = FALSE ORDER BY u.last_name, u.first_name`,
-    [],
+    `${SELECT} WHERE u.is_deleted = FALSE AND d.clinic_id = $1
+     ORDER BY u.last_name, u.first_name`,
+    [scope.clinicId],
   )
   return res.rows.map(toDoctor)
 }
 
-export async function getById(id: number): Promise<Doctor> {
+export async function getById(id: number, actor: Actor): Promise<Doctor> {
   const res = await query<DoctorRow>(`${SELECT} WHERE d.id = $1 AND u.is_deleted = FALSE`, [id])
-  const row = res.rows[0]
+  const row = oneRow(res.rows)
   if (!row) throw new HttpError(404, 'Doctor not found')
+  assertRowVisible(row, actor)
   return toDoctor(row)
 }
 
@@ -64,12 +88,17 @@ export async function getByUserId(userId: number): Promise<Doctor> {
     `${SELECT} WHERE d.user_id = $1 AND u.is_deleted = FALSE`,
     [userId],
   )
-  const row = res.rows[0]
+  const row = oneRow(res.rows)
   if (!row) throw new HttpError(404, 'Doctor not found')
   return toDoctor(row)
 }
 
-export async function create(input: CreateDoctorRequest, actor: Actor): Promise<Doctor> {
+export async function create(
+  input: CreateDoctorRequest,
+  actor: Actor,
+  scope: ClinicScope,
+): Promise<Doctor> {
+  const clinicId = scope.clinicId
   const doctorId = await withTransaction(async (client) => {
     const dupEmail = await client.query(
       'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE',
@@ -83,15 +112,15 @@ export async function create(input: CreateDoctorRequest, actor: Actor): Promise<
     if (dupUser.rows.length > 0) throw new HttpError(409, 'Username already in use')
     const passwordHash = await bcrypt.hash(input.password, 12)
     const ins = await client.query(
-      `INSERT INTO users (email, username, password_hash, role, first_name, last_name)
-       VALUES ($1, $2, $3, 'doctor', $4, $5) RETURNING id`,
-      [input.email, input.username, passwordHash, input.firstName, input.lastName],
+      `INSERT INTO users (email, username, password_hash, role, first_name, last_name, clinic_id)
+       VALUES ($1, $2, $3, 'doctor', $4, $5, $6) RETURNING id`,
+      [input.email, input.username, passwordHash, input.firstName, input.lastName, clinicId],
     )
     const userId = ins.rows[0]?.id
     if (userId === undefined) throw new HttpError(500, 'Failed to create user')
     const docIns = await client.query<{ id: number }>(
-      'INSERT INTO doctors (user_id, max_monthly_duties) VALUES ($1, $2) RETURNING id',
-      [userId, input.maxMonthlyDuties ?? 7],
+      'INSERT INTO doctors (user_id, clinic_id, max_monthly_duties) VALUES ($1, $2, $3) RETURNING id',
+      [userId, clinicId, input.maxMonthlyDuties ?? 7],
     )
     const docId = docIns.rows[0]?.id
     if (docId === undefined) throw new HttpError(500, 'Failed to create doctor')
@@ -100,6 +129,7 @@ export async function create(input: CreateDoctorRequest, actor: Actor): Promise<
       action: 'doctor.created',
       entityType: 'doctor',
       entityId: docId,
+      clinicId,
       detail: {
         email: input.email,
         username: input.username,
@@ -110,11 +140,21 @@ export async function create(input: CreateDoctorRequest, actor: Actor): Promise<
     })
     return docId
   })
-  return getById(doctorId)
+  const created = await query<DoctorRow>(
+    `${SELECT} WHERE d.id = $1 AND u.is_deleted = FALSE`,
+    [doctorId],
+  )
+  const row = oneRow(created.rows)
+  if (!row) throw new HttpError(404, 'Doctor not found')
+  return toDoctor(row)
 }
 
-export async function update(id: number, input: UpdateDoctorRequest, actor: Actor): Promise<Doctor> {
-  const existing = await getById(id)
+export async function update(
+  id: number,
+  input: UpdateDoctorRequest,
+  actor: Actor,
+): Promise<Doctor> {
+  const existing = await getById(id, actor)
   const userId = existing.userId
 
   await withTransaction(async (client) => {
@@ -200,15 +240,16 @@ export async function update(id: number, input: UpdateDoctorRequest, actor: Acto
         action,
         entityType: 'doctor',
         entityId: id,
+        clinicId: existing.clinicId,
         detail: { before, after },
       })
     }
   })
-  return getById(id)
+  return getById(id, actor)
 }
 
 export async function remove(id: number, actor: Actor): Promise<void> {
-  const existing = await getById(id)
+  const existing = await getById(id, actor)
   await withTransaction(async (client) => {
     const draft = await client.query(
       `SELECT 1 FROM duties du JOIN schedules s ON s.id = du.schedule_id
@@ -227,6 +268,7 @@ export async function remove(id: number, actor: Actor): Promise<void> {
       action: 'doctor.deleted',
       entityType: 'doctor',
       entityId: id,
+      clinicId: existing.clinicId,
       detail: { email: existing.email },
     })
   })
