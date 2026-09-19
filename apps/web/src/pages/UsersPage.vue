@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type {
   CreateDoctorRequest,
   CreateUserRequest,
@@ -18,6 +18,7 @@ import {
 import * as doctorService from '@/services/doctor'
 import * as userService from '@/services/user'
 import Button from '@/components/ui/Button.vue'
+import ClinicSelector from '@/components/layout/ClinicSelector.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
@@ -29,12 +30,19 @@ import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { useClinicSelection } from '@/composables/useClinicSelection'
+import { useAuthStore } from '@/stores/auth'
 
 const users = ref<User[]>([])
 const doctors = ref<Doctor[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
+const auth = useAuthStore()
+const { selectedClinicId } = useClinicSelection()
 const { confirm } = useConfirm()
+
+const canEdit = computed(() => auth.isAdmin)
+const needsClinic = computed(() => auth.isManager && selectedClinicId.value === undefined)
 
 const doctorByUserId = computed(() => {
   const map = new Map<number, Doctor>()
@@ -70,16 +78,29 @@ const emptyEdit = (): EditState => ({
 const edit = ref<EditState>(emptyEdit())
 
 async function load() {
+  if (needsClinic.value) {
+    users.value = []
+    doctors.value = []
+    return
+  }
   loading.value = true
   errorMsg.value = ''
   try {
-    ;[users.value, doctors.value] = await Promise.all([userService.list(), doctorService.list()])
+    const clinicId = auth.isManager ? selectedClinicId.value : undefined
+    ;[users.value, doctors.value] = await Promise.all([
+      userService.list(clinicId),
+      doctorService.list(clinicId),
+    ])
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load users'
   } finally {
     loading.value = false
   }
 }
+
+watch(selectedClinicId, () => {
+  if (auth.isManager) void load()
+})
 
 function openCreate() {
   edit.value = { ...emptyEdit(), open: true }
@@ -221,8 +242,13 @@ onMounted(load)
   <div class="flex flex-col gap-4">
     <div class="flex items-center justify-between">
       <h1 class="text-xl font-semibold text-foreground">Users</h1>
-      <Button @click="openCreate">New user</Button>
+      <div class="flex items-center gap-3">
+        <ClinicSelector />
+        <Button v-if="canEdit" @click="openCreate">New user</Button>
+      </div>
     </div>
+
+    <p v-if="needsClinic" class="text-sm text-muted-foreground">Select a clinic above to view its users.</p>
 
     <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
@@ -248,13 +274,14 @@ onMounted(load)
           <TableCell>{{ doctorByUserId.get(u.id)?.maxMonthlyDuties ?? '—' }}</TableCell>
           <TableCell>{{ u.isActive ? 'active' : 'disabled' }}</TableCell>
           <TableCell class="text-right">
-            <div class="inline-flex gap-2">
+            <div v-if="canEdit" class="inline-flex gap-2">
               <Button size="sm" variant="outline" @click="openUpdate(u)">Edit</Button>
               <Button size="sm" variant="outline" @click="toggleActive(u)">
                 {{ u.isActive ? 'Disable' : 'Enable' }}
               </Button>
               <Button size="sm" variant="destructive" @click="remove(u)">Delete</Button>
             </div>
+            <span v-else class="text-sm text-muted-foreground">—</span>
           </TableCell>
         </TableRow>
       </TableBody>

@@ -28,14 +28,51 @@ vi.mock('@/services/doctor', () => ({
   remove: (...a: unknown[]) => doctorRemove(...a),
 }))
 
-import UsersPage from '../pages/UsersPage.vue'
-import { useConfirmState } from '../composables/useConfirm'
-import { pickOption } from './pick-option'
+const route = { query: {} as Record<string, string> }
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => route,
+}))
 
-const { settle } = useConfirmState()
+const clinicsList = vi.fn()
+vi.mock('@/services/clinics', () => ({
+  list: (...a: unknown[]) => clinicsList(...a),
+  create: vi.fn(),
+  update: vi.fn(),
+}))
+ 
+ import UsersPage from '../pages/UsersPage.vue'
+import { useAuthStore } from '../stores/auth'
+ import { useConfirmState } from '../composables/useConfirm'
+ import { pickOption } from './pick-option'
+ 
+ const { settle } = useConfirmState()
+ 
+function mountAs(role: 'administrator' | 'manager') {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useAuthStore(pinia).user = {
+    id: 2,
+    email: 'a@b.com',
+    username: 'admin',
+    role,
+    firstName: 'Ada',
+    lastName: 'Ops',
+    darkMode: false,
+    clinicId: role === 'manager' ? null : 1,
+    clinicName: role === 'manager' ? null : 'Radiology',
+  }
+  clinicsList.mockResolvedValue([
+    { id: 1, name: 'Radiology', isActive: true, doctorCount: 3, adminCount: 1 },
+    { id: 2, name: 'Cardiology', isActive: true, doctorCount: 3, adminCount: 1 },
+  ])
+  return mount(UsersPage, { global: { plugins: [pinia] } })
+}
+
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  route.query = {}
   list.mockReset()
   create.mockReset()
   update.mockReset()
@@ -44,6 +81,7 @@ beforeEach(() => {
   doctorCreate.mockReset()
   doctorUpdate.mockReset()
   doctorRemove.mockReset()
+  clinicsList.mockReset()
   settle(false)
 })
 afterEach(() => vi.restoreAllMocks())
@@ -100,7 +138,7 @@ describe('UsersPage', () => {
   it('renders users with role, doctor duty caps and admin placeholders', async () => {
     list.mockResolvedValue([doctorUser, adminUser])
     doctorList.mockResolvedValue([doctorProfile])
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     expect(wrapper.text()).toContain('dr@h.com')
     expect(wrapper.text()).toContain('Jane')
@@ -111,14 +149,14 @@ describe('UsersPage', () => {
 
   it('shows an error message when listing fails', async () => {
     list.mockRejectedValue(new Error('nope'))
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
   })
 
   it('creates an administrator through the user service by default', async () => {
     list.mockResolvedValue([])
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
     await flushPromises()
@@ -138,7 +176,7 @@ describe('UsersPage', () => {
 
   it('creates a doctor with the duty cap through the doctor service', async () => {
     list.mockResolvedValue([])
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
     await flushPromises()
@@ -167,7 +205,7 @@ describe('UsersPage', () => {
   it('updates a doctor profile through the doctor service', async () => {
     list.mockResolvedValue([doctorUser])
     doctorList.mockResolvedValue([doctorProfile])
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
     await flushPromises()
@@ -184,7 +222,7 @@ describe('UsersPage', () => {
   it('updates a non-doctor user through the user service', async () => {
     list.mockResolvedValue([adminUser])
     update.mockResolvedValue(adminUser)
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
     await flushPromises()
@@ -199,7 +237,7 @@ describe('UsersPage', () => {
   it('keeps the dialog open with an inline error when create fails', async () => {
     list.mockResolvedValue([])
     create.mockRejectedValue(new Error('dup'))
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
     await flushPromises()
@@ -220,7 +258,7 @@ describe('UsersPage', () => {
   it('keeps the dialog open with an inline error when update fails', async () => {
     list.mockResolvedValue([adminUser])
     update.mockRejectedValue(new Error('dup'))
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
     await flushPromises()
@@ -235,7 +273,7 @@ describe('UsersPage', () => {
 
   it('shows a dialog-level validation error and skips the service on invalid input', async () => {
     list.mockResolvedValue([])
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
     await flushPromises()
@@ -256,7 +294,7 @@ describe('UsersPage', () => {
     list.mockResolvedValue([doctorUser])
     doctorList.mockResolvedValue([doctorProfile])
     update.mockRejectedValue(new Error('boom'))
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     expect(list).toHaveBeenCalledTimes(1)
     await wrapper.findAll('button').find((b) => b.text() === 'Disable')!.trigger('click')
@@ -270,7 +308,7 @@ describe('UsersPage', () => {
     list.mockResolvedValue([doctorUser])
     doctorList.mockResolvedValue([doctorProfile])
     doctorRemove.mockResolvedValue(undefined)
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'Delete')!.trigger('click')
     await flushPromises()
@@ -283,7 +321,7 @@ describe('UsersPage', () => {
   it('shows a page-level error when a confirmed delete fails and does not reload', async () => {
     list.mockResolvedValue([adminUser])
     remove.mockRejectedValue(new Error('gone'))
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     expect(list).toHaveBeenCalledTimes(1)
     await wrapper.findAll('button').find((b) => b.text() === 'Delete')!.trigger('click')
@@ -293,5 +331,26 @@ describe('UsersPage', () => {
     expect(remove).toHaveBeenCalledWith(2)
     expect(wrapper.find('[role="alert"]').text()).toContain('gone')
     expect(list).toHaveBeenCalledTimes(1)
+  })
+
+  it('manager mode: no lifecycle controls, list scoped to the selected clinic', async () => {
+    route.query = { clinic: '2' }
+    list.mockResolvedValue([adminUser])
+    const wrapper = mountAs('manager')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="clinic-selector"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('New user')
+    expect(wrapper.text()).not.toContain('Edit')
+    expect(wrapper.text()).not.toContain('Delete')
+    expect(list).toHaveBeenCalledWith(2)
+    expect(doctorList).toHaveBeenCalledWith(2)
+  })
+
+  it('manager mode without a clinic selection skips the fetch', async () => {
+    const wrapper = mountAs('manager')
+    await flushPromises()
+    expect(list).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Select a clinic above to view its users.')
   })
 })
