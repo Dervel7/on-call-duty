@@ -31,6 +31,7 @@ vi.mock('@/services/doctor', () => ({
 import UsersPage from '../pages/UsersPage.vue'
 import { useConfirmState } from '../composables/useConfirm'
 import { pickOption } from './pick-option'
+import type { User } from '@oncall/shared'
 
 const { settle } = useConfirmState()
 
@@ -48,7 +49,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-const doctorUser = {
+const doctorUser: User = {
   id: 1,
   email: 'dr@h.com',
   username: 'drroe',
@@ -56,10 +57,13 @@ const doctorUser = {
   firstName: 'Jane',
   lastName: 'Roe',
   isActive: true,
+  darkMode: false,
+  clinicId: 1,
+  clinicName: 'Main Clinic',
   createdAt: '2026-01-01T00:00:00.000Z',
 }
 
-const adminUser = {
+const adminUser: User = {
   id: 2,
   email: 'a@b.com',
   username: 'admin',
@@ -68,6 +72,9 @@ const adminUser = {
   lastName: 'Ops',
   isActive: true,
   createdAt: '2026-01-02T00:00:00.000Z',
+  darkMode: false,
+  clinicId: 1,
+  clinicName: 'Main Clinic',
 }
 
 const doctorProfile = {
@@ -95,18 +102,49 @@ function setBodyValue(selector: string, value: string) {
   el.dispatchEvent(new Event('input'))
 }
 
-
 describe('UsersPage', () => {
-  it('renders users with role, doctor duty caps and admin placeholders', async () => {
+  it('renders doctors with duty caps and hides administrators', async () => {
     list.mockResolvedValue([doctorUser, adminUser])
     doctorList.mockResolvedValue([doctorProfile])
     const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     expect(wrapper.text()).toContain('dr@h.com')
     expect(wrapper.text()).toContain('Jane')
-    expect(wrapper.text()).toContain('administrator')
     expect(wrapper.text()).toContain('5')
-    expect(wrapper.text()).toContain('—')
+    expect(wrapper.text()).not.toContain('a@b.com')
+    expect(wrapper.text()).not.toContain('administrator')
+  })
+
+  it('shows only doctors, hiding every non-doctor including the own account', async () => {
+    const otherAdmin: User = { ...adminUser, id: 3, email: 'other@h.com', username: 'other' }
+    const boss: User = { ...adminUser, id: 4, email: 'boss@h.com', username: 'boss', role: 'superadmin' }
+    list.mockResolvedValue([otherAdmin, boss, doctorUser, adminUser])
+    doctorList.mockResolvedValue([doctorProfile])
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('dr@h.com')
+    expect(wrapper.text()).not.toContain('a@b.com')
+    expect(wrapper.text()).not.toContain('other@h.com')
+    expect(wrapper.text()).not.toContain('boss@h.com')
+    wrapper.unmount()
+  })
+
+  it('sorts by last name and keeps that order after disabling a doctor', async () => {
+    const aaa: User = { ...doctorUser, id: 11, email: 'aaa@h.com', firstName: 'Zoe', lastName: 'Aaa' }
+    const zzz: User = { ...doctorUser, id: 12, email: 'zzz@h.com', firstName: 'Amy', lastName: 'Zzz' }
+    list.mockResolvedValueOnce([doctorUser, zzz, aaa])
+    list.mockResolvedValueOnce([zzz, { ...doctorUser, isActive: false }, aaa])
+    doctorList.mockResolvedValue([])
+    update.mockResolvedValue(doctorUser)
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const emails = () => wrapper.findAll('tbody tr').map((r) => r.findAll('td')[1]?.text())
+    expect(emails()).toEqual(['aaa@h.com', 'dr@h.com', 'zzz@h.com'])
+    await wrapper.findAll('button').find((b) => b.text() === 'Disable')!.trigger('click')
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(11, { isActive: false })
+    expect(emails()).toEqual(['aaa@h.com', 'dr@h.com', 'zzz@h.com'])
+    wrapper.unmount()
   })
 
   it('shows an error message when listing fails', async () => {
@@ -181,21 +219,6 @@ describe('UsersPage', () => {
     wrapper.unmount()
   })
 
-  it('updates a non-doctor user through the user service', async () => {
-    list.mockResolvedValue([adminUser])
-    update.mockResolvedValue(adminUser)
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
-    await flushPromises()
-    await wrapper.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
-    await flushPromises()
-    expect((document.body.querySelector('#e-role') as HTMLSelectElement).disabled).toBe(true)
-    bodyButton('Save')!.click()
-    await flushPromises()
-    expect(update).toHaveBeenCalledWith(2, expect.objectContaining({ email: 'a@b.com' }))
-    expect(doctorUpdate).not.toHaveBeenCalled()
-    wrapper.unmount()
-  })
-
   it('keeps the dialog open with an inline error when create fails', async () => {
     list.mockResolvedValue([])
     create.mockRejectedValue(new Error('dup'))
@@ -218,15 +241,16 @@ describe('UsersPage', () => {
   })
 
   it('keeps the dialog open with an inline error when update fails', async () => {
-    list.mockResolvedValue([adminUser])
-    update.mockRejectedValue(new Error('dup'))
+    list.mockResolvedValue([doctorUser])
+    doctorList.mockResolvedValue([doctorProfile])
+    doctorUpdate.mockRejectedValue(new Error('dup'))
     const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
     await flushPromises()
     bodyButton('Save')!.click()
     await flushPromises()
-    expect(update).toHaveBeenCalledWith(2, expect.objectContaining({ email: 'a@b.com' }))
+    expect(doctorUpdate).toHaveBeenCalledWith(10, expect.objectContaining({ email: 'dr@h.com' }))
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('dup')
     expect(bodyButton('Save')).toBeTruthy()
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
@@ -281,8 +305,9 @@ describe('UsersPage', () => {
   })
 
   it('shows a page-level error when a confirmed delete fails and does not reload', async () => {
-    list.mockResolvedValue([adminUser])
-    remove.mockRejectedValue(new Error('gone'))
+    list.mockResolvedValue([doctorUser])
+    doctorList.mockResolvedValue([doctorProfile])
+    doctorRemove.mockRejectedValue(new Error('gone'))
     const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     expect(list).toHaveBeenCalledTimes(1)
@@ -290,7 +315,7 @@ describe('UsersPage', () => {
     await flushPromises()
     settle(true)
     await flushPromises()
-    expect(remove).toHaveBeenCalledWith(2)
+    expect(doctorRemove).toHaveBeenCalledWith(10)
     expect(wrapper.find('[role="alert"]').text()).toContain('gone')
     expect(list).toHaveBeenCalledTimes(1)
   })
