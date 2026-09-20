@@ -22,9 +22,9 @@ function build() {
   return app
 }
 
-const superadminToken = () => signAccessToken({ sub: 1, role: 'superadmin' })
-const adminToken = () => signAccessToken({ sub: 2, role: 'administrator' })
-const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor' })
+const superadminToken = () => signAccessToken({ sub: 1, role: 'superadmin', clinicId: null })
+const adminToken = () => signAccessToken({ sub: 2, role: 'administrator', clinicId: 1 })
+const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 10 })
 
 beforeEach(() => query.mockReset())
 

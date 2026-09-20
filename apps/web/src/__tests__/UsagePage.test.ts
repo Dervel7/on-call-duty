@@ -29,6 +29,8 @@ const generationsFixture: GenerationEvent[] = [
     doctorIds: [1, 2],
     doctorNames: ['Jane Roe', 'John Doe'],
     overlapPercent: 50,
+    clinicId: 1,
+    clinicName: 'Main Clinic',
   },
 ]
 

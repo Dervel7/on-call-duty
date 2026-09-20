@@ -44,6 +44,7 @@ export const updateUnavailabilitySchema = z
 
 export const unavailabilityQuerySchema = z.object({
   doctorId: z.coerce.number().int().positive().optional(),
+  clinicId: z.coerce.number().int().positive().optional(),
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),
 })

@@ -25,9 +25,10 @@ function build() {
   return app
 }
 
-const superadminToken = () => signAccessToken({ sub: 1, role: 'superadmin' })
-const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor' })
-const administratorToken = () => signAccessToken({ sub: 2, role: 'administrator' })
+const superadminToken = () => signAccessToken({ sub: 1, role: 'superadmin', clinicId: null })
+const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 10 })
+const administratorToken = () => signAccessToken({ sub: 2, role: 'administrator', clinicId: 1 })
+const managerToken = () => signAccessToken({ sub: 3, role: 'manager', clinicId: null })
 
 beforeEach(() => {
   isLocked.mockReset()
@@ -72,7 +73,7 @@ describe('billing routes', () => {
     expect(patch.body.data.billing).toEqual({ paidThrough: '2026-12-31', locked: false })
     expect(setPaidThrough).toHaveBeenCalledWith(
       { paidThrough: '2026-12-31' },
-      { id: 1, role: 'superadmin' },
+      { id: 1, role: 'superadmin', clinicId: null },
     )
   })
 
@@ -92,14 +93,19 @@ describe('billing routes', () => {
     expect(setPaidThrough).not.toHaveBeenCalled()
   })
 
-  it('payment-alert: administrator reads it (200), doctor is 403', async () => {
+  it('payment-alert: administrator and manager read it (200), doctor is 403', async () => {
     getPaymentAlert.mockResolvedValue({ daysLeft: 3 })
     const res = await request(build())
       .get('/billing/payment-alert')
       .set('Authorization', `Bearer ${administratorToken()}`)
     expect(res.status).toBe(200)
     expect(res.body.data.paymentAlert).toEqual({ daysLeft: 3 })
-    expect(getPaymentAlert).toHaveBeenCalledTimes(1)
+
+    const manager = await request(build())
+      .get('/billing/payment-alert')
+      .set('Authorization', `Bearer ${managerToken()}`)
+    expect(manager.status).toBe(200)
+    expect(manager.body.data.paymentAlert).toEqual({ daysLeft: 3 })
 
     const denied = await request(build())
       .get('/billing/payment-alert')

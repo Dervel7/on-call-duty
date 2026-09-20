@@ -39,6 +39,8 @@ describe('ProfilePage doctor self-view', () => {
       firstName: 'Jane',
       lastName: 'Roe',
       darkMode: false,
+      clinicId: 1,
+      clinicName: 'Main Clinic',
     }
     me.mockResolvedValue({
       id: 1,
@@ -73,6 +75,8 @@ describe('ProfilePage change password', () => {
       firstName: 'Ada',
       lastName: 'Admin',
       darkMode: false,
+      clinicId: 1,
+      clinicName: 'Main Clinic',
     }
     changePassword.mockResolvedValue({ user: { ...auth.user } })
     const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
@@ -103,7 +107,9 @@ describe('ProfilePage dark mode', () => {
       role: 'administrator',
       firstName: 'Ada',
       lastName: 'Admin',
+      clinicId: 1,
       darkMode: false,
+      clinicName: 'Main Clinic',
     }
     updateTheme.mockResolvedValue({ ...auth.user, darkMode: true })
     const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
@@ -131,7 +137,9 @@ describe('ProfilePage dark mode', () => {
       role: 'administrator',
       firstName: 'Ada',
       lastName: 'Admin',
+      clinicId: 1,
       darkMode: false,
+      clinicName: 'Main Clinic',
     }
     updateTheme.mockRejectedValueOnce(new Error('net'))
     const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })

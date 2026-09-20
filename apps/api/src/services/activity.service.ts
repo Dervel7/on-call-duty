@@ -7,20 +7,30 @@ import type {
   Role,
 } from '@oncall/shared'
 import { query, withTransaction } from '../db/client'
+import type { ClinicScope } from '../lib/scope'
 
 export interface ActivityInput {
   userId: number
   action: ActivityAction
   entityType: string
   entityId: number | null
+  /** Clinic the acted-on entity belongs to; null for hospital/vendor/self-service events. */
+  clinicId?: number | null
   detail?: Record<string, unknown>
 }
 
 /** Must run inside the caller's transaction: a failed audit write fails the business change. */
 export async function recordActivity(client: PoolClient, input: ActivityInput): Promise<void> {
   await client.query(
-    'INSERT INTO activity_log (user_id, action, entity_type, entity_id, detail) VALUES ($1, $2, $3, $4, $5)',
-    [input.userId, input.action, input.entityType, input.entityId, JSON.stringify(input.detail ?? {})],
+    'INSERT INTO activity_log (user_id, clinic_id, action, entity_type, entity_id, detail) VALUES ($1, $2, $3, $4, $5, $6)',
+    [
+      input.userId,
+      input.clinicId ?? null,
+      input.action,
+      input.entityType,
+      input.entityId,
+      JSON.stringify(input.detail ?? {}),
+    ],
   )
 }
 
@@ -69,11 +79,13 @@ function toEntry(row: ActivityRow): ActivityLogEntry {
   }
 }
 
-export async function list(filters: ActivityQuery): Promise<PaginatedActivity> {
+export async function list(filters: ActivityQuery, scope: ClinicScope): Promise<PaginatedActivity> {
   const page = filters.page ?? 1
   const limit = filters.limit ?? 50
   const where: string[] = []
   const params: unknown[] = []
+  where.push(`a.clinic_id = $${params.length + 1}`)
+  params.push(scope.clinicId)
   if (filters.action !== undefined) {
     params.push(filters.action)
     where.push(`a.action = $${params.length}`)

@@ -5,11 +5,27 @@ import { generateRefreshToken, hashToken } from '../lib/token'
 
 describe('jwt', () => {
   it('round-trips the payload', () => {
-    const t = signAccessToken({ sub: 7, role: 'doctor' })
+    const t = signAccessToken({ sub: 7, role: 'doctor', clinicId: 10 })
     const p = verifyAccessToken(t)
     expect(p.sub).toBe(7)
     expect(p.role).toBe('doctor')
+    expect(p.clinicId).toBe(10)
   })
+
+  it('round-trips a manager token with clinicId null', () => {
+    const t = signAccessToken({ sub: 5, role: 'manager', clinicId: null })
+    const p = verifyAccessToken(t)
+    expect(p.role).toBe('manager')
+    expect(p.clinicId).toBeNull()
+  })
+
+  it('rejects pre-multi-clinic tokens without the clinicId claim', () => {
+    const t = jwt.sign({ sub: 1, role: 'doctor' }, env.JWT_ACCESS_SECRET, {
+      algorithm: 'HS256',
+    })
+    expect(() => verifyAccessToken(t)).toThrow()
+  })
+
 
   it('rejects a token signed with a different secret', () => {
     const t = jwt.sign({ sub: 1, role: 'doctor' }, 'wrong-secret')

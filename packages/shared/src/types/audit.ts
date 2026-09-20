@@ -22,6 +22,7 @@ export interface ActivityLogEntry {
 export interface ActivityQuery {
   action?: ActivityAction
   userId?: number
+  clinicId?: number
   from?: string
   to?: string
   page?: number

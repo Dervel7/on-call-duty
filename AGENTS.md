@@ -42,9 +42,9 @@ packages/
   shared/     Shared TS types + Zod schemas (@oncall/shared)
   utils/      Zero-dependency pure helpers: date, csv, env (@oncall/utils)
 database/
-  schema.sql  Idempotent DDL (single file, no migration runner)
-  seed.sql    Idempotent seed data
-  scripts/    setup-db.ts (schema + seed), seed-only.ts
+  schema.sql  Idempotent DDL, single file, no migration runner (multi-clinic baseline)
+  seeds/      single-clinic.seed.sql, multi-clinic.seed.sql
+  scripts/    seed.ts (reset + schema + chosen seed)
 docs/
   superpowers/specs/   Design docs: YYYY-MM-DD-<topic>-design.md
   superpowers/plans/   Implementation plans: YYYY-MM-DD-<topic>-plan.md
@@ -65,8 +65,8 @@ Run from the repository root:
 | `pnpm typecheck` | Typecheck all packages |
 | `pnpm lint` | Lint all packages |
 | `pnpm test` | Run all tests |
-| `pnpm db:setup` | Apply schema + seed |
-| `pnpm db:seed` | Re-apply seed data only |
+| `pnpm db:seed:single` | Reset DB, apply schema + single-clinic seed |
+| `pnpm db:seed:multi` | Reset DB, apply schema + multi-clinic (6-clinic) seed |
 
 Per workspace: `pnpm --filter @oncall/api <script>` (same for `@oncall/web`, `@oncall/shared`, `@oncall/utils`).
 
@@ -91,10 +91,10 @@ Per workspace: `pnpm --filter @oncall/api <script>` (same for `@oncall/web`, `@o
 
 ### Database
 - Normalized schema in a single idempotent `database/schema.sql` (`CREATE TABLE IF NOT EXISTS` + inline `ALTER TABLE ... IF NOT EXISTS` for evolutions). There is no migration runner — never introduce one.
-- Seed scripts required (`database/seed.sql`, idempotent upserts).
+- Seed scripts required (`database/seeds/*.seed.sql`, idempotent upserts; `pnpm db:seed:single` / `pnpm db:seed:multi` reset the target database first).
 - Parameterized queries only — never concatenate SQL.
 - Indexes on frequently queried columns (`idx_<table>_<cols>` naming).
-- Tables: `app_meta`, `users`, `refresh_tokens`, `doctors`, `unavailability`, `schedules`, `duties`.
+- Tables: `app_meta`, `clinics`, `users`, `refresh_tokens`, `doctors`, `unavailability`, `schedules`, `duties`.
 
 ## Architecture Rules
 

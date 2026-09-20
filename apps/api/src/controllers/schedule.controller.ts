@@ -2,12 +2,16 @@ import type { NextFunction, Request, Response } from 'express'
 import type { ScheduleQuery } from '@oncall/shared'
 import { ok } from '../lib/envelope'
 import { HttpError } from '../lib/http-error'
+import { resolveClinicScope } from '../lib/scope'
 import * as scheduleService from '../services/schedule.service'
 
 export const scheduleController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const schedules = await scheduleService.list(req.query as ScheduleQuery, req.user)
+      // req.query is typed by validate(scheduleQuerySchema) upstream.
+      const { clinicId, ...filters } = req.query as ScheduleQuery & { clinicId?: number }
+      const scope = resolveClinicScope(req.user!, clinicId)
+      const schedules = await scheduleService.list(filters, req.user, scope)
       res.status(200).json(ok({ schedules }))
     } catch (err) {
       next(err)
@@ -23,7 +27,10 @@ export const scheduleController = {
   },
   async preview(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await scheduleService.preview(req.body.year, req.body.month)
+      // req.query is typed by validate(scheduleQuerySchema) upstream.
+      const { clinicId } = req.query as { clinicId?: number }
+      const scope = resolveClinicScope(req.user!, clinicId)
+      const result = await scheduleService.preview(req.body.year, req.body.month, scope)
       res.status(200).json(ok(result))
     } catch (err) {
       next(err)
@@ -32,10 +39,14 @@ export const scheduleController = {
   async generate(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new HttpError(401, 'Unauthorized')
+      // req.query is typed by validate(scheduleQuerySchema) upstream.
+      const { clinicId } = req.query as { clinicId?: number }
+      const scope = resolveClinicScope(req.user!, clinicId)
       const detail = await scheduleService.generate(
         req.body.year,
         req.body.month,
         req.user,
+        scope,
         req.body.assignments,
       )
       res.status(201).json(ok(detail))

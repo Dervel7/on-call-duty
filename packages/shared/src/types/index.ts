@@ -48,6 +48,7 @@ export type {
   MeStats,
 } from './stats'
 export type { ReportQuery, MonthlyReport } from './reports'
+export type { Clinic, CreateClinicRequest, UpdateClinicRequest } from './clinic'
 export type { BillingState, PaymentAlert, UpdateBillingRequest } from './settings'
 export * from './usage'
 export type {

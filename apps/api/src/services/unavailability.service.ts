@@ -9,9 +9,10 @@ import type {
 } from '@oncall/shared'
 import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
+import type { ClinicScope } from '../lib/scope'
 import { recordActivity } from './activity.service'
 
-type Actor = Pick<AuthUser, 'id' | 'role'>
+type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 
 interface UnavailabilityRow {
   id: number
@@ -61,15 +62,36 @@ async function getById(id: number): Promise<Unavailability> {
   return toUnavailability(row)
 }
 
-async function assertOwns(recordDoctorId: number, actor: Actor): Promise<void> {
-  if (actor.role === 'administrator' || actor.role === 'superadmin') return
+/**
+ * Manager never modifies availability (403, D5). administrator must reach a
+ * record of their own clinic (404, existence hidden). doctor owns the record.
+ */
+async function assertCanModify(recordDoctorId: number, actor: Actor): Promise<void> {
+  if (actor.role === 'manager') throw new HttpError(403, 'Forbidden')
+  if (actor.role === 'superadmin') return
+  if (actor.role === 'administrator') {
+    if (actor.clinicId === null) throw new HttpError(403, 'Forbidden')
+    const res = await query(`SELECT 1 FROM doctors WHERE id = $1 AND clinic_id = $2`, [
+      recordDoctorId,
+      actor.clinicId,
+    ])
+    if (res.rows.length === 0) throw new HttpError(404, 'Unavailability record not found')
+    return
+  }
   const ownDoctorId = await resolveDoctorId(actor.id)
   if (ownDoctorId !== recordDoctorId) throw new HttpError(403, 'Forbidden')
 }
 
-export async function listAll(filters: UnavailabilityQuery = {}): Promise<Unavailability[]> {
+export async function listAll(
+  filters: UnavailabilityQuery = {},
+  scope?: ClinicScope,
+): Promise<Unavailability[]> {
   const where: string[] = []
   const params: unknown[] = []
+  if (scope !== undefined) {
+    params.push(scope.clinicId)
+    where.push(`d.clinic_id = $${params.length}`)
+  }
   if (filters.doctorId !== undefined) {
     params.push(filters.doctorId)
     where.push(`x.doctor_id = $${params.length}`)
@@ -101,13 +123,19 @@ export async function create(
   doctorId: number,
   input: CreateInput,
   actor: Actor,
+  scope?: ClinicScope,
 ): Promise<Unavailability> {
   const id = await withTransaction(async (client) => {
-    const lock = await client.query(
-      'SELECT 1 FROM doctors d JOIN users u ON u.id = d.user_id WHERE d.id = $1 AND u.is_deleted = FALSE FOR UPDATE OF d',
-      [doctorId],
+    // With a scope, the target doctor must belong to it (unknown and
+    // cross-clinic doctors are the same 404).
+    const lock = await client.query<{ clinic_id: number }>(
+      `SELECT d.clinic_id FROM doctors d JOIN users u ON u.id = d.user_id
+       WHERE d.id = $1 AND u.is_deleted = FALSE${scope !== undefined ? ' AND d.clinic_id = $2' : ''}
+       FOR UPDATE OF d`,
+      scope !== undefined ? [doctorId, scope.clinicId] : [doctorId],
     )
-    if (lock.rows.length === 0) throw new HttpError(404, 'Doctor not found')
+    const locked = lock.rows[0]
+    if (!locked) throw new HttpError(404, 'Doctor not found')
     const overlap = await client.query(
       'SELECT id FROM unavailability WHERE doctor_id = $1 AND start_date <= $2 AND end_date >= $3',
       [doctorId, input.endDate, input.startDate],
@@ -125,6 +153,7 @@ export async function create(
       action: 'availability.created',
       entityType: 'unavailability',
       entityId: newId,
+      clinicId: locked.clinic_id,
       detail: {
         doctorId,
         type: input.type,
@@ -143,7 +172,7 @@ export async function createOwn(
   input: CreateUnavailabilitySelfRequest,
 ): Promise<Unavailability> {
   const doctorId = await resolveDoctorId(userId)
-  return create(doctorId, input, { id: userId, role: 'doctor' })
+  return create(doctorId, input, { id: userId, role: 'doctor', clinicId: null })
 }
 
 export async function update(
@@ -153,17 +182,19 @@ export async function update(
 ): Promise<Unavailability> {
   const existing = await query<{
     doctor_id: number
+    clinic_id: number
     type: string
     start_date: string
     end_date: string
     note: string | null
   }>(
-    'SELECT doctor_id, type, start_date, end_date, note FROM unavailability WHERE id = $1',
+    `SELECT x.doctor_id, d.clinic_id, x.type, x.start_date, x.end_date, x.note
+     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id WHERE x.id = $1`,
     [id],
   )
   const existingRow = existing.rows[0]
   if (!existingRow) throw new HttpError(404, 'Unavailability record not found')
-  await assertOwns(existingRow.doctor_id, actor)
+  await assertCanModify(existingRow.doctor_id, actor)
 
   await withTransaction(async (client) => {
     await client.query('SELECT 1 FROM doctors WHERE id = $1 FOR UPDATE', [existingRow.doctor_id])
@@ -235,6 +266,7 @@ export async function update(
         action: 'availability.updated',
         entityType: 'unavailability',
         entityId: id,
+        clinicId: existingRow.clinic_id,
         detail: { doctorId: current.doctor_id, before, after },
       })
     }
@@ -245,16 +277,18 @@ export async function update(
 export async function remove(id: number, actor: Actor): Promise<void> {
   const existing = await query<{
     doctor_id: number
+    clinic_id: number
     type: string
     start_date: string
     end_date: string
   }>(
-    'SELECT doctor_id, type, start_date, end_date FROM unavailability WHERE id = $1',
+    `SELECT x.doctor_id, d.clinic_id, x.type, x.start_date, x.end_date
+     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id WHERE x.id = $1`,
     [id],
   )
   const existingRow = existing.rows[0]
   if (!existingRow) throw new HttpError(404, 'Unavailability record not found')
-  await assertOwns(existingRow.doctor_id, actor)
+  await assertCanModify(existingRow.doctor_id, actor)
   await withTransaction(async (client) => {
     const deleted = await client.query('DELETE FROM unavailability WHERE id = $1 RETURNING id', [id])
     if (deleted.rows.length === 0) throw new HttpError(404, 'Unavailability record not found')
@@ -263,6 +297,7 @@ export async function remove(id: number, actor: Actor): Promise<void> {
       action: 'availability.deleted',
       entityType: 'unavailability',
       entityId: id,
+      clinicId: existingRow.clinic_id,
       detail: {
         doctorId: existingRow.doctor_id,
         type: existingRow.type,

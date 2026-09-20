@@ -22,6 +22,9 @@ interface UserRow {
   last_name: string
   is_active: boolean
   dark_mode: boolean
+  clinic_id: number | null
+  clinic_name: string | null
+  clinic_is_active: boolean | null
   created_at: Date
 }
 
@@ -34,14 +37,19 @@ function toAuthUser(row: UserRow): AuthUser {
     firstName: row.first_name,
     lastName: row.last_name,
     darkMode: row.dark_mode,
+    clinicId: row.clinic_id,
+    clinicName: row.clinic_name,
   }
 }
 
-const USER_COLUMNS = `id, email, username, password_hash, role, first_name, last_name, is_active, dark_mode, created_at`
+const USER_COLUMNS = `u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
+  u.is_active, u.dark_mode, u.clinic_id, c.name AS clinic_name, c.is_active AS clinic_is_active,
+  u.created_at`
+const FROM_USERS = `users u LEFT JOIN clinics c ON c.id = u.clinic_id`
 
 async function findUserByEmail(email: string): Promise<UserRow | undefined> {
   const res = await query<UserRow>(
-    `SELECT ${USER_COLUMNS} FROM users WHERE email = $1 AND is_deleted = FALSE`,
+    `SELECT ${USER_COLUMNS} FROM ${FROM_USERS} WHERE u.email = $1 AND u.is_deleted = FALSE`,
     [email],
   )
   return res.rows[0]
@@ -49,7 +57,7 @@ async function findUserByEmail(email: string): Promise<UserRow | undefined> {
 
 async function findUserByUsername(username: string): Promise<UserRow | undefined> {
   const res = await query<UserRow>(
-    `SELECT ${USER_COLUMNS} FROM users WHERE username = $1 AND is_deleted = FALSE`,
+    `SELECT ${USER_COLUMNS} FROM ${FROM_USERS} WHERE u.username = $1 AND u.is_deleted = FALSE`,
     [username],
   )
   return res.rows[0]
@@ -57,11 +65,12 @@ async function findUserByUsername(username: string): Promise<UserRow | undefined
 
 async function findUserById(id: number): Promise<UserRow | undefined> {
   const res = await query<UserRow>(
-    `SELECT ${USER_COLUMNS} FROM users WHERE id = $1 AND is_deleted = FALSE`,
+    `SELECT ${USER_COLUMNS} FROM ${FROM_USERS} WHERE u.id = $1 AND u.is_deleted = FALSE`,
     [id],
   )
   return res.rows[0]
 }
+
 
 export async function login(
   input: LoginRequest,
@@ -73,12 +82,15 @@ export async function login(
   const ok = await bcrypt.compare(input.password, hash)
   if (!row || !ok) throw new HttpError(401, 'Invalid credentials')
   if (!row.is_active) throw new HttpError(403, 'Account disabled')
+  // After password verification: never leak which accounts exist. Users of a
+  // deactivated clinic cannot log in, but the clinic's history stays readable (D10).
+  if (row.clinic_is_active === false) throw new HttpError(403, 'Clinic is deactivated')
   // Lock check after credential/is_active checks so lock state is never
   // leaked to unauthenticated callers.
   if (row.role !== 'superadmin' && (await billingService.isLocked())) {
     throw new HttpError(403, SYSTEM_LOCKED_MESSAGE)
   }
-  const accessToken = signAccessToken({ sub: row.id, role: row.role })
+  const accessToken = signAccessToken({ sub: row.id, role: row.role, clinicId: row.clinic_id })
   const refreshToken = await tokenService.issueRefreshToken(row.id)
   await logActivity({ userId: row.id, action: 'auth.login', entityType: 'auth', entityId: null })
   return { user: toAuthUser(row), accessToken, refreshToken }
@@ -94,7 +106,7 @@ export async function refresh(
   if (row.role !== 'superadmin' && (await billingService.isLocked())) {
     throw new HttpError(403, SYSTEM_LOCKED_MESSAGE)
   }
-  const accessToken = signAccessToken({ sub: row.id, role: row.role })
+  const accessToken = signAccessToken({ sub: row.id, role: row.role, clinicId: row.clinic_id })
   return { user: toAuthUser(row), accessToken, refreshToken: newToken }
 }
 

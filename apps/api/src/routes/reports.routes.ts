@@ -8,5 +8,5 @@ import { reportQuerySchema } from '../validators/reports'
 export const reportsRouter = Router()
 
 reportsRouter.use(authenticate)
-reportsRouter.use(authorize('administrator'))
+reportsRouter.use(authorize('administrator', 'manager'))
 reportsRouter.get('/monthly', validate(reportQuerySchema, 'query'), reportsController.monthly)

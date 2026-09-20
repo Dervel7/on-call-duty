@@ -14,6 +14,7 @@ import type {
 import type { PoolClient } from 'pg'
 import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
+import type { ClinicScope } from '../lib/scope'
 import {
   balanceCap,
   DOCTORS_PER_DAY,
@@ -35,13 +36,15 @@ import type { DoctorSpec, GenerateResult, SchedulingContext } from '../schedulin
 import { recordGeneration } from './usage.service'
 import { recordActivity } from './activity.service'
 
-type Actor = Pick<AuthUser, 'id' | 'role'>
+type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 
 interface ScheduleRow {
   id: number
   year: number
   month: number
   status: string
+  clinic_id: number
+  clinic_name: string
   created_by: number | null
   created_at: Date
   updated_at: Date
@@ -52,6 +55,7 @@ interface DutyRow {
   schedule_id: number
   schedule_year: number
   schedule_month: number
+  schedule_clinic_id: number
   duty_date: string
   doctor_id: number
   first_name: string
@@ -62,12 +66,36 @@ interface DutyRow {
   schedule_status: string
 }
 
-const SELECT_SCHEDULE = `SELECT id, year, month, status, created_by, created_at, updated_at FROM schedules`
+const SELECT_SCHEDULE = `SELECT s.id, s.year, s.month, s.status, s.clinic_id, c.name AS clinic_name,
+  s.created_by, s.created_at, s.updated_at
+  FROM schedules s JOIN clinics c ON c.id = s.clinic_id`
 const SELECT_DUTY = `SELECT du.id, du.schedule_id, du.duty_date, du.doctor_id, du.is_weekend,
   du.reason, du.created_at, u.first_name, u.last_name,
-  s.status AS schedule_status, s.year AS schedule_year, s.month AS schedule_month
+  s.status AS schedule_status, s.year AS schedule_year, s.month AS schedule_month,
+  s.clinic_id AS schedule_clinic_id
   FROM duties du JOIN doctors d ON d.id = du.doctor_id JOIN users u ON u.id = d.user_id
   JOIN schedules s ON s.id = du.schedule_id`
+
+/**
+ * Object-level access: administrator/doctor may only reach schedules of their
+ * own clinic (mismatch → 404, existence hidden); manager and superadmin pass.
+ */
+function assertScheduleVisible(row: ScheduleRow, actor: Actor | undefined): void {
+  if (
+    actor &&
+    (actor.role === 'administrator' || actor.role === 'doctor') &&
+    row.clinic_id !== actor.clinicId
+  ) {
+    throw new HttpError(404, 'Schedule not found')
+  }
+}
+
+async function selectScheduleRow(id: number): Promise<ScheduleRow> {
+  const res = await query<ScheduleRow>(`${SELECT_SCHEDULE} WHERE s.id = $1`, [id])
+  const row = res.rows[0]
+  if (!row) throw new HttpError(404, 'Schedule not found')
+  return row
+}
 
 function toSchedule(row: ScheduleRow): ScheduleSummary {
   return {
@@ -75,6 +103,8 @@ function toSchedule(row: ScheduleRow): ScheduleSummary {
     year: row.year,
     month: row.month,
     status: row.status as ScheduleStatus,
+    clinicId: row.clinic_id,
+    clinicName: row.clinic_name,
     createdBy: row.created_by,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -99,7 +129,15 @@ function monthBounds(year: number, month: number): { first: string; last: string
   return { first: isoDate(year, month, 1), last: isoDate(year, month, daysInMonth(year, month)) }
 }
 
-async function buildContext(year: number, month: number): Promise<SchedulingContext> {
+/**
+ * Doctor pool, unavailability and adjacency seeds are all clinic-scoped (§2.6):
+ * clinics never interact — a duty in one clinic must not constrain another.
+ */
+async function buildContext(
+  year: number,
+  month: number,
+  clinicId: number,
+): Promise<SchedulingContext> {
   const { first, last } = monthBounds(year, month)
 
   const dr = await query<{
@@ -110,7 +148,8 @@ async function buildContext(year: number, month: number): Promise<SchedulingCont
   }>(
     `SELECT d.id, d.max_monthly_duties, u.first_name, u.last_name
      FROM doctors d JOIN users u ON u.id = d.user_id
-     WHERE u.is_active = TRUE ORDER BY d.id`,
+     WHERE u.is_active = TRUE AND d.clinic_id = $1 ORDER BY d.id`,
+    [clinicId],
   )
   const doctors: DoctorSpec[] = dr.rows.map((r) => ({
     id: r.id,
@@ -121,9 +160,10 @@ async function buildContext(year: number, month: number): Promise<SchedulingCont
   }))
 
   const ures = await query<{ doctor_id: number; start_date: string; end_date: string }>(
-    `SELECT doctor_id, start_date, end_date FROM unavailability
-     WHERE start_date <= $1 AND end_date >= $2`,
-    [last, first],
+    `SELECT x.doctor_id, x.start_date, x.end_date FROM unavailability x
+     JOIN doctors d ON d.id = x.doctor_id
+     WHERE d.clinic_id = $1 AND x.start_date <= $2 AND x.end_date >= $3`,
+    [clinicId, last, first],
   )
   const unavailability = new Map<number, Array<{ start: string; end: string }>>()
   for (const r of ures.rows) {
@@ -139,10 +179,13 @@ async function buildContext(year: number, month: number): Promise<SchedulingCont
     days.push({ date, dayOfWeek: dayOfWeekISO(date), isWeekend: isWeekendISO(date) })
   }
 
+  // Adjacency seeds read duties through the schedule's clinic (§2.6.1).
   const firstDayPrev = prevDate(first)
-  const pres = await query<{ doctor_id: number }>(`SELECT doctor_id FROM duties WHERE duty_date = $1`, [
-    firstDayPrev,
-  ])
+  const pres = await query<{ doctor_id: number }>(
+    `SELECT du.doctor_id FROM duties du JOIN schedules s ON s.id = du.schedule_id
+     WHERE du.duty_date = $1 AND s.clinic_id = $2`,
+    [firstDayPrev, clinicId],
+  )
   const priorDayDoctorIds = new Set(pres.rows.map((r) => r.doctor_id))
 
   return { year, month, days, doctors, unavailability, priorDayDoctorIds }
@@ -203,23 +246,31 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
 /**
  * Seed the adjacency map with duties from the days just outside the month so
  * day-1 / last-day eligibility respects back-to-back across month boundaries.
+ * Reads go through the clinic-scoped duty join (§2.6.1).
  */
 async function seedAdjacentDuties(
   dutiesByDate: Map<string, Set<number>>,
   ctx: SchedulingContext,
+  clinicId: number,
 ): Promise<void> {
   const first = ctx.days[0]?.date
   const last = ctx.days.at(-1)?.date
   if (!first || !last) return
   dutiesByDate.set(prevDate(first), new Set(ctx.priorDayDoctorIds))
-  const res = await query<{ doctor_id: number }>(`SELECT doctor_id FROM duties WHERE duty_date = $1`, [
-    nextDate(last),
-  ])
+  const res = await query<{ doctor_id: number }>(
+    `SELECT du.doctor_id FROM duties du JOIN schedules s ON s.id = du.schedule_id
+     WHERE du.duty_date = $1 AND s.clinic_id = $2`,
+    [nextDate(last), clinicId],
+  )
   dutiesByDate.set(nextDate(last), new Set(res.rows.map((r) => r.doctor_id)))
 }
 
-export async function preview(year: number, month: number): Promise<PreviewResult> {
-  const ctx = await buildContext(year, month)
+export async function preview(
+  year: number,
+  month: number,
+  scope: ClinicScope,
+): Promise<PreviewResult> {
+  const ctx = await buildContext(year, month, scope.clinicId)
   const result = runEngine(ctx)
   const dutiesByDate = new Map<string, Set<number>>()
   const dutyCountByDoctor = new Map<number, number>()
@@ -234,7 +285,7 @@ export async function preview(year: number, month: number): Promise<PreviewResul
     if (dow === 6) saturdayByDoctor.set(a.doctorId, (saturdayByDoctor.get(a.doctorId) ?? 0) + 1)
     if (dow === 0) sundayByDoctor.set(a.doctorId, (sundayByDoctor.get(a.doctorId) ?? 0) + 1)
   }
-  await seedAdjacentDuties(dutiesByDate, ctx)
+  await seedAdjacentDuties(dutiesByDate, ctx, scope.clinicId)
   const days = computeEligibility({
     doctors: ctx.doctors,
     unavailability: ctx.unavailability,
@@ -258,16 +309,19 @@ export async function generate(
   year: number,
   month: number,
   actor: Actor,
+  scope: ClinicScope,
   assignments?: GenerateAssignment[],
 ): Promise<ScheduleDetail> {
-  const exists = await query('SELECT id FROM schedules WHERE year = $1 AND month = $2', [
-    year,
-    month,
-  ])
+  // Uniqueness is per clinic (D6): another clinic's schedule for the same
+  // month must not block this one.
+  const exists = await query(
+    'SELECT id FROM schedules WHERE year = $1 AND month = $2 AND clinic_id = $3',
+    [year, month, scope.clinicId],
+  )
   if (exists.rows.length > 0)
     throw new HttpError(409, 'Schedule already exists for this month; delete it first')
 
-  const ctx = await buildContext(year, month)
+  const ctx = await buildContext(year, month, scope.clinicId)
 
   const planDuties =
     assignments && assignments.length > 0
@@ -276,8 +330,9 @@ export async function generate(
 
   const scheduleId = await withTransaction(async (client) => {
     const ins = await client.query<{ id: number }>(
-      `INSERT INTO schedules (year, month, status, created_by) VALUES ($1, $2, 'draft', $3) RETURNING id`,
-      [year, month, actor.id],
+      `INSERT INTO schedules (clinic_id, year, month, status, created_by)
+       VALUES ($1, $2, $3, 'draft', $4) RETURNING id`,
+      [scope.clinicId, year, month, actor.id],
     )
     const id = ins.rows[0]?.id
     if (id === undefined) throw new HttpError(500, 'Failed to create schedule')
@@ -289,12 +344,13 @@ export async function generate(
       )
     }
     const doctorIds = [...new Set(planDuties.map((d) => d.doctorId))]
-    await recordGeneration(client, year, month, doctorIds)
+    await recordGeneration(client, scope.clinicId, year, month, doctorIds)
     await recordActivity(client, {
       userId: actor.id,
       action: 'schedule.generated',
       entityType: 'schedule',
       entityId: id,
+      clinicId: scope.clinicId,
       detail: {
         year,
         month,
@@ -418,35 +474,40 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
 export async function list(
   filters: ScheduleQuery = {},
   actor?: Actor,
+  scope?: ClinicScope,
 ): Promise<ScheduleSummary[]> {
   const where: string[] = []
   const params: unknown[] = []
-  if (actor && actor.role !== 'administrator' && actor.role !== 'superadmin') {
+  if (scope !== undefined) {
+    params.push(scope.clinicId)
+    where.push(`s.clinic_id = $${params.length}`)
+  }
+  if (actor && actor.role === 'doctor') {
     params.push('published')
-    where.push(`status = $${params.length}`)
+    where.push(`s.status = $${params.length}`)
   }
   if (filters.year !== undefined) {
     params.push(filters.year)
-    where.push(`year = $${params.length}`)
+    where.push(`s.year = $${params.length}`)
   }
   if (filters.month !== undefined) {
     params.push(filters.month)
-    where.push(`month = $${params.length}`)
+    where.push(`s.month = $${params.length}`)
   }
   const sql =
     where.length > 0
-      ? `${SELECT_SCHEDULE} WHERE ${where.join(' AND ')} ORDER BY year DESC, month DESC`
-      : `${SELECT_SCHEDULE} ORDER BY year DESC, month DESC`
+      ? `${SELECT_SCHEDULE} WHERE ${where.join(' AND ')} ORDER BY s.year DESC, s.month DESC`
+      : `${SELECT_SCHEDULE} ORDER BY s.year DESC, s.month DESC`
   const res = await query<ScheduleRow>(sql, params)
   return res.rows.map(toSchedule)
 }
 
 export async function getScheduleDuties(
   id: number,
+  actor?: Actor,
 ): Promise<{ schedule: ScheduleSummary; duties: Duty[] }> {
-  const sres = await query<ScheduleRow>(`${SELECT_SCHEDULE} WHERE id = $1`, [id])
-  const schedule = sres.rows[0]
-  if (!schedule) throw new HttpError(404, 'Schedule not found')
+  const schedule = await selectScheduleRow(id)
+  assertScheduleVisible(schedule, actor)
   const dres = await query<DutyRow>(
     `${SELECT_DUTY} WHERE du.schedule_id = $1 ORDER BY du.duty_date, du.id`,
     [id],
@@ -455,7 +516,7 @@ export async function getScheduleDuties(
 }
 
 export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail> {
-  const { schedule, duties } = await getScheduleDuties(id)
+  const { schedule, duties } = await getScheduleDuties(id, actor)
   const isAdmin = actor?.role === 'administrator' || actor?.role === 'superadmin'
   if (actor && !isAdmin && schedule.status !== 'published') {
     throw new HttpError(403, 'Schedule not published')
@@ -475,7 +536,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     }
     return { schedule, duties, days }
   }
-  const ctx = await buildContext(schedule.year, schedule.month)
+  const ctx = await buildContext(schedule.year, schedule.month, schedule.clinicId)
   const dutiesByDate = new Map<string, Set<number>>()
   const dutyCountByDoctor = new Map<number, number>()
   const saturdayByDoctor = new Map<number, number>()
@@ -489,7 +550,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     if (dow === 6) saturdayByDoctor.set(d.doctorId, (saturdayByDoctor.get(d.doctorId) ?? 0) + 1)
     if (dow === 0) sundayByDoctor.set(d.doctorId, (sundayByDoctor.get(d.doctorId) ?? 0) + 1)
   }
-  await seedAdjacentDuties(dutiesByDate, ctx)
+  await seedAdjacentDuties(dutiesByDate, ctx, schedule.clinicId)
   const days = computeEligibility({
     doctors: ctx.doctors,
     unavailability: ctx.unavailability,
@@ -503,15 +564,9 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
 }
 
 export async function remove(id: number, actor: Actor): Promise<void> {
-  const existing = await query<{ year: number; month: number; status: string }>(
-    'SELECT year, month, status FROM schedules WHERE id = $1',
-    [id],
-  )
-  if (existing.rows.length === 0) throw new HttpError(404, 'Schedule not found')
-  assertEditable(
-    existing.rows[0]!.status,
-    'Schedule is published; revert to draft before deleting',
-  )
+  const existing = await selectScheduleRow(id)
+  assertScheduleVisible(existing, actor)
+  assertEditable(existing.status, 'Schedule is published; revert to draft before deleting')
   await withTransaction(async (client) => {
     // Re-check under lock: a concurrent publish must not be deletable.
     await lockScheduleForEdit(client, id)
@@ -521,7 +576,8 @@ export async function remove(id: number, actor: Actor): Promise<void> {
       action: 'schedule.deleted',
       entityType: 'schedule',
       entityId: id,
-      detail: { year: existing.rows[0]!.year, month: existing.rows[0]!.month },
+      clinicId: existing.clinic_id,
+      detail: { year: existing.year, month: existing.month },
     })
   })
 }
@@ -537,8 +593,16 @@ async function getDutyById(id: number): Promise<Duty> {
   return toDuty(await getDutyRow(id))
 }
 
+/** Assert the duty's schedule is visible to the actor, returning the row. */
+async function getVisibleDuty(dutyId: number, actor: Actor): Promise<DutyRow> {
+  const duty = await getDutyRow(dutyId)
+  const schedule = await selectScheduleRow(duty.schedule_id)
+  assertScheduleVisible(schedule, actor)
+  return duty
+}
+
 /** ±1 balance caps for one schedule month, computed like the engine does. */
-async function monthCaps(year: number, month: number) {
+async function monthCaps(year: number, month: number, clinicId: number) {
   const total = daysInMonth(year, month)
   let saturdays = 0
   let sundays = 0
@@ -548,7 +612,9 @@ async function monthCaps(year: number, month: number) {
     else if (dow === 0) sundays++
   }
   const active = await query<{ n: number }>(
-    `SELECT COUNT(*)::int AS n FROM doctors d JOIN users u ON u.id = d.user_id WHERE u.is_active = TRUE`,
+    `SELECT COUNT(*)::int AS n FROM doctors d JOIN users u ON u.id = d.user_id
+     WHERE u.is_active = TRUE AND d.clinic_id = $1`,
+    [clinicId],
   )
   const activeCount = active.rows[0]?.n ?? 0
   return {
@@ -559,15 +625,19 @@ async function monthCaps(year: number, month: number) {
 
 async function validateAssignment(
   scheduleId: number,
+  clinicId: number,
   doctorId: number,
   date: string,
   excludeDutyId: number | null,
   year: number,
   month: number,
 ): Promise<void> {
+  // The doctor must belong to the schedule's clinic: unknown and cross-clinic
+  // doctors are the same 404 (isolation I9).
   const dr = await query<{ max_monthly_duties: number; is_active: boolean }>(
-    `SELECT d.max_monthly_duties, u.is_active FROM doctors d JOIN users u ON u.id = d.user_id WHERE d.id = $1`,
-    [doctorId],
+    `SELECT d.max_monthly_duties, u.is_active FROM doctors d JOIN users u ON u.id = d.user_id
+     WHERE d.id = $1 AND d.clinic_id = $2`,
+    [doctorId, clinicId],
   )
   const doctor = dr.rows[0]
   if (!doctor) throw new HttpError(404, 'Doctor not found')
@@ -603,7 +673,7 @@ async function validateAssignment(
   if ((dupRes.rows[0]?.n ?? 0) > 0)
     throw new HttpError(409, 'Constraint violation: doctor already assigned to this date')
 
-  const caps = await monthCaps(year, month)
+  const caps = await monthCaps(year, month, clinicId)
   const dow = dayOfWeekISO(date)
   if (dow === 6 || dow === 0) {
     const wkRes = await query<{ n: number }>(
@@ -617,11 +687,14 @@ async function validateAssignment(
       throw new HttpError(409, `Constraint violation: ${dow === 6 ? 'saturday' : 'sunday'} balance cap reached`)
   }
 
+  // Neighbor check goes through the schedule's clinic (§2.6.1): another
+  // clinic's duty never blocks this doctor (isolation I11).
   const prev = prevDate(date)
   const next = nextDate(date)
   const nb = await query<{ doctor_id: number }>(
-    `SELECT doctor_id FROM duties WHERE duty_date IN ($1, $2)`,
-    [prev, next],
+    `SELECT du.doctor_id FROM duties du JOIN schedules s ON s.id = du.schedule_id
+     WHERE du.duty_date IN ($1, $2) AND s.clinic_id = $3`,
+    [prev, next, clinicId],
   )
   const onDutyAdjacent = nb.rows.some((r) => r.doctor_id === doctorId)
   if (!notConsecutive(onDutyAdjacent).ok)
@@ -649,9 +722,8 @@ export async function addDuty(
   input: CreateDutyRequest,
   actor: Actor,
 ): Promise<Duty> {
-  const sres = await query<ScheduleRow>(`${SELECT_SCHEDULE} WHERE id = $1`, [scheduleId])
-  const schedule = sres.rows[0]
-  if (!schedule) throw new HttpError(404, 'Schedule not found')
+  const schedule = await selectScheduleRow(scheduleId)
+  assertScheduleVisible(schedule, actor)
   if (!inMonth(input.date, schedule.year, schedule.month))
     throw new HttpError(400, 'Date is outside this schedule month')
 
@@ -664,7 +736,15 @@ export async function addDuty(
   if ((existing.rows[0]?.n ?? 0) >= DOCTORS_PER_DAY)
     throw new HttpError(409, 'Both on-call slots for this date are already filled')
 
-  await validateAssignment(scheduleId, input.doctorId, input.date, null, schedule.year, schedule.month)
+  await validateAssignment(
+    scheduleId,
+    schedule.clinic_id,
+    input.doctorId,
+    input.date,
+    null,
+    schedule.year,
+    schedule.month,
+  )
 
   const reason = `manual override by admin #${actor.id}`
   const id = await withTransaction(async (client) => {
@@ -681,6 +761,7 @@ export async function addDuty(
       action: 'duty.assigned',
       entityType: 'duty',
       entityId: newId,
+      clinicId: schedule.clinic_id,
       detail: { scheduleId, date: input.date, doctorId: input.doctorId },
     })
     return newId
@@ -693,10 +774,11 @@ export async function reassignDuty(
   input: ReassignDutyRequest,
   actor: Actor,
 ): Promise<Duty> {
-  const duty = await getDutyRow(dutyId)
+  const duty = await getVisibleDuty(dutyId, actor)
   assertEditable(duty.schedule_status)
   await validateAssignment(
     duty.schedule_id,
+    duty.schedule_clinic_id,
     input.doctorId,
     duty.duty_date,
     dutyId,
@@ -716,6 +798,7 @@ export async function reassignDuty(
       action: 'duty.reassigned',
       entityType: 'duty',
       entityId: dutyId,
+      clinicId: duty.schedule_clinic_id,
       detail: {
         scheduleId: duty.schedule_id,
         date: duty.duty_date,
@@ -728,7 +811,7 @@ export async function reassignDuty(
 }
 
 export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
-  const duty = await getDutyRow(dutyId)
+  const duty = await getVisibleDuty(dutyId, actor)
   assertEditable(duty.schedule_status)
   await withTransaction(async (client) => {
     await lockScheduleForEdit(client, duty.schedule_id)
@@ -738,67 +821,58 @@ export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
       action: 'duty.removed',
       entityType: 'duty',
       entityId: dutyId,
+      clinicId: duty.schedule_clinic_id,
       detail: { scheduleId: duty.schedule_id, date: duty.duty_date, doctorId: duty.doctor_id },
     })
   })
 }
 
 export async function publish(id: number, actor: Actor): Promise<ScheduleSummary> {
-  const row = await withTransaction(async (client) => {
-    const upd = await client.query<ScheduleRow>(
+  const existing = await selectScheduleRow(id)
+  assertScheduleVisible(existing, actor)
+  await withTransaction(async (client) => {
+    const upd = await client.query(
       `UPDATE schedules SET status = 'published', updated_at = NOW()
-       WHERE id = $1 AND status = 'draft'
-       RETURNING id, year, month, status, created_by, created_at, updated_at`,
+       WHERE id = $1 AND status = 'draft' RETURNING id`,
       [id],
     )
-    const updated = upd.rows[0]
-    if (!updated) return null
+    if (upd.rows.length === 0) throw new HttpError(409, 'Schedule is already published')
     const duties = await client.query<{ n: number }>(
       'SELECT COUNT(DISTINCT duty_date)::int AS n FROM duties WHERE schedule_id = $1',
       [id],
     )
-    if ((duties.rows[0]?.n ?? 0) < daysInMonth(updated.year, updated.month))
+    if ((duties.rows[0]?.n ?? 0) < daysInMonth(existing.year, existing.month))
       throw new HttpError(409, 'Schedule is incomplete; every day needs at least one duty before publishing')
     await recordActivity(client, {
       userId: actor.id,
       action: 'schedule.published',
       entityType: 'schedule',
       entityId: id,
-      detail: { year: updated.year, month: updated.month, dutyCount: duties.rows[0]?.n ?? 0 },
+      clinicId: existing.clinic_id,
+      detail: { year: existing.year, month: existing.month, dutyCount: duties.rows[0]?.n ?? 0 },
     })
-    return updated
   })
-  if (!row) {
-    const found = await query('SELECT 1 FROM schedules WHERE id = $1', [id])
-    if (found.rows.length === 0) throw new HttpError(404, 'Schedule not found')
-    throw new HttpError(409, 'Schedule is already published')
-  }
-  return toSchedule(row)
+  return toSchedule(await selectScheduleRow(id))
 }
 
 export async function unpublish(id: number, actor: Actor): Promise<ScheduleSummary> {
-  const row = await withTransaction(async (client) => {
-    const upd = await client.query<ScheduleRow>(
+  const existing = await selectScheduleRow(id)
+  assertScheduleVisible(existing, actor)
+  await withTransaction(async (client) => {
+    const upd = await client.query(
       `UPDATE schedules SET status = 'draft', updated_at = NOW()
-       WHERE id = $1 AND status = 'published'
-       RETURNING id, year, month, status, created_by, created_at, updated_at`,
+       WHERE id = $1 AND status = 'published' RETURNING id`,
       [id],
     )
-    const updated = upd.rows[0]
-    if (!updated) return null
+    if (upd.rows.length === 0) throw new HttpError(409, 'Schedule is already draft')
     await recordActivity(client, {
       userId: actor.id,
       action: 'schedule.reverted',
       entityType: 'schedule',
       entityId: id,
-      detail: { year: updated.year, month: updated.month },
+      clinicId: existing.clinic_id,
+      detail: { year: existing.year, month: existing.month },
     })
-    return updated
   })
-  if (!row) {
-    const found = await query('SELECT 1 FROM schedules WHERE id = $1', [id])
-    if (found.rows.length === 0) throw new HttpError(404, 'Schedule not found')
-    throw new HttpError(409, 'Schedule is already draft')
-  }
-  return toSchedule(row)
+  return toSchedule(await selectScheduleRow(id))
 }
