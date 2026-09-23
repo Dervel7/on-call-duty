@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  activityQuerySchema,
   changePasswordSchema,
+  createClinicSchema,
   createDutySchema,
   createScheduleSchema,
   createUserSchema,
@@ -10,6 +12,9 @@ import {
   reassignDutySchema,
   roleSchema,
   scheduleQuerySchema,
+  statsQuerySchema,
+  reportQuerySchema,
+  updateClinicSchema,
   updateUserSchema,
   updateThemeSchema,
   usernameSchema,
@@ -69,9 +74,11 @@ describe('auth schemas', () => {
     ).toBe(true)
   })
 
-  it('roleSchema rejects unknown roles', () => {
+  it('roleSchema rejects unknown roles and accepts manager', () => {
     expect(roleSchema.safeParse('nurse').success).toBe(false)
     expect(roleSchema.safeParse('doctor').success).toBe(true)
+    expect(roleSchema.safeParse('manager').success).toBe(true)
+    expect(roleSchema.safeParse('superadmin').success).toBe(true)
   })
 
   it('updateUserSchema accepts partial updates', () => {
@@ -230,5 +237,39 @@ describe('billing schemas', () => {
     expect(updateBillingSchema.safeParse({ paidThrough: '2026-12-31' }).success).toBe(true)
     expect(updateBillingSchema.safeParse({ paidThrough: '2026-02-30' }).success).toBe(false)
     expect(updateBillingSchema.safeParse({ paidThrough: 'oops' }).success).toBe(false)
+  })
+})
+
+describe('clinic schemas and clinicId query params', () => {
+  it('scheduleQuerySchema coerces clinicId and rejects 0, -1 and non-numbers', () => {
+    const ok = scheduleQuerySchema.safeParse({ clinicId: '3' })
+    expect(ok.success).toBe(true)
+    if (ok.success) expect(ok.data.clinicId).toBe(3)
+    expect(scheduleQuerySchema.safeParse({ clinicId: 0 }).success).toBe(false)
+    expect(scheduleQuerySchema.safeParse({ clinicId: -1 }).success).toBe(false)
+    expect(scheduleQuerySchema.safeParse({ clinicId: 'abc' }).success).toBe(false)
+  })
+
+  it('activityQuerySchema, statsQuerySchema and reportQuerySchema accept clinicId', () => {
+    for (const schema of [activityQuerySchema, statsQuerySchema, reportQuerySchema]) {
+      expect(schema.safeParse({ clinicId: '2' }).success).toBe(true)
+      expect(schema.safeParse({ clinicId: -1 }).success).toBe(false)
+    }
+  })
+
+  it('createClinicSchema enforces trimmed 2-80 char names', () => {
+    expect(createClinicSchema.safeParse({ name: 'Radiology' }).success).toBe(true)
+    expect(createClinicSchema.safeParse({ name: 'x' }).success).toBe(false)
+    expect(createClinicSchema.safeParse({ name: '' }).success).toBe(false)
+    expect(createClinicSchema.safeParse({ name: 'a'.repeat(81) }).success).toBe(false)
+    const trimmed = createClinicSchema.safeParse({ name: '  Cardiology  ' })
+    expect(trimmed.success).toBe(true)
+    if (trimmed.success) expect(trimmed.data.name).toBe('Cardiology')
+  })
+
+  it('updateClinicSchema requires at least one field', () => {
+    expect(updateClinicSchema.safeParse({}).success).toBe(false)
+    expect(updateClinicSchema.safeParse({ name: 'Neurology' }).success).toBe(true)
+    expect(updateClinicSchema.safeParse({ isActive: false }).success).toBe(true)
   })
 })

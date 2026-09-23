@@ -13,8 +13,8 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "db:setup": "tsx database/scripts/setup-db.ts",
-    "db:seed": "tsx database/scripts/seed-only.ts"
+    "db:seed:single": "tsx database/scripts/seed.ts single-clinic",
+    "db:seed:multi": "tsx database/scripts/seed.ts multi-clinic"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

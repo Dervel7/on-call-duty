@@ -26,6 +26,7 @@ const { compare, hash } = vi.hoisted(() => ({
 vi.mock('bcrypt', () => ({ default: { compare, hash } }))
 
 import bcrypt from 'bcrypt'
+import { signAccessToken } from '../lib/jwt'
 import * as tokenService from '../services/token.service'
 import { changePassword, getUser, login, logout, refresh } from '../services/auth.service'
 
@@ -42,6 +43,9 @@ function userRow(overrides: Partial<Record<string, unknown>> = {}) {
     last_name: 'Administrator',
     is_active: true,
     dark_mode: false,
+    clinic_id: 1,
+    clinic_name: 'Radiology',
+    clinic_is_active: true,
     created_at: new Date('2026-01-01'),
     ...overrides,
   }
@@ -77,7 +81,7 @@ describe('auth.service', () => {
     expect(r.accessToken).toBe('ACCESS')
     expect(r.user.username).toBe('admin')
     const sql = query.mock.calls[0]?.[0] as string
-    expect(sql).toContain('WHERE username = $1')
+    expect(sql).toContain('WHERE u.username = $1')
     expect(query.mock.calls[0]?.[1]).toEqual(['admin'])
   })
 
@@ -102,6 +106,39 @@ describe('auth.service', () => {
       login({ identifier: 'admin@oncall.local', password: 'changeme123' }),
     ).rejects.toMatchObject({ status: 403 })
   })
+
+  it('login throws 403 "Clinic is deactivated" for a deactivated clinic (D10)', async () => {
+    query.mockResolvedValue({ rows: [userRow({ clinic_is_active: false })] })
+    await expect(
+      login({ identifier: 'admin@oncall.local', password: 'changeme123' }),
+    ).rejects.toMatchObject({ status: 403, message: 'Clinic is deactivated' })
+  })
+
+  it('login signs the access token with the clinic claim and returns clinic fields', async () => {
+    query.mockResolvedValue({ rows: [userRow()] })
+    const r = await login({ identifier: 'admin@oncall.local', password: 'changeme123' })
+    expect(signAccessToken).toHaveBeenCalledWith({ sub: 1, role: 'administrator', clinicId: 1 })
+    expect(r.user.clinicId).toBe(1)
+    expect(r.user.clinicName).toBe('Radiology')
+  })
+
+  it('login of a manager signs clinicId null', async () => {
+    query.mockResolvedValue({
+      rows: [
+        userRow({
+          id: 2,
+          role: 'manager',
+          clinic_id: null,
+          clinic_name: null,
+          clinic_is_active: null,
+        }),
+      ],
+    })
+    const r = await login({ identifier: 'manager', password: 'changeme123' })
+    expect(signAccessToken).toHaveBeenCalledWith({ sub: 2, role: 'manager', clinicId: null })
+    expect(r.user.clinicId).toBeNull()
+  })
+
 
   it('login throws 401 when the account is deleted (invisible)', async () => {
     query.mockResolvedValue({ rows: [] }) // lookups filter is_deleted = FALSE

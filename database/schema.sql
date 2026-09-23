@@ -1,8 +1,21 @@
--- On-Call Duty schema — Phase 1 (smoke test). Idempotent: safe to re-run.
+-- On-Call Duty schema — multi-clinic baseline (2026-09-19).
+-- Multi-clinic baseline (2026-09-19). Not applicable to pre-multi-clinic
+-- databases; reset required (drop + recreate + reseed).
+-- Idempotent: safe to re-run against a multi-clinic database.
 
 CREATE TABLE IF NOT EXISTS app_meta (
   key        TEXT PRIMARY KEY,
   value      TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Multi-clinic tenancy: one hospital per deployment, many clinics.
+-- Clinics are deactivated (is_active = FALSE), never deleted.
+CREATE TABLE IF NOT EXISTS clinics (
+  id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name       TEXT NOT NULL UNIQUE,
+  is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -14,9 +27,10 @@ CREATE TABLE IF NOT EXISTS users (
   username      TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   role          TEXT NOT NULL DEFAULT 'doctor'
-                CHECK (role IN ('administrator', 'doctor')),
+                CHECK (role IN ('superadmin', 'manager', 'administrator', 'doctor')),
   first_name    TEXT NOT NULL,
   last_name     TEXT NOT NULL,
+  clinic_id     INTEGER REFERENCES clinics (id),
   is_active     BOOLEAN NOT NULL DEFAULT TRUE,
   dark_mode     BOOLEAN NOT NULL DEFAULT FALSE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -49,11 +63,13 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens (token_hash
 CREATE TABLE IF NOT EXISTS doctors (
   id                 INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id            INTEGER NOT NULL UNIQUE REFERENCES users (id) ON DELETE CASCADE,
+  clinic_id          INTEGER NOT NULL REFERENCES clinics (id),
   max_monthly_duties INTEGER NOT NULL DEFAULT 7
                      CHECK (max_monthly_duties BETWEEN 1 AND 7),
   created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_doctors_clinic ON doctors (clinic_id);
 
 -- Phase 4: Availability Management
 
@@ -78,15 +94,17 @@ CREATE INDEX IF NOT EXISTS idx_unavailability_dates ON unavailability (start_dat
 -- fail if the column lingered).
 DROP TABLE IF EXISTS holidays;
 
+-- Schedules are per clinic: one (clinic, year, month) per schedule.
 CREATE TABLE IF NOT EXISTS schedules (
   id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  clinic_id  INTEGER NOT NULL REFERENCES clinics (id),
   year       INTEGER NOT NULL,
   month      INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
   status     TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published')),
   created_by INTEGER REFERENCES users (id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (year, month)
+  UNIQUE (clinic_id, year, month)
 );
 
 CREATE TABLE IF NOT EXISTS duties (
@@ -110,16 +128,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_duties_schedule_date_doctor
 
 -- Phase 10: Usage metering & superadmin audit
 
--- superadmin role (vendor auditor). Drop/re-add keeps the file idempotent.
+-- Roles: superadmin/manager are hospital/vendor level (clinic must be NULL);
+-- administrator/doctor belong to exactly one clinic. Drop/re-add keeps the
+-- file idempotent.
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check
-  CHECK (role IN ('administrator', 'doctor', 'superadmin'));
+  CHECK (role IN ('superadmin', 'manager', 'administrator', 'doctor'));
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_clinic_role_check;
+ALTER TABLE users ADD CONSTRAINT users_clinic_role_check
+  CHECK ( (role IN ('administrator','doctor') AND clinic_id IS NOT NULL)
+       OR (role IN ('superadmin','manager')   AND clinic_id IS NULL) );
 
 -- Append-only: one row per doctor included in each generated schedule.
 -- Never deleted by schedule deletion or doctor deactivation.
 CREATE TABLE IF NOT EXISTS schedule_generation_log (
   id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   doctor_id  INTEGER NOT NULL REFERENCES doctors (id) ON DELETE RESTRICT,
+  clinic_id  INTEGER NOT NULL REFERENCES clinics (id),
   year       INTEGER NOT NULL,
   month      INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -128,11 +153,15 @@ CREATE INDEX IF NOT EXISTS idx_schedule_generation_log_doctor
   ON schedule_generation_log (doctor_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_schedule_generation_log_period
   ON schedule_generation_log (year, month);
+CREATE INDEX IF NOT EXISTS idx_schedule_generation_log_clinic
+  ON schedule_generation_log (clinic_id, year, month);
 
 -- One-time backfill from existing duties (no-op once the log has rows).
-INSERT INTO schedule_generation_log (doctor_id, year, month, created_at)
-SELECT DISTINCT du.doctor_id, s.year, s.month, s.updated_at
-FROM duties du JOIN schedules s ON s.id = du.schedule_id
+INSERT INTO schedule_generation_log (doctor_id, clinic_id, year, month, created_at)
+SELECT DISTINCT du.doctor_id, d.clinic_id, s.year, s.month, s.updated_at
+FROM duties du
+JOIN schedules s ON s.id = du.schedule_id
+JOIN doctors d ON d.id = du.doctor_id
 WHERE NOT EXISTS (SELECT 1 FROM schedule_generation_log LIMIT 1);
 
 -- Alert-only flags, visible to the superadmin only.
@@ -154,10 +183,12 @@ CREATE INDEX IF NOT EXISTS idx_operator_alerts_open
   ON operator_alerts (type, resolved_at);
 
 -- Phase 11: User Activity Log (append-only audit trail, no update/delete paths exist)
+-- clinic_id is NULL for manager/vendor/self-service-without-clinic actions.
 
 CREATE TABLE IF NOT EXISTS activity_log (
   id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id     INTEGER REFERENCES users (id) ON DELETE SET NULL,
+  clinic_id   INTEGER REFERENCES clinics (id),
   action      TEXT NOT NULL,
   entity_type TEXT NOT NULL,
   entity_id   INTEGER,
@@ -165,6 +196,7 @@ CREATE TABLE IF NOT EXISTS activity_log (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log (user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_log_clinic ON activity_log (clinic_id);
 CREATE INDEX IF NOT EXISTS idx_activity_log_action ON activity_log (action);
 CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log (created_at);
 
@@ -180,6 +212,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_live
   ON users (email) WHERE is_deleted = FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_live
   ON users (username) WHERE is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_users_clinic ON users (clinic_id) WHERE is_deleted = FALSE;
 
 -- Phase 13: Billing lockdown
 -- app_meta key 'billing_paid_through' (value 'YYYY-MM-DD'): non-superadmin

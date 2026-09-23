@@ -25,7 +25,7 @@ services:
       - db-data:/var/lib/postgresql/data
       # Auto-init runs once, on a fresh data volume, in filename order.
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./database/seeds/single-clinic.seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s

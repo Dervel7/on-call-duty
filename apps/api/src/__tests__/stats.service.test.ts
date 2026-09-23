@@ -12,6 +12,9 @@ vi.mock('../services/doctor.service', () => ({
 }))
 
 import { adminStats, meStats } from '../services/stats.service'
+import type { ClinicScope } from '../lib/scope'
+
+const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
 
 beforeEach(() => {
   query.mockReset()
@@ -21,7 +24,7 @@ beforeEach(() => {
 describe('stats.service — adminStats', () => {
   it('empty state when no schedule exists', async () => {
     query.mockResolvedValue({ rows: [] })
-    const stats = await adminStats(2026, 8)
+    const stats = await adminStats(2026, 8, scope)
     expect(stats.schedule).toBeNull()
     expect(stats.coverage.filled).toBe(0)
     expect(stats.coverage.daysInMonth).toBe(31)
@@ -35,7 +38,7 @@ describe('stats.service — adminStats', () => {
     for (let d = 1; d <= 29; d++) assigned.push(`2026-09-${String(d).padStart(2, '0')}`)
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
-      if (sql.includes('FROM schedules WHERE year'))
+      if (sql.includes('FROM schedules s JOIN clinics')&& sql.includes('s.year ='))
         return {
           rows: [
             {
@@ -61,7 +64,7 @@ describe('stats.service — adminStats', () => {
       if (sql.includes('u.is_active = FALSE')) return { rows: [] }
       return { rows: [] }
     })
-    const stats = await adminStats(2026, 9)
+    const stats = await adminStats(2026, 9, scope)
     expect(stats.coverage.daysInMonth).toBe(30)
     expect(stats.coverage.filled).toBe(29)
     expect(stats.coverage.gaps).toEqual(['2026-09-30'])
@@ -74,7 +77,7 @@ describe('stats.service — adminStats', () => {
   it('inactive doctor with duties is included and flagged isActive=false', async () => {
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
-      if (sql.includes('FROM schedules WHERE year'))
+      if (sql.includes('FROM schedules s JOIN clinics')&& sql.includes('s.year ='))
         return {
           rows: [
             {
@@ -97,7 +100,7 @@ describe('stats.service — adminStats', () => {
         return { rows: [{ id: 6, first_name: 'Old', last_name: 'Doc', max_monthly_duties: 7 }] }
       return { rows: [] }
     })
-    const stats = await adminStats(2026, 9)
+    const stats = await adminStats(2026, 9, scope)
     const inactive = stats.workload.find((w) => w.doctorId === 6)
     expect(inactive).toBeDefined()
     expect(inactive!.isActive).toBe(false)
@@ -107,7 +110,7 @@ describe('stats.service — adminStats', () => {
   it('fairness spread = max - min over doctors with duties > 0', async () => {
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
-      if (sql.includes('FROM schedules WHERE year'))
+      if (sql.includes('FROM schedules s JOIN clinics')&& sql.includes('s.year ='))
         return {
           rows: [
             {
@@ -140,12 +143,23 @@ describe('stats.service — adminStats', () => {
       if (sql.includes('u.is_active = FALSE')) return { rows: [] }
       return { rows: [] }
     })
-    const stats = await adminStats(2026, 9)
+    const stats = await adminStats(2026, 9, scope)
     expect(stats.fairness.dutySpread).toBe(2)
     expect(stats.fairness.weekendSpread).toBe(1)
   })
-})
 
+
+  it('I16: adminStats scopes schedule and doctor-pool queries to the clinic', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await adminStats(2026, 9, { kind: 'clinic', clinicId: 3 })
+    const scheduleCall = query.mock.calls.find((c) => String(c[0]).includes('FROM schedules s JOIN clinics'))
+    expect(String(scheduleCall?.[0])).toContain('s.clinic_id = $3')
+    expect(scheduleCall?.[1]).toEqual([2026, 9, 3])
+    const activeCall = query.mock.calls.find((c) => String(c[0]).includes('u.is_active = TRUE'))
+    expect(String(activeCall?.[0])).toContain('d.clinic_id = $1')
+    expect(activeCall?.[1]).toEqual([3])
+  })
+})
 describe('stats.service — meStats', () => {
   it('404 when no doctor profile (admin case)', async () => {
     getByUserId.mockRejectedValue(Object.assign(new Error('Doctor not found'), { status: 404 }))
@@ -153,7 +167,7 @@ describe('stats.service — meStats', () => {
   })
 
   it('currentMonth.published=false with zeros when no published schedule', async () => {
-    getByUserId.mockResolvedValue({ id: 5, firstName: 'Jane', lastName: 'Roe', maxMonthlyDuties: 7 })
+    getByUserId.mockResolvedValue({ id: 5, firstName: 'Jane', lastName: 'Roe', maxMonthlyDuties: 7, clinicId: 1 })
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
       if (sql.includes('FROM schedules WHERE status')) return { rows: [] }
@@ -171,7 +185,7 @@ describe('stats.service — meStats', () => {
   })
 
   it('counts + upcoming + onCall (isMine) when published', async () => {
-    getByUserId.mockResolvedValue({ id: 5, firstName: 'Jane', lastName: 'Roe', maxMonthlyDuties: 7 })
+    getByUserId.mockResolvedValue({ id: 5, firstName: 'Jane', lastName: 'Roe', maxMonthlyDuties: 7, clinicId: 1 })
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
       if (sql.includes('FROM schedules WHERE status')) return { rows: [{ '?column?': 1 }] }
@@ -207,5 +221,25 @@ describe('stats.service — meStats', () => {
     expect(me.onCall).toHaveLength(2)
     expect(me.onCall[0]!.isMine).toBe(true)
     expect(me.onCall[1]!.isMine).toBe(false)
+  })
+
+  it('I20: meStats scopes published/upcoming/onCall queries to the doctor clinic', async () => {
+    getByUserId.mockResolvedValue({
+      id: 5,
+      firstName: 'Jane',
+      lastName: 'Roe',
+      maxMonthlyDuties: 7,
+      clinicId: 4,
+    })
+    query.mockResolvedValue({ rows: [] })
+    await meStats(5)
+    const sqls = query.mock.calls.map((c) => String(c[0]))
+    const published = sqls.find((s) => s.includes('FROM schedules WHERE status'))
+    expect(published).toContain('clinic_id = $3')
+    const upcoming = sqls.find((s) => s.includes('du.duty_date >= $2'))
+    expect(upcoming).toContain('s.clinic_id = $3')
+    const onCall = query.mock.calls.find((c) => String(c[0]).includes('du.duty_date BETWEEN'))
+    expect(String(onCall?.[0])).toContain('s.clinic_id = $3')
+    expect(onCall?.[1]).toEqual([expect.any(String), expect.any(String), 4])
   })
 })

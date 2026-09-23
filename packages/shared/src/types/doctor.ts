@@ -7,6 +7,8 @@ export interface Doctor {
   lastName: string
   isActive: boolean
   maxMonthlyDuties: number
+  clinicId: number
+  clinicName: string
   createdAt: string
   updatedAt: string
 }

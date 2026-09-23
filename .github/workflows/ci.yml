@@ -58,7 +58,7 @@ jobs:
         run: pnpm lint
 
       - name: Apply schema and seed
-        run: pnpm db:setup
+        run: pnpm db:seed:single
 
       - name: Test
         run: pnpm test

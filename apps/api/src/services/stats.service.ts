@@ -9,6 +9,7 @@ import type {
   ScheduleSummary,
 } from '@oncall/shared'
 import { query } from '../db/client'
+import type { ClinicScope } from '../lib/scope'
 import { daysInMonth, isoDate } from '../scheduling/dates'
 import { getByUserId as getDoctorByUserId } from './doctor.service'
 
@@ -17,6 +18,8 @@ interface ScheduleRow {
   year: number
   month: number
   status: string
+  clinic_id: number
+  clinic_name: string
   created_by: number | null
   created_at: Date
   updated_at: Date
@@ -28,6 +31,8 @@ function toSchedule(row: ScheduleRow): ScheduleSummary {
     year: row.year,
     month: row.month,
     status: row.status as ScheduleStatus,
+    clinicId: row.clinic_id,
+    clinicName: row.clinic_name,
     createdBy: row.created_by,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -54,11 +59,13 @@ function spread(values: number[]): number | null {
   return Math.max(...values) - Math.min(...values)
 }
 
-export async function adminStats(year: number, month: number): Promise<AdminStats> {
+export async function adminStats(year: number, month: number, scope: ClinicScope): Promise<AdminStats> {
   const sres = await query<ScheduleRow>(
-    `SELECT id, year, month, status, created_by, created_at, updated_at
-     FROM schedules WHERE year = $1 AND month = $2`,
-    [year, month],
+    `SELECT s.id, s.year, s.month, s.status, s.clinic_id, c.name AS clinic_name,
+       s.created_by, s.created_at, s.updated_at
+     FROM schedules s JOIN clinics c ON c.id = s.clinic_id
+     WHERE s.year = $1 AND s.month = $2 AND s.clinic_id = $3`,
+    [year, month, scope.clinicId],
   )
   const scheduleRow = sres.rows[0] ?? null
   const schedule: ScheduleSummary | null = scheduleRow ? toSchedule(scheduleRow) : null
@@ -89,7 +96,8 @@ export async function adminStats(year: number, month: number): Promise<AdminStat
   }>(
     `SELECT d.id, u.first_name, u.last_name, d.max_monthly_duties
      FROM doctors d JOIN users u ON u.id = d.user_id
-     WHERE u.is_active = TRUE`,
+     WHERE u.is_active = TRUE AND d.clinic_id = $1`,
+    [scope.clinicId],
   )
   const counts = new Map<number, { total: number; weekend: number }>()
   if (scheduleRow) {
@@ -131,8 +139,8 @@ export async function adminStats(year: number, month: number): Promise<AdminStat
       `SELECT DISTINCT d.id, u.first_name, u.last_name, d.max_monthly_duties
        FROM doctors d JOIN users u ON u.id = d.user_id
        JOIN duties du ON du.doctor_id = d.id
-       WHERE u.is_active = FALSE AND du.schedule_id = $1`,
-      [scheduleRow.id],
+       WHERE u.is_active = FALSE AND du.schedule_id = $1 AND d.clinic_id = $2`,
+      [scheduleRow.id, scope.clinicId],
     )
     for (const r of inactiveRes.rows) {
       if (!byId.has(r.id))
@@ -177,10 +185,11 @@ export async function adminStats(year: number, month: number): Promise<AdminStat
 export async function meStats(userId: number): Promise<MeStats> {
   const doctor = await getDoctorByUserId(userId)
   const { year, month } = currentYearMonth()
+  const clinicId = doctor.clinicId
 
   const pubRes = await query(
-    `SELECT 1 FROM schedules WHERE status = 'published' AND year = $1 AND month = $2`,
-    [year, month],
+    `SELECT 1 FROM schedules WHERE status = 'published' AND year = $1 AND month = $2 AND clinic_id = $3`,
+    [year, month, clinicId],
   )
   const published = pubRes.rows.length > 0
 
@@ -192,13 +201,12 @@ export async function meStats(userId: number): Promise<MeStats> {
     [year, month, doctor.id],
   )
   const c = countsRes.rows[0] ?? { total: 0, weekend: 0 }
-
   const upcomingRes = await query<{ duty_date: string; is_weekend: boolean }>(
     `SELECT du.duty_date, du.is_weekend
      FROM duties du JOIN schedules s ON s.id = du.schedule_id
-     WHERE s.status = 'published' AND du.doctor_id = $1 AND du.duty_date >= $2
+     WHERE s.status = 'published' AND du.doctor_id = $1 AND du.duty_date >= $2 AND s.clinic_id = $3
      ORDER BY du.duty_date LIMIT 10`,
-    [doctor.id, todayISO()],
+    [doctor.id, todayISO(), clinicId],
   )
 
   const start = todayISO()
@@ -213,9 +221,9 @@ export async function meStats(userId: number): Promise<MeStats> {
     `SELECT du.duty_date, du.is_weekend, u.first_name, u.last_name, du.doctor_id
      FROM duties du JOIN schedules s ON s.id = du.schedule_id
      JOIN doctors d ON d.id = du.doctor_id JOIN users u ON u.id = d.user_id
-     WHERE s.status = 'published' AND du.duty_date BETWEEN $1 AND $2
+     WHERE s.status = 'published' AND du.duty_date BETWEEN $1 AND $2 AND s.clinic_id = $3
      ORDER BY du.duty_date`,
-    [start, end],
+    [start, end, clinicId],
   )
   const onCall: OnCallEntry[] = onCallRes.rows.map((r) => ({
     date: r.duty_date,

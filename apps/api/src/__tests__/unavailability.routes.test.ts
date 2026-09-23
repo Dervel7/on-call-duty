@@ -30,9 +30,9 @@ function build() {
   return app
 }
 
-const adminToken = () => signAccessToken({ sub: 1, role: 'administrator' })
-const superadminToken = () => signAccessToken({ sub: 2, role: 'superadmin' })
-const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor' })
+const adminToken = () => signAccessToken({ sub: 1, role: 'administrator', clinicId: 1 })
+const superadminToken = () => signAccessToken({ sub: 2, role: 'superadmin', clinicId: null })
+const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 10 })
 
 const row = () => ({
   id: 1,
@@ -68,6 +68,36 @@ describe('unavailability routes', () => {
       .get('/unavailability')
       .set('Authorization', `Bearer ${doctorToken()}`)
     expect(res.status).toBe(403)
+  })
+
+  it('manager reads with clinicId (200); 400 without; writes are 403 (I12/I14)', async () => {
+    const managerToken = signAccessToken({ sub: 5, role: 'manager', clinicId: null })
+    query.mockResolvedValue({ rows: [row()] })
+    const okRes = await request(build())
+      .get('/unavailability?clinicId=1')
+      .set('Authorization', `Bearer ${managerToken}`)
+    expect(okRes.status).toBe(200)
+    expect(query.mock.calls[0]?.[1]).toEqual([1])
+
+    const missing = await request(build())
+      .get('/unavailability')
+      .set('Authorization', `Bearer ${managerToken}`)
+    expect(missing.status).toBe(400)
+
+    const write = await request(build())
+      .post('/unavailability?clinicId=1')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ doctorId: 5, type: 'vacation', startDate: '2026-09-20', endDate: '2026-09-21' })
+    expect(write.status).toBe(403)
+
+    query.mockResolvedValueOnce({
+      rows: [{ doctor_id: 5, clinic_id: 1, start_date: '2026-09-07', end_date: '2026-09-11' }],
+    })
+    const patch = await request(build())
+      .patch('/unavailability/1')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ type: 'sick' })
+    expect(patch.status).toBe(403)
   })
 
   it('unauthenticated is 401', async () => {

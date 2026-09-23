@@ -39,4 +39,5 @@ export interface UnavailabilityQuery {
   doctorId?: number
   from?: string
   to?: string
+  clinicId?: number
 }

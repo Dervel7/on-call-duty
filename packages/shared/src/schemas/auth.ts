@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { passwordSchema } from './common'
 
-export const roleSchema = z.enum(['administrator', 'doctor', 'superadmin'])
+export const roleSchema = z.enum(['superadmin', 'manager', 'administrator', 'doctor'])
 
 export const usernameSchema = z.string().regex(/^[A-Za-z0-9._-]{3,32}$/, 'Invalid username')
 
@@ -26,6 +26,7 @@ export const createUserSchema = z.object({
   role: roleSchema,
   firstName: z.string().min(1),
   lastName: z.string().min(1),
+  clinicId: z.number().int().positive().optional(),
 })
 
 export const updateUserSchema = z.object({
@@ -35,6 +36,7 @@ export const updateUserSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
+  clinicId: z.number().int().positive().optional(),
 })
 
 export const updateThemeSchema = z.object({

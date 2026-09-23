@@ -57,9 +57,9 @@ packages/
   shared/     Shared types & zod schemas (@oncall/shared)
   utils/      Pure helpers (@oncall/utils)
 database/
-  schema.sql  Idempotent DDL
-  seed.sql    Sample data
-  scripts/    DB setup runners
+  schema.sql  Idempotent DDL (multi-clinic baseline)
+  seeds/      single-clinic.seed.sql, multi-clinic.seed.sql
+  scripts/    seed.ts (reset + schema + chosen seed)
 docs/superpowers/  Specs & plans
 ```
 
@@ -106,26 +106,27 @@ DATABASE_URL=postgres://postgres:<your_password>@localhost:5432/oncall
 ### 4. Apply schema and seed
 
 ```bash
-pnpm db:setup
+pnpm db:seed:single   # one clinic + administrator + dr1..dr8
+pnpm db:seed:multi    # six clinics + manager + 6 admins + dr1..dr60
 ```
 
-This runs `schema.sql` then `seed.sql` (both idempotent). To re-apply seed data only:
+Each script resets the database named in `DATABASE_URL` (drop + recreate),
+applies `schema.sql`, then the chosen seed from `database/seeds/` — switching
+between the two baselines always yields a clean, deterministic state.
 
-```bash
-pnpm db:seed
-```
+### Default accounts
 
-### Default administrator
+`pnpm db:seed:single` seeds:
 
-`pnpm db:setup` seeds one administrator:
+- Administrator: `admin@oncall.local` / `changeme123`
+- Doctors: `dr1@oncall.local` … `dr8@oncall.local` — the initial password for each is the email itself (change on first login)
+- Vendor superadmin: `superadmin@oncall.local` / `changeme123`
 
-- Email: `admin@oncall.local`
-- Password: `changeme123`
-- Doctors: `dr1@oncall.local`, `dr2@oncall.local`, `dr3@oncall.local` — the initial password for each is the email itself (change on first login).
+`pnpm db:seed:multi` seeds the six-clinic baseline: per-clinic administrators (`cardiology-a.admin@oncall.local` … `radiology-b.admin@oncall.local`), hospital manager `manager@oncall.local`, the vendor superadmin, and doctors `dr1@oncall.local` … `dr60@oncall.local` — administrators/manager/superadmin use `changeme123`, doctors use their email.
 
-This default password is documented and MUST be changed on first login
-(Profile → Change password). The seeded bcrypt hash (cost 12) lives in
-`database/seed.sql`; the plaintext exists only in documentation.
+Default passwords are documented and MUST be changed on first login
+(Profile → Change password). The seeded bcrypt hashes (cost 12) live in
+`database/seeds/*.seed.sql`; the plaintexts exist only in documentation.
 
 ### 5. Start the development servers
 
@@ -154,8 +155,8 @@ Root scripts (run from the repository root):
 | `pnpm typecheck` | Typecheck all packages |
 | `pnpm lint` | Lint all packages |
 | `pnpm test` | Run all tests |
-| `pnpm db:setup` | Apply schema + seed |
-| `pnpm db:seed` | Re-apply seed data |
+| `pnpm db:seed:single` | Reset DB, apply schema + single-clinic seed |
+| `pnpm db:seed:multi` | Reset DB, apply schema + multi-clinic seed |
 
 ## Environment variables
 
@@ -183,7 +184,7 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 
 ## Definition of Done (Phase 1)
 
-- `pnpm install`, `pnpm db:setup`, and `pnpm dev` succeed from a clean clone.
+- `pnpm install`, `pnpm db:seed:single`, and `pnpm dev` succeed from a clean clone.
 - `GET /health` returns the success envelope with HTTP 200.
 - The web app renders with the medical theme tokens (no hardcoded colors).
 - `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass.
@@ -201,7 +202,7 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 
 ## Definition of Done (Phase 3)
 
-- `pnpm install`, `pnpm db:setup`, and `pnpm dev` succeed from a clean clone; the seeded admin and three doctors are present.
+- `pnpm install`, `pnpm db:seed:single`, and `pnpm dev` succeed from a clean clone; the seeded admin and three doctors are present.
 - Admin can list/create/edit/disable/delete doctors; create produces a matching account + profile atomically; delete removes the account (cascade).
 - A doctor can `GET /doctors/me` (own profile, read-only); an admin gets 404 there.
 - The Doctors page is admin-only (doctors get 403 / are redirected); the Users page creates administrators only.
@@ -210,7 +211,7 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 
 ## Definition of Done (Phase 4)
 
-- `pnpm install`, `pnpm db:setup`, and `pnpm dev` succeed from a clean clone; sample unavailability rows are seeded.
+- `pnpm install`, `pnpm db:seed:single`, and `pnpm dev` succeed from a clean clone; sample unavailability rows are seeded.
 - A doctor can list/create/edit/delete their own exclusions on `/my-availability`; an admin gets 404 on `/unavailability/me`.
 - An admin can list all doctors' exclusions (optional `doctorId`/date filters), create for any doctor, and edit/delete any record; a doctor gets 403 on `GET /unavailability` and `POST /unavailability`.
 - Overlapping record → 409; `endDate < startDate` → 400; non-numeric `:id` → 400; unknown doctor → 404; a doctor editing another doctor's record → 403.
@@ -218,7 +219,7 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 
 ## Definition of Done (Phase 5)
 
-- `pnpm install`, `pnpm db:setup`, and `pnpm dev` succeed from a clean clone (no schedule seed — schedules are produced via the API).
+- `pnpm install`, `pnpm db:seed:single`, and `pnpm dev` succeed from a clean clone (no schedule seed — schedules are produced via the API).
 - The engine respects every hard constraint: no doctor over `max_monthly_duties`, no duty during unavailability, no back-to-back (including the cross-month boundary), inactive doctors excluded.
 - Admin can `POST /schedules/preview` (200 `{assignments, conflicts}`), `POST /schedules` (201; 409 if the month exists; 422 if unfillable and nothing persisted), `GET /schedules` / `GET /schedules/:id`, `DELETE /schedules/:id`, and override duties via `POST /schedules/:id/duties` / `PATCH /duties/:id` / `DELETE /duties/:id` with 409 on any constraint violation. Doctors get 403 on all schedule/duty routes.
 - For solvable months, weekend counts stay within ±1 across eligible doctors; every duty carries a persisted `reason`.

@@ -3,7 +3,7 @@ import { userController } from '../controllers/user.controller'
 import { authenticate } from '../middleware/authenticate'
 import { authorize } from '../middleware/authorize'
 import { validate } from '../middleware/validate'
-import { createUserSchema, idParams, updateThemeSchema, updateUserSchema } from '../validators/user'
+import { createUserSchema, idParams, updateThemeSchema, updateUserSchema, userQuerySchema } from '../validators/user'
 
 export const userRouter = Router()
 
@@ -16,9 +16,9 @@ userRouter.patch(
   userController.updateTheme,
 )
 
-userRouter.use(authenticate, authorize('administrator'))
+userRouter.use(authenticate, authorize('administrator', 'manager'))
 
-userRouter.get('/', userController.list)
+userRouter.get('/', validate(userQuerySchema, 'query'), userController.list)
 userRouter.get('/:id', validate(idParams, 'params'), userController.getById)
 userRouter.post('/', validate(createUserSchema, 'body'), userController.create)
 userRouter.patch('/:id', validate(idParams, 'params'), validate(updateUserSchema, 'body'), userController.update)

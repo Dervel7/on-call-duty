@@ -14,7 +14,7 @@ import {
 export const unavailabilityRouter = Router()
 
 unavailabilityRouter.use(authenticate)
-unavailabilityRouter.get('/', authorize('administrator'), validate(unavailabilityQuerySchema, 'query'), unavailabilityController.list)
+unavailabilityRouter.get('/', authorize('administrator', 'manager'), validate(unavailabilityQuerySchema, 'query'), unavailabilityController.list)
 unavailabilityRouter.get('/me', unavailabilityController.listMe)
 unavailabilityRouter.post('/', authorize('administrator'), validate(createUnavailabilityAdminSchema, 'body'), unavailabilityController.create)
 unavailabilityRouter.post('/me', validate(createUnavailabilitySelfSchema, 'body'), unavailabilityController.createMe)

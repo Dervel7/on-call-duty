@@ -21,33 +21,36 @@ export const DISJOINT_MIN_SET_SIZE = 4
  */
 export async function recordGeneration(
   client: PoolClient,
+  clinicId: number,
   year: number,
   month: number,
   doctorIds: number[],
 ): Promise<void> {
   for (const doctorId of doctorIds) {
     await client.query(
-      'INSERT INTO schedule_generation_log (doctor_id, year, month) VALUES ($1, $2, $3)',
-      [doctorId, year, month],
+      'INSERT INTO schedule_generation_log (doctor_id, clinic_id, year, month) VALUES ($1, $2, $3, $4)',
+      [doctorId, clinicId, year, month],
     )
   }
 
-  // Rule 2: disjoint regeneration vs the most recent prior generation of this month.
+  // Rule 2: disjoint regeneration vs the most recent prior generation of this
+  // month **in the same clinic** — two clinics generating the same month with
+  // disjoint pools must not read as a regeneration (§2.6.4).
   // Rows written by this transaction share NOW(), so `created_at < NOW()` cleanly
   // selects only prior generations. The batch timestamp travels as text because
   // node-postgres truncates timestamptz microseconds when parsing to a JS Date,
   // which would break the exact equality match below.
   const prevBatch = await client.query<{ created_at: string | null }>(
     `SELECT MAX(created_at)::text AS created_at FROM schedule_generation_log
-     WHERE year = $1 AND month = $2 AND created_at < NOW()`,
-    [year, month],
+     WHERE clinic_id = $1 AND year = $2 AND month = $3 AND created_at < NOW()`,
+    [clinicId, year, month],
   )
   const prevTime = prevBatch.rows[0]?.created_at
   if (prevTime) {
     const prevDocs = await client.query<{ doctor_id: number }>(
       `SELECT DISTINCT doctor_id FROM schedule_generation_log
-       WHERE year = $1 AND month = $2 AND created_at = $3::timestamptz`,
-      [year, month, prevTime],
+       WHERE clinic_id = $1 AND year = $2 AND month = $3 AND created_at = $4::timestamptz`,
+      [clinicId, year, month, prevTime],
     )
     const prevIds = prevDocs.rows.map((r) => r.doctor_id)
     const overlap = overlapPercent(prevIds, doctorIds)
@@ -63,27 +66,35 @@ export async function recordGeneration(
         [prevIds, doctorIds],
       )
       const nameOf = new Map(names.rows.map((r) => [r.id, r.name]))
+      const clinic = await client.query<{ name: string }>(`SELECT name FROM clinics WHERE id = $1`, [
+        clinicId,
+      ])
+      const clinicName = clinic.rows[0]?.name ?? ''
       await client.query(
         `INSERT INTO operator_alerts (type, detail)
          SELECT 'disjoint_regeneration', jsonb_build_object(
            'year', $1::int, 'month', $2::int,
-           'previousGeneratedAt', $3::text, 'previousDoctors', $4::jsonb,
-           'currentDoctors', $5::jsonb, 'overlapPercent', $6::int
+           'clinicId', $3::int, 'clinicName', $4::text,
+           'previousGeneratedAt', $5::text, 'previousDoctors', $6::jsonb,
+           'currentDoctors', $7::jsonb, 'overlapPercent', $8::int
          )
          WHERE NOT EXISTS (
            SELECT 1 FROM operator_alerts
            WHERE type = 'disjoint_regeneration' AND resolved_at IS NULL
-             AND detail->>'year' = $7 AND detail->>'month' = $8
+             AND detail->>'year' = $9 AND detail->>'month' = $10 AND detail->>'clinicId' = $11
          )`,
         [
           year,
           month,
+          clinicId,
+          clinicName,
           prevTime,
           JSON.stringify(prevIds.map((id) => ({ id, name: nameOf.get(id) ?? String(id) }))),
           JSON.stringify(doctorIds.map((id) => ({ id, name: nameOf.get(id) ?? String(id) }))),
           Math.round(overlap),
           String(year),
           String(month),
+          String(clinicId),
         ],
       )
     }
@@ -111,10 +122,20 @@ function toAlert(row: AlertRow): OperatorAlert {
 export async function generations(): Promise<GenerationEvent[]> {
   // Batch timestamps travel as text for the same reason as in recordGeneration:
   // node-postgres truncates timestamptz microseconds when parsing to a JS Date,
-  // which would break the exact equality match on each batch.
-  const batches = await query<{ year: number; month: number; created_at: string }>(
-    `SELECT year, month, created_at::text AS created_at FROM schedule_generation_log
-     GROUP BY year, month, created_at ORDER BY created_at DESC`,
+  // which would break the exact equality match on each batch. Batches are
+  // partitioned per clinic (§2.6.4): two clinics generating the same month are
+  // separate events with separate overlap chains.
+  const batches = await query<{
+    clinic_id: number
+    clinic_name: string
+    year: number
+    month: number
+    created_at: string
+  }>(
+    `SELECT l.clinic_id, c.name AS clinic_name, l.year, l.month, l.created_at::text AS created_at
+     FROM schedule_generation_log l JOIN clinics c ON c.id = l.clinic_id
+     GROUP BY l.clinic_id, c.name, l.year, l.month, l.created_at
+     ORDER BY l.created_at DESC`,
   )
   const events: GenerationEvent[] = []
   for (const b of batches.rows) {
@@ -122,12 +143,13 @@ export async function generations(): Promise<GenerationEvent[]> {
       `SELECT DISTINCT l.doctor_id, u.first_name || ' ' || u.last_name AS name
        FROM schedule_generation_log l
        JOIN doctors d ON d.id = l.doctor_id JOIN users u ON u.id = d.user_id
-       WHERE l.year = $1 AND l.month = $2 AND l.created_at = $3::timestamptz`,
-      [b.year, b.month, b.created_at],
+       WHERE l.clinic_id = $1 AND l.year = $2 AND l.month = $3 AND l.created_at = $4::timestamptz`,
+      [b.clinic_id, b.year, b.month, b.created_at],
     )
     const ids = docs.rows.map((r) => r.doctor_id)
     const prev = batches.rows.find(
       (o) =>
+        o.clinic_id === b.clinic_id &&
         o.year === b.year &&
         o.month === b.month &&
         o.created_at < b.created_at,
@@ -136,8 +158,8 @@ export async function generations(): Promise<GenerationEvent[]> {
     if (prev) {
       const prevDocs = await query<{ doctor_id: number }>(
         `SELECT DISTINCT doctor_id FROM schedule_generation_log
-         WHERE year = $1 AND month = $2 AND created_at = $3::timestamptz`,
-        [prev.year, prev.month, prev.created_at],
+         WHERE clinic_id = $1 AND year = $2 AND month = $3 AND created_at = $4::timestamptz`,
+        [prev.clinic_id, prev.year, prev.month, prev.created_at],
       )
       overlap = Math.round(
         overlapPercent(
@@ -149,6 +171,8 @@ export async function generations(): Promise<GenerationEvent[]> {
     events.push({
       year: b.year,
       month: b.month,
+      clinicId: b.clinic_id,
+      clinicName: b.clinic_name,
       generatedAt: new Date(b.created_at).toISOString(),
       doctorIds: ids,
       doctorNames: docs.rows.map((r) => r.name),

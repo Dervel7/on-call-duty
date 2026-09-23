@@ -42,6 +42,14 @@ const doctorByUserId = computed(() => {
   return map
 })
 
+// Only doctors, always ordered by last name. The sort is derived here, never
+// stored, so no action can reshuffle the list.
+const visibleUsers = computed(() =>
+  users.value
+    .filter((u) => u.role === 'doctor')
+    .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName)),
+)
+
 interface EditState {
   open: boolean
   id: number | null
@@ -240,7 +248,7 @@ onMounted(load)
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow v-for="u in users" :key="u.id" :class="u.isActive ? undefined : 'bg-destructive/10'">
+        <TableRow v-for="u in visibleUsers" :key="u.id" :class="u.isActive ? undefined : 'bg-destructive/10'">
           <TableCell>{{ u.firstName }} {{ u.lastName }}</TableCell>
           <TableCell>{{ u.email }}</TableCell>
           <TableCell>{{ u.username }}</TableCell>

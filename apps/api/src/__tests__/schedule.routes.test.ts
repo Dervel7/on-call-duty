@@ -40,8 +40,8 @@ function build() {
   return app
 }
 
-const adminToken = () => signAccessToken({ sub: 1, role: 'administrator' })
-const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor' })
+const adminToken = () => signAccessToken({ sub: 1, role: 'administrator', clinicId: 1 })
+const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 10 })
 
 const detail = () => ({
   schedule: {
@@ -139,7 +139,7 @@ describe('schedule routes', () => {
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ year: 2026, month: 9, assignments: [{ date: '2026-09-01', doctorId: 5 }] })
     expect(res.status).toBe(201)
-    expect(generate).toHaveBeenCalledWith(2026, 9, expect.anything(), [
+    expect(generate).toHaveBeenCalledWith(2026, 9, expect.anything(), expect.anything(), [
       { date: '2026-09-01', doctorId: 5 },
     ])
   })
@@ -236,5 +236,67 @@ describe('schedule routes', () => {
       .delete('/schedules/1')
       .set('Authorization', `Bearer ${adminToken()}`)
     expect(s.status).toBe(409)
+  })
+})
+
+describe('clinic scoping on schedule routes', () => {
+  const managerToken = () => signAccessToken({ sub: 5, role: 'manager', clinicId: null })
+  const superadminToken = () => signAccessToken({ sub: 2, role: 'superadmin', clinicId: null })
+
+  it('manager reads list with clinicId (200); 400 without', async () => {
+    list.mockResolvedValue([])
+    const ok = await request(build())
+      .get('/schedules?clinicId=1')
+      .set('Authorization', `Bearer ${managerToken()}`)
+    expect(ok.status).toBe(200)
+    const missing = await request(build()).get('/schedules').set('Authorization', `Bearer ${managerToken()}`)
+    expect(missing.status).toBe(400)
+  })
+
+  it('manager is 403 on every write route (I14)', async () => {
+    const token = managerToken()
+    const app = build()
+    expect(
+      (await request(app).post('/schedules?clinicId=1').set('Authorization', `Bearer ${token}`).send({ year: 2026, month: 9 })).status,
+    ).toBe(403)
+    expect(
+      (await request(app).post('/schedules/preview?clinicId=1').set('Authorization', `Bearer ${token}`).send({ year: 2026, month: 9 })).status,
+    ).toBe(403)
+    expect(
+      (await request(app).post('/schedules/1/publish').set('Authorization', `Bearer ${token}`)).status,
+    ).toBe(403)
+    expect(
+      (await request(app).post('/schedules/1/duties').set('Authorization', `Bearer ${token}`).send({ date: '2026-09-05', doctorId: 5 })).status,
+    ).toBe(403)
+    expect(
+      (await request(app).patch('/duties/1').set('Authorization', `Bearer ${token}`).send({ doctorId: 5 })).status,
+    ).toBe(403)
+  })
+
+  it('superadmin preview/generate without clinicId is 400 (I25)', async () => {
+    const token = superadminToken()
+    const app = build()
+    expect(
+      (await request(app).post('/schedules/preview').set('Authorization', `Bearer ${token}`).send({ year: 2026, month: 9 })).status,
+    ).toBe(400)
+    expect(
+      (await request(app).post('/schedules').set('Authorization', `Bearer ${token}`).send({ year: 2026, month: 9 })).status,
+    ).toBe(400)
+  })
+
+  it('administrator generate without clinicId resolves to own clinic', async () => {
+    generate.mockResolvedValue(detail())
+    const res = await request(build())
+      .post('/schedules')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ year: 2026, month: 9 })
+    expect(res.status).toBe(201)
+    expect(generate).toHaveBeenCalledWith(
+      2026,
+      9,
+      expect.anything(),
+      expect.objectContaining({ clinicId: 1 }),
+      undefined,
+    )
   })
 })

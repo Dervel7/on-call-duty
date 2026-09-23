@@ -11,6 +11,10 @@ vi.mock('../services/schedule.service', () => ({
 }))
 
 import { monthlyReport } from '../services/reports.service'
+import type { ClinicScope } from '../lib/scope'
+
+const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
+const actor = { id: 1, role: 'administrator' as const, clinicId: 1 }
 
 beforeEach(() => {
   adminStats.mockReset()
@@ -26,9 +30,10 @@ describe('reports.service — monthlyReport', () => {
       fairness: { dutySpread: null, weekendSpread: null },
     })
 
-    const report = await monthlyReport(2026, 8)
+    const report = await monthlyReport(2026, 8, actor, scope)
 
     expect(report.schedule).toBeNull()
+    expect(report.clinicName).toBeNull()
     expect(report.roster).toEqual([])
     expect(getScheduleDuties).not.toHaveBeenCalled()
     expect(report.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
@@ -43,6 +48,8 @@ describe('reports.service — monthlyReport', () => {
       createdBy: 1,
       createdAt: '',
       updatedAt: '',
+      clinicId: 1,
+      clinicName: 'Radiology',
     }
     adminStats.mockResolvedValue({
       schedule,
@@ -76,12 +83,25 @@ describe('reports.service — monthlyReport', () => {
     ]
     getScheduleDuties.mockResolvedValue({ schedule, duties })
 
-    const report = await monthlyReport(2026, 9)
+    const report = await monthlyReport(2026, 9, actor, scope)
 
-    expect(getScheduleDuties).toHaveBeenCalledWith(7)
+    expect(getScheduleDuties).toHaveBeenCalledWith(7, actor)
     expect(report.roster).toEqual(duties)
+    expect(report.clinicName).toBe('Radiology')
     expect(report.coverage.filled).toBe(30)
     expect(report.workload).toHaveLength(1)
     expect(report.fairness.dutySpread).toBe(0)
+  })
+
+  it('propagates the cross-clinic 404 from the roster read', async () => {
+    adminStats.mockResolvedValue({
+      schedule: { id: 7, clinicId: 2, clinicName: 'Cardiology' },
+      coverage: { daysInMonth: 30, filled: 0, gaps: [] },
+      workload: [],
+      fairness: { dutySpread: null, weekendSpread: null },
+    })
+    getScheduleDuties.mockRejectedValue(Object.assign(new Error('Schedule not found'), { status: 404 }))
+
+    await expect(monthlyReport(2026, 9, actor, scope)).rejects.toMatchObject({ status: 404 })
   })
 })
