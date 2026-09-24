@@ -11,6 +11,8 @@ const props = withDefaults(
     open: boolean
     title?: string
     modelValue: string[]
+    /** Month ('YYYY-MM') the calendar opens on when no day is preselected. */
+    initialMonth?: string
     /** Days already excluded elsewhere; shown dimmed and not selectable. */
     reservedDays?: string[]
     confirmText?: string
@@ -93,10 +95,16 @@ watch(
     if (first) {
       const d = new Date(`${first}T00:00:00`)
       view.value = { year: d.getFullYear(), month0: d.getMonth() }
+    } else if (props.initialMonth) {
+      view.value = {
+        year: Number(props.initialMonth.slice(0, 4)),
+        month0: Number(props.initialMonth.slice(5, 7)) - 1,
+      }
     } else {
       view.value = { year: today.getFullYear(), month0: today.getMonth() }
     }
   },
+  { immediate: true },
 )
 
 // Capture phase + stopPropagation mirrors DatePicker: Escape closes only this

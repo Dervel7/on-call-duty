@@ -245,7 +245,7 @@ watch([year, month], load)
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <div class="flex flex-col gap-4">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div>
         <h1 class="text-xl font-semibold text-foreground">{{ monthLabel }}</h1>
@@ -287,7 +287,7 @@ watch([year, month], load)
         <div class="h-4 w-40 animate-pulse rounded bg-muted" />
       </div>
       <div class="grid grid-cols-7 gap-px bg-border p-px">
-        <div v-for="n in 28" :key="n" class="min-h-[112px] bg-card p-2">
+        <div v-for="n in 28" :key="n" class="min-h-[72px] bg-card p-1.5">
           <div class="h-3 w-5 animate-pulse rounded bg-muted" />
           <div class="mt-2 h-8 w-full animate-pulse rounded bg-muted" />
         </div>
@@ -297,7 +297,7 @@ watch([year, month], load)
     <template v-else-if="result">
       <div
         v-if="status"
-        :class="['rounded-lg border px-4 py-3', STATUS_TONE[status.tone]]"
+        :class="['rounded-lg border px-4 py-2', STATUS_TONE[status.tone]]"
         :role="status.tone === 'destructive' ? 'alert' : 'status'"
       >
         <p class="text-sm font-semibold text-foreground">{{ status.title }}</p>
@@ -306,7 +306,7 @@ watch([year, month], load)
 
       <section class="overflow-hidden rounded-lg border border-border bg-card">
         <div
-          class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3"
+          class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2"
         >
           <div
             class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted-foreground"

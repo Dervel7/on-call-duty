@@ -64,7 +64,10 @@ beforeEach(() => {
   remove.mockReset()
   settle(false)
 })
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 function bodyButton(label: string): HTMLButtonElement | undefined {
   return Array.from(document.body.querySelectorAll('button')).find((b) =>
@@ -114,6 +117,20 @@ describe('AvailabilityPage', () => {
     const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
+  })
+
+  it('opens the day calendar on the next month', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-09-25T12:00:00') })
+    doctorList.mockResolvedValue([doctor])
+    listAll.mockResolvedValue([])
+    const wrapper = await openCreateDialog()
+    await pickOption(document.body, '#e-doctor', '5')
+    bodyButton('Select days')!.click()
+    await flushPromises()
+    expect(document.body.querySelector('[data-month]')?.getAttribute('data-month')).toBe(
+      '2026-10',
+    )
+    wrapper.unmount()
   })
 
   it('keeps the dialog open with an inline error when create fails', async () => {
@@ -218,6 +235,50 @@ describe('AvailabilityPage', () => {
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('update failed')
     expect(bodyButton('Save')).toBeTruthy()
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('filters to the next month by default and refetches when the month changes', async () => {
+    doctorList.mockResolvedValue([])
+    listAll.mockResolvedValue([])
+    const now = new Date()
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    const nextMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
+    const lastDay = String(new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()).padStart(
+      2,
+      '0',
+    )
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(listAll).toHaveBeenCalledWith({
+      doctorId: undefined,
+      from: `${nextMonth}-01`,
+      to: `${nextMonth}-${lastDay}`,
+    })
+    const monthLabel = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(
+      next,
+    )
+    expect(wrapper.find('#f-month').text()).toContain(monthLabel)
+
+    // The month after the default one, crossing a year boundary when needed.
+    const target = new Date(next.getFullYear(), next.getMonth() + 1, 1)
+    const targetMonth = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`
+    await wrapper.find('#f-month').trigger('click')
+    await flushPromises()
+    if (target.getFullYear() !== next.getFullYear()) {
+      await wrapper.find('[aria-label="Next year"]').trigger('click')
+    }
+    await wrapper.find(`[data-month="${targetMonth}"]`).trigger('click')
+    await flushPromises()
+    // Filters apply on change — there is no Apply button.
+    const targetLastDay = String(
+      new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate(),
+    ).padStart(2, '0')
+    expect(listAll).toHaveBeenLastCalledWith({
+      doctorId: undefined,
+      from: `${targetMonth}-01`,
+      to: `${targetMonth}-${targetLastDay}`,
+    })
     wrapper.unmount()
   })
 

@@ -44,6 +44,28 @@ describe('CalendarDialog', () => {
     wrapper.unmount()
   })
 
+  it('opens on initialMonth when no day is preselected', async () => {
+    const wrapper = mount(CalendarDialog, {
+      props: { open: true, modelValue: [], initialMonth: '2026-10' },
+    })
+    await flushPromises()
+    expect(document.body.querySelector('[data-month]')?.getAttribute('data-month')).toBe(
+      '2026-10',
+    )
+    wrapper.unmount()
+  })
+
+  it('prefers the first preselected day over initialMonth', async () => {
+    const wrapper = mount(CalendarDialog, {
+      props: { open: true, modelValue: ['2026-09-07'], initialMonth: '2026-10' },
+    })
+    await flushPromises()
+    expect(document.body.querySelector('[data-month]')?.getAttribute('data-month')).toBe(
+      '2026-09',
+    )
+    wrapper.unmount()
+  })
+
   it('closes via the top-right X', async () => {
     const wrapper = mount(CalendarDialog, { props: { open: true, modelValue: [] } })
     document.body

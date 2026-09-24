@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
 import type { Doctor, Unavailability } from '@oncall/shared'
-import { eachDay, groupConsecutiveDays } from '@oncall/utils'
+import { daysInMonth, eachDay, groupConsecutiveDays } from '@oncall/utils'
 import * as unavailabilityService from '@/services/unavailability'
 import * as doctorService from '@/services/doctor'
 import Button from '@/components/ui/Button.vue'
 import CalendarDialog from '@/components/ui/CalendarDialog.vue'
 import Dialog from '@/components/ui/Dialog.vue'
-import DatePicker from '@/components/ui/DatePicker.vue'
 import Label from '@/components/ui/Label.vue'
+import MonthPicker from '@/components/ui/MonthPicker.vue'
 import Select from '@/components/ui/Select.vue'
 import { useConfirm } from '@/composables/useConfirm'
 
@@ -21,8 +21,23 @@ const saving = ref(false)
 const { confirm } = useConfirm()
 
 const filterDoctorId = ref('')
-const filterFrom = ref('')
-const filterTo = ref('')
+
+/** Next calendar month as 'YYYY-MM' — the window administrators plan exclusions for. */
+function nextMonthIso(): string {
+  const now = new Date()
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** Inclusive ISO bounds of an 'YYYY-MM' month; empty when no month is selected. */
+function monthRange(month: string): { from?: string; to?: string } {
+  if (!/^\d{4}-\d{2}$/.test(month)) return {}
+  const year = Number(month.slice(0, 4))
+  const month0 = Number(month.slice(5, 7)) - 1
+  return { from: `${month}-01`, to: `${month}-${String(daysInMonth(year, month0)).padStart(2, '0')}` }
+}
+
+const filterMonth = ref(nextMonthIso())
 
 interface EditState {
   open: boolean
@@ -94,8 +109,7 @@ async function load() {
   try {
     const query = {
       doctorId: filterDoctorId.value ? Number(filterDoctorId.value) : undefined,
-      from: filterFrom.value || undefined,
-      to: filterTo.value || undefined,
+      ...monthRange(filterMonth.value),
     }
     records.value = await unavailabilityService.listAll(query)
   } catch (e) {
@@ -104,6 +118,11 @@ async function load() {
     loading.value = false
   }
 }
+
+// Filters apply immediately — no Apply step.
+watch([filterDoctorId, filterMonth], () => {
+  void load()
+})
 
 /** Days covered by the doctor's other records (the edited one excluded). */
 async function reservedDaysFor(doctorId: number, exceptId: number | null): Promise<string[]> {
@@ -252,18 +271,16 @@ onMounted(async () => {
         </Select>
       </div>
       <div class="flex flex-col gap-1">
-        <Label for="f-from">From</Label>
-        <DatePicker id="f-from" v-model="filterFrom" placeholder="Any date" class="w-44" />
+        <Label for="f-month">Month</Label>
+        <MonthPicker id="f-month" v-model="filterMonth" placeholder="Any month" class="w-44" />
       </div>
-      <div class="flex flex-col gap-1">
-        <Label for="f-to">To</Label>
-        <DatePicker id="f-to" v-model="filterTo" placeholder="Any date" class="w-44" />
-      </div>
-      <Button variant="outline" @click="load">Apply</Button>
     </div>
 
     <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
+    <p v-else-if="grouped.length === 0 && !loading" class="text-sm text-muted-foreground">
+      No exclusions for the selected filters.
+    </p>
 
     <ul v-if="grouped.length > 0" class="overflow-hidden rounded-lg border border-border/70">
       <li v-for="g in grouped" :key="g.doctorId" class="border-b border-border/70 last:border-b-0">
@@ -327,12 +344,13 @@ onMounted(async () => {
           >
             Delete
           </Button>
-          <Button type="submit" :disabled="saving">Save</Button>
+          <Button type="submit" class="ml-auto" :disabled="saving">Save</Button>
         </div>
       </form>
       <CalendarDialog
         v-model:open="edit.calendarOpen"
         v-model="edit.days"
+        :initial-month="nextMonthIso()"
         title="Mark excluded days"
         confirm-text="Confirm days"
         :reserved-days="edit.reservedDays"

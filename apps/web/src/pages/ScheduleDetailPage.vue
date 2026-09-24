@@ -219,11 +219,9 @@ onMounted(async () => {
           <h1 class="text-xl font-semibold text-foreground">
             {{ MONTHS[schedule.month - 1] }} {{ schedule.year }}
           </h1>
-          <span
-            :class="isPublished
-              ? 'inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary'
-              : 'inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'"
-          >
+          <span :class="isPublished
+            ? 'inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary'
+            : 'inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'">
             {{ isPublished ? 'Published' : 'Draft' }}
           </span>
         </div>
@@ -240,19 +238,9 @@ onMounted(async () => {
         Schedule is published and locked. Revert to draft to edit duties.
       </p>
 
-      <DutyCalendar
-        :year="schedule.year"
-        :month="schedule.month"
-        :days="days"
-        :assignment-by-date="assignmentByDate"
-        :conflicts-by-date="conflictsByDate"
-        :doctors="doctors"
-        :mode="mode"
-        :saving-dates="savingDates"
-        allow-clear
-        show-fill-hints
-        @select="onSelect"
-      />
+      <DutyCalendar :year="schedule.year" :month="schedule.month" :days="days" :assignment-by-date="assignmentByDate"
+        :conflicts-by-date="conflictsByDate" :doctors="doctors" :mode="mode" :saving-dates="savingDates" allow-clear
+        show-fill-hints @select="onSelect" />
     </template>
   </div>
 </template>
