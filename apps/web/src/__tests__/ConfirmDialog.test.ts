@@ -6,8 +6,9 @@ import { useConfirm, useConfirmState } from '../composables/useConfirm'
 const { request, settle } = useConfirmState()
 const { confirm } = useConfirm()
 
+// Labeled action buttons only — the dialog's icon-only X close button has no text.
 function hostButtons(): HTMLButtonElement[] {
-  return Array.from(document.body.querySelectorAll('button'))
+  return Array.from(document.body.querySelectorAll('button')).filter((b) => b.textContent?.trim())
 }
 
 function overlay(): HTMLElement | null {

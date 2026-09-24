@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { onClickOutside, useEventListener } from '@vueuse/core'
-import Button from './Button.vue'
+import { X } from 'lucide-vue-next'
 
 const props = defineProps<{ open: boolean; title?: string }>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
@@ -39,14 +39,20 @@ watch(
         ref="panel"
         class="animate-dialog-panel relative z-10 w-full max-w-md rounded-xl border border-border/80 bg-card p-6 shadow-pop"
       >
-        <h2 v-if="title" class="mb-4 text-lg font-semibold tracking-tight text-foreground">
+        <button
+          type="button"
+          aria-label="Close"
+          class="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          @click="close"
+        >
+          <X class="h-4 w-4" aria-hidden="true" />
+        </button>
+        <h2 v-if="title" class="mb-4 pr-10 text-lg font-semibold tracking-tight text-foreground">
           {{ title }}
         </h2>
         <slot />
-        <div class="mt-6 flex justify-end gap-2">
-          <slot name="footer">
-            <Button variant="outline" @click="close">Close</Button>
-          </slot>
+        <div v-if="$slots.footer" class="mt-6 flex justify-end gap-2">
+          <slot name="footer" />
         </div>
       </div>
     </div>

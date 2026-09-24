@@ -43,4 +43,14 @@ describe('CalendarDialog', () => {
     expect(confirmButton().disabled).toBe(true)
     wrapper.unmount()
   })
+
+  it('closes via the top-right X', async () => {
+    const wrapper = mount(CalendarDialog, { props: { open: true, modelValue: [] } })
+    document.body
+      .querySelector('button[aria-label="Close"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(wrapper.emitted('update:open')?.[0]).toEqual([false])
+    wrapper.unmount()
+  })
 })
