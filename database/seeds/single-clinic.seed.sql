@@ -2,7 +2,7 @@
 -- database, applies schema.sql, then this file (idempotent upserts).
 --
 -- Baseline: one clinic ('Main Clinic') holding the whole hospital staff -
--- one administrator, eight doctors (dr1-dr8), plus the vendor superadmin.
+-- one administrator, nine doctors (dr1-dr9), plus the vendor superadmin.
 
 INSERT INTO app_meta (key, value) VALUES ('schema_version', '1')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
@@ -47,14 +47,15 @@ ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
 -- Seed sample doctors (password = email, change on first login)
 INSERT INTO users (email, username, password_hash, role, first_name, last_name, is_active, clinic_id)
 VALUES
-  ('dr1@oncall.local', 'dr1', '$2b$12$t65At8AmL5CM1uphNod26es83qUcLR9ycYLLVnyN8YCHgg.IxQ3aO', 'doctor', 'Nikos',    'Papadopoulos', TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr2@oncall.local', 'dr2', '$2b$12$9.HqiDEdLTFpiWJN5noAAOsDfSa/6oLFpP/.HnulzEADAQIOBOQW6', 'doctor', 'Eleni',    'Dimitriou',    TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr3@oncall.local', 'dr3', '$2b$12$8KF959sMdv3ifN6tr0uTuu5eKC1UVUqlg30lD/e1UtrNRtNi0lLgm', 'doctor', 'Giorgos',  'Konstantinou', TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr4@oncall.local', 'dr4', '$2b$12$fb/aJHYKFEcnL2zCkSlb..2LZN0xfjAcijROn87iZmdorr1cmE/QO', 'doctor', 'Maria',    'Georgiou',     TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr5@oncall.local', 'dr5', '$2b$12$jYi9MCqGip4V.Ynb0fCTh.EPrHBYVjvCnM.9Ke7KLohIMLvUvniA2', 'doctor', 'Yannis',   'Ioannou',      TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr6@oncall.local', 'dr6', '$2b$12$ZJVUxCgDZlVJfoXtQbh91OZwfqnV0aG3V1kJbS2QPy8Ok1a/ZexdS', 'doctor', 'Sofia',    'Vlachou',      TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr7@oncall.local', 'dr7', '$2b$12$47LuPzklNu2otUNM2PKKXOG8OUYGd.7XiGa2Fve6OwcGYCvDp1FLm', 'doctor', 'Dimitris', 'Antoniou',     TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr8@oncall.local', 'dr8', '$2b$12$pk./7Qh2MP/iJaYcD8UyAOR1Ys/kmXarnMYvSg/FuY0pI3sokXwiO', 'doctor', 'Katerina', 'Pavlidou',     TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic'))
+  ('dr1@oncall.local', 'dr1', '$2b$12$t65At8AmL5CM1uphNod26es83qUcLR9ycYLLVnyN8YCHgg.IxQ3aO', 'doctor', 'Kostas',     'Fitsilis',        TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr2@oncall.local', 'dr2', '$2b$12$9.HqiDEdLTFpiWJN5noAAOsDfSa/6oLFpP/.HnulzEADAQIOBOQW6', 'doctor', 'Maria',      'Ivanidou',        TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr3@oncall.local', 'dr3', '$2b$12$8KF959sMdv3ifN6tr0uTuu5eKC1UVUqlg30lD/e1UtrNRtNi0lLgm', 'doctor', 'Nikos',      'Soultanis',       TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr4@oncall.local', 'dr4', '$2b$12$fb/aJHYKFEcnL2zCkSlb..2LZN0xfjAcijROn87iZmdorr1cmE/QO', 'doctor', 'Penny',      'Gavala',          TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr5@oncall.local', 'dr5', '$2b$12$jYi9MCqGip4V.Ynb0fCTh.EPrHBYVjvCnM.9Ke7KLohIMLvUvniA2', 'doctor', 'Anna',       'Sokopoulou',      TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr6@oncall.local', 'dr6', '$2b$12$ZJVUxCgDZlVJfoXtQbh91OZwfqnV0aG3V1kJbS2QPy8Ok1a/ZexdS', 'doctor', 'Pavlos',     'Paraskevopoulos', TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr7@oncall.local', 'dr7', '$2b$12$47LuPzklNu2otUNM2PKKXOG8OUYGd.7XiGa2Fve6OwcGYCvDp1FLm', 'doctor', 'Kostas',     'Fanaras',         TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr8@oncall.local', 'dr8', '$2b$12$pk./7Qh2MP/iJaYcD8UyAOR1Ys/kmXarnMYvSg/FuY0pI3sokXwiO', 'doctor', 'Eleutheria', 'Eleutheriadou',   TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr9@oncall.local', 'dr9', '$2b$12$/6TzOQA7Xpnxvei3hI5OG.Vfu5LxdAEHuhdglFxAN/dow0xCPcIF2', 'doctor', 'Ioanna',     'Plousi',          TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic'))
 ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
   username      = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,
@@ -72,24 +73,30 @@ VALUES
   ((SELECT id FROM users WHERE email = 'dr5@oncall.local' AND is_deleted = FALSE), (SELECT id FROM clinics WHERE name = 'Main Clinic'), 7),
   ((SELECT id FROM users WHERE email = 'dr6@oncall.local' AND is_deleted = FALSE), (SELECT id FROM clinics WHERE name = 'Main Clinic'), 7),
   ((SELECT id FROM users WHERE email = 'dr7@oncall.local' AND is_deleted = FALSE), (SELECT id FROM clinics WHERE name = 'Main Clinic'), 7),
-  ((SELECT id FROM users WHERE email = 'dr8@oncall.local' AND is_deleted = FALSE), (SELECT id FROM clinics WHERE name = 'Main Clinic'), 7)
+  ((SELECT id FROM users WHERE email = 'dr8@oncall.local' AND is_deleted = FALSE), (SELECT id FROM clinics WHERE name = 'Main Clinic'), 7),
+  ((SELECT id FROM users WHERE email = 'dr9@oncall.local' AND is_deleted = FALSE), (SELECT id FROM clinics WHERE name = 'Main Clinic'), 7)
 ON CONFLICT (user_id) DO UPDATE SET
   clinic_id          = EXCLUDED.clinic_id,
   max_monthly_duties = EXCLUDED.max_monthly_duties,
   updated_at         = NOW();
 
--- Seed sample unavailability (fixed sample month 2026-09 - dr1/dr2)
-INSERT INTO unavailability (doctor_id, type, start_date, end_date, note)
-SELECT d.id, 'vacation', '2026-09-07', '2026-09-11', 'Summer break'
-FROM doctors d JOIN users u ON u.id = d.user_id
-WHERE u.email = 'dr1@oncall.local' AND u.is_deleted = FALSE
-AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id AND x.start_date = '2026-09-07' AND x.end_date = '2026-09-11');
-
-INSERT INTO unavailability (doctor_id, type, start_date, end_date, note)
-SELECT d.id, 'sick', '2026-09-15', '2026-09-15', NULL
-FROM doctors d JOIN users u ON u.id = d.user_id
-WHERE u.email = 'dr2@oncall.local' AND u.is_deleted = FALSE
-AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id AND x.start_date = '2026-09-15' AND x.end_date = '2026-09-15');
+-- Random unavailability for every doctor (sample window 2026-09). Values are
+-- derived from each doctor's email with hashtext, so every seed run produces
+-- the same "random" dates. Doctors who already have unavailability are skipped.
+INSERT INTO unavailability (doctor_id, start_date, end_date)
+SELECT
+  d.id,
+  DATE '2026-09-01' + r.start_offset,
+  DATE '2026-09-01' + r.start_offset + r.span_days
+FROM doctors d
+JOIN users u ON u.id = d.user_id
+CROSS JOIN LATERAL (
+  SELECT
+    (abs(hashtext(u.email || ':start')::bigint) % 20)::int AS start_offset,
+    (abs(hashtext(u.email || ':len')::bigint) % 5)::int   AS span_days
+) r
+WHERE u.is_deleted = FALSE
+  AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id);
 
 -- Phase 13: seed the billing deadline 30 days ahead. DO NOTHING is deliberate:
 -- re-seeding must never extend an existing deadline.

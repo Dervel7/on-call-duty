@@ -39,10 +39,8 @@ const row = () => ({
   doctor_id: 5,
   first_name: 'Jane',
   last_name: 'Roe',
-  type: 'vacation',
   start_date: '2026-09-07',
   end_date: '2026-09-11',
-  note: null,
   created_at: new Date(),
   updated_at: new Date(),
 })
@@ -87,7 +85,7 @@ describe('unavailability routes', () => {
     const write = await request(build())
       .post('/unavailability?clinicId=1')
       .set('Authorization', `Bearer ${managerToken}`)
-      .send({ doctorId: 5, type: 'vacation', startDate: '2026-09-20', endDate: '2026-09-21' })
+      .send({ doctorId: 5, startDate: '2026-09-20', endDate: '2026-09-21' })
     expect(write.status).toBe(403)
 
     query.mockResolvedValueOnce({
@@ -96,7 +94,7 @@ describe('unavailability routes', () => {
     const patch = await request(build())
       .patch('/unavailability/1')
       .set('Authorization', `Bearer ${managerToken}`)
-      .send({ type: 'sick' })
+      .send({})
     expect(patch.status).toBe(403)
   })
 
@@ -122,7 +120,7 @@ describe('unavailability routes', () => {
     expect(adminRes.status).toBe(404)
   })
 
-  it('admin creates for a doctor (201); overlap is 409; unknown doctor 404; bad type 400', async () => {
+  it('admin creates for a doctor (201); overlap is 409; unknown doctor 404; inverted range 400', async () => {
     let n = 0
     query.mockImplementation(async () => {
       n++
@@ -134,7 +132,7 @@ describe('unavailability routes', () => {
     const res = await request(build())
       .post('/unavailability')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ doctorId: 5, type: 'vacation', startDate: '2026-09-20', endDate: '2026-09-21' })
+      .send({ doctorId: 5, startDate: '2026-09-20', endDate: '2026-09-21' })
     expect(res.status).toBe(201)
     expect(res.body.data.unavailability).toBeDefined()
 
@@ -144,7 +142,7 @@ describe('unavailability routes', () => {
     const overlapRes = await request(build())
       .post('/unavailability')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ doctorId: 5, type: 'vacation', startDate: '2026-09-08', endDate: '2026-09-09' })
+      .send({ doctorId: 5, startDate: '2026-09-08', endDate: '2026-09-09' })
     expect(overlapRes.status).toBe(409)
 
     query.mockReset()
@@ -152,14 +150,14 @@ describe('unavailability routes', () => {
     const notFoundRes = await request(build())
       .post('/unavailability')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ doctorId: 999, type: 'sick', startDate: '2026-09-01', endDate: '2026-09-01' })
+      .send({ doctorId: 999, startDate: '2026-09-01', endDate: '2026-09-01' })
     expect(notFoundRes.status).toBe(404)
 
-    const badTypeRes = await request(build())
+    const invertedRes = await request(build())
       .post('/unavailability')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ doctorId: 5, type: 'holiday', startDate: '2026-09-01', endDate: '2026-09-01' })
-    expect(badTypeRes.status).toBe(400)
+      .send({ doctorId: 5, startDate: '2026-09-03', endDate: '2026-09-01' })
+    expect(invertedRes.status).toBe(400)
   })
 
   it('doctor creates own via /me (201)', async () => {
@@ -171,7 +169,7 @@ describe('unavailability routes', () => {
     const res = await request(build())
       .post('/unavailability/me')
       .set('Authorization', `Bearer ${doctorToken()}`)
-      .send({ type: 'sick', startDate: '2026-09-01', endDate: '2026-09-02' })
+      .send({ startDate: '2026-09-01', endDate: '2026-09-02' })
     expect(res.status).toBe(201)
   })
 
@@ -183,13 +181,13 @@ describe('unavailability routes', () => {
     const res = await request(build())
       .patch('/unavailability/1')
       .set('Authorization', `Bearer ${doctorToken()}`)
-      .send({ type: 'sick' })
+      .send({})
     expect(res.status).toBe(403)
 
     const badId = await request(build())
       .patch('/unavailability/abc')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ type: 'sick' })
+      .send({})
     expect(badId.status).toBe(400)
   })
 
@@ -198,12 +196,13 @@ describe('unavailability routes', () => {
     query.mockResolvedValueOnce({ rows: [stored] })
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // doctors lock
     query.mockResolvedValueOnce({ rows: [stored] }) // locked re-read
+    query.mockResolvedValueOnce({ rows: [] }) // overlap check (endDate changed)
     query.mockResolvedValueOnce({ rows: [] }) // UPDATE
     query.mockResolvedValueOnce({ rows: [row()] })
     const res = await request(build())
       .patch('/unavailability/1')
       .set('Authorization', `Bearer ${superadminToken()}`)
-      .send({ type: 'sick' })
+      .send({ endDate: '2026-09-12' })
     expect(res.status).toBe(200)
     expect(res.body.data.unavailability).toBeDefined()
   })

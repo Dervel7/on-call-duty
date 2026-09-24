@@ -147,7 +147,7 @@
     <li>Signing In <span class="d">Login, first-time password, sessions, sign-out</span></li>
     <li>The Administrator Dashboard <span class="d">Coverage, fairness, and workload at a glance</span></li>
     <li>Managing Users <span class="d">Accounts, doctor profiles, and the monthly duty cap</span></li>
-    <li>Managing Availability <span class="d">Vacations, sick leave, and exclusions</span></li>
+    <li>Managing Availability <span class="d">Marking excluded days on the calendar</span></li>
     <li>Building a Schedule <span class="d">Preview → Generate → Edit → Publish</span></li>
     <li>Reports <span class="d">The monthly report, CSV export, and printing</span></li>
     <li>Your Profile <span class="d">Changing your password and dark mode</span></li>
@@ -173,7 +173,7 @@ unavailable, and balances weekend workload across the team.</p>
 <table class="grid">
   <tr><th style="width:34mm">Role</th><th>What they do</th></tr>
   <tr><td><strong>Administrator</strong></td><td>Plans and publishes duty schedules. Manages users, doctors, availability, schedules, and reports. This is the audience of this manual.</td></tr>
-  <tr><td><strong>Doctor</strong></td><td>Views their own published duties and personal dashboard, and records their own unavailability (vacation, sick, etc.). Doctors cannot edit schedules.</td></tr>
+  <tr><td><strong>Doctor</strong></td><td>Views their own published duties and personal dashboard, and records their own unavailability. Doctors cannot edit schedules.</td></tr>
 </table>
 
 <h2>1.3 The administrator's navigation</h2>
@@ -301,29 +301,29 @@ rows show — in that column.</p>
 
 <!-- ============================ 5. AVAILABILITY ============================ -->
 <h1 class="chapter"><span class="num">5.</span> Managing Availability</h1>
-<p class="chap-lead">The <strong>Availability</strong> page records when a doctor is <em>not</em> available (vacation, sick leave, conferences, etc.). The scheduling engine never assigns a doctor on a day they are unavailable.</p>
+<p class="chap-lead">The <strong>Availability</strong> page records when a doctor is <em>not</em> available. The scheduling engine never assigns a doctor on a day they are unavailable.</p>
 
 <h2>5.1 The availability list</h2>
 <p>You can filter by <strong>Doctor</strong> and by a <strong>From / To</strong> date range, then choose <span class="kbd">Apply</span>.
-The table shows each exclusion's <strong>Type, Start, End</strong> and optional <strong>Note</strong>.</p>
+The table lists each exclusion's <strong>Start</strong> and <strong>End</strong> date (inclusive, whole days).</p>
 <figure>
   <img src="screenshots/11-availability.png" alt="Availability list" />
   <figcaption><b>Figure 5.1</b> — All doctors' exclusions in one place. Use the filters to focus on one doctor or one period.</figcaption>
 </figure>
 
-<h2>5.2 Adding an exclusion</h2>
+<h2>5.2 Marking excluded days</h2>
 <ol class="steps">
   <li>Choose <span class="kbd">New exclusion</span>.</li>
   <li>Select the <strong>Doctor</strong>.</li>
-  <li>Choose a <strong>Type</strong>: <em>Vacation, Sick, Conference,</em> or <em>Other</em>.</li>
-  <li>Set the <strong>Start date</strong> and <strong>End date</strong> (inclusive, whole days; the end must be on or after the start).</li>
-  <li>(Optional) add a <strong>Note</strong> (up to 500 characters), then <span class="kbd">Save</span>.</li>
+  <li>Choose <span class="kbd">Select days…</span> to open the calendar and click every day the doctor is unavailable — days can be anywhere, in any month; use <strong>‹ / ›</strong> to move between months.</li>
+  <li>Choose <span class="kbd">Confirm days</span>, then <span class="kbd">Save</span>.</li>
 </ol>
+<p>On <span class="kbd">Save</span>, the marked days become the doctor's exclusions: runs of consecutive days are stored as one record, and days that are already excluded (shown dimmed in the calendar) are skipped automatically.</p>
 <figure>
   <img src="screenshots/12-availability-new-dialog.png" alt="New exclusion dialog" />
   <figcaption><b>Figure 5.2</b> — Recording an exclusion. Dates are inclusive: a one-day absence uses the same start and end date.</figcaption>
 </figure>
-<div class="note warn"><span class="t">Caution — overlaps</span>Two exclusions for the same doctor cannot overlap in time. The system rejects an overlapping record. If you need to extend an absence, edit the existing record instead of adding a second one.</div>
+<div class="note tip"><span class="t">Tip — editing</span>Editing a record opens the same calendar with its days pre-marked. Re-mark the days and save: a single run moves the record, and a split selection keeps it for the first run while adding the rest.</div>
 <div class="note tip"><span class="t">Tip</span>Doctors can record their own exclusions from their <em>My availability</em> page. Use this admin page to record exclusions on a doctor's behalf or to correct mistakes.</div>
 
 <!-- ============================ 6. SCHEDULES ============================ -->
@@ -466,7 +466,7 @@ on-screen controls are hidden automatically when printing.</p>
   <tr><th style="width:46mm">Rule</th><th>Meaning</th></tr>
   <tr><td><strong>Monthly duty cap</strong></td><td>A doctor cannot exceed their <em>Max monthly duties</em> (1–7, set on the Users page) in a given month.</td></tr>
   <tr><td><strong>No back-to-back</strong></td><td>A doctor cannot be on duty the day immediately after a day they were already on duty. This is checked across month boundaries, so the last day of one month protects the first day of the next.</td></tr>
-  <tr><td><strong>Availability</strong></td><td>A doctor is never assigned on a date covered by one of their exclusions (vacation, sick, conference, other).</td></tr>
+  <tr><td><strong>Availability</strong></td><td>A doctor is never assigned on a date covered by one of their exclusions.</td></tr>
   <tr><td><strong>Active only</strong></td><td>Disabled doctors are skipped entirely.</td></tr>
 </table>
 
@@ -535,7 +535,7 @@ regenerate.</p>
   <tr><td>See how a month is shaping up</td><td>Home (dashboard)</td></tr>
   <tr><td>Create or manage user accounts (administrators and doctors)</td><td>Users</td></tr>
   <tr><td>Add a doctor / set their monthly cap</td><td>Users</td></tr>
-  <tr><td>Record a vacation, sick leave, etc.</td><td>Availability</td></tr>
+  <tr><td>Mark days a doctor is unavailable</td><td>Availability</td></tr>
   <tr><td>Generate, edit, and publish a month</td><td>Schedules → (month) → detail</td></tr>
   <tr><td>Export or print a monthly report</td><td>Reports</td></tr>
   <tr><td>Change my password</td><td>Profile</td></tr>
@@ -560,7 +560,7 @@ regenerate.</p>
   <tr><td><strong>Duty</strong></td><td>A single doctor assigned to a single day (07:00 → next day 15:00).</td></tr>
   <tr><td><strong>Gap day</strong></td><td>A day in the month with no doctor assigned.</td></tr>
   <tr><td><strong>Cap</strong></td><td>A doctor's maximum duties per month (Max monthly duties, 1–7).</td></tr>
-  <tr><td><strong>Exclusion</strong></td><td>A date range a doctor is unavailable (vacation, sick, conference, other).</td></tr>
+  <tr><td><strong>Exclusion</strong></td><td>A date range a doctor is unavailable.</td></tr>
   <tr><td><strong>Duty spread</strong></td><td>Busiest minus quietest doctor's duty count; 0–1 is “Well balanced”.</td></tr>
   <tr><td><strong>Reason</strong></td><td>The engine's stored explanation for an assignment.</td></tr>
   <tr><td><strong>Conflict</strong></td><td>A day the engine cannot fill under the hard rules.</td></tr>

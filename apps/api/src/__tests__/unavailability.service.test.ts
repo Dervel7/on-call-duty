@@ -29,10 +29,8 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
     doctor_id: 5,
     first_name: 'Jane',
     last_name: 'Roe',
-    type: 'vacation',
     start_date: '2026-09-07',
     end_date: '2026-09-11',
-    note: null,
     created_at: new Date('2026-09-01'),
     updated_at: new Date('2026-09-01'),
     ...overrides,
@@ -42,10 +40,8 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
 const stored = () => ({
   doctor_id: 5,
   clinic_id: 1,
-  type: 'vacation',
   start_date: '2026-09-07',
   end_date: '2026-09-11',
-  note: null as string | null,
 })
 
 // SQL-keyed routing keeps sequences stable as intermediate queries evolve.
@@ -114,7 +110,7 @@ describe('unavailability.service', () => {
   it('create rejects unknown doctor with 404', async () => {
     query.mockResolvedValueOnce({ rows: [] })
     await expect(
-      create(99, { type: 'sick', startDate: '2026-09-01', endDate: '2026-09-01' }, admin),
+      create(99, { startDate: '2026-09-01', endDate: '2026-09-01' }, admin),
     ).rejects.toMatchObject({ status: 404 })
   })
 
@@ -123,7 +119,7 @@ describe('unavailability.service', () => {
     await expect(
       create(
         5,
-        { type: 'sick', startDate: '2026-09-01', endDate: '2026-09-01' },
+        { startDate: '2026-09-01', endDate: '2026-09-01' },
         admin,
         scope(1),
       ),
@@ -137,14 +133,14 @@ describe('unavailability.service', () => {
     query.mockResolvedValueOnce({ rows: [{ clinic_id: 1 }] })
     query.mockResolvedValueOnce({ rows: [{ id: 99 }] })
     await expect(
-      create(5, { type: 'vacation', startDate: '2026-09-08', endDate: '2026-09-09' }, admin),
+      create(5, { startDate: '2026-09-08', endDate: '2026-09-09' }, admin),
     ).rejects.toMatchObject({ status: 409 })
 
     query.mockReset()
     installDb()
     const x = await create(
       5,
-      { type: 'vacation', startDate: '2026-09-20', endDate: '2026-09-21' },
+      { startDate: '2026-09-20', endDate: '2026-09-21' },
       admin,
       scope(1),
     )
@@ -159,14 +155,14 @@ describe('unavailability.service', () => {
 
   it('createOwn resolves doctorId then creates', async () => {
     installDb()
-    const x = await createOwn(10, { type: 'sick', startDate: '2026-09-01', endDate: '2026-09-02' })
+  const x = await createOwn(10, { startDate: '2026-09-01', endDate: '2026-09-02' })
     expect(x.id).toBe(1)
   })
 
-  it('update excludes self from overlap check and clears note on null', async () => {
-    installDb([row({ note: null })])
-    const x = await update(1, { note: null, endDate: '2026-09-12' }, admin)
-    expect(x.note).toBeNull()
+  it('update excludes self from the overlap check', async () => {
+    installDb()
+    const x = await update(1, { endDate: '2026-09-12' }, admin)
+    expect(x.id).toBe(1)
     const overlap = query.mock.calls.find((c) => String(c[0]).includes('AND id <>'))
     expect(String(overlap?.[0])).toContain('AND id <>')
     const updateSql = query.mock.calls.find((c) => String(c[0]).includes('UPDATE unavailability'))
@@ -197,15 +193,15 @@ describe('unavailability.service', () => {
       const sql = String(args[0] ?? '')
       if (sql.includes('JOIN doctors d ON d.id = x.doctor_id')) return { rows: [stored()] }
       if (sql.includes('FROM doctors WHERE user_id = $1')) return { rows: [{ id: 8 }] }
-      return { rows: [row({ type: 'sick' })] }
+      return { rows: [row()] }
     })
-    await expect(update(1, { type: 'sick' }, doctor)).rejects.toMatchObject({ status: 403 })
-    await expect(update(1, { type: 'sick' }, manager)).rejects.toMatchObject({ status: 403 })
+    await expect(update(1, {}, doctor)).rejects.toMatchObject({ status: 403 })
+    await expect(update(1, {}, manager)).rejects.toMatchObject({ status: 403 })
 
     query.mockReset()
-    installDb([row({ type: 'sick' })])
-    const x = await update(1, { type: 'sick' }, superadmin)
-    expect(x.type).toBe('sick')
+    installDb()
+    const x = await update(1, { endDate: '2026-09-12' }, superadmin)
+    expect(x.id).toBe(1)
   })
 
   it('update hides a cross-clinic record from an administrator (404)', async () => {
@@ -215,19 +211,19 @@ describe('unavailability.service', () => {
       if (sql.includes('FROM doctors WHERE id = $1 AND clinic_id = $2')) return { rows: [] }
       return { rows: [] }
     })
-    await expect(update(1, { type: 'sick' }, admin)).rejects.toMatchObject({ status: 404 })
+    await expect(update(1, {}, admin)).rejects.toMatchObject({ status: 404 })
   })
 
   it('update skips the audit row when nothing changed', async () => {
     installDb()
-    const x = await update(1, { note: null }, admin)
-    expect(x.note).toBeNull()
+    const x = await update(1, {}, admin)
+    expect(x.id).toBe(1)
     expect(recordActivity).not.toHaveBeenCalled()
   })
 
   it('update 404 when record missing', async () => {
     query.mockResolvedValue({ rows: [] })
-    await expect(update(99, { type: 'sick' }, admin)).rejects.toMatchObject({ status: 404 })
+    await expect(update(99, {}, admin)).rejects.toMatchObject({ status: 404 })
   })
 
   it('remove deletes the row; 404 when missing; 403 for non-owner; 404 cross-clinic', async () => {

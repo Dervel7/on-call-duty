@@ -4,7 +4,6 @@ import type {
   CreateUnavailabilitySelfRequest,
   Unavailability,
   UnavailabilityQuery,
-  UnavailabilityType,
   UpdateUnavailabilityRequest,
 } from '@oncall/shared'
 import { query, withTransaction } from '../db/client'
@@ -19,15 +18,13 @@ interface UnavailabilityRow {
   doctor_id: number
   first_name: string
   last_name: string
-  type: string
   start_date: string
   end_date: string
-  note: string | null
   created_at: Date
   updated_at: Date
 }
 
-const SELECT = `SELECT x.id, x.doctor_id, x.type, x.start_date, x.end_date, x.note,
+const SELECT = `SELECT x.id, x.doctor_id, x.start_date, x.end_date,
   x.created_at, x.updated_at, u.first_name, u.last_name
   FROM unavailability x
   JOIN doctors d ON d.id = x.doctor_id
@@ -39,10 +36,8 @@ function toUnavailability(row: UnavailabilityRow): Unavailability {
     doctorId: row.doctor_id,
     doctorFirstName: row.first_name,
     doctorLastName: row.last_name,
-    type: row.type as UnavailabilityType,
     startDate: row.start_date,
     endDate: row.end_date,
-    note: row.note,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   }
@@ -143,8 +138,8 @@ export async function create(
     if (overlap.rows.length > 0)
       throw new HttpError(409, 'Overlapping unavailability record exists')
     const ins = await client.query(
-      'INSERT INTO unavailability (doctor_id, type, start_date, end_date, note) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [doctorId, input.type, input.startDate, input.endDate, input.note ?? null],
+      'INSERT INTO unavailability (doctor_id, start_date, end_date) VALUES ($1, $2, $3) RETURNING id',
+      [doctorId, input.startDate, input.endDate],
     )
     const newId = ins.rows[0]?.id
     if (newId === undefined) throw new HttpError(500, 'Failed to create unavailability record')
@@ -156,10 +151,8 @@ export async function create(
       clinicId: locked.clinic_id,
       detail: {
         doctorId,
-        type: input.type,
         startDate: input.startDate,
         endDate: input.endDate,
-        note: input.note ?? null,
       },
     })
     return newId
@@ -183,12 +176,10 @@ export async function update(
   const existing = await query<{
     doctor_id: number
     clinic_id: number
-    type: string
     start_date: string
     end_date: string
-    note: string | null
   }>(
-    `SELECT x.doctor_id, d.clinic_id, x.type, x.start_date, x.end_date, x.note
+    `SELECT x.doctor_id, d.clinic_id, x.start_date, x.end_date
      FROM unavailability x JOIN doctors d ON d.id = x.doctor_id WHERE x.id = $1`,
     [id],
   )
@@ -201,11 +192,9 @@ export async function update(
     // Re-read under lock so concurrent PATCH/DELETE decisions use committed state.
     const locked = await client.query<{
       doctor_id: number
-      type: string
       start_date: string
       end_date: string
-      note: string | null
-    }>('SELECT doctor_id, type, start_date, end_date, note FROM unavailability WHERE id = $1 FOR UPDATE', [id])
+    }>('SELECT doctor_id, start_date, end_date FROM unavailability WHERE id = $1 FOR UPDATE', [id])
     if (locked.rows.length === 0) throw new HttpError(404, 'Unavailability record not found')
     const current = locked.rows[0]!
     const start = input.startDate ?? current.start_date
@@ -224,10 +213,8 @@ export async function update(
     const sets: string[] = []
     const params: unknown[] = []
     const map: Array<[string, unknown]> = [
-      ['type', input.type],
       ['start_date', input.startDate],
       ['end_date', input.endDate],
-      ['note', input.note],
     ]
     for (const [col, value] of map) {
       if (value !== undefined) {
@@ -244,10 +231,6 @@ export async function update(
     }
     const before: Record<string, unknown> = {}
     const after: Record<string, unknown> = {}
-    if (input.type !== undefined && input.type !== current.type) {
-      before.type = current.type
-      after.type = input.type
-    }
     if (input.startDate !== undefined && input.startDate !== current.start_date) {
       before.startDate = current.start_date
       after.startDate = input.startDate
@@ -255,10 +238,6 @@ export async function update(
     if (input.endDate !== undefined && input.endDate !== current.end_date) {
       before.endDate = current.end_date
       after.endDate = input.endDate
-    }
-    if (input.note !== undefined && input.note !== current.note) {
-      before.note = current.note
-      after.note = input.note
     }
     if (Object.keys(before).length > 0) {
       await recordActivity(client, {
@@ -278,11 +257,10 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   const existing = await query<{
     doctor_id: number
     clinic_id: number
-    type: string
     start_date: string
     end_date: string
   }>(
-    `SELECT x.doctor_id, d.clinic_id, x.type, x.start_date, x.end_date
+    `SELECT x.doctor_id, d.clinic_id, x.start_date, x.end_date
      FROM unavailability x JOIN doctors d ON d.id = x.doctor_id WHERE x.id = $1`,
     [id],
   )
@@ -300,7 +278,6 @@ export async function remove(id: number, actor: Actor): Promise<void> {
       clinicId: existingRow.clinic_id,
       detail: {
         doctorId: existingRow.doctor_id,
-        type: existingRow.type,
         startDate: existingRow.start_date,
         endDate: existingRow.end_date,
       },

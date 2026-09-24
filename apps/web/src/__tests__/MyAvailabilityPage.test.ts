@@ -26,10 +26,8 @@ const record = {
   doctorId: 5,
   doctorFirstName: 'Jane',
   doctorLastName: 'Roe',
-  type: 'sick',
   startDate: '2026-09-15',
   endDate: '2026-09-15',
-  note: null,
   createdAt: '2026-09-01T00:00:00.000Z',
   updatedAt: '2026-09-01T00:00:00.000Z',
 }
@@ -56,7 +54,6 @@ describe('MyAvailabilityPage', () => {
     listMine.mockResolvedValue([record])
     const wrapper = mount(MyAvailabilityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    expect(wrapper.text()).toContain('sick')
     expect(wrapper.text()).toContain('2026-09-15')
   })
 
@@ -80,7 +77,7 @@ describe('MyAvailabilityPage', () => {
     bodyButton('Save')!.click()
     await flushPromises()
     expect(createMine).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'vacation', startDate: '2026-09-15' }),
+      expect.objectContaining({ startDate: '2026-09-15' }),
     )
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('create failed')
     expect(bodyButton('Save')).toBeTruthy()

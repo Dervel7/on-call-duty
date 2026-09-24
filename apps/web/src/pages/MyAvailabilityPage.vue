@@ -10,9 +10,7 @@ import * as unavailabilityService from '@/services/unavailability'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
-import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
-import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -20,8 +18,6 @@ import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 import { useConfirm } from '@/composables/useConfirm'
-
-const TYPES = ['vacation', 'sick', 'conference', 'other'] as const
 
 const records = ref<Unavailability[]>([])
 const loading = ref(false)
@@ -31,20 +27,16 @@ const { confirm } = useConfirm()
 interface EditState {
   open: boolean
   id: number | null
-  type: (typeof TYPES)[number]
   startDate: string
   endDate: string
-  note: string
   errorMsg: string
 }
 
 const emptyEdit = (): EditState => ({
   open: false,
   id: null,
-  type: 'vacation',
   startDate: '',
   endDate: '',
-  note: '',
   errorMsg: '',
 })
 const edit = ref<EditState>(emptyEdit())
@@ -69,10 +61,8 @@ function openUpdate(x: Unavailability) {
   edit.value = {
     open: true,
     id: x.id,
-    type: x.type,
     startDate: x.startDate,
     endDate: x.endDate,
-    note: x.note ?? '',
     errorMsg: '',
   }
 }
@@ -80,10 +70,8 @@ function openUpdate(x: Unavailability) {
 async function save() {
   edit.value.errorMsg = ''
   const base = {
-    type: edit.value.type,
     startDate: edit.value.startDate,
     endDate: edit.value.endDate,
-    note: edit.value.note || undefined,
   }
   if (edit.value.id === null) {
     const r = createUnavailabilitySelfSchema.safeParse(base)
@@ -92,10 +80,8 @@ async function save() {
       return
     }
     const payload: CreateUnavailabilitySelfRequest = {
-      type: r.data.type,
       startDate: r.data.startDate,
       endDate: r.data.endDate,
-      note: r.data.note,
     }
     try {
       await unavailabilityService.createMine(payload)
@@ -105,10 +91,8 @@ async function save() {
     }
   } else {
     const payload: UpdateUnavailabilityRequest = {
-      type: edit.value.type,
       startDate: edit.value.startDate,
       endDate: edit.value.endDate,
-      note: edit.value.note === '' ? null : edit.value.note,
     }
     const r = updateUnavailabilitySchema.safeParse(payload)
     if (!r.success) {
@@ -130,7 +114,7 @@ async function remove(x: Unavailability) {
   if (
     !(await confirm({
       title: 'Delete record',
-      message: `Delete your ${x.type} record (${x.startDate} → ${x.endDate})?`,
+      message: `Delete your exclusion (${x.startDate} → ${x.endDate})?`,
       confirmText: 'Delete',
     }))
   )
@@ -160,19 +144,15 @@ onMounted(load)
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Type</TableHead>
           <TableHead>Start</TableHead>
           <TableHead>End</TableHead>
-          <TableHead>Note</TableHead>
           <TableHead class="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         <TableRow v-for="x in records" :key="x.id">
-          <TableCell>{{ x.type }}</TableCell>
           <TableCell>{{ x.startDate }}</TableCell>
           <TableCell>{{ x.endDate }}</TableCell>
-          <TableCell>{{ x.note ?? '' }}</TableCell>
           <TableCell class="text-right">
             <div class="inline-flex gap-2">
               <Button size="sm" variant="outline" @click="openUpdate(x)">Edit</Button>
@@ -186,22 +166,12 @@ onMounted(load)
     <Dialog v-model:open="edit.open" :title="edit.id === null ? 'New exclusion' : 'Edit exclusion'">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="save">
         <div class="flex flex-col gap-1">
-          <Label for="m-type">Type</Label>
-          <Select id="m-type" v-model="edit.type">
-            <option v-for="t in TYPES" :key="t" :value="t">{{ t }}</option>
-          </Select>
-        </div>
-        <div class="flex flex-col gap-1">
           <Label for="m-start">Start date</Label>
           <DatePicker id="m-start" v-model="edit.startDate" placeholder="Pick a date" />
         </div>
         <div class="flex flex-col gap-1">
           <Label for="m-end">End date</Label>
           <DatePicker id="m-end" v-model="edit.endDate" placeholder="Pick a date" />
-        </div>
-        <div class="flex flex-col gap-1">
-          <Label for="m-note">Note (optional)</Label>
-          <Input id="m-note" v-model="edit.note" />
         </div>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">

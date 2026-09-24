@@ -143,13 +143,9 @@ import {
 } from '../index'
 
 describe('unavailability schemas', () => {
-  const validSelf = { type: 'vacation', startDate: '2026-09-01', endDate: '2026-09-03' }
+  const validSelf = { startDate: '2026-09-01', endDate: '2026-09-03' }
 
-  it('createUnavailabilityAdminSchema rejects bad type and bad date format', () => {
-    expect(
-      createUnavailabilityAdminSchema.safeParse({ ...validSelf, doctorId: 1, type: 'holiday' })
-        .success,
-    ).toBe(false)
+  it('createUnavailabilityAdminSchema rejects a bad date format and bad doctorId', () => {
     expect(
       createUnavailabilityAdminSchema.safeParse({
         ...validSelf,
@@ -157,6 +153,9 @@ describe('unavailability schemas', () => {
         startDate: '09-01-2026',
       }).success,
     ).toBe(false)
+    expect(createUnavailabilityAdminSchema.safeParse({ ...validSelf, doctorId: -1 }).success).toBe(
+      false,
+    )
   })
 
   it('createUnavailabilitySelfSchema rejects endDate before startDate', () => {
@@ -166,10 +165,12 @@ describe('unavailability schemas', () => {
     expect(createUnavailabilitySelfSchema.safeParse(validSelf).success).toBe(true)
   })
 
-  it('updateUnavailabilitySchema accepts partials and null note', () => {
-    expect(updateUnavailabilitySchema.safeParse({ note: null }).success).toBe(true)
-    expect(updateUnavailabilitySchema.safeParse({ type: 'sick' }).success).toBe(true)
-    expect(updateUnavailabilitySchema.safeParse({ type: 'nap' }).success).toBe(false)
+  it('updateUnavailabilitySchema accepts partials and rejects inverted ranges', () => {
+    expect(updateUnavailabilitySchema.safeParse({ endDate: '2026-09-12' }).success).toBe(true)
+    expect(
+      updateUnavailabilitySchema.safeParse({ startDate: '2026-09-12', endDate: '2026-09-01' })
+        .success,
+    ).toBe(false)
   })
 
   it('unavailabilityQuerySchema coerces doctorId from string', () => {

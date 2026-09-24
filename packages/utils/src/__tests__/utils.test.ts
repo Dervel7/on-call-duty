@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daysInMonth, isWeekend, required } from '../index'
+import { daysInMonth, eachDay, groupConsecutiveDays, isWeekend, required } from '../index'
 
 describe('isWeekend', () => {
   it('returns true for a Saturday', () => {
@@ -24,5 +24,44 @@ describe('required', () => {
 
   it('returns value when defined', () => {
     expect(required('FOO', 'bar')).toBe('bar')
+  })
+})
+
+describe('eachDay', () => {
+  it('expands an inclusive single-day range', () => {
+    expect(eachDay('2026-09-07', '2026-09-07')).toEqual(['2026-09-07'])
+  })
+
+  it('expands across a month boundary', () => {
+    expect(eachDay('2026-09-30', '2026-10-02')).toEqual([
+      '2026-09-30',
+      '2026-10-01',
+      '2026-10-02',
+    ])
+  })
+
+  it('returns nothing for an inverted range', () => {
+    expect(eachDay('2026-09-03', '2026-09-01')).toEqual([])
+  })
+})
+
+describe('groupConsecutiveDays', () => {
+  it('groups a single run into one range', () => {
+    expect(groupConsecutiveDays(['2026-09-07', '2026-09-08', '2026-09-09'])).toEqual([
+      { startDate: '2026-09-07', endDate: '2026-09-09' },
+    ])
+  })
+
+  it('splits unordered, duplicated days at gaps', () => {
+    expect(
+      groupConsecutiveDays(['2026-09-11', '2026-09-07', '2026-09-10', '2026-09-07']),
+    ).toEqual([
+      { startDate: '2026-09-07', endDate: '2026-09-07' },
+      { startDate: '2026-09-10', endDate: '2026-09-11' },
+    ])
+  })
+
+  it('returns an empty list for no days', () => {
+    expect(groupConsecutiveDays([])).toEqual([])
   })
 })

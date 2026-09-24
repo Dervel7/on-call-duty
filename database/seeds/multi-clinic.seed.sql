@@ -257,14 +257,14 @@ ON CONFLICT (user_id) DO UPDATE SET
   updated_at         = NOW();
 
 -- Seed sample unavailability (fixed sample month 2026-09; dr1/dr2 are Cardiology A)
-INSERT INTO unavailability (doctor_id, type, start_date, end_date, note)
-SELECT d.id, 'vacation', '2026-09-07', '2026-09-11', 'Summer break'
+INSERT INTO unavailability (doctor_id, start_date, end_date)
+SELECT d.id, '2026-09-07', '2026-09-11'
 FROM doctors d JOIN users u ON u.id = d.user_id
 WHERE u.email = 'dr1@oncall.local' AND u.is_deleted = FALSE
 AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id AND x.start_date = '2026-09-07' AND x.end_date = '2026-09-11');
 
-INSERT INTO unavailability (doctor_id, type, start_date, end_date, note)
-SELECT d.id, 'sick', '2026-09-15', '2026-09-15', NULL
+INSERT INTO unavailability (doctor_id, start_date, end_date)
+SELECT d.id, '2026-09-15', '2026-09-15'
 FROM doctors d JOIN users u ON u.id = d.user_id
 WHERE u.email = 'dr2@oncall.local' AND u.is_deleted = FALSE
 AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id AND x.start_date = '2026-09-15' AND x.end_date = '2026-09-15');
