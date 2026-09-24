@@ -250,6 +250,7 @@ onMounted(async () => {
         :mode="mode"
         :saving-dates="savingDates"
         allow-clear
+        show-fill-hints
         @select="onSelect"
       />
     </template>

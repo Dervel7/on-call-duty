@@ -114,6 +114,38 @@ describe('ScheduleDetailPage', () => {
     expect(wrapper.text()).not.toContain('Revert to draft')
   })
 
+  it('colors day cells by coverage: green full, amber partial, red empty (draft)', async () => {
+    const d = detail('draft')
+    d.duties.push(
+      { id: 11, scheduleId: 1, dutyDate: '2026-09-05', doctorId: 6, doctorFirstName: 'Sam', doctorLastName: 'Doe', isWeekend: false, reason: 'score 1', createdAt: '2026-09-01T00:00:00.000Z' },
+      { id: 12, scheduleId: 1, dutyDate: '2026-09-06', doctorId: 6, doctorFirstName: 'Sam', doctorLastName: 'Doe', isWeekend: false, reason: 'score 1', createdAt: '2026-09-01T00:00:00.000Z' },
+    )
+    get.mockResolvedValue(d)
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    // September 2026 starts on a Tuesday: grid cell index = 1 + (day - 1).
+    const cls = (day: number) => wrapper.findAll('.grid.grid-cols-7')[1]!.findAll(':scope > div')[day]!.attributes('class')
+    expect(cls(1)).toContain('bg-red-100')
+    expect(cls(5)).toContain('bg-green-100')
+    expect(cls(6)).toContain('bg-amber-100')
+  })
+
+  it('keeps coverage colors when published and read-only', async () => {
+    const d = detail('published')
+    d.duties.push(
+      { id: 11, scheduleId: 1, dutyDate: '2026-09-05', doctorId: 6, doctorFirstName: 'Sam', doctorLastName: 'Doe', isWeekend: false, reason: 'score 1', createdAt: '2026-09-01T00:00:00.000Z' },
+      { id: 12, scheduleId: 1, dutyDate: '2026-09-06', doctorId: 6, doctorFirstName: 'Sam', doctorLastName: 'Doe', isWeekend: false, reason: 'score 1', createdAt: '2026-09-01T00:00:00.000Z' },
+    )
+    get.mockResolvedValue(d)
+    const wrapper = mountAs('doctor')
+    await flushPromises()
+    const cls = (day: number) => wrapper.findAll('.grid.grid-cols-7')[1]!.findAll(':scope > div')[day]!.attributes('class')
+    expect(cls(1)).toContain('bg-red-100')
+    expect(cls(5)).toContain('bg-green-100')
+    expect(cls(6)).toContain('bg-amber-100')
+    expect(wrapper.text()).not.toContain('No doctor')
+  })
+
   it('adds a duty via the inline select and reloads', async () => {
     get.mockResolvedValueOnce(detail('draft'))
     addDuty.mockResolvedValue({ id: 99 } as never)
