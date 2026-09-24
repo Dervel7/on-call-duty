@@ -265,18 +265,12 @@ async function seedAdjacentDuties(
   dutiesByDate.set(nextDate(last), new Set(res.rows.map((r) => r.doctor_id)))
 }
 
-export async function preview(
-  year: number,
-  month: number,
-  scope: ClinicScope,
-): Promise<PreviewResult> {
-  const ctx = await buildContext(year, month, scope.clinicId)
-  const result = runEngine(ctx)
+function buildDutyMaps(assignments: { date: string; doctorId: number }[]) {
   const dutiesByDate = new Map<string, Set<number>>()
   const dutyCountByDoctor = new Map<number, number>()
   const saturdayByDoctor = new Map<number, number>()
   const sundayByDoctor = new Map<number, number>()
-  for (const a of result.assignments) {
+  for (const a of assignments) {
     const set = dutiesByDate.get(a.date) ?? new Set<number>()
     set.add(a.doctorId)
     dutiesByDate.set(a.date, set)
@@ -285,15 +279,53 @@ export async function preview(
     if (dow === 6) saturdayByDoctor.set(a.doctorId, (saturdayByDoctor.get(a.doctorId) ?? 0) + 1)
     if (dow === 0) sundayByDoctor.set(a.doctorId, (sundayByDoctor.get(a.doctorId) ?? 0) + 1)
   }
-  await seedAdjacentDuties(dutiesByDate, ctx, scope.clinicId)
+  return { dutiesByDate, dutyCountByDoctor, saturdayByDoctor, sundayByDoctor }
+}
+
+export async function preview(
+  year: number,
+  month: number,
+  scope: ClinicScope,
+  plan?: GenerateAssignment[],
+): Promise<PreviewResult> {
+  const ctx = await buildContext(year, month, scope.clinicId)
+  if (plan) {
+    // WYSIWYG refresh: the admin edited the proposal in the browser, so
+    // eligibility must answer against their plan, not the engine's. Nothing
+    // is persisted; assignments/conflicts are echoed/blanked for shape only.
+    const maps = buildDutyMaps(plan)
+    await seedAdjacentDuties(maps.dutiesByDate, ctx, scope.clinicId)
+    const days = computeEligibility({
+      doctors: ctx.doctors,
+      unavailability: ctx.unavailability,
+      days: ctx.days,
+      ...maps,
+    })
+    const names = new Map(ctx.doctors.map((d) => [d.id, d]))
+    return {
+      assignments: plan.map((a) => {
+        const doc = names.get(a.doctorId)
+        return {
+          date: a.date,
+          doctorId: a.doctorId,
+          doctorFirstName: doc?.firstName ?? '',
+          doctorLastName: doc?.lastName ?? '',
+          isWeekend: isWeekendISO(a.date),
+          reason: a.reason ?? 'plan',
+        }
+      }),
+      conflicts: [],
+      days,
+    }
+  }
+  const result = runEngine(ctx)
+  const maps = buildDutyMaps(result.assignments)
+  await seedAdjacentDuties(maps.dutiesByDate, ctx, scope.clinicId)
   const days = computeEligibility({
     doctors: ctx.doctors,
     unavailability: ctx.unavailability,
     days: ctx.days,
-    dutiesByDate,
-    dutyCountByDoctor,
-    saturdayByDoctor,
-    sundayByDoctor,
+    ...maps,
   })
   return { assignments: result.assignments, conflicts: result.conflicts, days }
 }

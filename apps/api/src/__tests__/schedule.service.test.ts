@@ -147,6 +147,61 @@ describe('schedule.service', () => {
     expect(res.days.every((d) => Array.isArray(d.availableDoctorIds))).toBe(true)
   })
 
+  it('preview with a plan computes eligibility against the sent plan', async () => {
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM doctors d JOIN users')) {
+        return {
+          rows: [
+            { id: 1, max_monthly_duties: 7, first_name: 'Ann', last_name: 'One', is_active: true },
+            { id: 2, max_monthly_duties: 7, first_name: 'Bob', last_name: 'Two', is_active: true },
+          ],
+        }
+      }
+      return { rows: [] }
+    })
+    const res = await preview(2026, 9, SCOPE, [
+      { date: '2026-09-01', doctorId: 1, reason: 'manual override' },
+      { date: '2026-09-03', doctorId: 1 },
+    ])
+    expect(res.assignments).toEqual([
+      { date: '2026-09-01', doctorId: 1, doctorFirstName: 'Ann', doctorLastName: 'One', isWeekend: false, reason: 'manual override' },
+      { date: '2026-09-03', doctorId: 1, doctorFirstName: 'Ann', doctorLastName: 'One', isWeekend: false, reason: 'plan' },
+    ])
+    expect(res.conflicts).toEqual([])
+    const byDate = new Map(res.days.map((d) => [d.date, d]))
+    expect(byDate.get('2026-09-01')?.eligibleDoctorIds).toEqual([1, 2])
+    // Doctor 1 is on duty on the 1st and the 3rd, so the 2nd is back-to-back.
+    expect(byDate.get('2026-09-02')?.eligibleDoctorIds).toEqual([2])
+    expect(query.mock.calls.some((c) => String(c[0]).startsWith('INSERT'))).toBe(false)
+  })
+
+  it('preview with a plan applies monthly caps with own-day swap semantics', async () => {
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM doctors d JOIN users')) {
+        return {
+          rows: [
+            { id: 1, max_monthly_duties: 7, first_name: 'Ann', last_name: 'One', is_active: true },
+            { id: 2, max_monthly_duties: 7, first_name: 'Bob', last_name: 'Two', is_active: true },
+          ],
+        }
+      }
+      return { rows: [] }
+    })
+    // Seven weekday duties (no two adjacent) put doctor 1 at the 7/month cap.
+    const plan = ['01', '03', '07', '09', '11', '15', '17'].map((d) => ({
+      date: `2026-09-${d}`,
+      doctorId: 1,
+ }))
+    const res = await preview(2026, 9, SCOPE, plan)
+    const byDate = new Map(res.days.map((d) => [d.date, d]))
+    // At cap everywhere except…
+    expect(byDate.get('2026-09-21')?.eligibleDoctorIds).toEqual([2])
+    // …his own days, where the duty being swapped is subtracted from the count.
+    expect(byDate.get('2026-09-15')?.eligibleDoctorIds).toEqual([1, 2])
+  })
+
   it('list applies optional year/month filters', async () => {
     query.mockResolvedValue({ rows: [scheduleRow()] })
     await list({ year: 2026, month: 9 })

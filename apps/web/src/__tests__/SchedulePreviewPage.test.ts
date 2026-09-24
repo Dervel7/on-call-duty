@@ -38,8 +38,8 @@ function daysFor(year: number, month: number) {
     return {
       date: iso,
       isWeekend: dow === 0 || dow === 6,
-      eligibleDoctorIds: [],
-      availableDoctorIds: [5, 6],
+      eligibleDoctorIds: [5, 6],
+      availableDoctorIds: [],
     }
   })
 }
@@ -166,5 +166,51 @@ describe('SchedulePreviewPage', () => {
     expect(wrapper.findAll('[role="combobox"]').length).toBe(62)
     expect(wrapper.text()).toContain('31 day(s) with no doctor')
     expect(wrapper.text()).not.toContain('September 2026')
+  })
+
+  it('clearing a slot re-queries eligibility with the updated plan and refreshes options', async () => {
+    const days = daysFor(2026, 9)
+    preview.mockResolvedValueOnce({
+      assignments: [
+        { date: '2026-09-01', doctorId: 5, doctorFirstName: 'Jane', doctorLastName: 'Roe', reason: 'engine' },
+      ],
+      conflicts: [],
+      days,
+    })
+    const refreshed = days.map((d) =>
+      d.date === '2026-09-01' ? { ...d, eligibleDoctorIds: [6] } : d,
+    )
+    preview.mockResolvedValueOnce({ assignments: [], conflicts: [], days: refreshed })
+    const wrapper = mount(SchedulePreviewPage)
+    await flushPromises()
+    const day1 = () => wrapper.findAll('[role="combobox"]').slice(0, 2)
+    expect(day1().map((c) => c.text())).toEqual(['Roe J.', 'Assign…'])
+
+    await pickOptionFrom(day1()[0]!.element, '')
+    await flushPromises()
+
+    expect(preview).toHaveBeenCalledTimes(2)
+    expect(preview.mock.calls[1]![2]).toEqual([])
+    // Re-open day 1's first select: the refreshed pool offers only doctor 6.
+    day1()[0]!.element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    const labels = [...document.body.querySelectorAll('[role="listbox"] button[data-value]')].map(
+      (b) => b.textContent?.trim(),
+    )
+    expect(labels).toEqual(['Assign…', 'Doe S.'])
+  })
+
+  it('assigning a slot sends the growing plan on the eligibility refresh', async () => {
+    preview.mockResolvedValue({ assignments: [], conflicts: [], days: daysFor(2026, 9) })
+    const wrapper = mount(SchedulePreviewPage)
+    await flushPromises()
+    const combos = wrapper.findAll('[role="combobox"]')
+
+    await pickOptionFrom(combos[0]!.element, '5')
+    await flushPromises()
+
+    expect(preview.mock.calls[1]![2]).toEqual([
+      { date: '2026-09-01', doctorId: 5, reason: 'manual override' },
+    ])
   })
 })

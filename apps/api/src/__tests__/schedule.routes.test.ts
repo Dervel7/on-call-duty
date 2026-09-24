@@ -109,6 +109,22 @@ describe('schedule routes', () => {
     expect(res.body.data.conflicts).toEqual([])
   })
 
+  it('admin preview passes optional assignments through to the service', async () => {
+    preview.mockResolvedValue({ assignments: [], conflicts: [], days: [] })
+    const res = await request(build())
+      .post('/schedules/preview')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({
+        year: 2026,
+        month: 9,
+        assignments: [{ date: '2026-09-01', doctorId: 5, reason: 'manual override' }],
+      })
+    expect(res.status).toBe(200)
+    expect(preview).toHaveBeenCalledWith(2026, 9, expect.anything(), [
+      { date: '2026-09-01', doctorId: 5, reason: 'manual override' },
+    ])
+  })
+
   it('admin generate 201; 409 exists; 422 unfillable', async () => {
     generate.mockResolvedValue(detail())
     const ok201 = await request(build())

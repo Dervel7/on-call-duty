@@ -30,7 +30,12 @@ export const scheduleController = {
       // req.query is typed by validate(scheduleQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = resolveClinicScope(req.user!, clinicId)
-      const result = await scheduleService.preview(req.body.year, req.body.month, scope)
+      const result = await scheduleService.preview(
+        req.body.year,
+        req.body.month,
+        scope,
+        req.body.assignments,
+      )
       res.status(200).json(ok(result))
     } catch (err) {
       next(err)

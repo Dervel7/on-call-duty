@@ -25,8 +25,12 @@ export async function list(query?: ScheduleQuery): Promise<ScheduleSummary[]> {
 export async function get(id: number): Promise<ScheduleDetail> {
   return apiGet<ScheduleDetail>(`/schedules/${id}`)
 }
-export async function preview(year: number, month: number): Promise<PreviewResult> {
-  return apiPost<PreviewResult>('/schedules/preview', { year, month })
+export async function preview(
+  year: number,
+  month: number,
+  assignments?: GenerateAssignment[],
+): Promise<PreviewResult> {
+  return apiPost<PreviewResult>('/schedules/preview', { year, month, assignments })
 }
 export async function generate(
   year: number,

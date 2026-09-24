@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import type { DayInfo, Doctor, PreviewResult } from '@oncall/shared'
+import type { DayInfo, Doctor, GenerateAssignment, PreviewResult } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import * as scheduleService from '@/services/schedule'
 import * as doctorService from '@/services/doctor'
@@ -134,6 +134,7 @@ const status = computed<{ tone: StatusTone; title: string; detail: string } | nu
 })
 
 let loadSeq = 0
+let eligSeq = 0
 
 async function load() {
   if (!valid.value) {
@@ -141,6 +142,7 @@ async function load() {
     return
   }
   const seq = ++loadSeq
+  ++eligSeq
   loading.value = true
   errorMsg.value = ''
   try {
@@ -167,6 +169,28 @@ async function load() {
     if (seq === loadSeq) loading.value = false
   }
 }
+function currentPlan(): GenerateAssignment[] {
+  return [...slotsByDate.value.values()]
+    .flat()
+    .filter((s): s is PreviewAssignment => s !== null)
+    .map((s) => ({ date: s.date, doctorId: s.doctorId, reason: s.reason }))
+}
+
+// The eligible pool is server-computed against a duty set; every edit changes
+// that set (caps, back-to-back), so each change re-queries eligibility with
+// the in-progress plan. Local slots stay authoritative for assignments.
+async function refreshEligibility() {
+  if (!valid.value || !result.value) return
+  const seq = ++eligSeq
+  try {
+    const res = await scheduleService.preview(year.value, month.value, currentPlan())
+    if (seq !== eligSeq) return
+    result.value = { ...result.value, days: res.days }
+  } catch (e) {
+    if (seq !== eligSeq) return
+    errorMsg.value = e instanceof Error ? e.message : 'Failed to refresh eligible doctors'
+  }
+}
 
 function onSelect(date: string, slotIndex: number, doctorId: number | null) {
   const slots = slotsByDate.value.get(date) ?? []
@@ -176,6 +200,7 @@ function onSelect(date: string, slotIndex: number, doctorId: number | null) {
     const next = [...slots]
     next[slotIndex] = null
     setDaySlots(date, next)
+    void refreshEligibility()
     return
   }
   const doc = doctorsById.value.get(doctorId)
@@ -192,20 +217,14 @@ function onSelect(date: string, slotIndex: number, doctorId: number | null) {
     reason: 'manual override',
   }
   setDaySlots(date, next)
+  void refreshEligibility()
 }
 
 async function generate() {
   generating.value = true
   errorMsg.value = ''
   try {
-    const detail = await scheduleService.generate(
-      year.value,
-      month.value,
-      [...slotsByDate.value.values()]
-        .flat()
-        .filter((s): s is PreviewAssignment => s !== null)
-        .map((s) => ({ date: s.date, doctorId: s.doctorId, reason: s.reason })),
-    )
+    const detail = await scheduleService.generate(year.value, month.value, currentPlan())
     router.push(`/schedules/${detail.schedule.id}`)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to generate'
@@ -316,7 +335,7 @@ watch([year, month], load)
           :conflicts-by-date="conflictsByDate"
           :doctors="doctors"
           mode="editable"
-          pool="available"
+          pool="eligible"
           allow-clear
           show-fill-hints
           @select="onSelect"
