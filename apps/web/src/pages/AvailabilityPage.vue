@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
 import type { Doctor, Unavailability } from '@oncall/shared'
-import { daysInMonth, eachDay, groupConsecutiveDays } from '@oncall/utils'
+import { eachDay, groupConsecutiveDays, monthRange, nextMonthIso } from '@oncall/utils'
 import * as unavailabilityService from '@/services/unavailability'
 import * as doctorService from '@/services/doctor'
 import Button from '@/components/ui/Button.vue'
@@ -22,20 +22,6 @@ const { confirm } = useConfirm()
 
 const filterDoctorId = ref('')
 
-/** Next calendar month as 'YYYY-MM' — the window administrators plan exclusions for. */
-function nextMonthIso(): string {
-  const now = new Date()
-  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
-}
-
-/** Inclusive ISO bounds of an 'YYYY-MM' month; empty when no month is selected. */
-function monthRange(month: string): { from?: string; to?: string } {
-  if (!/^\d{4}-\d{2}$/.test(month)) return {}
-  const year = Number(month.slice(0, 4))
-  const month0 = Number(month.slice(5, 7)) - 1
-  return { from: `${month}-01`, to: `${month}-${String(daysInMonth(year, month0)).padStart(2, '0')}` }
-}
 
 const filterMonth = ref(nextMonthIso())
 

@@ -11,6 +11,24 @@ export function toIsoDate(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
+/** Next calendar month as 'YYYY-MM' relative to today. */
+export function nextMonthIso(): string {
+  const now = new Date()
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** Inclusive ISO bounds of an 'YYYY-MM' month; empty when no month is given. */
+export function monthRange(month: string): { from?: string; to?: string } {
+  if (!/^\d{4}-\d{2}$/.test(month)) return {}
+  const year = Number(month.slice(0, 4))
+  const month0 = Number(month.slice(5, 7)) - 1
+  return {
+    from: `${month}-01`,
+    to: `${month}-${String(daysInMonth(year, month0)).padStart(2, '0')}`,
+  }
+}
+
 function nextDayIso(iso: string): string {
   const d = new Date(`${iso}T00:00:00`)
   return toIsoDate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1))

@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest'
-import { daysInMonth, eachDay, groupConsecutiveDays, isWeekend, required } from '../index'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  daysInMonth,
+  eachDay,
+  groupConsecutiveDays,
+  isWeekend,
+  monthRange,
+  nextMonthIso,
+  required,
+} from '../index'
+
+afterEach(() => vi.useRealTimers())
 
 describe('isWeekend', () => {
   it('returns true for a Saturday', () => {
@@ -63,5 +73,22 @@ describe('groupConsecutiveDays', () => {
 
   it('returns an empty list for no days', () => {
     expect(groupConsecutiveDays([])).toEqual([])
+  })
+})
+
+describe('nextMonthIso', () => {
+  it('rolls over to January of the next year', () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date(2026, 11, 15) })
+    expect(nextMonthIso()).toBe('2027-01')
+  })
+})
+
+describe('monthRange', () => {
+  it('returns inclusive bounds of the month', () => {
+    expect(monthRange('2026-02')).toEqual({ from: '2026-02-01', to: '2026-02-28' })
+  })
+
+  it('returns empty bounds when no month is selected', () => {
+    expect(monthRange('')).toEqual({})
   })
 })
