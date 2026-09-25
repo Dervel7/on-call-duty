@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
+import { pickOption } from './pick-option'
+
 const monthly = vi.fn()
 vi.mock('@/services/reports', () => ({
   monthly: (...a: unknown[]) => monthly(...a),
@@ -113,6 +115,31 @@ describe('ReportsPage', () => {
     await apply.trigger('click')
     await flushPromises()
     expect(monthly).toHaveBeenCalledTimes(2)
+  })
+
+  it('reloads immediately when the month changes and a year is set', async () => {
+    monthly.mockResolvedValue(fullReport())
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const otherMonth = String(((new Date().getUTCMonth() + 1) % 12) + 1)
+    await pickOption(w.element, '#r-month', otherMonth)
+    await flushPromises()
+    expect(monthly).toHaveBeenCalledTimes(2)
+    expect(monthly).toHaveBeenLastCalledWith({
+      year: new Date().getUTCFullYear(),
+      month: Number(otherMonth),
+    })
+  })
+
+  it('does not auto-apply on month change when the year field is empty', async () => {
+    monthly.mockResolvedValue(fullReport())
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const otherMonth = String(((new Date().getUTCMonth() + 1) % 12) + 1)
+    await w.find('#r-year').setValue('')
+    await pickOption(w.element, '#r-month', otherMonth)
+    await flushPromises()
+    expect(monthly).toHaveBeenCalledTimes(1)
   })
 
   it('Export CSV triggers downloadCsv with the expected filename', async () => {

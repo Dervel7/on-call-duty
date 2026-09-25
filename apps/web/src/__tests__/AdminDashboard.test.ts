@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { pickOption } from './pick-option'
 
 const admin = vi.fn()
 vi.mock('@/services/stats', () => ({
@@ -112,6 +113,31 @@ describe('AdminDashboard', () => {
     await apply.trigger('click')
     await flushPromises()
     expect(admin).toHaveBeenCalledTimes(2)
+  })
+
+  it('reloads immediately when the month changes and a year is set', async () => {
+    admin.mockResolvedValue(fullStats())
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const otherMonth = String(((new Date().getUTCMonth() + 1) % 12) + 1)
+    await pickOption(w.element, '#s-month', otherMonth)
+    await flushPromises()
+    expect(admin).toHaveBeenCalledTimes(2)
+    expect(admin).toHaveBeenLastCalledWith({
+      year: new Date().getUTCFullYear(),
+      month: Number(otherMonth),
+    })
+  })
+
+  it('does not auto-apply on month change when the year field is empty', async () => {
+    admin.mockResolvedValue(fullStats())
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const otherMonth = String(((new Date().getUTCMonth() + 1) % 12) + 1)
+    await w.find('#s-year').setValue('')
+    await pickOption(w.element, '#s-month', otherMonth)
+    await flushPromises()
+    expect(admin).toHaveBeenCalledTimes(1)
   })
 
   it('shows a red payment alert when the deadline is 3 days out', async () => {

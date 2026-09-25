@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AdminStats } from '@oncall/shared'
 import Button from '@/components/ui/Button.vue'
@@ -73,6 +73,12 @@ async function loadPaymentAlert() {
     paymentDaysLeft.value = null
   }
 }
+
+// Month changes apply immediately; the year field still requires Apply
+// (keystrokes would fire partial years mid-typing).
+watch(month, () => {
+  if (year.value) load()
+})
 
 function gotoSchedules() {
   router.push('/schedules')
