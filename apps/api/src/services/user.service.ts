@@ -5,6 +5,7 @@ import type { ClinicScope } from '../lib/scope'
 import type {
   AuthUser,
   CreateUserRequest,
+  ResetUserPasswordRequest,
   Role,
   UpdateUserRequest,
   User,
@@ -344,6 +345,35 @@ export async function remove(id: number, actor: Actor): Promise<void> {
     })
   })
   await tokenService.revokeAllForUser(id)
+}
+
+// Admin forgot-password path: overwrites the password without the current one and revokes sessions.
+export async function resetPassword(id: number, input: ResetUserPasswordRequest, actor: Actor): Promise<User> {
+  const existing = await getById(id, actor)
+  if (existing.role === 'superadmin' && actor.role !== 'superadmin') {
+    throw new HttpError(403, 'Only a superadmin can manage superadmin accounts')
+  }
+  if (actor.role === 'manager' && existing.role !== 'administrator') {
+    throw new HttpError(403, 'Managers can only manage administrator accounts')
+  }
+  const passwordHash = await bcrypt.hash(input.newPassword, 12)
+  await withTransaction(async (client) => {
+    const res = await client.query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',
+      [passwordHash, id],
+    )
+    if (res.rows.length === 0) throw new HttpError(404, 'User not found')
+    await recordActivity(client, {
+      userId: actor.id,
+      action: 'user.password_reset',
+      entityType: 'user',
+      entityId: id,
+      clinicId: existing.clinicId,
+      detail: { email: existing.email, username: existing.username },
+    })
+  })
+  await tokenService.revokeAllForUser(id)
+  return getById(id, actor)
 }
 
 // Self-service UI preference: any authenticated user toggles their own theme.

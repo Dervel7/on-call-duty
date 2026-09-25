@@ -153,6 +153,55 @@ describe('DELETE /users/:id (admin)', () => {
   })
 })
 
+describe('PATCH /users/:id/password (admin)', () => {
+  it('returns 401 without auth', async () => {
+    const res = await request(app).patch('/users/1/password').send({ newPassword: 'secret1' })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 for a doctor', async () => {
+    const token = signAccessToken({ sub: 1, role: 'doctor', clinicId: 1 })
+    const res = await request(app)
+      .patch('/users/1/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ newPassword: 'secret1' })
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 400 when newPassword is shorter than 6 chars', async () => {
+    const token = signAccessToken({ sub: 2, role: 'administrator', clinicId: 1 })
+    const res = await request(app)
+      .patch('/users/1/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ newPassword: 'abc' })
+    expect(res.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
+
+  it('returns 200 and overwrites password_hash for an administrator', async () => {
+    installDb([row()])
+    const token = signAccessToken({ sub: 2, role: 'administrator', clinicId: 1 })
+    const res = await request(app)
+      .patch('/users/1/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ newPassword: 'secret1' })
+    expect(res.status).toBe(200)
+    expect(res.body.data.user.email).toBe('d@h.com')
+    const update = query.mock.calls.find((c) => String(c[0]).includes('SET password_hash'))
+    expect(update?.[1]).toEqual([expect.any(String), 1])
+  })
+
+  it('returns 404 when the target user is missing', async () => {
+    query.mockResolvedValueOnce({ rows: [] })
+    const token = signAccessToken({ sub: 2, role: 'administrator', clinicId: 1 })
+    const res = await request(app)
+      .patch('/users/99/password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ newPassword: 'secret1' })
+    expect(res.status).toBe(404)
+  })
+})
+
 describe('PATCH /users/me/theme (self-service)', () => {
   it('lets any authenticated role set their own preference', async () => {
     query.mockResolvedValueOnce({ rows: [row({ dark_mode: true })] })

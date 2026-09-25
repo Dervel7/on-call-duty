@@ -3,7 +3,7 @@ import { userController } from '../controllers/user.controller'
 import { authenticate } from '../middleware/authenticate'
 import { authorize } from '../middleware/authorize'
 import { validate } from '../middleware/validate'
-import { createUserSchema, idParams, updateThemeSchema, updateUserSchema, userQuerySchema } from '../validators/user'
+import { createUserSchema, idParams, resetUserPasswordSchema, updateThemeSchema, updateUserSchema, userQuerySchema } from '../validators/user'
 
 export const userRouter = Router()
 
@@ -22,4 +22,5 @@ userRouter.get('/', validate(userQuerySchema, 'query'), userController.list)
 userRouter.get('/:id', validate(idParams, 'params'), userController.getById)
 userRouter.post('/', validate(createUserSchema, 'body'), userController.create)
 userRouter.patch('/:id', validate(idParams, 'params'), validate(updateUserSchema, 'body'), userController.update)
+userRouter.patch('/:id/password', validate(idParams, 'params'), validate(resetUserPasswordSchema, 'body'), userController.resetPassword)
 userRouter.delete('/:id', validate(idParams, 'params'), userController.remove)

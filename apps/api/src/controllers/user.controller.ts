@@ -38,6 +38,14 @@ export const userController = {
       next(err)
     }
   },
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await userService.resetPassword(Number(req.params.id), req.body, req.user!)
+      res.status(200).json(ok({ user }))
+    } catch (err) {
+      next(err)
+    }
+  },
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
       await userService.remove(Number(req.params.id), req.user!)

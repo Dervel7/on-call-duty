@@ -16,7 +16,7 @@ vi.mock('../services/activity.service', () => ({
 const { hash } = vi.hoisted(() => ({ hash: vi.fn(async () => 'HASH') }))
 vi.mock('bcrypt', () => ({ default: { hash } }))
 
-import { create, getById, list, remove, update, updateTheme } from '../services/user.service'
+import { create, getById, list, remove, resetPassword, update, updateTheme } from '../services/user.service'
 import type { ClinicScope } from '../lib/scope'
 
 function row(overrides: Partial<Record<string, unknown>> = {}) {
@@ -356,6 +356,39 @@ describe('user.service', () => {
   it('remove throws 404 when nothing deleted', async () => {
     query.mockResolvedValue({ rows: [] })
     await expect(remove(99, adminActor)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('resetPassword hashes with bcrypt 12, updates password_hash and revokes sessions', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [row()] }) // existing (getById)
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE ... RETURNING id
+      .mockResolvedValueOnce({ rows: [] }) // revokeAllForUser (refresh_tokens)
+      .mockResolvedValueOnce({ rows: [row()] }) // getById re-select
+    const u = await resetPassword(1, { newPassword: 'secret1' }, adminActor)
+    expect(u.email).toBe('d@h.com')
+    expect(hash).toHaveBeenCalledWith(expect.any(String), 12)
+    const upd = query.mock.calls.find((c) => String(c[0]).includes('SET password_hash'))
+    expect(upd?.[1]).toEqual(['HASH', 1])
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'user.password_reset', userId: 2, entityId: 1, clinicId: 1 }),
+    )
+    expect(query.mock.calls.some((c) => String(c[0]).includes('refresh_tokens'))).toBe(true)
+  })
+
+  it('resetPassword hides a superadmin row from an administrator (404, existence hidden)', async () => {
+    query.mockResolvedValueOnce({ rows: [row({ role: 'superadmin', clinic_id: null })] })
+    await expect(resetPassword(1, { newPassword: 'secret1' }, adminActor)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('resetPassword rejects a manager resetting a doctor password with 403', async () => {
+    query.mockResolvedValueOnce({ rows: [row()] })
+    await expect(resetPassword(1, { newPassword: 'secret1' }, managerActor)).rejects.toMatchObject({ status: 403 })
+  })
+
+  it('resetPassword throws 404 for an unknown id', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await expect(resetPassword(99, { newPassword: 'secret1' }, adminActor)).rejects.toMatchObject({ status: 404 })
   })
 
   it('create duplicate checks ignore deleted accounts', async () => {
