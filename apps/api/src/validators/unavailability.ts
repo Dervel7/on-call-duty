@@ -1,6 +1,7 @@
 export {
   createUnavailabilityAdminSchema,
   createUnavailabilitySelfSchema,
+  setUnavailabilityDisabledSchema,
   unavailabilityQuerySchema,
   updateUnavailabilitySchema,
 } from '@oncall/shared'

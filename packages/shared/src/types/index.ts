@@ -17,6 +17,7 @@ export type {
   CreateUnavailabilityAdminRequest,
   CreateUnavailabilitySelfRequest,
   UpdateUnavailabilityRequest,
+  SetUnavailabilityDisabledRequest,
   UnavailabilityQuery,
 } from './unavailability'
 export type {

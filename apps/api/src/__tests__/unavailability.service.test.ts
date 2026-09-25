@@ -19,6 +19,7 @@ import {
   listAll,
   listOwn,
   remove,
+  setDisabled,
   update,
 } from '../services/unavailability.service'
 import type { ClinicScope } from '../lib/scope'
@@ -31,6 +32,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
     last_name: 'Roe',
     start_date: '2026-09-07',
     end_date: '2026-09-11',
+    is_disabled: false,
     created_at: new Date('2026-09-01'),
     updated_at: new Date('2026-09-01'),
     ...overrides,
@@ -224,6 +226,72 @@ describe('unavailability.service', () => {
   it('update 404 when record missing', async () => {
     query.mockResolvedValue({ rows: [] })
     await expect(update(99, {}, admin)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('setDisabled updates the flag and logs availability.updated (administrator)', async () => {
+    query.mockImplementation(async (...args: unknown[]) => {
+      const sql = String(args[0] ?? '')
+      if (sql.includes('d.clinic_id')) return { rows: [{ ...stored(), is_disabled: false }] }
+      if (sql.includes('FROM doctors WHERE id = $1 AND clinic_id = $2')) return { rows: [{ 1: 1 }] }
+      if (sql.includes('FOR UPDATE')) return { rows: [{ doctor_id: 5, is_disabled: false }] }
+      if (sql.includes('UPDATE unavailability')) return { rows: [] }
+      return { rows: [row({ is_disabled: true })] }
+    })
+    const x = await setDisabled(1, true, admin)
+    expect(x.id).toBe(1)
+    const updateSql = query.mock.calls.find((c) => String(c[0]).includes('UPDATE unavailability'))
+    expect(String(updateSql?.[0])).toContain('SET is_disabled = $1')
+    expect(updateSql?.[1]).toEqual([true, 1])
+    expect(recordActivity).toHaveBeenCalledTimes(1)
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'availability.updated',
+        entityType: 'unavailability',
+        entityId: 1,
+        clinicId: 1,
+        detail: { doctorId: 5, before: { isDisabled: false }, after: { isDisabled: true } },
+      }),
+    )
+  })
+
+  it('setDisabled forbids doctors even on their own record (403)', async () => {
+    installDb()
+    await expect(setDisabled(1, true, doctor)).rejects.toMatchObject({ status: 403 })
+    expect(query).not.toHaveBeenCalled()
+  })
+
+  it('setDisabled forbids managers (403)', async () => {
+    await expect(setDisabled(1, true, manager)).rejects.toMatchObject({ status: 403 })
+  })
+
+  it('setDisabled 404 when record missing', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await expect(setDisabled(99, true, admin)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('setDisabled hides a cross-clinic record from an administrator (404)', async () => {
+    query.mockImplementation(async (...args: unknown[]) => {
+      const sql = String(args[0] ?? '')
+      if (sql.includes('d.clinic_id')) return { rows: [{ ...stored(), is_disabled: false }] }
+      if (sql.includes('FROM doctors WHERE id = $1 AND clinic_id = $2')) return { rows: [] }
+      return { rows: [] }
+    })
+    await expect(setDisabled(1, true, admin)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('setDisabled skips the UPDATE and activity when the state already matches', async () => {
+    query.mockImplementation(async (...args: unknown[]) => {
+      const sql = String(args[0] ?? '')
+      if (sql.includes('d.clinic_id')) return { rows: [{ ...stored(), is_disabled: true }] }
+      if (sql.includes('FROM doctors WHERE id = $1 AND clinic_id = $2')) return { rows: [{ 1: 1 }] }
+      if (sql.includes('FOR UPDATE')) return { rows: [{ doctor_id: 5, is_disabled: true }] }
+      return { rows: [row({ is_disabled: true })] }
+    })
+    const x = await setDisabled(1, true, admin)
+    expect(x.id).toBe(1)
+    expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE unavailability'))).toBe(false)
+    expect(recordActivity).not.toHaveBeenCalled()
   })
 
   it('remove deletes the row; 404 when missing; 403 for non-owner; 404 cross-clinic', async () => {

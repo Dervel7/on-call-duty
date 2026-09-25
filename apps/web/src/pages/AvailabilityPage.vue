@@ -18,6 +18,7 @@ const doctors = ref<Doctor[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
 const saving = ref(false)
+const toggling = ref(false)
 const { confirm } = useConfirm()
 
 const filterDoctorId = ref('')
@@ -229,6 +230,23 @@ async function removeCurrent() {
   await load()
 }
 
+/** Disables/re-enables the record currently open in the edit dialog. */
+async function toggleDisabledCurrent() {
+  const x = records.value.find((r) => r.id === edit.value.id)
+  if (!x) return
+  toggling.value = true
+  try {
+    await unavailabilityService.setDisabled(x.id, !x.isDisabled)
+  } catch (e) {
+    edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to update availability'
+    return
+  } finally {
+    toggling.value = false
+  }
+  edit.value = emptyEdit()
+  await load()
+}
+
 onMounted(async () => {
   try {
     doctors.value = await doctorService.list()
@@ -279,6 +297,9 @@ onMounted(async () => {
           <span class="font-medium text-foreground">{{ g.name }}</span>
           <span class="inline-flex items-center gap-2 text-sm text-muted-foreground">
             {{ g.days.length }} day(s)
+            <template v-if="g.days.some((d) => d.record.isDisabled)"
+              >· {{ g.days.filter((d) => d.record.isDisabled).length }} disabled</template
+            >
             <ChevronDown
               class="size-4 transition-transform"
               :class="{ 'rotate-180': expandedDoctorId === g.doctorId }"
@@ -291,6 +312,8 @@ onMounted(async () => {
             :key="d.iso"
             size="sm"
             variant="secondary"
+            :class="{ 'line-through opacity-60': d.record.isDisabled }"
+            :title="d.record.isDisabled ? 'Disabled — ignored by scheduling' : undefined"
             @click="openUpdate(d.record)"
           >
             {{ d.iso }}
@@ -329,6 +352,15 @@ onMounted(async () => {
             @click="removeCurrent"
           >
             Delete
+          </Button>
+          <Button
+            v-if="edit.id !== null"
+            type="button"
+            variant="secondary"
+            :disabled="saving || toggling"
+            @click="toggleDisabledCurrent"
+          >
+            {{ records.find((r) => r.id === edit.id)?.isDisabled ? 'Enable' : 'Disable' }}
           </Button>
           <Button type="submit" class="ml-auto" :disabled="saving">Save</Button>
         </div>

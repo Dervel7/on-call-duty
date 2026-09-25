@@ -41,6 +41,7 @@ const row = () => ({
   last_name: 'Roe',
   start_date: '2026-09-07',
   end_date: '2026-09-11',
+  is_disabled: false,
   created_at: new Date(),
   updated_at: new Date(),
 })
@@ -205,5 +206,48 @@ describe('unavailability routes', () => {
       .send({ endDate: '2026-09-12' })
     expect(res.status).toBe(200)
     expect(res.body.data.unavailability).toBeDefined()
+  })
+
+  it('PATCH /:id/disabled: admin toggles (200); doctor/manager 403; invalid body 400', async () => {
+    query.mockResolvedValueOnce({ rows: [{ doctor_id: 5, clinic_id: 1, is_disabled: false }] })
+    query.mockResolvedValueOnce({ rows: [{ 1: 1 }] })
+    query.mockResolvedValueOnce({ rows: [{ doctor_id: 5, is_disabled: false }] })
+    query.mockResolvedValueOnce({ rows: [] })
+    query.mockResolvedValueOnce({ rows: [{ ...row(), is_disabled: true }] })
+    const res = await request(build())
+      .patch('/unavailability/1/disabled')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ isDisabled: true })
+    expect(res.status).toBe(200)
+    expect(res.body.data.unavailability.isDisabled).toBe(true)
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'availability.updated', entityId: 1 }),
+    )
+
+    const doctorRes = await request(build())
+      .patch('/unavailability/1/disabled')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+      .send({ isDisabled: true })
+    expect(doctorRes.status).toBe(403)
+
+    const managerToken = signAccessToken({ sub: 5, role: 'manager', clinicId: null })
+    const managerRes = await request(build())
+      .patch('/unavailability/1/disabled')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ isDisabled: true })
+    expect(managerRes.status).toBe(403)
+
+    const badBody = await request(build())
+      .patch('/unavailability/1/disabled')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ isDisabled: 'yes' })
+    expect(badBody.status).toBe(400)
+
+    const emptyBody = await request(build())
+      .patch('/unavailability/1/disabled')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({})
+    expect(emptyBody.status).toBe(400)
   })
 })

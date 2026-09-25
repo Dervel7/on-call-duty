@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 const listAll = vi.fn()
 const createForDoctor = vi.fn()
 const update = vi.fn()
+const setDisabled = vi.fn()
 const remove = vi.fn()
 vi.mock('@/services/unavailability', () => ({
   listAll: (...a: unknown[]) => listAll(...a),
@@ -12,6 +13,7 @@ vi.mock('@/services/unavailability', () => ({
   createForDoctor: (...a: unknown[]) => createForDoctor(...a),
   createMine: vi.fn(),
   update: (...a: unknown[]) => update(...a),
+  setDisabled: (...a: unknown[]) => setDisabled(...a),
   remove: (...a: unknown[]) => remove(...a),
 }))
 const doctorList = vi.fn()
@@ -53,6 +55,7 @@ const record = {
   endDate: '2026-09-11',
   createdAt: '2026-09-01T00:00:00.000Z',
   updatedAt: '2026-09-01T00:00:00.000Z',
+  isDisabled: false,
 }
 
 beforeEach(() => {
@@ -61,6 +64,7 @@ beforeEach(() => {
   doctorList.mockReset()
   createForDoctor.mockReset()
   update.mockReset()
+  setDisabled.mockReset()
   remove.mockReset()
   settle(false)
 })
@@ -298,6 +302,63 @@ describe('AvailabilityPage', () => {
     expect(remove).toHaveBeenCalledWith(1)
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('delete failed')
     expect(bodyButton('Save')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('renders disabled records struck through and counts them in the group header', async () => {
+    doctorList.mockResolvedValue([doctor])
+    listAll.mockResolvedValue([
+      { ...record, isDisabled: true },
+      { ...record, id: 2, startDate: '2026-09-20', endDate: '2026-09-20' },
+    ])
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('6 day(s) · 5 disabled')
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    const chip = wrapper.findAll('button').find((b) => b.text() === '2026-09-07')!
+    expect(chip.classes()).toContain('line-through')
+    expect(chip.classes()).toContain('opacity-60')
+    expect(chip.attributes('title')).toBe('Disabled — ignored by scheduling')
+    const active = wrapper.findAll('button').find((b) => b.text() === '2026-09-20')!
+    expect(active.classes()).not.toContain('line-through')
+    expect(active.attributes('title')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('shows Enable in the edit dialog of a disabled record and re-enables it', async () => {
+    doctorList.mockResolvedValue([doctor])
+    listAll.mockResolvedValue([{ ...record, isDisabled: true }])
+    setDisabled.mockResolvedValue({})
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === '2026-09-07')!.trigger('click')
+    await flushPromises()
+    expect(bodyButton('Enable')).toBeTruthy()
+    expect(bodyButton('Disable')).toBeUndefined()
+    bodyButton('Enable')!.click()
+    await flushPromises()
+    expect(setDisabled).toHaveBeenCalledWith(1, false)
+    expect(bodyButton('Save')).toBeUndefined()
+    expect(listAll).toHaveBeenCalledTimes(3)
+    wrapper.unmount()
+  })
+
+  it('shows Disable in the edit dialog of an active record and disables it', async () => {
+    doctorList.mockResolvedValue([doctor])
+    listAll.mockResolvedValue([record])
+    setDisabled.mockResolvedValue({})
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === '2026-09-07')!.trigger('click')
+    await flushPromises()
+    expect(bodyButton('Disable')).toBeTruthy()
+    expect(bodyButton('Enable')).toBeUndefined()
+    bodyButton('Disable')!.click()
+    await flushPromises()
+    expect(setDisabled).toHaveBeenCalledWith(1, true)
+    expect(bodyButton('Save')).toBeUndefined()
     wrapper.unmount()
   })
 })

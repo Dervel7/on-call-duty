@@ -162,7 +162,7 @@ async function buildContext(
   const ures = await query<{ doctor_id: number; start_date: string; end_date: string }>(
     `SELECT x.doctor_id, x.start_date, x.end_date FROM unavailability x
      JOIN doctors d ON d.id = x.doctor_id
-     WHERE d.clinic_id = $1 AND x.start_date <= $2 AND x.end_date >= $3`,
+     WHERE d.clinic_id = $1 AND x.start_date <= $2 AND x.end_date >= $3 AND x.is_disabled = FALSE`,
     [clinicId, last, first],
   )
   const unavailability = new Map<number, Array<{ start: string; end: string }>>()
@@ -676,7 +676,7 @@ async function validateAssignment(
   if (!doctor.is_active) throw new HttpError(409, 'Constraint violation: doctor inactive')
 
   const rangesRes = await query<{ start_date: string; end_date: string }>(
-    `SELECT start_date, end_date FROM unavailability WHERE doctor_id = $1 AND start_date <= $2 AND end_date >= $2`,
+    `SELECT start_date, end_date FROM unavailability WHERE doctor_id = $1 AND start_date <= $2 AND end_date >= $2 AND is_disabled = FALSE`,
     [doctorId, date],
   )
   if (

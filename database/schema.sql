@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS unavailability (
   doctor_id  INTEGER NOT NULL REFERENCES doctors (id) ON DELETE CASCADE,
   start_date DATE NOT NULL,
   end_date   DATE NOT NULL,
+  is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (end_date >= start_date)
@@ -85,6 +86,8 @@ CREATE TABLE IF NOT EXISTS unavailability (
 -- Evolution: exclusions no longer carry a type or a note.
 ALTER TABLE unavailability DROP COLUMN IF EXISTS type;
 ALTER TABLE unavailability DROP COLUMN IF EXISTS note;
+-- Evolution: temporarily disabled exclusions are kept but ignored by scheduling.
+ALTER TABLE unavailability ADD COLUMN IF NOT EXISTS is_disabled BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_unavailability_doctor ON unavailability (doctor_id, start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_unavailability_dates ON unavailability (start_date, end_date);
 

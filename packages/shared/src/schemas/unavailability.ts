@@ -35,6 +35,10 @@ export const updateUnavailabilitySchema = z
     path: ['endDate'],
   })
 
+export const setUnavailabilityDisabledSchema = z.object({
+  isDisabled: z.boolean(),
+})
+
 export const unavailabilityQuerySchema = z.object({
   doctorId: z.coerce.number().int().positive().optional(),
   clinicId: z.coerce.number().int().positive().optional(),

@@ -5,6 +5,8 @@ export interface Unavailability {
   doctorLastName: string
   startDate: string
   endDate: string
+  /** TRUE = record is kept but ignored by the scheduling engine. */
+  isDisabled: boolean
   createdAt: string
   updatedAt: string
 }
@@ -23,6 +25,10 @@ export interface CreateUnavailabilitySelfRequest {
 export interface UpdateUnavailabilityRequest {
   startDate?: string
   endDate?: string
+}
+
+export interface SetUnavailabilityDisabledRequest {
+  isDisabled: boolean
 }
 
 export interface UnavailabilityQuery {

@@ -139,6 +139,7 @@ import {
   createUnavailabilityAdminSchema,
   createUnavailabilitySelfSchema,
   unavailabilityQuerySchema,
+  setUnavailabilityDisabledSchema,
   updateUnavailabilitySchema,
 } from '../index'
 
@@ -171,6 +172,13 @@ describe('unavailability schemas', () => {
       updateUnavailabilitySchema.safeParse({ startDate: '2026-09-12', endDate: '2026-09-01' })
         .success,
     ).toBe(false)
+  })
+
+  it('setUnavailabilityDisabledSchema requires a boolean isDisabled', () => {
+    expect(setUnavailabilityDisabledSchema.safeParse({ isDisabled: true }).success).toBe(true)
+    expect(setUnavailabilityDisabledSchema.safeParse({ isDisabled: false }).success).toBe(true)
+    expect(setUnavailabilityDisabledSchema.safeParse({}).success).toBe(false)
+    expect(setUnavailabilityDisabledSchema.safeParse({ isDisabled: 'yes' }).success).toBe(false)
   })
 
   it('unavailabilityQuerySchema coerces doctorId from string', () => {

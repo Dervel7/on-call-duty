@@ -13,6 +13,7 @@ export {
   createUnavailabilityAdminSchema,
   createUnavailabilitySelfSchema,
   updateUnavailabilitySchema,
+  setUnavailabilityDisabledSchema,
   unavailabilityQuerySchema,
 } from './unavailability'
 export {

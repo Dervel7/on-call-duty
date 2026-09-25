@@ -20,11 +20,12 @@ interface UnavailabilityRow {
   last_name: string
   start_date: string
   end_date: string
+  is_disabled: boolean
   created_at: Date
   updated_at: Date
 }
 
-const SELECT = `SELECT x.id, x.doctor_id, x.start_date, x.end_date,
+const SELECT = `SELECT x.id, x.doctor_id, x.start_date, x.end_date, x.is_disabled,
   x.created_at, x.updated_at, u.first_name, u.last_name
   FROM unavailability x
   JOIN doctors d ON d.id = x.doctor_id
@@ -38,6 +39,7 @@ function toUnavailability(row: UnavailabilityRow): Unavailability {
     doctorLastName: row.last_name,
     startDate: row.start_date,
     endDate: row.end_date,
+    isDisabled: row.is_disabled,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   }
@@ -131,6 +133,8 @@ export async function create(
     )
     const locked = lock.rows[0]
     if (!locked) throw new HttpError(404, 'Doctor not found')
+    // Disabled records still count here: they keep reserving their days so a
+    // later re-enable can never create an overlap.
     const overlap = await client.query(
       'SELECT id FROM unavailability WHERE doctor_id = $1 AND start_date <= $2 AND end_date >= $3',
       [doctorId, input.endDate, input.startDate],
@@ -203,6 +207,8 @@ export async function update(
     if (end < start)
       throw new HttpError(400, 'endDate must be on or after startDate')
     if (input.startDate !== undefined || input.endDate !== undefined) {
+      // Disabled records still count here: they keep reserving their days so
+      // a later re-enable can never create an overlap.
       const overlap = await client.query(
         'SELECT id FROM unavailability WHERE doctor_id = $1 AND start_date <= $2 AND end_date >= $3 AND id <> $4',
         [current.doctor_id, end, start, id],
@@ -247,6 +253,58 @@ export async function update(
         entityId: id,
         clinicId: existingRow.clinic_id,
         detail: { doctorId: current.doctor_id, before, after },
+      })
+    }
+  })
+  return getById(id)
+}
+
+export async function setDisabled(
+  id: number,
+  isDisabled: boolean,
+  actor: Actor,
+): Promise<Unavailability> {
+  // Only administrators (and superadmins) may toggle the flag — doctors
+  // never, not even on their own records.
+  if (actor.role !== 'administrator' && actor.role !== 'superadmin')
+    throw new HttpError(403, 'Forbidden')
+  const existing = await query<{
+    doctor_id: number
+    clinic_id: number
+    is_disabled: boolean
+  }>(
+    `SELECT x.doctor_id, d.clinic_id, x.is_disabled
+     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id WHERE x.id = $1`,
+    [id],
+  )
+  const existingRow = existing.rows[0]
+  if (!existingRow) throw new HttpError(404, 'Unavailability record not found')
+  await assertCanModify(existingRow.doctor_id, actor)
+
+  await withTransaction(async (client) => {
+    // Re-read under lock so concurrent toggle decisions use committed state.
+    const locked = await client.query<{ doctor_id: number; is_disabled: boolean }>(
+      'SELECT doctor_id, is_disabled FROM unavailability WHERE id = $1 FOR UPDATE',
+      [id],
+    )
+    const current = locked.rows[0]
+    if (!current) throw new HttpError(404, 'Unavailability record not found')
+    if (current.is_disabled !== isDisabled) {
+      await client.query(
+        'UPDATE unavailability SET is_disabled = $1, updated_at = NOW() WHERE id = $2',
+        [isDisabled, id],
+      )
+      await recordActivity(client, {
+        userId: actor.id,
+        action: 'availability.updated',
+        entityType: 'unavailability',
+        entityId: id,
+        clinicId: existingRow.clinic_id,
+        detail: {
+          doctorId: current.doctor_id,
+          before: { isDisabled: current.is_disabled },
+          after: { isDisabled },
+        },
       })
     }
   })

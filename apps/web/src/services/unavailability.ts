@@ -54,6 +54,13 @@ export async function update(
   )
   return unavailability
 }
+export async function setDisabled(id: number, isDisabled: boolean): Promise<Unavailability> {
+  const { unavailability } = await apiPatch<{ unavailability: Unavailability }>(
+    `/unavailability/${id}/disabled`,
+    { isDisabled },
+  )
+  return unavailability
+}
 export async function remove(id: number): Promise<void> {
   await apiDelete<void>(`/unavailability/${id}`)
 }

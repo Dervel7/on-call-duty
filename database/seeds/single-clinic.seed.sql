@@ -83,11 +83,14 @@ ON CONFLICT (user_id) DO UPDATE SET
 -- Random unavailability for every doctor (sample window 2026-09). Values are
 -- derived from each doctor's email with hashtext, so every seed run produces
 -- the same "random" dates. Doctors who already have unavailability are skipped.
-INSERT INTO unavailability (doctor_id, start_date, end_date)
+-- dr3 and dr8 arrive disabled, so the Disabled state (exclusions the
+-- scheduler ignores until re-enabled) is visible out of the box.
+INSERT INTO unavailability (doctor_id, start_date, end_date, is_disabled)
 SELECT
   d.id,
   DATE '2026-09-01' + r.start_offset,
-  DATE '2026-09-01' + r.start_offset + r.span_days
+  DATE '2026-09-01' + r.start_offset + r.span_days,
+  u.email IN ('dr3@oncall.local', 'dr8@oncall.local')
 FROM doctors d
 JOIN users u ON u.id = d.user_id
 CROSS JOIN LATERAL (

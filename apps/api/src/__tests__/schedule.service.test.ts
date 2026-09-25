@@ -110,6 +110,8 @@ describe('schedule.service', () => {
     expect(detail.schedule.id).toBe(42)
     expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO schedules'))).toBe(true)
     expect(query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties')).length).toBeGreaterThan(0)
+    const unavail = query.mock.calls.find((c) => String(c[0]).includes('FROM unavailability'))
+    expect(String(unavail?.[0])).toContain('is_disabled = FALSE')
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'schedule.generated', entityId: 42 }),
@@ -122,6 +124,8 @@ describe('schedule.service', () => {
     expect(Array.isArray(res.assignments)).toBe(true)
     expect(Array.isArray(res.conflicts)).toBe(true)
     expect(query.mock.calls.some((c) => String(c[0]).startsWith('INSERT'))).toBe(false)
+    const unavail = query.mock.calls.find((c) => String(c[0]).includes('FROM unavailability'))
+    expect(String(unavail?.[0])).toContain('is_disabled = FALSE')
   })
 
   it('preview returns per-day eligible doctors and boundary adjacency data', async () => {
@@ -309,6 +313,8 @@ describe('schedule.service', () => {
       return { rows: [] }
     })
     const d = await addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 })
+    const ranges = query.mock.calls.find((c) => String(c[0]).includes('FROM unavailability WHERE doctor_id'))
+    expect(String(ranges?.[0])).toContain('is_disabled = FALSE')
     expect(d.id).toBe(11)
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),

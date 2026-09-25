@@ -64,6 +64,19 @@ export const unavailabilityController = {
       next(err)
     }
   },
+  async setDisabled(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new HttpError(401, 'Unauthorized')
+      const unavailability = await unavailabilityService.setDisabled(
+        Number(req.params.id),
+        req.body.isDisabled,
+        req.user,
+      )
+      res.status(200).json(ok({ unavailability }))
+    } catch (err) {
+      next(err)
+    }
+  },
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new HttpError(401, 'Unauthorized')
