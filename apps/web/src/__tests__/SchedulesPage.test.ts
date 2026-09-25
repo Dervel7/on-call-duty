@@ -76,6 +76,17 @@ describe('SchedulesPage', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('boom')
   })
 
+  it('loads the list filtered by the current year by default', async () => {
+    list.mockResolvedValue([summary()])
+    const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(list).toHaveBeenCalledTimes(1)
+    expect(list).toHaveBeenCalledWith({ year: new Date().getFullYear() })
+    expect((wrapper.find('#f-year').element as HTMLInputElement).value).toBe(
+      String(new Date().getFullYear()),
+    )
+  })
+
   it('Generate creates the schedule and opens its plan', async () => {
     const wrapper = mountAs('administrator')
     await flushPromises()

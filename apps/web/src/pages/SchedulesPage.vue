@@ -31,7 +31,7 @@ function monthLabel(year: number, month: number): string {
 const records = ref<ScheduleSummary[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
-const filterYear = ref('')
+const filterYear = ref(String(new Date().getFullYear()))
 
 async function load() {
   loading.value = true
