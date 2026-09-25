@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ChevronDown } from 'lucide-vue-next'
+import { ChevronDown, Pencil } from 'lucide-vue-next'
 import type { Doctor, Unavailability } from '@oncall/shared'
 import { eachDay, groupConsecutiveDays, monthRange, nextMonthIso } from '@oncall/utils'
 import * as unavailabilityService from '@/services/unavailability'
@@ -32,6 +32,10 @@ interface EditState {
   doctorId: string
   /** Marked days (sorted ISO) that will become exclusions on save. */
   days: string[]
+  /** When editing: the day chip that opened the dialog — the only removable day. */
+  chipDay: string | null
+  /** When editing: every day covered by the record backing the dialog. */
+  originDays: string[]
   /** Days already excluded by other records — shown dimmed in the calendar. */
   reservedDays: string[]
   calendarOpen: boolean
@@ -43,6 +47,8 @@ const emptyEdit = (): EditState => ({
   id: null,
   doctorId: '',
   days: [],
+  chipDay: null,
+  originDays: [],
   reservedDays: [],
   calendarOpen: false,
   errorMsg: '',
@@ -126,7 +132,8 @@ function openCreate() {
   edit.value = { ...emptyEdit(), open: true }
 }
 
-async function openUpdate(x: Unavailability) {
+/** Opens the dialog scoped to one day: the chip's day, backed by its record. */
+async function openUpdate(iso: string, x: Unavailability) {
   let reservedDays: string[]
   try {
     reservedDays = await reservedDaysFor(x.doctorId, x.id)
@@ -138,7 +145,9 @@ async function openUpdate(x: Unavailability) {
     open: true,
     id: x.id,
     doctorId: String(x.doctorId),
-    days: eachDay(x.startDate, x.endDate),
+    days: [iso],
+    chipDay: iso,
+    originDays: eachDay(x.startDate, x.endDate),
     reservedDays,
     calendarOpen: false,
     errorMsg: '',
@@ -161,11 +170,11 @@ async function openCalendar() {
 }
 
 /**
- * Saving reconciles the doctor's exclusions with the marked days: days already
- * covered by another record are skipped, the rest are grouped into consecutive
- * ranges. Creating stores one record per range; editing repoints the existing
- * record at the first range, creates the rest, and only deletes the record
- * when every marked day is already covered elsewhere.
+ * Saving is scoped to the marked days. Creating groups the marked days into
+ * consecutive ranges, one record per range. Editing opens from a single day
+ * chip: only that chip's day can be removed there (unmarking it shrinks or
+ * splits the record, or deletes it when no day remains), the record's other
+ * days are never touched, and newly marked days become additional records.
  */
 async function save() {
   const st = edit.value
@@ -174,7 +183,7 @@ async function save() {
     st.errorMsg = 'Select a doctor'
     return
   }
-  if (st.days.length === 0) {
+  if (st.id === null && st.days.length === 0) {
     st.errorMsg = 'Select at least one day'
     return
   }
@@ -182,20 +191,29 @@ async function save() {
   saving.value = true
   try {
     const reserved = new Set(await reservedDaysFor(doctorId, st.id))
-    const ranges = groupConsecutiveDays(st.days.filter((d) => !reserved.has(d)))
     if (st.id !== null) {
-      if (ranges.length === 0) {
-        // Every marked day is already covered by another record.
+      const chipRemoved = st.chipDay !== null && !st.days.includes(st.chipDay)
+      const keptDays = chipRemoved
+        ? st.originDays.filter((d) => d !== st.chipDay)
+        : st.originDays
+      const additions = st.days.filter((d) => !st.originDays.includes(d) && !reserved.has(d))
+      if (keptDays.length === 0) {
+        // The record's only day was unmarked.
         await unavailabilityService.remove(st.id)
-      } else {
-        // The edited record becomes the first range (the API excludes it from
-        // its own overlap check); any further ranges are created after it.
-        await unavailabilityService.update(st.id, ranges[0]!)
-        for (const range of ranges.slice(1)) {
-          await unavailabilityService.createForDoctor(doctorId, range)
+      } else if (chipRemoved) {
+        // The record keeps the rest of its days: shrink, splitting into
+        // further records around the removed day.
+        const segments = groupConsecutiveDays(keptDays)
+        await unavailabilityService.update(st.id, segments[0]!)
+        for (const segment of segments.slice(1)) {
+          await unavailabilityService.createForDoctor(doctorId, segment)
         }
       }
+      for (const range of groupConsecutiveDays(additions)) {
+        await unavailabilityService.createForDoctor(doctorId, range)
+      }
     } else {
+      const ranges = groupConsecutiveDays(st.days.filter((d) => !reserved.has(d)))
       for (const range of ranges) await unavailabilityService.createForDoctor(doctorId, range)
     }
   } catch (e) {
@@ -311,11 +329,12 @@ onMounted(async () => {
             v-for="d in g.days"
             :key="d.iso"
             size="sm"
-            variant="secondary"
+            variant="outline"
             :class="{ 'line-through opacity-60': d.record.isDisabled }"
             :title="d.record.isDisabled ? 'Disabled — ignored by scheduling' : undefined"
-            @click="openUpdate(d.record)"
+            @click="openUpdate(d.iso, d.record)"
           >
+            <Pencil class="size-3 text-muted-foreground" aria-hidden="true" />
             {{ d.iso }}
           </Button>
         </div>
@@ -326,7 +345,7 @@ onMounted(async () => {
       <form class="flex flex-col gap-3" novalidate @submit.prevent="save">
         <div class="flex flex-col gap-1">
           <Label for="e-doctor">Doctor</Label>
-          <Select id="e-doctor" v-model="edit.doctorId">
+          <Select id="e-doctor" v-model="edit.doctorId" :disabled="edit.id !== null">
             <option value="" disabled>Select a doctor</option>
             <option v-for="d in doctors" :key="d.id" :value="d.id">
               {{ d.firstName }} {{ d.lastName }}
