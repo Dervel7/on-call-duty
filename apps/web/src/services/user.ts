@@ -17,6 +17,10 @@ export async function update(id: number, input: UpdateUserRequest): Promise<User
   const { user } = await apiPatch<{ user: User }>(`/users/${id}`, input)
   return user
 }
+export async function resetPassword(id: number, newPassword: string): Promise<User> {
+  const { user } = await apiPatch<{ user: User }>(`/users/${id}/password`, { newPassword })
+  return user
+}
 export async function updateTheme(darkMode: boolean): Promise<User> {
   const { user } = await apiPatch<{ user: User }>('/users/me/theme', { darkMode })
   return user

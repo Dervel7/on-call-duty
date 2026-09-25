@@ -12,6 +12,7 @@ import type {
 import {
   createDoctorSchema,
   createUserSchema,
+  resetUserPasswordSchema,
   updateDoctorSchema,
   updateUserSchema,
 } from '@oncall/shared'
@@ -76,6 +77,19 @@ const emptyEdit = (): EditState => ({
   errorMsg: '',
 })
 const edit = ref<EditState>(emptyEdit())
+
+interface ResetState {
+  open: boolean
+  password: string
+  errorMsg: string
+}
+
+const emptyReset = (): ResetState => ({
+  open: false,
+  password: '',
+  errorMsg: '',
+})
+const reset = ref<ResetState>(emptyReset())
 
 async function load() {
   loading.value = true
@@ -196,6 +210,33 @@ async function save() {
   await load()
 }
 
+// The reset dialog stacks on top of the edit dialog, and Dialog's
+// click-outside handler counts the overlay as "outside" — so while a reset is
+// in progress the edit dialog must refuse to close itself.
+function setEditOpen(v: boolean) {
+  if (!v && reset.value.open) return
+  edit.value.open = v
+}
+
+function openReset() {
+  reset.value = { ...emptyReset(), open: true }
+}
+
+async function savePassword() {
+  const r = resetUserPasswordSchema.safeParse({ newPassword: reset.value.password })
+  if (!r.success) {
+    reset.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
+    return
+  }
+  try {
+    await userService.resetPassword(edit.value.id!, reset.value.password)
+  } catch (e) {
+    reset.value.errorMsg = e instanceof Error ? e.message : 'Failed to reset password'
+    return
+  }
+  reset.value = emptyReset()
+}
+
 async function toggleActive(u: User) {
   try {
     await userService.update(u.id, { isActive: !u.isActive })
@@ -268,7 +309,7 @@ onMounted(load)
       </TableBody>
     </Table>
 
-    <Dialog v-model:open="edit.open" :title="edit.id === null ? 'New user' : 'Edit user'">
+    <Dialog :open="edit.open" :title="edit.id === null ? 'New user' : 'Edit user'" @update:open="setEditOpen">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="save">
         <div class="flex flex-col gap-1">
           <Label for="e-email">Email</Label>
@@ -302,7 +343,24 @@ onMounted(load)
         </p>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">
+          <Button v-if="edit.id !== null" type="button" variant="outline" @click="openReset">Reset Password</Button>
           <Button type="submit">Save</Button>
+        </div>
+      </form>
+    </Dialog>
+
+    <Dialog v-model:open="reset.open" title="Reset password">
+      <form class="flex flex-col gap-3" novalidate @submit.prevent="savePassword">
+        <p class="text-sm text-muted-foreground">
+          Set a new password for this user. The current password is not needed.
+        </p>
+        <div class="flex flex-col gap-1">
+          <Label for="r-password">New password</Label>
+          <Input id="r-password" v-model="reset.password" type="password" autocomplete="new-password" />
+        </div>
+        <p v-if="reset.errorMsg" class="text-sm text-destructive" role="alert">{{ reset.errorMsg }}</p>
+        <div class="flex justify-end gap-2">
+          <Button type="submit">Confirm</Button>
         </div>
       </form>
     </Dialog>
