@@ -45,6 +45,7 @@ Give administrators a reversible alternative to deleting a doctor's exclusion: a
 
 - `apps/web/src/services/unavailability.ts`: `setDisabled(id, isDisabled)` client function.
 - `apps/web/src/pages/AvailabilityPage.vue`: disabled days render struck-through/dimmed with a `title` hint; the doctor group header shows the disabled count; the edit dialog gains a `Disable`/`Enable` button (immediate action, no confirm — reversible — closes the dialog and reloads). Save semantics (day-range reconciliation) unchanged.
+- `apps/web/src/pages/MyAvailabilityPage.vue`: disabled days get the same struck-through/dimmed treatment with a `title` hint, so a doctor never sees an exclusion the scheduler silently ignores. Read-only — no toggle for doctors.
 
 ## Error Behavior
 
@@ -57,8 +58,9 @@ No new error paths beyond the route above. Scheduling behavior with a disabled r
 - `apps/api/src/__tests__/unavailability.routes.test.ts`: PATCH route role-gating and body validation.
 - `apps/api/src/__tests__/schedule.service.test.ts`: scheduling SQL filters `is_disabled = FALSE`.
 - `apps/web/src/__tests__/AvailabilityPage.test.ts`: disabled chip styling/header count; Disable/Enable button calls the service and closes the dialog.
+- `apps/web/src/__tests__/MyAvailabilityPage.test.ts`: disabled chip styling and hint on the self-service page.
 - Gate: `pnpm typecheck`, `pnpm lint`, `pnpm test` all pass; schema.sql applied against the dev database (idempotent re-run).
 
 ## Out of Scope
 
-Bulk enable/disable, per-day (rather than per-record) disabling, expiry timestamps for the disabled state, exposing the toggle to doctors, and UI changes on `MyAvailabilityPage`.
+Bulk enable/disable, per-day (rather than per-record) disabling, expiry timestamps for the disabled state, and exposing the toggle to doctors (the self-service page shows the state read-only).

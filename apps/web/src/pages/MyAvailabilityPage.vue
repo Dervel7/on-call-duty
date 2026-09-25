@@ -217,6 +217,8 @@ onMounted(load)
         :key="d.iso"
         size="sm"
         variant="secondary"
+        :class="{ 'line-through opacity-60': d.record.isDisabled }"
+        :title="d.record.isDisabled ? 'Disabled — ignored by scheduling' : undefined"
         @click="openUpdate(d.record)"
       >
         {{ d.iso }}

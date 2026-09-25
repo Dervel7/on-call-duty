@@ -29,6 +29,7 @@ const record = {
   doctorLastName: 'Roe',
   startDate: '2026-09-15',
   endDate: '2026-09-15',
+  isDisabled: false,
   createdAt: '2026-09-01T00:00:00.000Z',
   updatedAt: '2026-09-01T00:00:00.000Z',
 }
@@ -80,6 +81,19 @@ describe('MyAvailabilityPage', () => {
       .filter((b) => b.text().startsWith('20'))
       .map((b) => b.text())
     expect(days).toEqual([`${nm}-07`, `${nm}-08`])
+    wrapper.unmount()
+  })
+
+  it('renders disabled exclusions struck-through with a hint', async () => {
+    const nm = nextMonthIso()
+    listMine.mockResolvedValue([
+      { ...record, startDate: `${nm}-07`, endDate: `${nm}-08`, isDisabled: true },
+    ])
+    const wrapper = await mountPage()
+    const chip = wrapper.findAll('button').find((b) => b.text() === `${nm}-07`)!
+    expect(chip.classes()).toContain('line-through')
+    expect(chip.classes()).toContain('opacity-60')
+    expect(chip.attributes('title')).toBe('Disabled — ignored by scheduling')
     wrapper.unmount()
   })
 
