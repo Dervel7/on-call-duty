@@ -13,10 +13,12 @@ interface TokenRow {
 }
 
 const DAY_MS = 86_400_000
+const HOUR_MS = 3_600_000
 
-// env.ts enforces the "<n>d" format; parsing cannot fail at runtime.
+// env.ts enforces the "<n>h"/"<n>d" format; parsing cannot fail at runtime.
 export function refreshExpiryMs(): number {
-  return Number(env.JWT_REFRESH_EXPIRES_IN.slice(0, -1)) * DAY_MS
+  const value = Number(env.JWT_REFRESH_EXPIRES_IN.slice(0, -1))
+  return env.JWT_REFRESH_EXPIRES_IN.endsWith('d') ? value * DAY_MS : value * HOUR_MS
 }
 
 function expiryDate(): Date {

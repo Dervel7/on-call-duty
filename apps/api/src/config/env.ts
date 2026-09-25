@@ -14,9 +14,10 @@ const schema = z
 
     JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
     JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
-    // Format is fixed to "<n>d" because token.service derives the DB expiry and
-    // cookie maxAge from it; anything else would silently fall back to 1 day.
-    JWT_REFRESH_EXPIRES_IN: z.string().regex(/^\d{1,4}d$/, 'JWT_REFRESH_EXPIRES_IN must be like 7d').default('1d'),
+    // Format is fixed to "<n>h" or "<n>d" because token.service derives the DB
+    // expiry and cookie maxAge from it; anything else would silently fall back
+    // to 1 hour.
+    JWT_REFRESH_EXPIRES_IN: z.string().regex(/^\d{1,4}[hd]$/, 'JWT_REFRESH_EXPIRES_IN must be like 1h or 7d').default('1h'),
     COOKIE_SECURE: z
       .string()
       .optional()

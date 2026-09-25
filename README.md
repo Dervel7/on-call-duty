@@ -170,7 +170,7 @@ Root scripts (run from the repository root):
 | `VITE_API_URL` | `apps/web/.env` | API base URL for the web client (default http://localhost:3000) |
 | `JWT_ACCESS_SECRET` | `apps/api/.env` | Access-token signing secret. Required in production; dev default in `.env.example`. |
 | `JWT_ACCESS_EXPIRES_IN` | `apps/api/.env` | Access-token lifetime (default `15m`) |
-| `JWT_REFRESH_EXPIRES_IN` | `apps/api/.env` | Refresh-token lifetime (default `7d`) |
+| `JWT_REFRESH_EXPIRES_IN` | `apps/api/.env` | Refresh-token lifetime (default `1h`) |
 | `COOKIE_SECURE` | `apps/api/.env` | Refresh-cookie `Secure` flag (default true in production, false in dev) |
 | `COOKIE_SAMESITE` | `apps/api/.env` | Refresh-cookie `SameSite` (default `lax`) |
 | `COOKIE_DOMAIN` | `apps/api/.env` | Optional refresh-cookie domain |

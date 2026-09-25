@@ -102,9 +102,9 @@ describe('token.service', () => {
   })
 
   it('rotateRefreshToken never extends the original session deadline', async () => {
-    // A token with ~2h left must rotate to a token that still dies at the
-    // original deadline — not now + 1 day.
-    const deadline = new Date(Date.now() + 2 * 3600_000)
+    // A token with ~30m left must rotate to a token that still dies at the
+    // original deadline — not now + 1 hour.
+    const deadline = new Date(Date.now() + 30 * 60_000)
     query.mockResolvedValueOnce({ rows: [liveRow({ expires_at: deadline })] })
     query.mockResolvedValueOnce({ rows: [{ id: 2 }] }) // INSERT new token
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // atomic claim
