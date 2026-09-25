@@ -131,7 +131,7 @@ function cellBg(c: Cell): string {
         <div
           v-for="w in WEEKDAYS"
           :key="w"
-          class="bg-muted px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          class="bg-muted px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground"
         >
           {{ w }}
         </div>
@@ -141,7 +141,7 @@ function cellBg(c: Cell): string {
           v-for="(c, idx) in cells"
           :key="idx"
           :class="[
-            'min-h-[72px] p-1.5',
+            'min-h-[112px] p-2',
             cellBg(c),
             !c.blank && c.conflict && 'border border-destructive/60',
           ]"
@@ -158,11 +158,10 @@ function cellBg(c: Cell): string {
               </span>
             </div>
 
-            <div class="mt-1 flex flex-col gap-1">
+            <div class="mt-1.5 flex flex-col gap-1">
               <div v-for="(slot, sIdx) in c.slots" :key="sIdx">
                 <template v-if="mode === 'editable'">
                   <Select
-                    size="sm"
                     :model-value="slot ? String(slot.doctorId) : ''"
                     :disabled="savingDates?.has(c.date ?? '')"
                     @update:model-value="onSelect(c.date!, sIdx, $event)"

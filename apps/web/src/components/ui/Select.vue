@@ -10,15 +10,10 @@ const props = defineProps<{
   id?: string
   modelValue?: string | number
   disabled?: boolean
-  size?: 'default' | 'sm'
   class?: HTMLAttributes['class']
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: string | number] }>()
-
-const sizeClasses = computed(() =>
-  props.size === 'sm' ? 'h-7 gap-1 px-2 py-0 text-xs' : 'h-10 px-3 py-2 text-sm',
-)
 
 /**
  * Drop-in replacement for the native <select>: options are declared with the
@@ -243,21 +238,14 @@ useEventListener(
       aria-haspopup="listbox"
       :aria-expanded="open"
       :disabled="props.disabled"
-      :class="cn(
-        'flex w-full items-center justify-between gap-2 rounded-md border border-input bg-card text-left text-foreground shadow-sm transition-colors hover:border-input/80 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50',
-        sizeClasses,
-      )"
+      class="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-2 text-left text-sm text-foreground shadow-sm transition-colors hover:border-input/80 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
       @click="toggle"
     >
       <span class="truncate" :class="!selected() && 'text-muted-foreground/70'">
         {{ selected()?.label ?? selectedValue }}
       </span>
       <ChevronDown
-        :class="cn(
-          'shrink-0 text-muted-foreground transition-transform',
-          props.size === 'sm' ? 'size-3.5' : 'size-4',
-          open && 'rotate-180',
-        )"
+        :class="cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')"
       />
     </button>
 
