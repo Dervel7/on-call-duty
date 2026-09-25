@@ -343,7 +343,8 @@ onMounted(load)
         </p>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">
-          <Button v-if="edit.id !== null" type="button" variant="outline" @click="openReset">Reset Password</Button>
+          <Button v-if="edit.id !== null" type="button" variant="outline" @click="openReset">Reset User
+            Password</Button>
           <Button type="submit">Save</Button>
         </div>
       </form>
