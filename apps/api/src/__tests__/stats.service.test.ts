@@ -241,5 +241,8 @@ describe('stats.service — meStats', () => {
     const onCall = query.mock.calls.find((c) => String(c[0]).includes('du.duty_date BETWEEN'))
     expect(String(onCall?.[0])).toContain('s.clinic_id = $3')
     expect(onCall?.[1]).toEqual([expect.any(String), expect.any(String), 4])
+    const [start, end] = onCall?.[1] as [string, string]
+    const diffDays = (new Date(`${end}T00:00:00Z`).getTime() - new Date(`${start}T00:00:00Z`).getTime()) / 86_400_000
+    expect(diffDays).toBe(6)
   })
 })

@@ -44,18 +44,18 @@ ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
   is_active     = TRUE,
   updated_at    = NOW();
 
--- Seed sample doctors (password = email, change on first login)
+-- Seed sample doctors (password: changeme123 - change on first login)
 INSERT INTO users (email, username, password_hash, role, first_name, last_name, is_active, clinic_id)
 VALUES
-  ('dr1@oncall.local', 'dr1', '$2b$12$t65At8AmL5CM1uphNod26es83qUcLR9ycYLLVnyN8YCHgg.IxQ3aO', 'doctor', 'Kostas',     'Fitsilis',        TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr2@oncall.local', 'dr2', '$2b$12$9.HqiDEdLTFpiWJN5noAAOsDfSa/6oLFpP/.HnulzEADAQIOBOQW6', 'doctor', 'Maria',      'Ivanidou',        TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr3@oncall.local', 'dr3', '$2b$12$8KF959sMdv3ifN6tr0uTuu5eKC1UVUqlg30lD/e1UtrNRtNi0lLgm', 'doctor', 'Nikos',      'Soultanis',       TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr4@oncall.local', 'dr4', '$2b$12$fb/aJHYKFEcnL2zCkSlb..2LZN0xfjAcijROn87iZmdorr1cmE/QO', 'doctor', 'Penny',      'Gavala',          TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr5@oncall.local', 'dr5', '$2b$12$jYi9MCqGip4V.Ynb0fCTh.EPrHBYVjvCnM.9Ke7KLohIMLvUvniA2', 'doctor', 'Anna',       'Sokopoulou',      TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr6@oncall.local', 'dr6', '$2b$12$ZJVUxCgDZlVJfoXtQbh91OZwfqnV0aG3V1kJbS2QPy8Ok1a/ZexdS', 'doctor', 'Pavlos',     'Paraskevopoulos', TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr7@oncall.local', 'dr7', '$2b$12$47LuPzklNu2otUNM2PKKXOG8OUYGd.7XiGa2Fve6OwcGYCvDp1FLm', 'doctor', 'Kostas',     'Fanaras',         TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr8@oncall.local', 'dr8', '$2b$12$pk./7Qh2MP/iJaYcD8UyAOR1Ys/kmXarnMYvSg/FuY0pI3sokXwiO', 'doctor', 'Eleutheria', 'Eleutheriadou',   TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
-  ('dr9@oncall.local', 'dr9', '$2b$12$/6TzOQA7Xpnxvei3hI5OG.Vfu5LxdAEHuhdglFxAN/dow0xCPcIF2', 'doctor', 'Ioanna',     'Plousi',          TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic'))
+  ('dr1@oncall.local', 'dr1', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Kostas',     'Fitsilis',        TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr2@oncall.local', 'dr2', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Maria',      'Ivanidou',        TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr3@oncall.local', 'dr3', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Nikos',      'Soultanis',       TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr4@oncall.local', 'dr4', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Penny',      'Gavala',          TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr5@oncall.local', 'dr5', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Anna',       'Sokopoulou',      TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr6@oncall.local', 'dr6', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Pavlos',     'Paraskevopoulos', TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr7@oncall.local', 'dr7', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Kostas',     'Fanaras',         TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr8@oncall.local', 'dr8', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Eleutheria', 'Eleutheriadou',   TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
+  ('dr9@oncall.local', 'dr9', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Ioanna',     'Plousi',          TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic'))
 ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
   username      = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,

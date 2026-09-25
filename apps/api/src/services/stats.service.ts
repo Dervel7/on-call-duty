@@ -210,7 +210,7 @@ export async function meStats(userId: number): Promise<MeStats> {
   )
 
   const start = todayISO()
-  const end = plusDaysISO(start, 7)
+  const end = plusDaysISO(start, 6)
   const onCallRes = await query<{
     duty_date: string
     is_weekend: boolean

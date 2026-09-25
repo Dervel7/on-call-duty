@@ -31,6 +31,10 @@ import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 import { useConfirm } from '@/composables/useConfirm'
 
+// Every account created through this form starts with the same initial
+// password; the user must change it on first login.
+const INITIAL_PASSWORD = 'changeme123'
+
 const users = ref<User[]>([])
 const doctors = ref<Doctor[]>([])
 const loading = ref(false)
@@ -130,7 +134,7 @@ async function save() {
       const payload: CreateDoctorRequest = {
         email: edit.value.email,
         username: edit.value.username,
-        password: edit.value.email,
+        password: INITIAL_PASSWORD,
         firstName: edit.value.firstName,
         lastName: edit.value.lastName,
         maxMonthlyDuties: Number(edit.value.maxMonthlyDuties),
@@ -150,7 +154,7 @@ async function save() {
       const payload: CreateUserRequest = {
         email: edit.value.email,
         username: edit.value.username,
-        password: edit.value.email,
+        password: INITIAL_PASSWORD,
         role: edit.value.role,
         firstName: edit.value.firstName,
         lastName: edit.value.lastName,
@@ -339,7 +343,7 @@ onMounted(load)
           <Input id="e-max" v-model="edit.maxMonthlyDuties" type="number" />
         </div>
         <p v-if="edit.id === null" class="text-xs text-muted-foreground">
-          Initial password equals the email. The user should change it on first login.
+          Initial password is changeme123. The user should change it on first login.
         </p>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">

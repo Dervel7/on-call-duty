@@ -119,10 +119,10 @@ between the two baselines always yields a clean, deterministic state.
 `pnpm db:seed:single` seeds:
 
 - Administrator: `admin@oncall.local` / `changeme123`
-- Doctors: `dr1@oncall.local` … `dr8@oncall.local` — the initial password for each is the email itself (change on first login)
+- Doctors: `dr1@oncall.local` … `dr9@oncall.local` / `changeme123` (change on first login)
 - Vendor superadmin: `superadmin@oncall.local` / `changeme123`
 
-`pnpm db:seed:multi` seeds the six-clinic baseline: per-clinic administrators (`cardiology-a.admin@oncall.local` … `radiology-b.admin@oncall.local`), hospital manager `manager@oncall.local`, the vendor superadmin, and doctors `dr1@oncall.local` … `dr60@oncall.local` — administrators/manager/superadmin use `changeme123`, doctors use their email.
+`pnpm db:seed:multi` seeds the six-clinic baseline: per-clinic administrators (`cardiology-a.admin@oncall.local` … `radiology-b.admin@oncall.local`), hospital manager `manager@oncall.local`, the vendor superadmin, and doctors `dr1@oncall.local` … `dr60@oncall.local` — every seeded account uses `changeme123`.
 
 Default passwords are documented and MUST be changed on first login
 (Profile → Change password). The seeded bcrypt hashes (cost 12) live in

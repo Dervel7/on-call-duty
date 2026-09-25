@@ -171,7 +171,7 @@ describe('UsersPage', () => {
     bodyButton('Save')!.click()
     await flushPromises()
     expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'ops@h.com', role: 'administrator' }),
+      expect.objectContaining({ email: 'ops@h.com', password: 'changeme123', role: 'administrator' }),
     )
     expect(doctorCreate).not.toHaveBeenCalled()
     wrapper.unmount()
@@ -197,7 +197,7 @@ describe('UsersPage', () => {
     expect(doctorCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         email: 'dr@h.com',
-        password: 'dr@h.com',
+        password: 'changeme123',
         maxMonthlyDuties: 4,
       }),
     )

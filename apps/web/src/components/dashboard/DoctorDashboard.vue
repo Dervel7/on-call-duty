@@ -103,7 +103,7 @@ onMounted(load)
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Who's on call (today + 7 days)</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Who's on call (today + 6 days)</CardTitle></CardHeader>
         <CardContent>
           <ul v-if="onCallRows.length > 0" class="flex flex-col divide-y divide-border">
             <li
