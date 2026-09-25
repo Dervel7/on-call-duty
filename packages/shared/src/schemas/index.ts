@@ -4,6 +4,7 @@ export {
   usernameSchema,
   loginSchema,
   changePasswordSchema,
+  resetUserPasswordSchema,
   createUserSchema,
   updateUserSchema,
   updateThemeSchema,

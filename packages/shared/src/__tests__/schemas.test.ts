@@ -10,6 +10,7 @@ import {
   isoDateSchema,
   loginSchema,
   reassignDutySchema,
+  resetUserPasswordSchema,
   roleSchema,
   scheduleQuerySchema,
   statsQuerySchema,
@@ -59,6 +60,11 @@ describe('auth schemas', () => {
       newPassword: 'same123',
     })
     expect(r.success).toBe(false)
+  })
+  it('resetUserPasswordSchema requires only a valid newPassword', () => {
+    expect(resetUserPasswordSchema.safeParse({ newPassword: 'secret1' }).success).toBe(true)
+    expect(resetUserPasswordSchema.safeParse({ newPassword: 'abc' }).success).toBe(false)
+    expect(resetUserPasswordSchema.safeParse({}).success).toBe(false)
   })
 
   it('createUserSchema validates a doctor', () => {

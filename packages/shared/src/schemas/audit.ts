@@ -7,6 +7,7 @@ export const ACTIVITY_ACTIONS = [
   'auth.password_changed',
   'user.created',
   'user.updated',
+  'user.password_reset',
   'user.deactivated',
   'user.reactivated',
   'user.deleted',

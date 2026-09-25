@@ -18,6 +18,9 @@ export const changePasswordSchema = z
   .refine((d) => d.newPassword !== d.currentPassword, {
     message: 'New password must differ',
   })
+export const resetUserPasswordSchema = z.object({
+  newPassword: passwordSchema,
+})
 
 export const createUserSchema = z.object({
   email: z.string().email(),

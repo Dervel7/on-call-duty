@@ -34,6 +34,9 @@ export interface ChangePasswordRequest {
   currentPassword: string
   newPassword: string
 }
+export interface ResetUserPasswordRequest {
+  newPassword: string
+}
 export interface CreateUserRequest {
   email: string
   username: string

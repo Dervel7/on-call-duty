@@ -7,6 +7,7 @@ export type {
   LoginResponse,
   RefreshResponse,
   ChangePasswordRequest,
+  ResetUserPasswordRequest,
   CreateUserRequest,
   UpdateUserRequest,
   UpdateThemeRequest,
