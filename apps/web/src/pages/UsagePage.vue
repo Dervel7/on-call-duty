@@ -96,7 +96,7 @@ onMounted(loadBilling)
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 animate-rise">
     <PageHeader :icon="Gauge" title="Usage" subtitle="Billing, generations, and alerts" />
 
     <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Spinner :size="16" /> Loading…</div>

@@ -257,7 +257,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 animate-rise">
     <PageHeader :icon="Users" title="Users" subtitle="Manage doctor accounts and duty caps">
       <template #actions>
         <Button @click="openCreate">New user</Button>

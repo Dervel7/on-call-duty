@@ -49,7 +49,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 animate-rise">
     <PageHeader :icon="CalendarCheck2" title="Duty roster" subtitle="Published on-call schedules" />
 
     <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">

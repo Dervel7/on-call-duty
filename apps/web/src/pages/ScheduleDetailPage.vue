@@ -212,7 +212,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 animate-rise">
     <p v-if="loading && !detail" class="text-sm text-muted-foreground">Loading…</p>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 

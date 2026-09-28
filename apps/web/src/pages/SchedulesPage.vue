@@ -109,7 +109,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 animate-rise">
     <PageHeader :icon="CalendarDays" title="Schedules" subtitle="Generate, review, and publish monthly rosters">
       <template #actions>
         <Button v-if="auth.isAdmin" @click="openGenerate">New schedule</Button>

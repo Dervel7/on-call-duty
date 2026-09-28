@@ -126,7 +126,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 animate-rise">
     <PageHeader :icon="History" title="User Activity" subtitle="Audit trail of user actions" />
 
     <Card>

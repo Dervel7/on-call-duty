@@ -107,7 +107,7 @@ async function onSubmitUsername() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-md">
+  <div class="mx-auto max-w-md animate-rise">
     <Card>
       <CardHeader>
         <CardTitle>{{ heading }}</CardTitle>

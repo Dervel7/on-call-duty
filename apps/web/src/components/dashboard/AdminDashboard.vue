@@ -129,7 +129,7 @@ onMounted(loadPaymentAlert)
 
     <template v-if="stats && stats.schedule">
       <div class="grid gap-4 md:grid-cols-2">
-        <Card>
+        <Card class="animate-rise">
           <CardHeader><CardTitle>Coverage</CardTitle></CardHeader>
           <CardContent class="flex flex-col gap-3">
             <p class="tabular-nums">
@@ -148,7 +148,7 @@ onMounted(loadPaymentAlert)
           </CardContent>
         </Card>
 
-        <Card>
+        <Card class="animate-rise [animation-delay:60ms]">
           <CardHeader><CardTitle>Fairness</CardTitle></CardHeader>
           <CardContent class="flex flex-col gap-2">
             <p class="text-sm text-muted-foreground">Duty spread (max − min across assigned doctors)</p>

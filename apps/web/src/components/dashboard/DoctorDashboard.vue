@@ -77,7 +77,7 @@ onMounted(load)
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <template v-if="stats">
-      <Card class="relative overflow-hidden">
+      <Card class="relative overflow-hidden animate-rise">
         <div
           aria-hidden="true"
           class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-gradient opacity-10 blur-3xl"
@@ -110,7 +110,7 @@ onMounted(load)
         </CardContent>
       </Card>
 
-      <Card>
+      <Card class="animate-rise [animation-delay:60ms]">
         <CardHeader><CardTitle>Who's on call (today + 6 days)</CardTitle></CardHeader>
         <CardContent>
           <ul v-if="onCallRows.length > 0" class="flex flex-col gap-1">
@@ -135,7 +135,7 @@ onMounted(load)
         </CardContent>
       </Card>
 
-      <Card>
+      <Card class="animate-rise [animation-delay:120ms]">
         <CardHeader><CardTitle>My upcoming duties</CardTitle></CardHeader>
         <CardContent>
           <ul v-if="stats.upcoming.length > 0" class="flex flex-col gap-1">

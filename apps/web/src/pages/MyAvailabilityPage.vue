@@ -193,7 +193,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 animate-rise">
     <PageHeader :icon="CalendarClock" title="My availability" subtitle="Days you can't take duty">
       <template #actions>
         <Button @click="openCreate">New exclusion</Button>

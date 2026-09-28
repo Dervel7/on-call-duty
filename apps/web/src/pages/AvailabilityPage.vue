@@ -301,7 +301,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-4 animate-rise">
     <PageHeader :icon="CalendarOff" title="Availability" subtitle="Excluded days per doctor">
       <template #actions>
         <Button @click="openCreate">New exclusion</Button>

@@ -8,7 +8,7 @@ import CardTitle from '@/components/ui/CardTitle.vue'
 </script>
 
 <template>
-  <div class="relative grid min-h-screen place-items-center overflow-hidden px-6 py-12">
+  <div class="relative grid min-h-screen place-items-center overflow-hidden px-6 py-12 animate-rise">
     <div
       class="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background-tint to-accent/10">
     </div>
