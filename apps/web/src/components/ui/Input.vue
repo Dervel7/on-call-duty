@@ -20,7 +20,7 @@ function onInput(event: Event) {
   <input
     :value="props.modelValue"
     :class="cn(
-      'flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground/70 hover:border-input/80 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50',
+      'flex h-10 w-full rounded-lg border border-input bg-card px-3.5 py-2 text-sm text-foreground shadow-sm transition-all placeholder:text-muted-foreground/60 hover:border-primary/35 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/15 disabled:opacity-50',
       props.class,
     )"
     @input="onInput"

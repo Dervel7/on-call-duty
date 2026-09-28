@@ -238,7 +238,7 @@ useEventListener(
       aria-haspopup="listbox"
       :aria-expanded="open"
       :disabled="props.disabled"
-      class="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-2 text-left text-sm text-foreground shadow-sm transition-colors hover:border-input/80 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
+      class="flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-3.5 py-2 text-left text-sm text-foreground shadow-sm transition-all hover:border-primary/35 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50"
       @click="toggle"
     >
       <span class="truncate" :class="!selected() && 'text-muted-foreground/70'">
@@ -263,7 +263,7 @@ useEventListener(
           tabindex="-1"
           data-popover-layer
           :aria-activedescendant="ariaActiveDescendant()"
-          class="fixed z-50 overflow-y-auto rounded-xl border border-border/80 bg-popover p-1.5 shadow-pop focus-visible:outline-none focus-visible:shadow-none"
+          class="fixed z-50 overflow-y-auto rounded-xl border border-border/70 bg-popover p-1.5 shadow-pop focus-visible:outline-none focus-visible:shadow-none"
           @keydown="onKeydown"
         >
           <template v-for="g in parseGroups()" :key="g.label">
@@ -283,11 +283,11 @@ useEventListener(
               :aria-selected="o.value === selectedValue"
               :disabled="o.disabled"
               :class="cn(
-                'flex h-9 w-full items-center justify-between gap-2 rounded-md px-2.5 text-left text-sm transition-colors',
+                'flex h-9 w-full items-center justify-between gap-2 rounded-lg px-2.5 text-left text-sm transition-colors',
                 o.disabled
                   ? 'cursor-not-allowed text-muted-foreground/50'
                   : 'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
-                o.value === selectedValue && 'bg-primary/10 font-medium text-primary',
+                o.value === selectedValue && 'bg-primary/10 font-semibold text-primary',
                 o.value === activeValue && o.value !== selectedValue && 'bg-muted',
               )"
               @click="choose(o)"
