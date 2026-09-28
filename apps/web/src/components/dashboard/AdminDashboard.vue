@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { TriangleAlert } from 'lucide-vue-next'
 import type { AdminStats } from '@oncall/shared'
+import Avatar from '@/components/ui/Avatar.vue'
+import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -49,7 +52,7 @@ const fairnessBadge = computed(() => {
   const s = stats.value ? stats.value.fairness.dutySpread : null
   if (s === null) return { text: 'N/A', class: 'bg-muted text-muted-foreground' }
   return s <= 1
-    ? { text: 'Well balanced', class: 'bg-primary/10 text-primary' }
+    ? { text: 'Well balanced', class: 'bg-success/10 text-success' }
     : { text: 'Imbalanced — review workload', class: 'bg-destructive/10 text-destructive' }
 })
 
@@ -93,7 +96,8 @@ onMounted(loadPaymentAlert)
     <div
       v-if="paymentLabel"
       role="alert"
-      class="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+      class="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+      <TriangleAlert class="size-5 shrink-0" />
       {{ paymentLabel }}
     </div>
     <div class="flex flex-wrap items-end gap-3">
@@ -127,10 +131,16 @@ onMounted(loadPaymentAlert)
       <div class="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>Coverage</CardTitle></CardHeader>
-          <CardContent class="flex flex-col gap-2">
-            <p class="text-3xl font-semibold tracking-tight tabular-nums text-foreground">
-              {{ stats.coverage.filled }} / {{ stats.coverage.daysInMonth }} days fully staffed
+          <CardContent class="flex flex-col gap-3">
+            <p class="tabular-nums">
+              <span class="text-3xl font-bold tracking-tight tabular-nums">{{ stats.coverage.filled }} / {{ stats.coverage.daysInMonth }}</span><span class="text-sm font-medium text-muted-foreground"> days fully staffed</span>
             </p>
+            <div class="h-2.5 w-full rounded-full bg-muted">
+              <div
+                class="h-2.5 rounded-full bg-brand-gradient"
+                :style="{ width: `${(stats.coverage.filled / stats.coverage.daysInMonth) * 100}%` }"
+              ></div>
+            </div>
             <p v-if="stats.coverage.gaps.length > 0" class="text-sm text-destructive">
               Understaffed days: {{ stats.coverage.gaps.join(', ') }}
             </p>
@@ -172,21 +182,19 @@ onMounted(loadPaymentAlert)
             <TableBody>
               <TableRow v-for="w in stats.workload" :key="w.doctorId">
                 <TableCell>
-                  <span :class="w.isActive ? 'text-foreground' : 'text-muted-foreground'">
-                    {{ w.firstName }} {{ w.lastName }}
-                  </span>
-                  <span
-                    v-if="!w.isActive"
-                    class="ml-2 inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-                  >
-                    inactive
-                  </span>
+                  <div class="flex items-center gap-2.5">
+                    <Avatar :name="`${w.firstName} ${w.lastName}`" size="sm" />
+                    <span :class="w.isActive ? 'text-foreground' : 'text-muted-foreground'">
+                      {{ w.firstName }} {{ w.lastName }}
+                    </span>
+                    <Badge v-if="!w.isActive" variant="neutral">inactive</Badge>
+                  </div>
                 </TableCell>
                 <TableCell>
                   <div class="flex items-center gap-2">
-                    <div class="h-2 w-24 rounded-full bg-muted">
+                    <div class="h-2.5 w-24 rounded-full bg-muted">
                       <div
-                        class="h-2 rounded-full bg-gradient-to-r from-primary to-accent"
+                        class="h-2.5 rounded-full bg-brand-gradient"
                         :style="{ width: `${(w.duties / maxInSet) * 100}%` }"
                       ></div>
                     </div>

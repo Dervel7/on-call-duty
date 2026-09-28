@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { Activity } from 'lucide-vue-next'
 import type { MeStats } from '@oncall/shared'
+import Badge from '@/components/ui/Badge.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
@@ -76,7 +77,11 @@ onMounted(load)
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <template v-if="stats">
-      <Card>
+      <Card class="relative overflow-hidden">
+        <div
+          aria-hidden="true"
+          class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-gradient opacity-10 blur-3xl"
+        ></div>
         <CardHeader>
           <CardTitle class="flex items-center gap-2">
             <Activity class="h-5 w-5 text-primary" />
@@ -84,52 +89,45 @@ onMounted(load)
           </CardTitle>
         </CardHeader>
         <CardContent class="flex flex-col gap-3">
-          <p class="text-sm tabular-nums text-muted-foreground">
-            {{ stats.currentMonth.duties }} / {{ stats.currentMonth.maxMonthly }} duties this month
+          <p class="tabular-nums">
+            <span class="text-3xl font-bold tracking-tight">{{ stats.currentMonth.duties }} / {{ stats.currentMonth.maxMonthly }}</span><span class="text-sm font-medium text-muted-foreground"> duties this month</span>
           </p>
-          <div class="h-2.5 w-full rounded-full bg-muted">
-            <div
-              class="h-2.5 rounded-full bg-gradient-to-r from-primary to-accent transition-[width] duration-500"
-              :style="{ width: `${progress}%` }"
-            ></div>
+          <div class="flex items-center gap-3">
+            <div class="h-3 w-full rounded-full bg-muted">
+              <div
+                class="h-3 rounded-full bg-brand-gradient transition-[width] duration-700"
+                :style="{ width: `${progress}%` }"
+              ></div>
+            </div>
+            <span class="text-xs font-semibold text-muted-foreground tabular-nums">{{ Math.round(progress) }}%</span>
           </div>
           <p v-if="!stats.currentMonth.published" class="text-sm text-muted-foreground">
             This month's schedule isn't published yet.
           </p>
-          <p class="text-xs text-muted-foreground">
-            Weekend {{ stats.currentMonth.weekend }}
-          </p>
+          <div>
+            <Badge variant="outline">Weekend {{ stats.currentMonth.weekend }}</Badge>
+          </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader><CardTitle>Who's on call (today + 6 days)</CardTitle></CardHeader>
         <CardContent>
-          <ul v-if="onCallRows.length > 0" class="flex flex-col divide-y divide-border">
+          <ul v-if="onCallRows.length > 0" class="flex flex-col gap-1">
             <li
               v-for="e in onCallRows"
               :key="e.date"
               :class="[
-                'flex items-center justify-between py-2',
-                e.isMine && '-mx-2 rounded bg-primary/10 px-2',
+                'flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/50',
+                e.isMine && 'bg-primary/10 ring-1 ring-inset ring-primary/20',
               ]"
             >
               <span class="text-sm text-foreground">
                 {{ fmt(e.date) }} · {{ e.names.join(', ') }}
               </span>
               <span class="flex items-center gap-1">
-                <span
-                  v-if="e.isMine"
-                  class="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-xs text-primary"
-                >
-                  You
-                </span>
-                <span
-                  v-if="e.isWeekend"
-                  class="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-                >
-                  Weekend
-                </span>
+                <Badge v-if="e.isMine" variant="accent">You</Badge>
+                <Badge v-if="e.isWeekend" variant="neutral">Weekend</Badge>
               </span>
             </li>
           </ul>
@@ -140,20 +138,15 @@ onMounted(load)
       <Card>
         <CardHeader><CardTitle>My upcoming duties</CardTitle></CardHeader>
         <CardContent>
-          <ul v-if="stats.upcoming.length > 0" class="flex flex-col divide-y divide-border">
+          <ul v-if="stats.upcoming.length > 0" class="flex flex-col gap-1">
             <li
               v-for="u in stats.upcoming"
               :key="u.dutyDate"
-              class="flex items-center justify-between py-2"
+              class="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/50"
             >
               <span class="text-sm text-foreground">{{ fmt(u.dutyDate) }}</span>
               <span class="flex items-center gap-1">
-                <span
-                  v-if="u.isWeekend"
-                  class="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-                >
-                  Weekend
-                </span>
+                <Badge v-if="u.isWeekend" variant="neutral">Weekend</Badge>
               </span>
             </li>
           </ul>
