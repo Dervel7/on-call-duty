@@ -3,7 +3,15 @@ import { userController } from '../controllers/user.controller'
 import { authenticate } from '../middleware/authenticate'
 import { authorize } from '../middleware/authorize'
 import { validate } from '../middleware/validate'
-import { createUserSchema, idParams, resetUserPasswordSchema, updateThemeSchema, updateUserSchema, userQuerySchema } from '../validators/user'
+import {
+  createUserSchema,
+  idParams,
+  resetUserPasswordSchema,
+  updateThemeSchema,
+  updateUserSchema,
+  updateUsernameSchema,
+  userQuerySchema,
+} from '../validators/user'
 
 export const userRouter = Router()
 
@@ -14,6 +22,17 @@ userRouter.patch(
   authenticate,
   validate(updateThemeSchema, 'body'),
   userController.updateTheme,
+)
+
+// Self-service identity: doctors rename their own login username from the
+// Profile page. Registered before the admin-only guard below so it is not
+// swallowed by authorize('administrator', 'manager').
+userRouter.patch(
+  '/me/username',
+  authenticate,
+  authorize('doctor'),
+  validate(updateUsernameSchema, 'body'),
+  userController.updateUsername,
 )
 
 userRouter.use(authenticate, authorize('administrator', 'manager'))

@@ -389,3 +389,37 @@ export async function updateTheme(userId: number, darkMode: boolean): Promise<Us
   if (!row) throw new HttpError(404, 'User not found')
   return toUser(row)
 }
+
+// Self-service identity: a doctor renames their own login username from the
+// Profile page. No password re-verification by design; uniqueness still applies.
+export async function updateUsername(userId: number, username: string): Promise<User> {
+  const res = await query<UserRow>(
+    `SELECT ${COLUMNS} FROM ${FROM_USERS} WHERE u.id = $1 AND u.is_deleted = FALSE`,
+    [userId],
+  )
+  const existing = oneRow(res.rows)
+  if (!existing) throw new HttpError(404, 'User not found')
+  if (username === existing.username) return toUser(existing)
+  const dup = await query('SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE AND id <> $2', [
+    username,
+    userId,
+  ])
+  if (dup.rows.length > 0) throw new HttpError(409, 'Username already in use')
+  const row = await withTransaction(async (client) => {
+    const res = await client.query(
+      'UPDATE users SET username = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',
+      [username, userId],
+    )
+    if (res.rows.length === 0) throw new HttpError(404, 'User not found')
+    await recordActivity(client, {
+      userId,
+      action: 'user.updated',
+      entityType: 'user',
+      entityId: userId,
+      clinicId: existing.clinic_id,
+      detail: { before: { username: existing.username }, after: { username } },
+    })
+    return selectUserById(client, userId)
+  })
+  return toUser(row)
+}

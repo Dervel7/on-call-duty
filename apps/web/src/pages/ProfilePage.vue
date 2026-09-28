@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { Doctor } from '@oncall/shared'
-import { changePasswordSchema } from '@oncall/shared'
+import { changePasswordSchema, updateUsernameSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import * as doctorService from '@/services/doctor'
@@ -20,6 +20,11 @@ const newPassword = ref('')
 const formError = ref('')
 const success = ref(false)
 const submitting = ref(false)
+const newUsername = ref('')
+const usernameError = ref('')
+const usernameSuccess = ref(false)
+const usernameSubmitting = ref(false)
+
 
 const auth = useAuthStore()
 const heading = computed(() =>
@@ -51,7 +56,11 @@ async function onToggleDarkMode(value: boolean) {
   }
 }
 
-onMounted(loadMyDoctor)
+onMounted(() => {
+  // Doctors can rename themselves; start from the current username.
+  if (isDoctor.value && auth.user) newUsername.value = auth.user.username
+  loadMyDoctor()
+})
 
 async function onSubmit() {
   formError.value = ''
@@ -76,6 +85,25 @@ async function onSubmit() {
     submitting.value = false
   }
 }
+
+async function onSubmitUsername() {
+  usernameError.value = ''
+  usernameSuccess.value = false
+  const parsed = updateUsernameSchema.safeParse({ username: newUsername.value })
+  if (!parsed.success) {
+    usernameError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
+    return
+  }
+  usernameSubmitting.value = true
+  try {
+    await auth.setUsername(parsed.data.username)
+    usernameSuccess.value = true
+  } catch (e) {
+    usernameError.value = e instanceof ApiError ? e.message : 'Could not change username'
+  } finally {
+    usernameSubmitting.value = false
+  }
+}
 </script>
 
 <template>
@@ -98,6 +126,24 @@ async function onSubmit() {
           <p v-if="formError" class="text-sm text-destructive" role="alert">{{ formError }}</p>
           <p v-if="success" class="text-sm text-success" role="status">Password updated.</p>
           <Button type="submit" :disabled="submitting">Update password</Button>
+        </form>
+      </CardContent>
+    </Card>
+
+    <Card v-if="isDoctor" class="mt-4">
+      <CardHeader>
+        <CardTitle>Username</CardTitle>
+        <CardDescription>Change the username you use to sign in. No password is needed.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmitUsername">
+          <div class="flex flex-col gap-2">
+            <Label for="username">Username</Label>
+            <Input id="username" v-model="newUsername" autocomplete="username" />
+          </div>
+          <p v-if="usernameError" class="text-sm text-destructive" role="alert">{{ usernameError }}</p>
+          <p v-if="usernameSuccess" class="text-sm text-success" role="status">Username updated.</p>
+          <Button type="submit" :disabled="usernameSubmitting">Update username</Button>
         </form>
       </CardContent>
     </Card>

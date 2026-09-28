@@ -58,6 +58,12 @@ export const useAuthStore = defineStore('auth', () => {
     if (user.value) user.value = { ...user.value, darkMode: updated.darkMode }
   }
 
+  async function setUsername(username: string): Promise<void> {
+    const updated = await userService.updateUsername(username)
+    // Keep the stored AuthUser shape; only the username changes.
+    if (user.value) user.value = { ...user.value, username: updated.username }
+  }
+
   setRefreshHandler(refresh)
 
   setLockedHandler(() => {
@@ -80,5 +86,6 @@ export const useAuthStore = defineStore('auth', () => {
     fetchMe,
     changePassword,
     setDarkMode,
+    setUsername,
   }
 })

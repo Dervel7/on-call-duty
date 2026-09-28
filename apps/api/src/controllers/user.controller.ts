@@ -63,4 +63,13 @@ export const userController = {
       next(err)
     }
   },
+
+  async updateUsername(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await userService.updateUsername(req.user!.id, req.body.username)
+      res.status(200).json(ok({ user }))
+    } catch (err) {
+      next(err)
+    }
+  },
 }

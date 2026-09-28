@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue'
 import type {
   CreateDoctorRequest,
-  CreateUserRequest,
   Doctor,
   Role,
   UpdateDoctorRequest,
@@ -11,7 +10,6 @@ import type {
 } from '@oncall/shared'
 import {
   createDoctorSchema,
-  createUserSchema,
   resetUserPasswordSchema,
   updateDoctorSchema,
   updateUserSchema,
@@ -22,7 +20,6 @@ import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
-import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -76,11 +73,17 @@ const emptyEdit = (): EditState => ({
   username: '',
   firstName: '',
   lastName: '',
-  role: 'administrator',
+  role: 'doctor',
   maxMonthlyDuties: '7',
   errorMsg: '',
 })
 const edit = ref<EditState>(emptyEdit())
+
+// Username convention for new doctor accounts: first 3 letters of the first
+// name followed by the first 3 letters of the last name, lowercased.
+function generatedUsername(): string {
+  return (edit.value.firstName.slice(0, 3) + edit.value.lastName.slice(0, 3)).toLowerCase()
+}
 
 interface ResetState {
   open: boolean
@@ -130,46 +133,24 @@ function openUpdate(u: User) {
 async function save() {
   errorMsg.value = ''
   if (edit.value.id === null) {
-    if (edit.value.role === 'doctor') {
-      const payload: CreateDoctorRequest = {
-        email: edit.value.email,
-        username: edit.value.username,
-        password: INITIAL_PASSWORD,
-        firstName: edit.value.firstName,
-        lastName: edit.value.lastName,
-        maxMonthlyDuties: Number(edit.value.maxMonthlyDuties),
-      }
-      const r = createDoctorSchema.safeParse(payload)
-      if (!r.success) {
-        edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
-        return
-      }
-      try {
-        await doctorService.create(r.data)
-      } catch (e) {
-        edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
-        return
-      }
-    } else {
-      const payload: CreateUserRequest = {
-        email: edit.value.email,
-        username: edit.value.username,
-        password: INITIAL_PASSWORD,
-        role: edit.value.role,
-        firstName: edit.value.firstName,
-        lastName: edit.value.lastName,
-      }
-      const r = createUserSchema.safeParse(payload)
-      if (!r.success) {
-        edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
-        return
-      }
-      try {
-        await userService.create(r.data)
-      } catch (e) {
-        edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
-        return
-      }
+    const payload: CreateDoctorRequest = {
+      email: edit.value.email,
+      username: generatedUsername(),
+      password: INITIAL_PASSWORD,
+      firstName: edit.value.firstName,
+      lastName: edit.value.lastName,
+      maxMonthlyDuties: Number(edit.value.maxMonthlyDuties),
+    }
+    const r = createDoctorSchema.safeParse(payload)
+    if (!r.success) {
+      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
+      return
+    }
+    try {
+      await doctorService.create(r.data)
+    } catch (e) {
+      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
+      return
     }
   } else if (edit.value.doctorId !== null) {
     const payload: UpdateDoctorRequest = {
@@ -319,10 +300,14 @@ onMounted(load)
           <Label for="e-email">Email</Label>
           <Input id="e-email" v-model="edit.email" type="email" />
         </div>
-        <div class="flex flex-col gap-1">
+        <div v-if="edit.id !== null" class="flex flex-col gap-1">
           <Label for="e-username">Username</Label>
           <Input id="e-username" v-model="edit.username" autocomplete="username" />
         </div>
+        <p v-else class="text-xs text-muted-foreground">
+          Username is generated from the doctor's name (first 3 letters of each):
+          {{ generatedUsername() || '…' }}
+        </p>
         <div class="flex flex-col gap-1">
           <Label for="e-first">First name</Label>
           <Input id="e-first" v-model="edit.firstName" />
@@ -331,14 +316,7 @@ onMounted(load)
           <Label for="e-last">Last name</Label>
           <Input id="e-last" v-model="edit.lastName" />
         </div>
-        <div class="flex flex-col gap-1">
-          <Label for="e-role">Role</Label>
-          <Select id="e-role" v-model="edit.role" :disabled="edit.id !== null">
-            <option value="doctor">doctor</option>
-            <option value="administrator">administrator</option>
-          </Select>
-        </div>
-        <div v-if="edit.doctorId !== null || (edit.id === null && edit.role === 'doctor')" class="flex flex-col gap-1">
+        <div v-if="edit.doctorId !== null || edit.id === null" class="flex flex-col gap-1">
           <Label for="e-max">Max monthly duties (1–7)</Label>
           <Input id="e-max" v-model="edit.maxMonthlyDuties" type="number" />
         </div>
@@ -347,8 +325,7 @@ onMounted(load)
         </p>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">
-          <Button v-if="edit.id !== null" type="button" variant="outline" @click="openReset">Reset User
-            Password</Button>
+          <Button v-if="edit.id !== null" type="button" variant="outline" @click="openReset">Reset Password</Button>
           <Button type="submit">Save</Button>
         </div>
       </form>

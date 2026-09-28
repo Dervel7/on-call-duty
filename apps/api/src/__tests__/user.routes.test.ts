@@ -229,3 +229,89 @@ describe('PATCH /users/me/theme (self-service)', () => {
     expect(res.status).toBe(400)
   })
 })
+
+describe('PATCH /users/me/username (self-service)', () => {
+  it('lets a doctor rename their own username and audits it', async () => {
+    recordActivity.mockClear()
+    // First SELECT returns the old row; the post-update re-read returns the new one.
+    let selected = 0
+    query.mockImplementation(async (...args: unknown[]) => {
+      const sql = String(args[0] ?? '')
+      if (sql.includes('WHERE username =')) return { rows: [] }
+      if (sql.startsWith('SELECT')) {
+        selected += 1
+        return { rows: [row({ username: selected === 1 ? 'dr1' : 'drnew' })] }
+      }
+      return { rows: [row()] }
+    })
+    const token = signAccessToken({ sub: 1, role: 'doctor', clinicId: 10 })
+    const res = await request(app)
+      .patch('/users/me/username')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ username: 'drnew' })
+    expect(res.status).toBe(200)
+    expect(res.body.data.user.username).toBe('drnew')
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'user.updated', userId: 1 }),
+    )
+  })
+
+  it('returns the same user without a write when the username is unchanged', async () => {
+    installDb([row()])
+    const token = signAccessToken({ sub: 1, role: 'doctor', clinicId: 10 })
+    const res = await request(app)
+      .patch('/users/me/username')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ username: 'dr1' })
+    expect(res.status).toBe(200)
+    expect(query).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns 409 when the username is taken', async () => {
+    query.mockImplementation(async (...args: unknown[]) => {
+      const sql = String(args[0] ?? '')
+      if (sql.includes('WHERE username =')) return { rows: [{ id: 2 }] }
+      return { rows: [row()] }
+    })
+    const token = signAccessToken({ sub: 1, role: 'doctor', clinicId: 10 })
+    const res = await request(app)
+      .patch('/users/me/username')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ username: 'taken' })
+    expect(res.status).toBe(409)
+  })
+
+  it('returns 404 when the account no longer exists', async () => {
+    installDb([])
+    const token = signAccessToken({ sub: 1, role: 'doctor', clinicId: 10 })
+    const res = await request(app)
+      .patch('/users/me/username')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ username: 'drnew' })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 403 for a non-doctor', async () => {
+    const token = signAccessToken({ sub: 2, role: 'administrator', clinicId: 1 })
+    const res = await request(app)
+      .patch('/users/me/username')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ username: 'admin2' })
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 401 without auth', async () => {
+    const res = await request(app).patch('/users/me/username').send({ username: 'drnew' })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 400 on an invalid username', async () => {
+    const token = signAccessToken({ sub: 1, role: 'doctor', clinicId: 10 })
+    const res = await request(app)
+      .patch('/users/me/username')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ username: 'ab' })
+    expect(res.status).toBe(400)
+  })
+})

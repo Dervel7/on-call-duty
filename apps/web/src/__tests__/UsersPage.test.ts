@@ -32,7 +32,6 @@ vi.mock('@/services/doctor', () => ({
 
 import UsersPage from '../pages/UsersPage.vue'
 import { useConfirmState } from '../composables/useConfirm'
-import { pickOption } from './pick-option'
 import type { User } from '@oncall/shared'
 
 const { settle } = useConfirmState()
@@ -157,37 +156,16 @@ describe('UsersPage', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
   })
 
-  it('creates an administrator through the user service by default', async () => {
+  it('creates a doctor with an auto-generated username and no role or username fields', async () => {
     list.mockResolvedValue([])
     const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
     await flushPromises()
-    setBodyValue('#e-email', 'ops@h.com')
-    setBodyValue('#e-username', 'admin1')
-    setBodyValue('#e-first', 'Ada')
-    setBodyValue('#e-last', 'Ops')
-    await flushPromises()
-    bodyButton('Save')!.click()
-    await flushPromises()
-    expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'ops@h.com', password: 'changeme123', role: 'administrator' }),
-    )
-    expect(doctorCreate).not.toHaveBeenCalled()
-    wrapper.unmount()
-  })
-
-  it('creates a doctor with the duty cap through the doctor service', async () => {
-    list.mockResolvedValue([])
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
-    await flushPromises()
-    await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
-    await flushPromises()
-    expect(document.body.querySelector('#e-max')).toBeNull()
-    await pickOption(document.body, '#e-role', 'doctor')
-    await flushPromises()
+    expect(document.body.querySelector('#e-role')).toBeNull()
+    expect(document.body.querySelector('#e-username')).toBeNull()
+    expect(document.body.querySelector('#e-max')).toBeTruthy()
     setBodyValue('#e-email', 'dr@h.com')
-    setBodyValue('#e-username', 'drsmith')
     setBodyValue('#e-first', 'Al')
     setBodyValue('#e-last', 'Smith')
     setBodyValue('#e-max', '4')
@@ -197,11 +175,29 @@ describe('UsersPage', () => {
     expect(doctorCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         email: 'dr@h.com',
+        username: 'alsmi',
         password: 'changeme123',
         maxMonthlyDuties: 4,
       }),
     )
     expect(create).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('shows a validation error when the generated username is too short', async () => {
+    list.mockResolvedValue([])
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
+    await flushPromises()
+    setBodyValue('#e-email', 'dr@h.com')
+    setBodyValue('#e-first', 'A')
+    setBodyValue('#e-last', 'B')
+    await flushPromises()
+    bodyButton('Save')!.click()
+    await flushPromises()
+    expect(doctorCreate).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('Invalid username')
     wrapper.unmount()
   })
 
@@ -212,7 +208,7 @@ describe('UsersPage', () => {
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
     await flushPromises()
-    expect((document.body.querySelector('#e-role') as HTMLSelectElement).disabled).toBe(true)
+    expect((document.body.querySelector('#e-username') as HTMLInputElement).value).toBe('drroe')
     setBodyValue('#e-max', '6')
     await flushPromises()
     bodyButton('Save')!.click()
@@ -224,19 +220,18 @@ describe('UsersPage', () => {
 
   it('keeps the dialog open with an inline error when create fails', async () => {
     list.mockResolvedValue([])
-    create.mockRejectedValue(new Error('dup'))
+    doctorCreate.mockRejectedValue(new Error('dup'))
     const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
     await flushPromises()
     setBodyValue('#e-email', 'ops@h.com')
-    setBodyValue('#e-username', 'admin1')
     setBodyValue('#e-first', 'Ada')
     setBodyValue('#e-last', 'Ops')
     await flushPromises()
     bodyButton('Save')!.click()
     await flushPromises()
-    expect(create).toHaveBeenCalledTimes(1)
+    expect(doctorCreate).toHaveBeenCalledTimes(1)
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('dup')
     expect(bodyButton('Save')).toBeTruthy()
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
@@ -267,7 +262,6 @@ describe('UsersPage', () => {
     await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
     await flushPromises()
     setBodyValue('#e-email', 'not-an-email')
-    setBodyValue('#e-username', 'admin1')
     setBodyValue('#e-first', 'Ada')
     setBodyValue('#e-last', 'Ops')
     await flushPromises()

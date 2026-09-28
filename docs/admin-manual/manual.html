@@ -150,7 +150,7 @@
     <li>Managing Availability <span class="d">Marking excluded days on the calendar</span></li>
     <li>Building a Schedule <span class="d">Preview → Generate → Edit → Publish</span></li>
     <li>Reports <span class="d">The monthly report, CSV export, and printing</span></li>
-    <li>Your Profile <span class="d">Changing your password and dark mode</span></li>
+    <li>Your Profile <span class="d">Changing your password, your username (doctors), and dark mode</span></li>
     <li>Domain Rules &amp; the Scheduling Engine <span class="d">How assignments are produced and balanced</span></li>
     <li>Troubleshooting &amp; FAQ <span class="d">Common situations and how to resolve them</span></li>
     <li>Quick Reference &amp; Glossary <span class="d">Navigation map, field reference, key terms</span></li>
@@ -276,20 +276,22 @@ rows show — in that column.</p>
 <ol class="steps">
   <li>Choose <span class="kbd">New user</span>.</li>
   <li>Fill in <strong>Email, First name</strong> and <strong>Last name</strong>.</li>
-  <li>Pick the <strong>Role</strong>: <em>administrator</em> (default) or <em>doctor</em>. For a doctor, also set
-      <strong>Max monthly duties</strong> (between 1 and 7; the default is 7) — the maximum number of on-call
+  <li>Set <strong>Max monthly duties</strong> (between 1 and 7; the default is 7) — the maximum number of on-call
       duties this doctor can be assigned in any month.</li>
-  <li>Choose <span class="kbd">Save</span>. The account is created with the initial password <code>changeme123</code>.</li>
+  <li>Choose <span class="kbd">Save</span>. The account is created as a <em>doctor</em> with the initial password
+      <code>changeme123</code>. The username is generated automatically — the first three letters of the first name
+      followed by the first three letters of the last name (Maria Papadopoulos → <code>marpap</code>) — and is shown
+      in the dialog and in the users list.</li>
 </ol>
 <figure>
   <img src="screenshots/06-users-new-dialog.png" alt="New user dialog" />
-  <figcaption><b>Figure 4.2</b> — Creating a doctor. Choosing the <b>doctor</b> role reveals the <b>Max monthly duties</b> field — the key setting the scheduling engine honours.</figcaption>
+  <figcaption><b>Figure 4.2</b> — Creating a doctor. Set the <b>Max monthly duties</b> cap — the key setting the scheduling engine honours. The username is generated from the doctor's name.</figcaption>
 </figure>
 <div class="note info"><span class="t">Info</span>Creating a doctor creates their login account (role <em>doctor</em>) and profile in one step — the doctor can sign in straight away and record their own availability.</div>
 
 <h2>4.3 Editing, disabling, and deleting an account</h2>
 <ul>
-  <li><span class="kbd">Edit</span> — change name/email and, for doctors, the <strong>Max monthly duties</strong> cap; changes apply the next time a schedule is generated. The <strong>Role</strong> is chosen when the account is created and cannot be changed afterwards.</li>
+  <li><span class="kbd">Edit</span> — change name/email/username and, for doctors, the <strong>Max monthly duties</strong> cap; changes apply the next time a schedule is generated. Every account created on this page is a <em>doctor</em>; the role is fixed after creation.</li>
   <li><span class="kbd">Reset Password</span> — inside the edit dialog, sets a new password for the
       account when the user has forgotten theirs. Type the new password and confirm; the current
       password is not required. The user's other signed-in sessions are signed out.</li>
@@ -436,7 +438,7 @@ on-screen controls are hidden automatically when printing.</p>
 
 <!-- ============================ 8. PROFILE ============================ -->
 <h1 class="chapter"><span class="num">8.</span> Your Profile</h1>
-<p class="chap-lead">The <strong>Profile</strong> page is where you change your own password and set your dark mode preference.</p>
+<p class="chap-lead">The <strong>Profile</strong> page is where you change your own password, set your dark mode preference, and — for doctors — change your own username.</p>
 <figure>
   <img src="screenshots/22-profile.png" alt="Profile page" />
   <figcaption><b>Figure 8.1</b> — Changing your password. Enter your current password, choose a new one, and save.</figcaption>
@@ -448,7 +450,13 @@ on-screen controls are hidden automatically when printing.</p>
 </ol>
 <div class="note info"><span class="t">Info</span>Changing your password signs you out of all your other active sessions. You stay signed in on the current browser.</div>
 
-<h2>8.1 Dark mode</h2>
+<h2>8.1 Changing your username (doctors)</h2>
+<p>Doctors can change the username they sign in with. Edit the username in the <strong>Username</strong> card and
+choose <span class="kbd">Update username</span> — the current password is not asked for. The new username must be
+3–32 characters (letters, numbers, and <code>. _ -</code>) and must not already be in use. You stay signed in;
+your other sessions are unaffected.</p>
+
+<h2>8.2 Dark mode</h2>
 <p>The <strong>Appearance</strong> card has a single <strong>Dark mode</strong> switch. Turning it on restyles every page of the application; turning it off returns to the light theme. The preference is saved to your account, so it follows you to any browser you sign in from — after signing in, the theme you last selected is applied automatically.</p>
 <div class="note info"><span class="t">Info</span>The sign-in page itself always uses the light theme, regardless of anyone's preference, so the login screen looks the same for everyone.</div>
 
@@ -542,6 +550,7 @@ regenerate.</p>
   <tr><td>Generate, edit, and publish a month</td><td>Schedules → (month) → detail</td></tr>
   <tr><td>Export or print a monthly report</td><td>Reports</td></tr>
   <tr><td>Change my password</td><td>Profile</td></tr>
+  <tr><td>Change my username (doctors)</td><td>Profile</td></tr>
 </table>
 
 <h2>11.2 Field reference</h2>
@@ -549,6 +558,7 @@ regenerate.</p>
   <tr><th style="width:46mm">Field</th><th>Rules</th></tr>
   <tr><td>Password (any)</td><td>At least 6 characters. New password must differ from the current one.</td></tr>
   <tr><td>Email (any)</td><td>Must be a valid email address; unique per account.</td></tr>
+  <tr><td>Username</td><td>3–32 characters: letters, numbers, and <code>. _ -</code>. Unique per account; new doctor accounts get one generated from the doctor's name.</td></tr>
   <tr><td>Max monthly duties</td><td>Whole number from 1 to 7 (default 7).</td></tr>
   <tr><td>Exclusion dates</td><td>Format YYYY-MM-DD; end date on or after start date; inclusive whole days.</td></tr>
   <tr><td>Exclusion type</td><td>One of Vacation, Sick, Conference, Other.</td></tr>

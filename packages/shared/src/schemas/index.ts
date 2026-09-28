@@ -7,6 +7,7 @@ export {
   resetUserPasswordSchema,
   createUserSchema,
   updateUserSchema,
+  updateUsernameSchema,
   updateThemeSchema,
 } from './auth'
 export { createDoctorSchema, updateDoctorSchema } from './doctor'

@@ -45,3 +45,6 @@ export const updateUserSchema = z.object({
 export const updateThemeSchema = z.object({
   darkMode: z.boolean(),
 })
+export const updateUsernameSchema = z.object({
+  username: usernameSchema,
+})

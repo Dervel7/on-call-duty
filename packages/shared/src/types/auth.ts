@@ -60,3 +60,6 @@ export interface UpdateUserRequest {
 export interface UpdateThemeRequest {
   darkMode: boolean
 }
+export interface UpdateUsernameRequest {
+  username: string
+}
