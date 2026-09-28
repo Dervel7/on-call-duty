@@ -98,7 +98,7 @@ useEventListener(
       :aria-expanded="open"
       aria-haspopup="dialog"
       :class="cn(
-        'flex h-10 w-full items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-input/80 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-10 w-full items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-primary/35 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50',
         selectedMonth ? 'pr-9 text-foreground' : 'text-muted-foreground/70',
       )"
       @click="toggle"
@@ -130,7 +130,7 @@ useEventListener(
         tabindex="-1"
         :data-year="year"
         data-popover-layer
-        class="absolute left-0 top-[calc(100%+0.375rem)] z-50 w-72 rounded-xl border border-border/80 bg-popover p-3 shadow-pop focus-visible:outline-none focus-visible:shadow-none"
+        class="absolute left-0 top-[calc(100%+0.375rem)] z-50 w-72 rounded-xl border border-border/70 bg-popover p-3 shadow-pop focus-visible:outline-none focus-visible:shadow-none"
       >
         <div class="flex items-center justify-between pb-2">
           <button
@@ -154,9 +154,9 @@ useEventListener(
             type="button"
             :data-month="toIsoMonth(i)"
             :class="cn(
-              'flex h-9 items-center justify-center rounded-md text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
+              'flex h-9 items-center justify-center rounded-lg text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
               toIsoMonth(i) === selectedMonth
-                ? 'bg-primary font-medium text-primary-foreground hover:bg-primary/90'
+                ? 'bg-primary bg-brand-gradient font-semibold text-primary-foreground hover:opacity-90'
                 : 'text-foreground',
               toIsoMonth(i) === currentMonth &&
                 toIsoMonth(i) !== selectedMonth &&

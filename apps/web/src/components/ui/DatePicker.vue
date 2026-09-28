@@ -135,7 +135,7 @@ useEventListener(
       :aria-expanded="open"
       aria-haspopup="dialog"
       :class="cn(
-        'flex h-10 w-full items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-input/80 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-10 w-full items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-primary/35 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50',
         selectedIso ? 'pr-9 text-foreground' : 'text-muted-foreground/70',
       )"
       @click="toggle"
@@ -167,7 +167,7 @@ useEventListener(
         tabindex="-1"
         :data-month="`${view.year}-${pad(view.month0 + 1)}`"
         data-popover-layer
-        class="absolute left-0 top-[calc(100%+0.375rem)] z-50 w-80 rounded-xl border border-border/80 bg-popover p-3 shadow-pop focus-visible:outline-none focus-visible:shadow-none"
+        class="absolute left-0 top-[calc(100%+0.375rem)] z-50 w-80 rounded-xl border border-border/70 bg-popover p-3 shadow-pop focus-visible:outline-none focus-visible:shadow-none"
       >
         <div class="flex items-center justify-between pb-2">
           <button type="button" aria-label="Previous month" :class="navBtnClass" @click="shiftMonth(-1)">
@@ -197,9 +197,9 @@ useEventListener(
               :data-date="c.iso"
               :aria-current="c.iso === todayIso ? 'date' : undefined"
               :class="cn(
-                'flex h-9 items-center justify-center rounded-md text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
+                'flex h-9 items-center justify-center rounded-lg text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
                 c.iso === selectedIso
-                  ? 'bg-primary font-medium text-primary-foreground hover:bg-primary/90'
+                  ? 'bg-primary bg-brand-gradient font-semibold text-primary-foreground hover:opacity-90'
                   : c.weekend
                     ? 'text-muted-foreground'
                     : 'text-foreground',
@@ -216,7 +216,7 @@ useEventListener(
         <div class="mt-2 border-t border-border/70 pt-2">
           <button
             type="button"
-            class="rounded-md px-2 py-1 text-sm font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            class="rounded-full px-3 py-1 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             @click="view = { year: today.getFullYear(), month0: today.getMonth() }"
           >
             Today
