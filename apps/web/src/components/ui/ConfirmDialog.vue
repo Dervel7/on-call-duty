@@ -26,8 +26,8 @@ watch(
     <div v-if="request" class="flex items-start gap-4">
       <span
         :class="request.variant === 'primary'
-          ? 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary'
-          : 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive'"
+          ? 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-inset ring-primary/20'
+          : 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive ring-1 ring-inset ring-destructive/20'"
       >
         <TriangleAlert class="h-5 w-5" />
       </span>

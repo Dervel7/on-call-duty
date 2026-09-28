@@ -6,7 +6,7 @@ const props = defineProps<{ class?: HTMLAttributes['class'] }>()
 <template>
   <th
     :class="cn(
-      'h-11 px-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80',
+      'h-11 px-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground',
       props.class,
     )"
   >
