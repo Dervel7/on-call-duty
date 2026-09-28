@@ -125,9 +125,9 @@ describe('ScheduleDetailPage', () => {
     await flushPromises()
     // September 2026 starts on a Tuesday: grid cell index = 1 + (day - 1).
     const cls = (day: number) => wrapper.findAll('.grid.grid-cols-7')[1]!.findAll(':scope > div')[day]!.attributes('class')
-    expect(cls(1)).toContain('bg-red-100')
-    expect(cls(5)).toContain('bg-green-100')
-    expect(cls(6)).toContain('bg-amber-100')
+    expect(cls(1)).toContain('bg-destructive/10')
+    expect(cls(5)).toContain('bg-success/10')
+    expect(cls(6)).toContain('bg-warning/10')
   })
 
   it('keeps coverage colors when published and read-only', async () => {
@@ -140,9 +140,9 @@ describe('ScheduleDetailPage', () => {
     const wrapper = mountAs('doctor')
     await flushPromises()
     const cls = (day: number) => wrapper.findAll('.grid.grid-cols-7')[1]!.findAll(':scope > div')[day]!.attributes('class')
-    expect(cls(1)).toContain('bg-red-100')
-    expect(cls(5)).toContain('bg-green-100')
-    expect(cls(6)).toContain('bg-amber-100')
+    expect(cls(1)).toContain('bg-destructive/10')
+    expect(cls(5)).toContain('bg-success/10')
+    expect(cls(6)).toContain('bg-warning/10')
     expect(wrapper.text()).not.toContain('No doctor')
   })
 

@@ -98,9 +98,9 @@ const fullCount = computed(
 
 type StatusTone = 'destructive' | 'warning' | 'success'
 const STATUS_TONE: Record<StatusTone, string> = {
-  destructive: 'border-destructive/30 bg-destructive/5 text-red-700',
-  warning: 'border-amber-500/40 bg-amber-50 text-amber-800',
-  success: 'border-success/30 bg-success/5 text-green-700',
+  destructive: 'border-destructive/30 bg-destructive/10 text-destructive',
+  warning: 'border-warning/30 bg-warning/10 text-warning',
+  success: 'border-success/30 bg-success/10 text-success',
 }
 
 const totalAssignments = computed(() =>
@@ -264,7 +264,7 @@ watch([year, month], load)
     <div
       v-if="errorMsg"
       role="alert"
-      class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-red-700"
+      class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
     >
       {{ errorMsg }}
     </div>
@@ -286,10 +286,10 @@ watch([year, month], load)
       <div class="border-b border-border px-4 py-3">
         <div class="h-4 w-40 animate-pulse rounded bg-muted" />
       </div>
-      <div class="grid grid-cols-7 gap-px bg-border p-px">
-        <div v-for="n in 28" :key="n" class="min-h-[112px] bg-card p-2">
-          <div class="h-3 w-5 animate-pulse rounded bg-muted" />
-          <div class="mt-2 h-8 w-full animate-pulse rounded bg-muted" />
+      <div class="grid grid-cols-7 gap-1.5">
+        <div v-for="n in 28" :key="n" class="min-h-[112px] p-2">
+          <div class="h-3 w-5 animate-pulse rounded-lg bg-muted" />
+          <div class="mt-2 h-8 w-full animate-pulse rounded-lg bg-muted" />
         </div>
       </div>
     </div>
@@ -312,9 +312,9 @@ watch([year, month], load)
             class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted-foreground"
           >
             <span><span class="font-semibold text-foreground">{{ days.length }}</span> days</span>
-            <span><span class="font-semibold text-green-700">{{ fullCount }}</span> full</span>
-            <span><span class="font-semibold text-amber-700">{{ warningCount }}</span> partial</span>
-            <span><span class="font-semibold text-red-700">{{ errorCount }}</span> empty</span>
+            <span><span class="font-semibold text-success">{{ fullCount }}</span> full</span>
+            <span><span class="font-semibold text-warning">{{ warningCount }}</span> partial</span>
+            <span><span class="font-semibold text-destructive">{{ errorCount }}</span> empty</span>
           </div>
           <div class="flex items-center gap-3 text-xs text-muted-foreground">
             <span class="inline-flex items-center gap-1.5">

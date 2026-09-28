@@ -30,6 +30,7 @@ const SLOTS = computed(() => props.slotsPerDay ?? 2)
 const emit = defineEmits<{ select: [date: string, slotIndex: number, doctorId: number | null] }>()
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const todayIso = new Date().toISOString().slice(0, 10)
 
 const doctorsById = computed(() => {
   const m = new Map<number, Doctor>()
@@ -42,6 +43,7 @@ interface Cell {
   date: string | null
   dayNum: number | null
   isWeekend: boolean
+  isToday: boolean
   slots: (CalendarAssignment | null)[]
   conflict?: string
   options: number[][]
@@ -65,7 +67,7 @@ const cells = computed<Cell[]>(() => {
   const firstJs = new Date(`${first.date}T00:00:00`)
   const lead = (firstJs.getDay() + 6) % 7
   for (let i = 0; i < lead; i++) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, slots: [], options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, slots: [], options: [] })
   }
   for (const day of props.days) {
     const slotsArr = props.assignmentByDate.get(day.date) ?? []
@@ -78,13 +80,14 @@ const cells = computed<Cell[]>(() => {
       date: day.date,
       dayNum: js.getDate(),
       isWeekend: day.isWeekend,
+      isToday: day.date === todayIso,
       slots,
       conflict: props.conflictsByDate.get(day.date),
       options,
     })
   }
   while (out.length % 7 !== 0) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, slots: [], options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, slots: [], options: [] })
   }
   return out
 })
@@ -111,44 +114,45 @@ function filledCount(slots: (CalendarAssignment | null)[]): number {
 }
 
 function cellBg(c: Cell): string {
-  if (c.blank) return 'bg-muted/40'
+  if (c.blank) return 'border-transparent bg-transparent'
   if (props.showFillHints) {
     const n = filledCount(c.slots)
-    if (n >= SLOTS.value) return 'bg-green-100'
-    if (n === 0) return 'bg-red-100'
-    return 'bg-amber-100'
+    if (n >= SLOTS.value) return 'border-success/25 bg-success/10'
+    if (n === 0) return 'border-destructive/25 bg-destructive/10'
+    return 'border-warning/30 bg-warning/10'
   }
-  if (c.conflict) return 'bg-destructive/5'
-  if (c.isWeekend) return 'bg-muted/30'
-  return 'bg-card'
+  if (c.conflict) return 'border-destructive/40 bg-destructive/5'
+  if (c.isWeekend) return 'border-border/60 bg-muted/40'
+  return 'border-border/60 bg-card'
 }
 </script>
 
 <template>
   <div class="overflow-x-auto">
-    <div class="min-w-[720px]">
-      <div class="grid grid-cols-7 gap-px rounded-md border border-border bg-border">
+    <div class="min-w-[760px] rounded-xl border border-border/70 bg-card p-2">
+      <div class="grid grid-cols-7 gap-1.5">
         <div
           v-for="w in WEEKDAYS"
           :key="w"
-          class="bg-muted px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          class="rounded-lg bg-muted/60 px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
         >
           {{ w }}
         </div>
       </div>
-      <div class="grid grid-cols-7 gap-px rounded-md border border-border bg-border">
+      <div class="grid grid-cols-7 gap-1.5">
         <div
           v-for="(c, idx) in cells"
           :key="idx"
           :class="[
-            'min-h-[112px] p-2',
+            'min-h-[112px] rounded-lg border p-2 transition-colors',
             cellBg(c),
-            !c.blank && c.conflict && 'border border-destructive/60',
           ]"
         >
           <template v-if="!c.blank">
             <div class="flex items-start justify-between">
-              <span class="text-xs font-semibold text-foreground">{{ c.dayNum }}</span>
+              <span v-if="c.isToday" class="grid h-6 w-6 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">{{ c.dayNum }}</span>
+              <span v-else-if="c.isWeekend" class="text-xs font-bold text-primary">{{ c.dayNum }}</span>
+              <span v-else class="text-xs font-bold">{{ c.dayNum }}</span>
               <span class="flex flex-col items-end gap-0.5">
                 <span
                   v-if="c.isWeekend"
@@ -177,7 +181,7 @@ function cellBg(c: Cell): string {
                 <template v-else>
                   <span
                     v-if="slot"
-                    class="block text-xs font-medium text-foreground"
+                    class="inline-flex max-w-full items-center rounded-md bg-muted px-1.5 py-0.5"
                     :title="slotFull(slot)"
                     >{{ slotLabel(slot) }}</span
                   >
@@ -198,7 +202,7 @@ function cellBg(c: Cell): string {
               >
               <span
                 v-else-if="mode === 'editable' && showFillHints && filledCount(c.slots) === 1"
-                class="block text-[11px] font-medium text-amber-600"
+                class="block text-[11px] font-medium text-warning"
                 >1 of 2</span
               >
             </div>

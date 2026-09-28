@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { CalendarDays } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import type {
   CreateDutyRequest,
@@ -14,6 +15,8 @@ import * as scheduleService from '@/services/schedule'
 import * as doctorService from '@/services/doctor'
 import Button from '@/components/ui/Button.vue'
 import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import Badge from '@/components/ui/Badge.vue'
 import { useConfirm } from '@/composables/useConfirm'
 
 const route = useRoute()
@@ -214,25 +217,18 @@ onMounted(async () => {
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <template v-if="schedule">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <h1 class="text-xl font-semibold text-foreground">
-            {{ MONTHS[schedule.month - 1] }} {{ schedule.year }}
-          </h1>
-          <span :class="isPublished
-            ? 'inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary'
-            : 'inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'">
-            {{ isPublished ? 'Published' : 'Draft' }}
-          </span>
-        </div>
-        <div v-if="auth.isAdmin" class="flex items-center gap-2">
-          <Button v-if="!isPublished" @click="publish">Publish</Button>
-          <Button v-else variant="outline" @click="unpublish">Revert to draft</Button>
-          <Button variant="destructive" :disabled="isPublished" @click="deleteSchedule">
-            Delete schedule
-          </Button>
-        </div>
-      </div>
+      <PageHeader :icon="CalendarDays" :title="`${MONTHS[schedule.month - 1]} ${schedule.year}`">
+        <template #actions>
+          <Badge :variant="isPublished ? 'success' : 'neutral'" dot>{{ isPublished ? 'Published' : 'Draft' }}</Badge>
+          <template v-if="auth.isAdmin">
+            <Button v-if="!isPublished" @click="publish">Publish</Button>
+            <Button v-else variant="outline" @click="unpublish">Revert to draft</Button>
+            <Button variant="destructive" :disabled="isPublished" @click="deleteSchedule">
+              Delete schedule
+            </Button>
+          </template>
+        </template>
+      </PageHeader>
 
       <p v-if="isPublished && auth.isAdmin" class="text-sm text-muted-foreground">
         Schedule is published and locked. Revert to draft to edit duties.
