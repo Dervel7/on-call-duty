@@ -174,7 +174,7 @@ async function onSubmitUsername() {
           <dt class="text-muted-foreground">Status</dt>
           <dd>{{ myDoctor.isActive ? 'active' : 'disabled' }}</dd>
           <dt class="text-muted-foreground">Max monthly duties</dt>
-          <dd>{{ myDoctor.maxMonthlyDuties }}</dd>
+          <dd class="font-mono">{{ myDoctor.maxMonthlyDuties }}</dd>
         </dl>
       </CardContent>
     </Card>

@@ -129,12 +129,12 @@ function cellBg(c: Cell): string {
 
 <template>
   <div class="overflow-x-auto">
-    <div class="min-w-[760px] rounded-xl border border-border/70 bg-card p-2">
+    <div class="relative min-w-[760px] rounded-xl border border-border/60 bg-card/50 p-2 shadow-card backdrop-blur-sm">
       <div class="grid grid-cols-7 gap-1.5">
         <div
           v-for="w in WEEKDAYS"
           :key="w"
-          class="rounded-lg bg-muted/60 px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+          class="rounded-md bg-muted/50 px-2 py-1.5 text-center font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80"
         >
           {{ w }}
         </div>
@@ -150,9 +150,9 @@ function cellBg(c: Cell): string {
         >
           <template v-if="!c.blank">
             <div class="flex items-start justify-between">
-              <span v-if="c.isToday" class="grid h-6 w-6 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">{{ c.dayNum }}</span>
-              <span v-else-if="c.isWeekend" class="text-xs font-bold text-primary">{{ c.dayNum }}</span>
-              <span v-else class="text-xs font-bold">{{ c.dayNum }}</span>
+              <span v-if="c.isToday" class="grid h-6 w-6 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground shadow-glow">{{ c.dayNum }}</span>
+              <span v-else-if="c.isWeekend" class="font-mono text-xs font-bold text-primary">{{ c.dayNum }}</span>
+              <span v-else class="font-mono text-xs font-bold">{{ c.dayNum }}</span>
               <span class="flex flex-col items-end gap-0.5">
                 <span
                   v-if="c.isWeekend"
@@ -181,7 +181,7 @@ function cellBg(c: Cell): string {
                 <template v-else>
                   <span
                     v-if="slot"
-                    class="inline-flex max-w-full items-center rounded-md bg-muted px-1.5 py-0.5"
+                    class="inline-flex max-w-full items-center rounded-md bg-foreground/[0.06] px-1.5 py-0.5 font-mono text-[11px]"
                     :title="slotFull(slot)"
                     >{{ slotLabel(slot) }}</span
                   >

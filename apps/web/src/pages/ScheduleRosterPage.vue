@@ -66,7 +66,7 @@ onMounted(load)
       </TableHeader>
       <TableBody>
         <TableRow v-for="s in records" :key="s.id">
-          <TableCell>{{ monthLabel(s.year, s.month) }}</TableCell>
+          <TableCell class="font-mono text-sm">{{ monthLabel(s.year, s.month) }}</TableCell>
           <TableCell class="text-right">
             <Button size="sm" variant="outline" @click="view(s.id)">View</Button>
           </TableCell>

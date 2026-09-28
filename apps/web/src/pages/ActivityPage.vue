@@ -178,7 +178,7 @@ onMounted(() => {
       </TableHeader>
       <TableBody>
         <TableRow v-for="x in data?.items ?? []" :key="x.id">
-          <TableCell class="whitespace-nowrap">{{ formatTime(x.createdAt) }}</TableCell>
+          <TableCell class="whitespace-nowrap font-mono text-xs text-muted-foreground">{{ formatTime(x.createdAt) }}</TableCell>
           <TableCell>
             <span>{{ actorName(x) }}</span>
             <Badge v-if="x.actor" variant="outline" class="ml-2">{{ x.actor.role }}</Badge>

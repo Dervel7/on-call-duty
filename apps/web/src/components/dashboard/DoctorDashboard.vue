@@ -77,12 +77,13 @@ onMounted(load)
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <template v-if="stats">
-      <Card class="relative overflow-hidden animate-rise">
+      <Card class="relative overflow-hidden hud-corners animate-rise">
         <div
           aria-hidden="true"
           class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-gradient opacity-10 blur-3xl"
         ></div>
         <CardHeader>
+          <p class="hud-label">VITALS · MONTH</p>
           <CardTitle class="flex items-center gap-2">
             <Activity class="h-5 w-5 text-primary" />
             Welcome, {{ stats.doctor.firstName }}
@@ -90,16 +91,16 @@ onMounted(load)
         </CardHeader>
         <CardContent class="flex flex-col gap-3">
           <p class="tabular-nums">
-            <span class="text-3xl font-bold tracking-tight">{{ stats.currentMonth.duties }} / {{ stats.currentMonth.maxMonthly }}</span><span class="text-sm font-medium text-muted-foreground"> duties this month</span>
+            <span class="font-mono text-4xl font-bold tracking-tight text-glow">{{ stats.currentMonth.duties }} / {{ stats.currentMonth.maxMonthly }}</span><span class="text-sm font-medium text-muted-foreground"> duties this month</span>
           </p>
           <div class="flex items-center gap-3">
-            <div class="h-3 w-full rounded-full bg-muted">
+            <div class="h-2.5 w-full rounded-full bg-muted ring-1 ring-inset ring-border/60">
               <div
-                class="h-3 rounded-full bg-brand-gradient transition-[width] duration-700"
+                class="h-2.5 rounded-full bg-brand-gradient bar-shine shadow-glow transition-[width] duration-700"
                 :style="{ width: `${progress}%` }"
               ></div>
             </div>
-            <span class="text-xs font-semibold text-muted-foreground tabular-nums">{{ Math.round(progress) }}%</span>
+            <span class="font-mono text-xs font-semibold text-muted-foreground tabular-nums">{{ Math.round(progress) }}%</span>
           </div>
           <p v-if="!stats.currentMonth.published" class="text-sm text-muted-foreground">
             This month's schedule isn't published yet.
@@ -111,14 +112,17 @@ onMounted(load)
       </Card>
 
       <Card class="animate-rise [animation-delay:60ms]">
-        <CardHeader><CardTitle>Who's on call (today + 6 days)</CardTitle></CardHeader>
+        <CardHeader>
+          <p class="hud-label">NEXT 7 DAYS</p>
+          <CardTitle>Who's on call (today + 6 days)</CardTitle>
+        </CardHeader>
         <CardContent>
           <ul v-if="onCallRows.length > 0" class="flex flex-col gap-1">
             <li
               v-for="e in onCallRows"
               :key="e.date"
               :class="[
-                'flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/50',
+                'flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50',
                 e.isMine && 'bg-primary/10 ring-1 ring-inset ring-primary/20',
               ]"
             >
@@ -136,13 +140,16 @@ onMounted(load)
       </Card>
 
       <Card class="animate-rise [animation-delay:120ms]">
-        <CardHeader><CardTitle>My upcoming duties</CardTitle></CardHeader>
+        <CardHeader>
+          <p class="hud-label">MY DUTIES</p>
+          <CardTitle>My upcoming duties</CardTitle>
+        </CardHeader>
         <CardContent>
           <ul v-if="stats.upcoming.length > 0" class="flex flex-col gap-1">
             <li
               v-for="u in stats.upcoming"
               :key="u.dutyDate"
-              class="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/50"
+              class="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50"
             >
               <span class="text-sm text-foreground">{{ fmt(u.dutyDate) }}</span>
               <span class="flex items-center gap-1">

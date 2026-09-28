@@ -96,7 +96,7 @@ onMounted(loadPaymentAlert)
     <div
       v-if="paymentLabel"
       role="alert"
-      class="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+      class="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive shadow-[0_0_28px_-10px_hsl(var(--destructive)/0.5)]">
       <TriangleAlert class="size-5 shrink-0" />
       {{ paymentLabel }}
     </div>
@@ -129,15 +129,22 @@ onMounted(loadPaymentAlert)
 
     <template v-if="stats && stats.schedule">
       <div class="grid gap-4 md:grid-cols-2">
-        <Card class="animate-rise">
-          <CardHeader><CardTitle>Coverage</CardTitle></CardHeader>
+        <Card class="relative overflow-hidden hud-corners animate-rise">
+          <div
+            aria-hidden="true"
+            class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-gradient opacity-10 blur-3xl"
+          ></div>
+          <CardHeader>
+            <p class="hud-label">COVERAGE</p>
+            <CardTitle>Coverage</CardTitle>
+          </CardHeader>
           <CardContent class="flex flex-col gap-3">
             <p class="tabular-nums">
-              <span class="text-3xl font-bold tracking-tight tabular-nums">{{ stats.coverage.filled }} / {{ stats.coverage.daysInMonth }}</span><span class="text-sm font-medium text-muted-foreground"> days fully staffed</span>
+              <span class="font-mono text-3xl font-bold tracking-tight tabular-nums">{{ stats.coverage.filled }} / {{ stats.coverage.daysInMonth }}</span><span class="text-sm font-medium text-muted-foreground"> days fully staffed</span>
             </p>
-            <div class="h-2.5 w-full rounded-full bg-muted">
+            <div class="h-2.5 w-full rounded-full bg-muted ring-1 ring-inset ring-border/60">
               <div
-                class="h-2.5 rounded-full bg-brand-gradient"
+                class="h-2.5 rounded-full bg-brand-gradient bar-shine shadow-glow"
                 :style="{ width: `${(stats.coverage.filled / stats.coverage.daysInMonth) * 100}%` }"
               ></div>
             </div>
@@ -149,10 +156,13 @@ onMounted(loadPaymentAlert)
         </Card>
 
         <Card class="animate-rise [animation-delay:60ms]">
-          <CardHeader><CardTitle>Fairness</CardTitle></CardHeader>
+          <CardHeader>
+            <p class="hud-label">FAIRNESS</p>
+            <CardTitle>Fairness</CardTitle>
+          </CardHeader>
           <CardContent class="flex flex-col gap-2">
             <p class="text-sm text-muted-foreground">Duty spread (max − min across assigned doctors)</p>
-            <p class="text-3xl font-semibold tabular-nums text-foreground">
+            <p class="font-mono text-3xl font-semibold tabular-nums text-foreground">
               {{ stats.fairness.dutySpread ?? 'N/A' }}
             </p>
             <span
@@ -168,7 +178,10 @@ onMounted(loadPaymentAlert)
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Workload</CardTitle></CardHeader>
+        <CardHeader>
+          <p class="hud-label">WORKLOAD</p>
+          <CardTitle>Workload</CardTitle>
+        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -192,17 +205,17 @@ onMounted(loadPaymentAlert)
                 </TableCell>
                 <TableCell>
                   <div class="flex items-center gap-2">
-                    <div class="h-2.5 w-24 rounded-full bg-muted">
+                    <div class="h-2.5 w-24 rounded-full bg-muted ring-1 ring-inset ring-border/60">
                       <div
-                        class="h-2.5 rounded-full bg-brand-gradient"
+                        class="h-2.5 rounded-full bg-brand-gradient bar-shine"
                         :style="{ width: `${(w.duties / maxInSet) * 100}%` }"
                       ></div>
                     </div>
-                    <span class="text-sm tabular-nums text-foreground">{{ w.duties }}</span>
+                    <span class="font-mono text-sm tabular-nums text-foreground">{{ w.duties }}</span>
                   </div>
                 </TableCell>
-                <TableCell class="text-right">{{ w.weekend }}</TableCell>
-                <TableCell class="text-right">{{ w.maxMonthly }}</TableCell>
+                <TableCell class="text-right font-mono">{{ w.weekend }}</TableCell>
+                <TableCell class="text-right font-mono">{{ w.maxMonthly }}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

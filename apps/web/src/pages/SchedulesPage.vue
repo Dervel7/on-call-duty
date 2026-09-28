@@ -130,6 +130,7 @@ onMounted(load)
     </div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
+    <p class="hud-label mb-2">ROSTERS</p>
     <Table>
       <TableHeader>
         <TableRow>
@@ -147,7 +148,7 @@ onMounted(load)
               {{ s.status === 'published' ? 'Published' : 'Draft' }}
             </Badge>
           </TableCell>
-          <TableCell>{{ s.createdAt.slice(0, 10) }}</TableCell>
+          <TableCell class="font-mono text-sm">{{ s.createdAt.slice(0, 10) }}</TableCell>
           <TableCell class="text-right">
             <Button size="sm" variant="outline" @click="view(s.id)">View</Button>
           </TableCell>

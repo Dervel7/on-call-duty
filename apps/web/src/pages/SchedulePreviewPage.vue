@@ -288,8 +288,8 @@ watch([year, month], load)
       </div>
       <div class="grid grid-cols-7 gap-1.5">
         <div v-for="n in 28" :key="n" class="min-h-[112px] p-2">
-          <div class="h-3 w-5 animate-pulse rounded-lg bg-muted" />
-          <div class="mt-2 h-8 w-full animate-pulse rounded-lg bg-muted" />
+          <div class="h-3 w-5 animate-pulse rounded-lg bg-muted/60" />
+          <div class="mt-2 h-8 w-full animate-pulse rounded-lg bg-muted/60" />
         </div>
       </div>
     </div>
@@ -311,10 +311,10 @@ watch([year, month], load)
           <div
             class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted-foreground"
           >
-            <span><span class="font-semibold text-foreground">{{ days.length }}</span> days</span>
-            <span><span class="font-semibold text-success">{{ fullCount }}</span> full</span>
-            <span><span class="font-semibold text-warning">{{ warningCount }}</span> partial</span>
-            <span><span class="font-semibold text-destructive">{{ errorCount }}</span> empty</span>
+            <span><span class="font-mono font-semibold text-foreground">{{ days.length }}</span> days</span>
+            <span><span class="font-mono font-semibold text-success">{{ fullCount }}</span> full</span>
+            <span><span class="font-mono font-semibold text-warning">{{ warningCount }}</span> partial</span>
+            <span><span class="font-mono font-semibold text-destructive">{{ errorCount }}</span> empty</span>
           </div>
           <div class="flex items-center gap-3 text-xs text-muted-foreground">
             <span class="inline-flex items-center gap-1.5">

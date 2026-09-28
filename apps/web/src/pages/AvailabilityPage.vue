@@ -343,8 +343,8 @@ onMounted(async () => {
           :aria-expanded="expandedDoctorId === g.doctorId"
           @click="toggleDoctor(g.doctorId)"
         >
-          <span class="font-medium text-foreground">{{ g.name }}</span>
-          <span class="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <span class="font-display font-semibold text-foreground">{{ g.name }}</span>
+          <span class="inline-flex items-center gap-2 font-mono text-sm text-muted-foreground">
             {{ g.days.length }} day(s)
             <template v-if="g.days.some((d) => d.record.isDisabled)"
               >· {{ g.days.filter((d) => d.record.isDisabled).length }} disabled</template
@@ -360,6 +360,7 @@ onMounted(async () => {
             v-for="d in g.days"
             :key="d.iso"
             size="sm"
+            class="rounded-md bg-muted/70 px-2 py-0.5 font-mono text-xs"
             variant="outline"
             :class="{ 'line-through opacity-60': d.record.isDisabled }"
             :title="d.record.isDisabled ? 'Disabled — ignored by scheduling' : undefined"

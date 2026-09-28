@@ -60,7 +60,7 @@ function isActive(to: string): boolean {
 
 <template>
   <header
-    class="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 shadow-header backdrop-blur-xl"
+    class="sticky top-0 z-40 w-full border-b border-border/60 bg-background/70 shadow-header backdrop-blur-xl"
   >
     <div class="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
       <RouterLink to="/" class="group flex shrink-0 items-center gap-2.5">
@@ -74,10 +74,8 @@ function isActive(to: string): boolean {
           </svg>
         </span>
         <span class="flex flex-col leading-none">
-          <span class="text-[15px] font-semibold tracking-tight text-foreground">On-Call Duty</span>
-          <span
-            class="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80"
-          >
+          <span class="font-display text-[15px] font-bold tracking-tight text-foreground">On-Call Duty</span>
+          <span class="hud-label mt-1">
             Hospital Scheduling
           </span>
         </span>
@@ -101,7 +99,7 @@ function isActive(to: string): boolean {
       <div class="ml-auto flex items-center gap-3">
         <template v-if="auth.user">
           <div
-            class="hidden items-center gap-2.5 rounded-full border border-border bg-card py-1 pl-1 pr-3 shadow-card sm:flex"
+            class="hidden items-center gap-2.5 rounded-full border border-border/70 bg-card/60 py-1 pl-1 pr-3 shadow-card backdrop-blur sm:flex"
           >
             <Avatar :name="`${auth.user.firstName} ${auth.user.lastName}`" size="sm" />
             <span class="text-sm text-foreground">

@@ -13,9 +13,9 @@ import CardTitle from '@/components/ui/CardTitle.vue'
       class="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background-tint to-accent/10">
     </div>
 
-    <Card class="w-full max-w-md rounded-2xl shadow-pop">
+    <Card class="hud-corners w-full max-w-md rounded-2xl shadow-pop">
       <CardHeader class="items-center text-center">
-        <div class="grid h-12 w-12 place-items-center rounded-2xl bg-muted text-muted-foreground">
+        <div class="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/25">
           <Lock class="size-6" />
         </div>
         <CardTitle>System locked</CardTitle>

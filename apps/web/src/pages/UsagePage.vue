@@ -110,7 +110,7 @@ onMounted(loadBilling)
         <div class="flex items-center gap-2">
           <p class="text-sm text-muted-foreground">
             Paid through:
-            <span class="text-foreground">{{ billing?.paidThrough ?? 'Not set' }}</span>
+            <span class="font-mono text-foreground">{{ billing?.paidThrough ?? 'Not set' }}</span>
           </p>
           <Badge v-if="billing" :variant="billing.locked ? 'destructive' : 'success'" dot>
             {{ billing.locked ? 'Locked' : 'Active' }}
@@ -127,14 +127,14 @@ onMounted(loadBilling)
       </CardContent>
     </Card>
 
-    <Card>
+    <Card class="hud-corners">
       <CardHeader>
         <CardTitle>Overview</CardTitle>
       </CardHeader>
       <CardContent class="flex flex-col gap-2">
         <p class="text-sm text-muted-foreground">
           Open alerts:
-          <span class="text-foreground">{{ openAlerts }}</span>
+          <span class="font-mono text-foreground">{{ openAlerts }}</span>
         </p>
       </CardContent>
     </Card>
@@ -155,10 +155,10 @@ onMounted(loadBilling)
           </TableHeader>
           <TableBody>
             <TableRow v-for="(e, i) in generations" :key="i">
-              <TableCell>{{ new Date(e.generatedAt).toLocaleString() }}</TableCell>
-              <TableCell>{{ monthLabel(e) }}</TableCell>
+            <TableCell class="font-mono text-xs text-muted-foreground">{{ new Date(e.generatedAt).toLocaleString() }}</TableCell>
+            <TableCell class="font-mono text-xs">{{ monthLabel(e) }}</TableCell>
               <TableCell>{{ e.doctorNames.join(', ') }}</TableCell>
-              <TableCell>{{ overlapLabel(e) }}</TableCell>
+            <TableCell class="font-mono text-xs">{{ overlapLabel(e) }}</TableCell>
             </TableRow>
           </TableBody>
         </Table>
@@ -182,7 +182,7 @@ onMounted(loadBilling)
           </TableHeader>
           <TableBody>
             <TableRow v-for="a in alerts" :key="a.id">
-              <TableCell>{{ new Date(a.createdAt).toLocaleString() }}</TableCell>
+            <TableCell class="font-mono text-xs text-muted-foreground">{{ new Date(a.createdAt).toLocaleString() }}</TableCell>
               <TableCell>{{ a.type }}</TableCell>
               <TableCell>{{ JSON.stringify(a.detail) }}</TableCell>
               <TableCell><Badge :variant="a.resolvedAt ? 'neutral' : 'warning'">{{ a.resolvedAt ? 'resolved' : 'open' }}</Badge></TableCell>

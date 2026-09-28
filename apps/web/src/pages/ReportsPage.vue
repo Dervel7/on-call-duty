@@ -181,16 +181,16 @@ onMounted(load)
       </div>
 
       <div class="grid gap-4 md:grid-cols-2">
-        <Card class="animate-rise">
-          <CardHeader><CardTitle>Coverage</CardTitle></CardHeader>
+        <Card class="animate-rise hud-corners">
+          <CardHeader><p class="hud-label">COVERAGE</p><CardTitle>Coverage</CardTitle></CardHeader>
           <CardContent class="flex flex-col gap-2">
             <p class="flex flex-wrap items-baseline gap-2">
-              <span class="text-3xl font-bold tracking-tight tabular-nums">{{ report.coverage.filled }} / {{ report.coverage.daysInMonth }}</span>
+              <span class="font-mono text-3xl font-bold tracking-tight tabular-nums text-glow">{{ report.coverage.filled }} / {{ report.coverage.daysInMonth }}</span>
               <span class="text-sm font-medium text-muted-foreground"> days fully staffed</span>
             </p>
-            <div class="h-2.5 w-full rounded-full bg-muted">
+            <div class="h-2 w-full rounded-full bg-muted ring-1 ring-inset ring-border/60">
               <div
-                class="h-2.5 rounded-full bg-brand-gradient"
+                class="h-2 rounded-full bg-brand-gradient bar-shine shadow-glow"
                 :style="{ width: `${(report.coverage.filled / report.coverage.daysInMonth) * 100}%` }"
               ></div>
             </div>
@@ -202,10 +202,10 @@ onMounted(load)
         </Card>
 
         <Card class="animate-rise [animation-delay:60ms]">
-          <CardHeader><CardTitle>Fairness</CardTitle></CardHeader>
+          <CardHeader><p class="hud-label">FAIRNESS</p><CardTitle>Fairness</CardTitle></CardHeader>
           <CardContent class="flex flex-col gap-2">
             <p class="text-sm text-muted-foreground">Duty spread (max − min across assigned doctors)</p>
-            <p class="text-3xl font-bold tracking-tight tabular-nums">{{ report.fairness.dutySpread ?? 'N/A' }}</p>
+            <p class="font-mono text-3xl font-bold tracking-tight tabular-nums">{{ report.fairness.dutySpread ?? 'N/A' }}</p>
             <Badge :variant="fairnessBadge.variant" class="w-fit">{{ fairnessBadge.text }}</Badge>
             <p class="text-xs text-muted-foreground">
               Weekend spread {{ report.fairness.weekendSpread ?? 'N/A' }}
@@ -228,7 +228,7 @@ onMounted(load)
             </TableHeader>
             <TableBody>
               <TableRow v-for="r in rows" :key="r.date">
-                <TableCell>{{ r.weekday }} {{ r.day }}</TableCell>
+            <TableCell class="font-mono text-sm">{{ r.weekday }} {{ r.day }}</TableCell>
                 <TableCell>
                   <span v-if="r.duties.length">{{ r.duties.map((d) => `${d.doctorFirstName} ${d.doctorLastName}`).join(' / ') }}</span>
                   <span v-else class="italic text-muted-foreground">Unassigned</span>
@@ -275,17 +275,17 @@ onMounted(load)
                 </TableCell>
                 <TableCell>
                   <div class="flex items-center gap-2">
-                    <div class="h-2.5 w-24 rounded-full bg-muted">
+                    <div class="h-2 w-24 rounded-full bg-muted ring-1 ring-inset ring-border/60">
                       <div
-                        class="h-2.5 rounded-full bg-brand-gradient"
+                        class="h-2 rounded-full bg-brand-gradient bar-shine"
                         :style="{ width: `${(w.duties / maxInSet) * 100}%` }"
                       ></div>
                     </div>
-                    <span class="text-sm text-foreground">{{ w.duties }}</span>
+                    <span class="font-mono text-sm text-foreground">{{ w.duties }}</span>
                   </div>
                 </TableCell>
-                <TableCell class="text-right">{{ w.weekend }}</TableCell>
-                <TableCell class="text-right">{{ w.maxMonthly }}</TableCell>
+                <TableCell class="text-right font-mono text-sm">{{ w.weekend }}</TableCell>
+                <TableCell class="text-right font-mono text-sm">{{ w.maxMonthly }}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

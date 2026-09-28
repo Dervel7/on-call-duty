@@ -226,6 +226,7 @@ onMounted(load)
         v-for="d in visibleDays"
         :key="d.iso"
         size="sm"
+        class="rounded-md bg-muted/70 px-2 py-0.5 font-mono text-xs"
         variant="secondary"
         :class="{ 'line-through opacity-60': d.record.isDisabled }"
         :title="d.record.isDisabled ? 'Disabled — ignored by scheduling' : undefined"

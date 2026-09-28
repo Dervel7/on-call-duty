@@ -270,6 +270,7 @@ onMounted(load)
     </div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
+    <p class="hud-label mb-2">DIRECTORY</p>
     <Table>
       <TableHeader>
         <TableRow>
@@ -295,7 +296,7 @@ onMounted(load)
           <TableCell>
             <Badge variant="outline">{{ u.role }}</Badge>
           </TableCell>
-          <TableCell>{{ doctorByUserId.get(u.id)?.maxMonthlyDuties ?? '—' }}</TableCell>
+          <TableCell class="font-mono text-sm">{{ doctorByUserId.get(u.id)?.maxMonthlyDuties ?? '—' }}</TableCell>
           <TableCell>
             <Badge :variant="u.isActive ? 'success' : 'neutral'" dot>{{ u.isActive ? 'active' : 'disabled' }}</Badge>
           </TableCell>
