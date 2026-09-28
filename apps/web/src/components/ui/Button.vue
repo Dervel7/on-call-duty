@@ -10,13 +10,14 @@ const buttonVariants = cva(
       variant: {
         // bg-primary stays as a solid fallback under the gradient layer and is asserted by ConfirmDialog.test.ts
         default:
-          'bg-primary text-primary-foreground bg-brand-gradient shadow-md shadow-primary/30 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/40 active:translate-y-0 active:shadow-md active:shadow-primary/30',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-muted',
+          'bg-primary text-primary-foreground bg-brand-gradient btn-shine shadow-glow hover:-translate-y-0.5 hover:shadow-glow-lg active:translate-y-0 active:shadow-glow',
+        secondary: 'bg-secondary/70 text-secondary-foreground backdrop-blur hover:bg-secondary',
         destructive:
-          'bg-destructive text-destructive-foreground shadow-md shadow-destructive/25 hover:-translate-y-0.5 hover:bg-destructive/90 active:translate-y-0',
-        outline: 'border border-input bg-card hover:border-primary/40 hover:bg-primary/5 hover:text-foreground',
+          'bg-destructive text-destructive-foreground btn-shine shadow-[0_0_22px_-6px_hsl(var(--destructive)/0.55)] hover:-translate-y-0.5 hover:bg-destructive/90 active:translate-y-0',
+        outline:
+          'border border-border bg-card/50 text-foreground backdrop-blur hover:border-primary/50 hover:bg-primary/5 hover:shadow-glow',
         accent:
-          'bg-accent text-accent-foreground shadow-md shadow-accent/30 hover:-translate-y-0.5 hover:bg-accent/90 active:translate-y-0',
+          'bg-accent text-accent-foreground btn-shine shadow-[0_0_22px_-6px_hsl(var(--accent)/0.5)] hover:-translate-y-0.5 hover:bg-accent/90 active:translate-y-0',
       },
       size: {
         default: 'h-10 px-5 py-2',

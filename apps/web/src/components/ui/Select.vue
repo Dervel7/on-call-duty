@@ -238,7 +238,7 @@ useEventListener(
       aria-haspopup="listbox"
       :aria-expanded="open"
       :disabled="props.disabled"
-      class="flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-3.5 py-2 text-left text-sm text-foreground shadow-sm transition-all hover:border-primary/35 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50"
+      class="flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card/60 px-3.5 py-2 text-left text-sm text-foreground shadow-sm transition-all hover:border-primary/40 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
       @click="toggle"
     >
       <span class="truncate" :class="!selected() && 'text-muted-foreground/70'">
@@ -263,13 +263,13 @@ useEventListener(
           tabindex="-1"
           data-popover-layer
           :aria-activedescendant="ariaActiveDescendant()"
-          class="fixed z-50 overflow-y-auto rounded-xl border border-border/70 bg-popover p-1.5 shadow-pop focus-visible:outline-none focus-visible:shadow-none"
+          class="glass-card glass-panel fixed z-50 overflow-y-auto rounded-xl p-1.5 focus-visible:outline-none focus-visible:shadow-none"
           @keydown="onKeydown"
         >
           <template v-for="g in parseGroups()" :key="g.label">
             <div
               v-if="g.label"
-              class="px-2.5 pb-1 pt-2 text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground"
+              class="hud-label px-2.5 pb-1 pt-2"
             >
               {{ g.label }}
             </div>
@@ -287,7 +287,7 @@ useEventListener(
                 o.disabled
                   ? 'cursor-not-allowed text-muted-foreground/50'
                   : 'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
-                o.value === selectedValue && 'bg-primary/10 font-semibold text-primary',
+                o.value === selectedValue && 'bg-primary/10 font-semibold text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.3)]',
                 o.value === activeValue && o.value !== selectedValue && 'bg-muted',
               )"
               @click="choose(o)"

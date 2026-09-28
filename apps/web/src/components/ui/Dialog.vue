@@ -32,12 +32,12 @@ watch(
   <Teleport to="body">
     <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        class="animate-dialog-backdrop absolute inset-0 bg-foreground/45 backdrop-blur-md"
+        class="animate-dialog-backdrop absolute inset-0 bg-foreground/50 backdrop-blur-md"
         @click="close"
       />
       <div
         ref="panel"
-        class="animate-dialog-panel relative z-10 w-full max-w-md rounded-2xl border border-border/70 bg-card p-6 shadow-pop"
+        class="animate-dialog-panel glass-card glass-panel relative z-10 w-full max-w-md rounded-2xl p-6"
       >
         <button
           type="button"

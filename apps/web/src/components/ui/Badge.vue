@@ -4,7 +4,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
-  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
+  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em]',
   {
     variants: {
       variant: {
@@ -34,7 +34,7 @@ const props = defineProps<{
 
 <template>
   <span :class="cn(badgeVariants({ variant: props.variant }), props.class)">
-    <span v-if="dot" class="size-1.5 rounded-full bg-current" aria-hidden="true" />
+    <span v-if="dot" class="size-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" aria-hidden="true" />
     <slot />
   </span>
 </template>

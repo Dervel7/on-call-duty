@@ -135,7 +135,7 @@ useEventListener(
         :data-month="`${view.year}-${pad(view.month0 + 1)}`"
         role="dialog"
         :aria-label="title ?? 'Pick days'"
-        class="animate-dialog-panel relative z-10 w-full max-w-sm rounded-xl border border-border/70 bg-popover p-3 shadow-pop"
+        class="animate-dialog-panel glass-card glass-panel relative z-10 w-full max-w-sm rounded-2xl p-3"
       >
         <button
           type="button"
@@ -173,7 +173,7 @@ useEventListener(
           <span
             v-for="w in WEEKDAYS"
             :key="w"
-            class="py-1 text-center text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground"
+            class="py-1 text-center font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80"
           >
             {{ w }}
           </span>
@@ -189,9 +189,9 @@ useEventListener(
               :disabled="reserved.has(c.iso)"
               :title="reserved.has(c.iso) ? 'Already excluded' : undefined"
               :class="cn(
-                'flex h-9 items-center justify-center rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
+                'flex h-9 items-center justify-center rounded-lg font-mono text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
                 selected.has(c.iso)
-                  ? 'bg-primary bg-brand-gradient font-semibold text-primary-foreground hover:opacity-90'
+                  ? 'bg-primary bg-brand-gradient font-semibold text-primary-foreground shadow-glow hover:opacity-90'
                   : reserved.has(c.iso)
                     ? 'cursor-not-allowed bg-muted text-muted-foreground/50'
                     : c.weekend
