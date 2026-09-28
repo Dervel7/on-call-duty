@@ -49,6 +49,7 @@ docs/
   superpowers/specs/   Design docs: YYYY-MM-DD-<topic>-design.md
   superpowers/plans/   Implementation plans: YYYY-MM-DD-<topic>-plan.md
   admin-manual/        End-user administrator manual
+  database.md          Database schema reference (tables, columns, constraints, behaviors)
 ```
 
 Shared packages export raw TS source (`"main": "./src/index.ts"`); no build step. Apps consume them via `"workspace:*"`. The `@` alias in `apps/web` maps to `apps/web/src`.
@@ -90,11 +91,11 @@ Per workspace: `pnpm --filter @oncall/api <script>` (same for `@oncall/web`, `@o
 - Responsive and accessible design.
 
 ### Database
+- `docs/database.md` is the database schema reference (every table, column, constraint, index, and behavior). Read it before any change that touches the database; whenever `database/schema.sql` changes, update `docs/database.md` in the same change — the two must never drift.
 - Normalized schema in a single idempotent `database/schema.sql` (`CREATE TABLE IF NOT EXISTS` + inline `ALTER TABLE ... IF NOT EXISTS` for evolutions). There is no migration runner — never introduce one.
 - Seed scripts required (`database/seeds/*.seed.sql`, idempotent upserts; `pnpm db:seed:single` / `pnpm db:seed:multi` reset the target database first).
 - Parameterized queries only — never concatenate SQL.
 - Indexes on frequently queried columns (`idx_<table>_<cols>` naming).
-- Tables: `app_meta`, `clinics`, `users`, `refresh_tokens`, `doctors`, `unavailability`, `schedules`, `duties`.
 
 ## Architecture Rules
 
