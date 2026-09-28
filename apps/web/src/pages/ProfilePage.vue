@@ -5,6 +5,7 @@ import { changePasswordSchema, updateUsernameSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import * as doctorService from '@/services/doctor'
+import Avatar from '@/components/ui/Avatar.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -107,76 +108,94 @@ async function onSubmitUsername() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-md animate-rise">
-    <Card>
-      <CardHeader>
-        <CardTitle>{{ heading }}</CardTitle>
-        <CardDescription>Change your password. You will be signed out of all sessions, including this one.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
-          <div class="flex flex-col gap-2">
-            <Label for="current">Current password</Label>
-            <Input id="current" v-model="currentPassword" type="password" autocomplete="current-password" />
-          </div>
-          <div class="flex flex-col gap-2">
-            <Label for="new">New password</Label>
-            <Input id="new" v-model="newPassword" type="password" autocomplete="new-password" />
-          </div>
-          <p v-if="formError" class="text-sm text-destructive" role="alert">{{ formError }}</p>
-          <p v-if="success" class="text-sm text-success" role="status">Password updated.</p>
-          <Button type="submit" :disabled="submitting">Update password</Button>
-        </form>
-      </CardContent>
-    </Card>
+  <div class="mx-auto flex w-full max-w-6xl flex-col gap-4 animate-rise">
+    <div class="flex items-center gap-4">
+      <Avatar :name="heading" size="lg" />
+      <div class="min-w-0">
+        <h1 class="font-display text-2xl font-bold tracking-tight text-foreground">{{ heading }}</h1>
+        <p v-if="auth.user" class="hud-label mt-1 truncate">{{ auth.user.role }} · {{ auth.user.email }}</p>
+      </div>
+    </div>
+    <div class="hud-scan" aria-hidden="true"></div>
 
-    <Card v-if="isDoctor" class="mt-4">
-      <CardHeader>
-        <CardTitle>Username</CardTitle>
-        <CardDescription>Change the username you use to sign in. No password is needed.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmitUsername">
-          <div class="flex flex-col gap-2">
-            <Label for="username">Username</Label>
-            <Input id="username" v-model="newUsername" autocomplete="username" />
-          </div>
-          <p v-if="usernameError" class="text-sm text-destructive" role="alert">{{ usernameError }}</p>
-          <p v-if="usernameSuccess" class="text-sm text-success" role="status">Username updated.</p>
-          <Button type="submit" :disabled="usernameSubmitting">Update username</Button>
-        </form>
-      </CardContent>
-    </Card>
+    <div class="grid flex-1 items-stretch gap-4 md:grid-cols-2">
+      <Card class="flex flex-col">
+        <CardHeader class="p-5 pb-2">
+          <CardTitle>Password</CardTitle>
+          <CardDescription class="text-xs">
+            Change your password. You will be signed out of all sessions, including this one.
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="flex flex-1 flex-col p-5 pt-0">
+          <form class="flex flex-1 flex-col gap-3" novalidate @submit.prevent="onSubmit">
+            <div class="flex flex-col gap-1.5">
+              <Label for="current">Current password</Label>
+              <Input id="current" v-model="currentPassword" type="password" autocomplete="current-password" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="new">New password</Label>
+              <Input id="new" v-model="newPassword" type="password" autocomplete="new-password" />
+            </div>
+            <p v-if="formError" class="text-xs text-destructive" role="alert">{{ formError }}</p>
+            <p v-if="success" class="text-xs text-success" role="status">Password updated.</p>
+            <Button class="mt-auto" type="submit" :disabled="submitting">Update password</Button>
+          </form>
+        </CardContent>
+      </Card>
 
-    <Card class="mt-4">
-      <CardHeader>
-        <CardTitle>Appearance</CardTitle>
-        <CardDescription>Dark mode is saved to your account and applied after sign-in. The sign-in page always stays light.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div class="flex items-center justify-between gap-4">
-          <Label for="dark-mode">Dark mode</Label>
-          <Switch id="dark-mode" :model-value="darkMode" @update:model-value="onToggleDarkMode" />
-        </div>
-        <p v-if="themeError" class="mt-3 text-sm text-destructive" role="alert">{{ themeError }}</p>
-      </CardContent>
-    </Card>
-    <Card v-if="isDoctor" class="mt-4">
-      <CardHeader>
-        <CardTitle>My on-call profile</CardTitle>
-        <CardDescription>Your doctor profile (read-only).</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p v-if="doctorError" class="text-sm text-destructive" role="alert">{{ doctorError }}</p>
-        <dl v-else-if="myDoctor" class="grid grid-cols-2 gap-y-2 text-sm">
-          <dt class="text-muted-foreground">Email</dt>
-          <dd>{{ myDoctor.email }}</dd>
-          <dt class="text-muted-foreground">Status</dt>
-          <dd>{{ myDoctor.isActive ? 'active' : 'disabled' }}</dd>
-          <dt class="text-muted-foreground">Max monthly duties</dt>
-          <dd class="font-mono">{{ myDoctor.maxMonthlyDuties }}</dd>
-        </dl>
-      </CardContent>
-    </Card>
+      <Card v-if="isDoctor" class="flex flex-col">
+        <CardHeader class="p-5 pb-2">
+          <CardTitle>Username</CardTitle>
+          <CardDescription class="text-xs">
+            Change the username you use to sign in. No password is needed.
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="flex flex-1 flex-col p-5 pt-0">
+          <form class="flex flex-1 flex-col gap-3" novalidate @submit.prevent="onSubmitUsername">
+            <div class="flex flex-col gap-1.5">
+              <Label for="username">Username</Label>
+              <Input id="username" v-model="newUsername" autocomplete="username" />
+            </div>
+            <p v-if="usernameError" class="text-xs text-destructive" role="alert">{{ usernameError }}</p>
+            <p v-if="usernameSuccess" class="text-xs text-success" role="status">Username updated.</p>
+            <Button class="mt-auto" type="submit" :disabled="usernameSubmitting">Update username</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card class="flex flex-col">
+        <CardHeader class="p-5 pb-2">
+          <CardTitle>Appearance</CardTitle>
+          <CardDescription class="text-xs">
+            Dark mode is saved to your account and applied after sign-in. The sign-in page always stays light.
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="flex flex-1 flex-col p-5 pt-0">
+          <div class="flex items-center justify-between gap-4">
+            <Label for="dark-mode">Dark mode</Label>
+            <Switch id="dark-mode" :model-value="darkMode" @update:model-value="onToggleDarkMode" />
+          </div>
+          <p v-if="themeError" class="mt-3 text-xs text-destructive" role="alert">{{ themeError }}</p>
+        </CardContent>
+      </Card>
+
+      <Card v-if="isDoctor" class="flex flex-col">
+        <CardHeader class="p-5 pb-2">
+          <CardTitle>My on-call profile</CardTitle>
+          <CardDescription class="text-xs">Your doctor profile (read-only).</CardDescription>
+        </CardHeader>
+        <CardContent class="flex flex-1 flex-col p-5 pt-0">
+          <p v-if="doctorError" class="text-xs text-destructive" role="alert">{{ doctorError }}</p>
+          <dl v-else-if="myDoctor" class="grid grid-cols-2 gap-y-1.5 text-sm">
+            <dt class="text-muted-foreground">Email</dt>
+            <dd class="truncate">{{ myDoctor.email }}</dd>
+            <dt class="text-muted-foreground">Status</dt>
+            <dd>{{ myDoctor.isActive ? 'active' : 'disabled' }}</dd>
+            <dt class="text-muted-foreground">Max monthly duties</dt>
+            <dd class="font-mono">{{ myDoctor.maxMonthlyDuties }}</dd>
+          </dl>
+        </CardContent>
+      </Card>
+    </div>
   </div>
 </template>
