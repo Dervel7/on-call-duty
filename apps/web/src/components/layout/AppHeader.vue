@@ -1,8 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type Component } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { LogOut } from 'lucide-vue-next'
+import {
+  BarChart3,
+  CalendarCheck2,
+  CalendarClock,
+  CalendarDays,
+  CalendarOff,
+  Gauge,
+  History,
+  House,
+  LogOut,
+  UserRound,
+  Users,
+} from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import Avatar from '@/components/ui/Avatar.vue'
+import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 
 const auth = useAuthStore()
@@ -15,23 +29,26 @@ async function onLogout() {
 }
 
 const navItems = computed(() => {
-  const items: { to: string; label: string }[] = [{ to: '/', label: 'Home' }]
+  const items: { to: string; label: string; icon: Component }[] = [{ to: '/', label: 'Home', icon: House }]
   if (auth.isAuthenticated && !auth.isAdmin) {
-    items.push({ to: '/roster', label: 'Duty roster' })
-    items.push({ to: '/my-availability', label: 'My availability' })
+    items.push({ to: '/roster', label: 'Duty roster', icon: CalendarCheck2 })
+    items.push({ to: '/my-availability', label: 'My availability', icon: CalendarClock })
   }
   if (auth.isAdmin) {
     items.push(
-      { to: '/users', label: 'Users' },
-      { to: '/availability', label: 'Availability' },
-      { to: '/schedules', label: 'Schedules' },
-      { to: '/reports', label: 'Reports' },
+      { to: '/users', label: 'Users', icon: Users },
+      { to: '/availability', label: 'Availability', icon: CalendarOff },
+      { to: '/schedules', label: 'Schedules', icon: CalendarDays },
+      { to: '/reports', label: 'Reports', icon: BarChart3 },
     )
   }
   if (auth.isSuperadmin) {
-    items.push({ to: '/activity', label: 'Activity' }, { to: '/usage', label: 'Usage' })
+    items.push(
+      { to: '/activity', label: 'Activity', icon: History },
+      { to: '/usage', label: 'Usage', icon: Gauge },
+    )
   }
-  items.push({ to: '/profile', label: 'Profile' })
+  items.push({ to: '/profile', label: 'Profile', icon: UserRound })
   return items
 })
 
@@ -39,16 +56,13 @@ function isActive(to: string): boolean {
   if (to === '/') return route.path === '/'
   return route.path === to || route.path.startsWith(to + '/')
 }
-
-const initials = computed(() => {
-  if (!auth.user) return ''
-  return `${auth.user.firstName.charAt(0)}${auth.user.lastName.charAt(0)}`.toUpperCase()
-})
 </script>
 
 <template>
-  <header class="sticky top-0 z-40 w-full border-b border-border bg-background/85 backdrop-blur-md">
-    <div class="flex h-16 w-full items-center gap-6 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
+  <header
+    class="sticky top-0 z-40 w-full border-b border-border/70 bg-background/80 shadow-header backdrop-blur-xl"
+  >
+    <div class="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
       <RouterLink to="/" class="group flex shrink-0 items-center gap-2.5">
         <span class="brand-tile transition-transform duration-200 group-hover:scale-105">
           <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" aria-hidden="true">
@@ -71,7 +85,7 @@ const initials = computed(() => {
 
       <nav
         v-if="auth.isAuthenticated"
-        class="flex flex-1 flex-wrap items-center gap-x-4 gap-y-1 overflow-x-auto"
+        class="hidden md:flex flex-1 items-center gap-1 overflow-x-auto no-scrollbar"
       >
         <RouterLink
           v-for="item in navItems"
@@ -79,6 +93,7 @@ const initials = computed(() => {
           :to="item.to"
           :class="['nav-link', { 'is-active': isActive(item.to) }]"
         >
+          <component :is="item.icon" class="size-4 shrink-0" aria-hidden="true" />
           {{ item.label }}
         </RouterLink>
       </nav>
@@ -88,19 +103,11 @@ const initials = computed(() => {
           <div
             class="hidden items-center gap-2.5 rounded-full border border-border bg-card py-1 pl-1 pr-3 shadow-card sm:flex"
           >
-            <span
-              class="grid h-7 w-7 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary"
-            >
-              {{ initials }}
-            </span>
+            <Avatar :name="`${auth.user.firstName} ${auth.user.lastName}`" size="sm" />
             <span class="text-sm text-foreground">
               {{ auth.user.firstName }} {{ auth.user.lastName }}
             </span>
-            <span
-              class="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
-            >
-              {{ auth.user.role }}
-            </span>
+            <Badge variant="outline">{{ auth.user.role }}</Badge>
           </div>
           <Button size="sm" variant="outline" @click="onLogout">
             <LogOut class="h-4 w-4" />
@@ -109,5 +116,19 @@ const initials = computed(() => {
         </template>
       </div>
     </div>
+    <nav
+      v-if="auth.isAuthenticated"
+      class="md:hidden flex items-center gap-1 overflow-x-auto no-scrollbar border-t border-border/60 px-3 py-2"
+    >
+      <RouterLink
+        v-for="item in navItems"
+        :key="item.to"
+        :to="item.to"
+        :class="['nav-link', { 'is-active': isActive(item.to) }]"
+      >
+        <component :is="item.icon" class="size-4 shrink-0" aria-hidden="true" />
+        {{ item.label }}
+      </RouterLink>
+    </nav>
   </header>
 </template>

@@ -5,7 +5,7 @@ import AppHeader from './AppHeader.vue'
 <template>
   <div class="min-h-screen">
     <AppHeader />
-    <main class="w-full px-4 py-8 sm:px-6 lg:px-8 lg:py-10 xl:px-10 2xl:px-12">
+    <main class="mx-auto w-full max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <slot />
     </main>
   </div>
