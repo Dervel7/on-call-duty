@@ -186,7 +186,7 @@ onMounted(load)
           <CardContent class="flex flex-col gap-2">
             <p class="flex flex-wrap items-baseline gap-2">
               <span class="text-3xl font-bold tracking-tight tabular-nums">{{ report.coverage.filled }} / {{ report.coverage.daysInMonth }}</span>
-              <span class="text-sm font-medium text-muted-foreground">days fully staffed</span>
+              <span class="text-sm font-medium text-muted-foreground"> days fully staffed</span>
             </p>
             <div class="h-2.5 w-full rounded-full bg-muted">
               <div
