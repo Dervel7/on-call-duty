@@ -173,8 +173,9 @@ async function openCalendar() {
  * Saving is scoped to the marked days. Creating groups the marked days into
  * consecutive ranges, one record per range. Editing opens from a single day
  * chip: only that chip's day can be removed there (unmarking it shrinks or
- * splits the record, or deletes it when no day remains), the record's other
- * days are never touched, and newly marked days become additional records.
+ * splits the record, or deletes it when no day remains; split-off segments
+ * keep the record's disabled flag), the record's other days are never
+ * touched, and newly marked days become additional records.
  */
 async function save() {
   const st = edit.value
@@ -197,6 +198,9 @@ async function save() {
         ? st.originDays.filter((d) => d !== st.chipDay)
         : st.originDays
       const additions = st.days.filter((d) => !st.originDays.includes(d) && !reserved.has(d))
+      // Created records start enabled: a disabled record's split-off segments
+      // must be re-disabled so the remaining days keep their state.
+      const wasDisabled = records.value.find((r) => r.id === st.id)?.isDisabled ?? false
       if (keptDays.length === 0) {
         // The record's only day was unmarked.
         await unavailabilityService.remove(st.id)
@@ -206,7 +210,8 @@ async function save() {
         const segments = groupConsecutiveDays(keptDays)
         await unavailabilityService.update(st.id, segments[0]!)
         for (const segment of segments.slice(1)) {
-          await unavailabilityService.createForDoctor(doctorId, segment)
+          const created = await unavailabilityService.createForDoctor(doctorId, segment)
+          if (wasDisabled) await unavailabilityService.setDisabled(created.id, true)
         }
       }
       for (const range of groupConsecutiveDays(additions)) {
@@ -248,12 +253,29 @@ async function removeCurrent() {
   await load()
 }
 
-/** Disables/re-enables the record currently open in the edit dialog. */
+/**
+ * Disables/re-enables the single day the dialog was opened from. A multi-day
+ * record is split first: the day becomes its own record with the flag
+ * flipped, and the record's remaining days keep its previous flag.
+ */
 async function toggleDisabledCurrent() {
   const x = records.value.find((r) => r.id === edit.value.id)
   if (!x) return
+  const day = edit.value.chipDay ?? x.startDate
   toggling.value = true
   try {
+    const others = eachDay(x.startDate, x.endDate).filter((d) => d !== day)
+    if (others.length > 0) {
+      // Split: shrink the record to just this day, then re-create its other
+      // days as their own records.
+      await unavailabilityService.update(x.id, { startDate: day, endDate: day })
+      for (const segment of groupConsecutiveDays(others)) {
+        const created = await unavailabilityService.createForDoctor(x.doctorId, segment)
+        // Created records start enabled; keep the others disabled when the
+        // record was disabled.
+        if (x.isDisabled) await unavailabilityService.setDisabled(created.id, true)
+      }
+    }
     await unavailabilityService.setDisabled(x.id, !x.isDisabled)
   } catch (e) {
     edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to update availability'

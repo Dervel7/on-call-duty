@@ -251,6 +251,29 @@ describe('AvailabilityPage', () => {
     wrapper.unmount()
   })
 
+  it('unmarking the chip day of a disabled record keeps the split-off days disabled', async () => {
+    doctorList.mockResolvedValue([])
+    listAll.mockResolvedValue([{ ...record, isDisabled: true }])
+    update.mockResolvedValue({})
+    createForDoctor.mockResolvedValue({ id: 9 })
+    setDisabled.mockResolvedValue({})
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === '2026-09-09')!.trigger('click')
+    await flushPromises()
+    bodyButton('Select days')!.click()
+    await flushPromises()
+    await pickDays(['2026-09-09'])
+    bodyButton('Save')!.click()
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(1, { startDate: '2026-09-07', endDate: '2026-09-08' })
+    expect(createForDoctor).toHaveBeenCalledWith(5, { startDate: '2026-09-10', endDate: '2026-09-11' })
+    expect(setDisabled).toHaveBeenCalledTimes(1)
+    expect(setDisabled).toHaveBeenCalledWith(9, true)
+    wrapper.unmount()
+  })
+
   it('unmarking the chip day of a single-day record deletes it', async () => {
     doctorList.mockResolvedValue([])
     listAll.mockResolvedValue([{ ...record, startDate: '2026-09-07', endDate: '2026-09-07' }])
@@ -393,9 +416,11 @@ describe('AvailabilityPage', () => {
     wrapper.unmount()
   })
 
-  it('shows Enable in the edit dialog of a disabled record and re-enables it', async () => {
+  it('shows Enable in the edit dialog of a disabled record and re-enables only that day', async () => {
     doctorList.mockResolvedValue([doctor])
     listAll.mockResolvedValue([{ ...record, isDisabled: true }])
+    update.mockResolvedValue({})
+    createForDoctor.mockResolvedValue({ id: 9 })
     setDisabled.mockResolvedValue({})
     const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
@@ -406,26 +431,63 @@ describe('AvailabilityPage', () => {
     expect(bodyButton('Disable')).toBeUndefined()
     bodyButton('Enable')!.click()
     await flushPromises()
-    expect(setDisabled).toHaveBeenCalledWith(1, false)
+    // The record splits: the chip day is re-enabled, the other days stay
+    // disabled in their own new record.
+    expect(update).toHaveBeenCalledWith(1, { startDate: '2026-09-07', endDate: '2026-09-07' })
+    expect(createForDoctor).toHaveBeenCalledWith(5, {
+      startDate: '2026-09-08',
+      endDate: '2026-09-11',
+    })
+    expect(setDisabled).toHaveBeenNthCalledWith(1, 9, true)
+    expect(setDisabled).toHaveBeenNthCalledWith(2, 1, false)
     expect(bodyButton('Save')).toBeUndefined()
-    expect(listAll).toHaveBeenCalledTimes(3)
     wrapper.unmount()
   })
 
-  it('shows Disable in the edit dialog of an active record and disables it', async () => {
+  it('disabling one day of a multi-day record splits around it and flips only that day', async () => {
     doctorList.mockResolvedValue([doctor])
     listAll.mockResolvedValue([record])
+    update.mockResolvedValue({})
+    createForDoctor.mockResolvedValue({ id: 9 })
+    setDisabled.mockResolvedValue({})
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === '2026-09-09')!.trigger('click')
+    await flushPromises()
+    expect(bodyButton('Disable')).toBeTruthy()
+    bodyButton('Disable')!.click()
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(1, { startDate: '2026-09-09', endDate: '2026-09-09' })
+    expect(createForDoctor).toHaveBeenNthCalledWith(1, 5, {
+      startDate: '2026-09-07',
+      endDate: '2026-09-08',
+    })
+    expect(createForDoctor).toHaveBeenNthCalledWith(2, 5, {
+      startDate: '2026-09-10',
+      endDate: '2026-09-11',
+    })
+    // Only the chip day's record is disabled; the split-off days stay enabled.
+    expect(setDisabled).toHaveBeenCalledTimes(1)
+    expect(setDisabled).toHaveBeenCalledWith(1, true)
+    expect(bodyButton('Save')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('toggling a single-day record flips it without splitting', async () => {
+    doctorList.mockResolvedValue([doctor])
+    listAll.mockResolvedValue([{ ...record, startDate: '2026-09-07', endDate: '2026-09-07' }])
     setDisabled.mockResolvedValue({})
     const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
     await wrapper.findAll('button').find((b) => b.text() === '2026-09-07')!.trigger('click')
     await flushPromises()
-    expect(bodyButton('Disable')).toBeTruthy()
-    expect(bodyButton('Enable')).toBeUndefined()
     bodyButton('Disable')!.click()
     await flushPromises()
     expect(setDisabled).toHaveBeenCalledWith(1, true)
+    expect(update).not.toHaveBeenCalled()
+    expect(createForDoctor).not.toHaveBeenCalled()
     expect(bodyButton('Save')).toBeUndefined()
     wrapper.unmount()
   })
