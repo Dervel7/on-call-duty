@@ -2,14 +2,19 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import type { ActivityLogEntry, ActivityQuery, PaginatedActivity, User } from '@oncall/shared'
 import { ACTIVITY_ACTIONS } from '@oncall/shared'
+import { History } from 'lucide-vue-next'
 import * as activityService from '@/services/activity'
 import * as userService from '@/services/user'
+import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import Label from '@/components/ui/Label.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
 import Select from '@/components/ui/Select.vue'
+import Spinner from '@/components/ui/Spinner.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -122,7 +127,7 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col gap-4">
-    <h1 class="text-xl font-semibold text-foreground">User Activity</h1>
+    <PageHeader :icon="History" title="User Activity" subtitle="Audit trail of user actions" />
 
     <Card>
       <CardContent class="grid gap-4 p-6 pt-6 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
@@ -158,7 +163,7 @@ onMounted(() => {
       </CardContent>
     </Card>
 
-    <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
+    <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Spinner :size="16" /> Loading…</div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <Table>
@@ -176,19 +181,10 @@ onMounted(() => {
           <TableCell class="whitespace-nowrap">{{ formatTime(x.createdAt) }}</TableCell>
           <TableCell>
             <span>{{ actorName(x) }}</span>
-            <span
-              v-if="x.actor"
-              class="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
-            >
-              {{ x.actor.role }}
-            </span>
+            <Badge v-if="x.actor" variant="outline" class="ml-2">{{ x.actor.role }}</Badge>
           </TableCell>
           <TableCell>
-            <span
-              class="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary"
-            >
-              {{ x.action }}
-            </span>
+            <Badge variant="primary">{{ x.action }}</Badge>
           </TableCell>
           <TableCell class="whitespace-nowrap">{{ entityText(x) }}</TableCell>
           <TableCell>
@@ -204,9 +200,10 @@ onMounted(() => {
       </TableBody>
     </Table>
 
-    <p v-if="data && data.items.length === 0 && !loading" class="text-sm text-muted-foreground">
-      No activity found.
-    </p>
+    <EmptyState
+      v-if="data && data.items.length === 0 && !loading"
+      title="No activity found."
+    />
 
     <div v-if="data && data.total > 0" class="flex items-center justify-between">
       <span class="text-sm text-muted-foreground">{{ rangeText }}</span>

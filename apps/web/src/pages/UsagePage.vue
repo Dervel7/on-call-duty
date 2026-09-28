@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { BillingState, GenerationEvent, OperatorAlert } from '@oncall/shared'
+import { Gauge } from 'lucide-vue-next'
 import * as billingService from '@/services/billing'
 import * as usageService from '@/services/usage'
+import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -10,6 +12,8 @@ import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
 import Label from '@/components/ui/Label.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import Spinner from '@/components/ui/Spinner.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -93,9 +97,9 @@ onMounted(loadBilling)
 
 <template>
   <div class="flex flex-col gap-4">
-    <h1 class="text-xl font-semibold text-foreground">Usage</h1>
+    <PageHeader :icon="Gauge" title="Usage" subtitle="Billing, generations, and alerts" />
 
-    <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
+    <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Spinner :size="16" /> Loading…</div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <Card>
@@ -108,14 +112,9 @@ onMounted(loadBilling)
             Paid through:
             <span class="text-foreground">{{ billing?.paidThrough ?? 'Not set' }}</span>
           </p>
-          <span
-            v-if="billing"
-            :class="[
-              'rounded-full px-2 py-0.5 text-[11px] font-semibold',
-              billing.locked ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary',
-            ]">
+          <Badge v-if="billing" :variant="billing.locked ? 'destructive' : 'success'" dot>
             {{ billing.locked ? 'Locked' : 'Active' }}
-          </span>
+          </Badge>
         </div>
         <form class="flex items-end gap-2" novalidate @submit.prevent="saveBilling">
           <div class="flex flex-col gap-1">
@@ -186,7 +185,7 @@ onMounted(loadBilling)
               <TableCell>{{ new Date(a.createdAt).toLocaleString() }}</TableCell>
               <TableCell>{{ a.type }}</TableCell>
               <TableCell>{{ JSON.stringify(a.detail) }}</TableCell>
-              <TableCell>{{ a.resolvedAt ? 'resolved' : 'open' }}</TableCell>
+              <TableCell><Badge :variant="a.resolvedAt ? 'neutral' : 'warning'">{{ a.resolvedAt ? 'resolved' : 'open' }}</Badge></TableCell>
               <TableCell class="text-right">
                 <Button size="sm" variant="outline" :disabled="a.resolvedAt !== null" @click="resolve(a)">
                   Resolve

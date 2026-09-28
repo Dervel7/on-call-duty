@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { CalendarClock } from 'lucide-vue-next'
 import type { Unavailability } from '@oncall/shared'
 import { eachDay, groupConsecutiveDays, monthRange, nextMonthIso } from '@oncall/utils'
 import * as unavailabilityService from '@/services/unavailability'
 import Button from '@/components/ui/Button.vue'
 import CalendarDialog from '@/components/ui/CalendarDialog.vue'
 import Dialog from '@/components/ui/Dialog.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import Label from '@/components/ui/Label.vue'
 import MonthPicker from '@/components/ui/MonthPicker.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import Spinner from '@/components/ui/Spinner.vue'
 import { useConfirm } from '@/composables/useConfirm'
 
 const records = ref<Unavailability[]>([])
@@ -190,10 +194,11 @@ onMounted(load)
 
 <template>
   <div class="flex flex-col gap-4">
-    <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-foreground">My availability</h1>
-      <Button @click="openCreate">New exclusion</Button>
-    </div>
+    <PageHeader :icon="CalendarClock" title="My availability" subtitle="Days you can't take duty">
+      <template #actions>
+        <Button @click="openCreate">New exclusion</Button>
+      </template>
+    </PageHeader>
 
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
@@ -202,11 +207,16 @@ onMounted(load)
       </div>
     </div>
 
-    <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
+    <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+      <Spinner :size="16" />
+      Loading…
+    </div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
-    <p v-else-if="visibleDays.length === 0 && !loading" class="text-sm text-muted-foreground">
-      No exclusions for the selected month.
-    </p>
+    <EmptyState
+      v-else-if="visibleDays.length === 0 && !loading"
+      :icon="CalendarClock"
+      title="No exclusions for the selected month."
+    />
 
     <div
       v-if="visibleDays.length > 0"

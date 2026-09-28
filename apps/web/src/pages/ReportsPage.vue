@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { BarChart3 } from 'lucide-vue-next'
 import type { Duty, MonthlyReport } from '@oncall/shared'
 import { dutiesToCsv } from '@oncall/utils'
+import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -10,7 +12,9 @@ import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
 import Select from '@/components/ui/Select.vue'
+import Spinner from '@/components/ui/Spinner.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
@@ -77,10 +81,10 @@ const maxInSet = computed(() =>
 )
 const fairnessBadge = computed(() => {
   const s = report.value?.fairness.dutySpread ?? null
-  if (s === null) return { text: 'N/A', class: 'bg-muted text-muted-foreground' }
+  if (s === null) return { text: 'N/A', variant: 'neutral' as const }
   return s <= 1
-    ? { text: 'Well balanced', class: 'bg-primary/10 text-primary' }
-    : { text: 'Imbalanced — review workload', class: 'bg-destructive/10 text-destructive' }
+    ? { text: 'Well balanced', variant: 'success' as const }
+    : { text: 'Imbalanced — review workload', variant: 'destructive' as const }
 })
 
 function fmtGenerated(iso: string): string {
@@ -145,7 +149,7 @@ onMounted(load)
       <Button variant="outline" @click="load">Apply</Button>
     </div>
 
-    <p v-if="loading" class="no-print text-sm text-muted-foreground">Loading…</p>
+    <div v-if="loading" class="no-print flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Spinner :size="16" /> Loading…</div>
     <p v-if="errorMsg" class="no-print text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <Card v-if="report && !report.schedule">
@@ -165,27 +169,31 @@ onMounted(load)
       </div>
 
       <div class="flex flex-col gap-1">
-        <h1 class="text-xl font-semibold text-foreground">On-Call Duty</h1>
+        <PageHeader :icon="BarChart3" title="On-Call Duty" subtitle="Monthly duty report and exports">
+          <template #actions>
+            <div class="flex flex-wrap items-center gap-3">
+              <Badge :variant="isPublished ? 'primary' : 'neutral'" dot>{{ isPublished ? 'Published' : 'Draft' }}</Badge>
+              <span class="text-xs text-muted-foreground">Generated {{ fmtGenerated(report.generatedAt) }}</span>
+            </div>
+          </template>
+        </PageHeader>
         <p class="text-lg font-medium text-foreground">{{ monthLabel }}</p>
-        <div class="flex flex-wrap items-center gap-3">
-          <span
-            :class="isPublished
-              ? 'inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary'
-              : 'inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'"
-          >
-            {{ isPublished ? 'Published' : 'Draft' }}
-          </span>
-          <span class="text-xs text-muted-foreground">Generated {{ fmtGenerated(report.generatedAt) }}</span>
-        </div>
       </div>
 
       <div class="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>Coverage</CardTitle></CardHeader>
           <CardContent class="flex flex-col gap-2">
-            <p class="text-2xl font-semibold text-foreground">
-              {{ report.coverage.filled }} / {{ report.coverage.daysInMonth }} days fully staffed
+            <p class="flex flex-wrap items-baseline gap-2">
+              <span class="text-3xl font-bold tracking-tight tabular-nums">{{ report.coverage.filled }} / {{ report.coverage.daysInMonth }}</span>
+              <span class="text-sm font-medium text-muted-foreground">days fully staffed</span>
             </p>
+            <div class="h-2.5 w-full rounded-full bg-muted">
+              <div
+                class="h-2.5 rounded-full bg-brand-gradient"
+                :style="{ width: `${(report.coverage.filled / report.coverage.daysInMonth) * 100}%` }"
+              ></div>
+            </div>
             <p v-if="report.coverage.gaps.length > 0" class="text-sm text-destructive">
               Understaffed days: {{ report.coverage.gaps.join(', ') }}
             </p>
@@ -197,12 +205,8 @@ onMounted(load)
           <CardHeader><CardTitle>Fairness</CardTitle></CardHeader>
           <CardContent class="flex flex-col gap-2">
             <p class="text-sm text-muted-foreground">Duty spread (max − min across assigned doctors)</p>
-            <p class="text-2xl font-semibold text-foreground">{{ report.fairness.dutySpread ?? 'N/A' }}</p>
-            <span
-              :class="`inline-flex w-fit items-center rounded-md px-2 py-0.5 text-xs font-medium ${fairnessBadge.class}`"
-            >
-              {{ fairnessBadge.text }}
-            </span>
+            <p class="text-3xl font-bold tracking-tight tabular-nums">{{ report.fairness.dutySpread ?? 'N/A' }}</p>
+            <Badge :variant="fairnessBadge.variant" class="w-fit">{{ fairnessBadge.text }}</Badge>
             <p class="text-xs text-muted-foreground">
               Weekend spread {{ report.fairness.weekendSpread ?? 'N/A' }}
             </p>
@@ -231,18 +235,13 @@ onMounted(load)
                 </TableCell>
                 <TableCell>
                   <div class="flex flex-wrap gap-1">
-                    <span
-                      v-if="r.isWeekend"
-                      class="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
-                    >
-                      Weekend
-                    </span>
-                    <span
+                    <Badge v-if="r.isWeekend" variant="primary">Weekend</Badge>
+                    <Badge
                       v-if="r.duties.length < 2"
-                      class="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+                      :variant="r.duties.length === 0 ? 'destructive' : 'warning'"
                     >
                       {{ r.duties.length === 0 ? 'Gap day' : '1 of 2' }}
-                    </span>
+                    </Badge>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -272,18 +271,13 @@ onMounted(load)
                   <span :class="w.isActive ? 'text-foreground' : 'text-muted-foreground'">
                     {{ w.firstName }} {{ w.lastName }}
                   </span>
-                  <span
-                    v-if="!w.isActive"
-                    class="ml-2 inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
-                  >
-                    inactive
-                  </span>
+                  <Badge v-if="!w.isActive" variant="neutral" class="ml-2">inactive</Badge>
                 </TableCell>
                 <TableCell>
                   <div class="flex items-center gap-2">
-                    <div class="h-2 w-24 rounded bg-muted">
+                    <div class="h-2.5 w-24 rounded-full bg-muted">
                       <div
-                        class="h-2 rounded bg-primary/20"
+                        class="h-2.5 rounded-full bg-brand-gradient"
                         :style="{ width: `${(w.duties / maxInSet) * 100}%` }"
                       ></div>
                     </div>

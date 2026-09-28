@@ -6,10 +6,14 @@ import { createScheduleSchema } from '@oncall/shared'
 import { useAuthStore } from '@/stores/auth'
 import * as scheduleService from '@/services/schedule'
 import { ApiError } from '@/lib/http'
+import { CalendarDays } from 'lucide-vue-next'
+import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import Spinner from '@/components/ui/Spinner.vue'
 import Select from '@/components/ui/Select.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
@@ -106,10 +110,11 @@ onMounted(load)
 
 <template>
   <div class="flex flex-col gap-4">
-    <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-foreground">Schedules</h1>
-      <Button v-if="auth.isAdmin" @click="openGenerate">New schedule</Button>
-    </div>
+    <PageHeader :icon="CalendarDays" title="Schedules" subtitle="Generate, review, and publish monthly rosters">
+      <template #actions>
+        <Button v-if="auth.isAdmin" @click="openGenerate">New schedule</Button>
+      </template>
+    </PageHeader>
 
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
@@ -119,7 +124,10 @@ onMounted(load)
       <Button variant="outline" @click="load">Apply</Button>
     </div>
 
-    <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
+    <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+      <Spinner :size="16" />
+      Loading…
+    </div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <Table>
@@ -135,12 +143,9 @@ onMounted(load)
         <TableRow v-for="s in records" :key="s.id">
           <TableCell>{{ monthLabel(s.year, s.month) }}</TableCell>
           <TableCell>
-            <span
-              :class="s.status === 'published'
-                ? 'inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary'
-                : 'inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'">
+            <Badge :variant="s.status === 'published' ? 'success' : 'neutral'" dot>
               {{ s.status === 'published' ? 'Published' : 'Draft' }}
-            </span>
+            </Badge>
           </TableCell>
           <TableCell>{{ s.createdAt.slice(0, 10) }}</TableCell>
           <TableCell class="text-right">

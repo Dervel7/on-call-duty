@@ -16,16 +16,21 @@ import {
 } from '@oncall/shared'
 import * as doctorService from '@/services/doctor'
 import * as userService from '@/services/user'
+import { Users } from 'lucide-vue-next'
+import Avatar from '@/components/ui/Avatar.vue'
+import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
+import Spinner from '@/components/ui/Spinner.vue'
 import Table from '@/components/ui/Table.vue'
 import TableBody from '@/components/ui/TableBody.vue'
 import TableCell from '@/components/ui/TableCell.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
 import { useConfirm } from '@/composables/useConfirm'
 
 // Every account created through this form starts with the same initial
@@ -253,12 +258,16 @@ onMounted(load)
 
 <template>
   <div class="flex flex-col gap-4">
-    <div class="flex items-center justify-between">
-      <h1 class="text-xl font-semibold text-foreground">Users</h1>
-      <Button @click="openCreate">New user</Button>
-    </div>
+    <PageHeader :icon="Users" title="Users" subtitle="Manage doctor accounts and duty caps">
+      <template #actions>
+        <Button @click="openCreate">New user</Button>
+      </template>
+    </PageHeader>
 
-    <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
+    <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+      <Spinner :size="16" />
+      Loading…
+    </div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <Table>
@@ -274,13 +283,22 @@ onMounted(load)
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow v-for="u in visibleUsers" :key="u.id" :class="u.isActive ? undefined : 'bg-destructive/10'">
-          <TableCell>{{ u.firstName }} {{ u.lastName }}</TableCell>
+        <TableRow v-for="u in visibleUsers" :key="u.id" :class="u.isActive ? undefined : 'bg-destructive/[0.06]'">
+          <TableCell>
+            <span class="flex items-center gap-2.5">
+              <Avatar :name="`${u.firstName} ${u.lastName}`" size="sm" />
+              {{ u.firstName }} {{ u.lastName }}
+            </span>
+          </TableCell>
           <TableCell>{{ u.email }}</TableCell>
           <TableCell>{{ u.username }}</TableCell>
-          <TableCell>{{ u.role }}</TableCell>
+          <TableCell>
+            <Badge variant="outline">{{ u.role }}</Badge>
+          </TableCell>
           <TableCell>{{ doctorByUserId.get(u.id)?.maxMonthlyDuties ?? '—' }}</TableCell>
-          <TableCell>{{ u.isActive ? 'active' : 'disabled' }}</TableCell>
+          <TableCell>
+            <Badge :variant="u.isActive ? 'success' : 'neutral'" dot>{{ u.isActive ? 'active' : 'disabled' }}</Badge>
+          </TableCell>
           <TableCell class="text-right">
             <div class="inline-flex gap-2">
               <Button size="sm" variant="outline" @click="openUpdate(u)">Edit</Button>
