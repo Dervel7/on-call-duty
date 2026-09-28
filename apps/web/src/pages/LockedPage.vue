@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Lock } from 'lucide-vue-next'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import CardDescription from '@/components/ui/CardDescription.vue'
@@ -12,8 +13,11 @@ import CardTitle from '@/components/ui/CardTitle.vue'
       class="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background-tint to-accent/10">
     </div>
 
-    <Card class="w-full max-w-md shadow-pop">
+    <Card class="w-full max-w-md rounded-2xl shadow-pop">
       <CardHeader class="items-center text-center">
+        <div class="grid h-12 w-12 place-items-center rounded-2xl bg-muted text-muted-foreground">
+          <Lock class="size-6" />
+        </div>
         <CardTitle>System locked</CardTitle>
         <CardDescription>The system is locked. Contact your service provider.</CardDescription>
       </CardHeader>
