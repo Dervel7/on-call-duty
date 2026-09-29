@@ -101,6 +101,50 @@ CROSS JOIN LATERAL (
 WHERE u.is_deleted = FALSE
   AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id);
 
+-- Real exclusions entered by the administrator (October 2026). Re-seeding
+-- resets the database, so these are pinned here to survive every reset.
+-- Regenerate this block with `pnpm db:exclusions` after editing in the UI.
+INSERT INTO unavailability (doctor_id, start_date, end_date, is_disabled)
+SELECT d.id, w.start_date, w.end_date, w.is_disabled
+FROM (VALUES
+  ('dr1@oncall.local', DATE '2026-10-14', DATE '2026-10-18', FALSE),
+  ('dr2@oncall.local', DATE '2026-10-01', DATE '2026-10-04', FALSE),
+  ('dr2@oncall.local', DATE '2026-10-07', DATE '2026-10-10', FALSE),
+  ('dr3@oncall.local', DATE '2026-10-10', DATE '2026-10-12', FALSE),
+  ('dr3@oncall.local', DATE '2026-10-30', DATE '2026-10-31', FALSE),
+  ('dr4@oncall.local', DATE '2026-10-01', DATE '2026-10-03', FALSE),
+  ('dr4@oncall.local', DATE '2026-10-15', DATE '2026-10-15', FALSE),
+  ('dr4@oncall.local', DATE '2026-10-22', DATE '2026-10-26', FALSE),
+  ('dr4@oncall.local', DATE '2026-10-29', DATE '2026-10-29', FALSE),
+  ('dr5@oncall.local', DATE '2026-10-01', DATE '2026-10-03', FALSE),
+  ('dr5@oncall.local', DATE '2026-10-11', DATE '2026-10-11', FALSE),
+  ('dr5@oncall.local', DATE '2026-10-31', DATE '2026-10-31', FALSE),
+  ('dr6@oncall.local', DATE '2026-10-08', DATE '2026-10-08', FALSE),
+  ('dr6@oncall.local', DATE '2026-10-10', DATE '2026-10-10', FALSE),
+  ('dr6@oncall.local', DATE '2026-10-15', DATE '2026-10-15', FALSE),
+  ('dr6@oncall.local', DATE '2026-10-19', DATE '2026-10-20', FALSE),
+  ('dr6@oncall.local', DATE '2026-10-22', DATE '2026-10-22', FALSE),
+  ('dr6@oncall.local', DATE '2026-10-24', DATE '2026-10-26', FALSE),
+  ('dr6@oncall.local', DATE '2026-10-29', DATE '2026-10-29', FALSE),
+  ('dr7@oncall.local', DATE '2026-10-01', DATE '2026-10-01', FALSE),
+  ('dr7@oncall.local', DATE '2026-10-15', DATE '2026-10-15', FALSE),
+  ('dr7@oncall.local', DATE '2026-10-29', DATE '2026-10-29', FALSE),
+  ('dr8@oncall.local', DATE '2026-10-06', DATE '2026-10-08', FALSE),
+  ('dr8@oncall.local', DATE '2026-10-13', DATE '2026-10-13', FALSE),
+  ('dr8@oncall.local', DATE '2026-10-15', DATE '2026-10-15', FALSE),
+  ('dr8@oncall.local', DATE '2026-10-19', DATE '2026-10-22', FALSE),
+  ('dr9@oncall.local', DATE '2026-10-07', DATE '2026-10-07', FALSE),
+  ('dr9@oncall.local', DATE '2026-10-21', DATE '2026-10-27', FALSE)
+) AS w(email, start_date, end_date, is_disabled)
+JOIN users u ON u.email = w.email AND u.is_deleted = FALSE
+JOIN doctors d ON d.user_id = u.id
+WHERE NOT EXISTS (
+  SELECT 1 FROM unavailability x
+  WHERE x.doctor_id = d.id
+    AND x.start_date = w.start_date
+    AND x.end_date = w.end_date
+);
+
 -- Default Greek public holidays (Jan 1, Jan 6, Mar 25, Oct 28, Dec 25) for
 -- 2026 and 2027, for the single clinic. Idempotent.
 INSERT INTO holidays (clinic_id, holiday_date)
@@ -118,3 +162,11 @@ ON CONFLICT (clinic_id, holiday_date) DO NOTHING;
 INSERT INTO app_meta (key, value)
 VALUES ('billing_paid_through', to_char(CURRENT_DATE + INTERVAL '30 days', 'YYYY-MM-DD'))
 ON CONFLICT (key) DO NOTHING;
+
+-- Open on-call cycle: the first open on-call day (2026-10-02) and the days
+-- between open days (8). The interval is editable by administrators from the
+-- profile page; schedule previews/details classify days from these rows.
+INSERT INTO app_meta (key, value) VALUES
+  ('open_duty_anchor_date', '2026-10-02'),
+  ('open_duty_interval_days', '8')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();

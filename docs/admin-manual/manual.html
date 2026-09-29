@@ -150,7 +150,7 @@
     <li>Managing Availability <span class="d">Marking excluded days on the calendar</span></li>
     <li>Building a Schedule <span class="d">Preview → Generate → Edit → Publish</span></li>
     <li>Reports <span class="d">The monthly report, CSV export, and printing</span></li>
-    <li>Your Profile <span class="d">Changing your password, your username (doctors), and dark mode</span></li>
+    <li>Your Profile <span class="d">Changing your password, your username (doctors), dark mode, and the on-call cycle (administrators)</span></li>
     <li>Domain Rules &amp; the Scheduling Engine <span class="d">How assignments are produced and balanced</span></li>
     <li>Troubleshooting &amp; FAQ <span class="d">Common situations and how to resolve them</span></li>
     <li>Quick Reference &amp; Glossary <span class="d">Navigation map, field reference, key terms</span></li>
@@ -368,6 +368,11 @@ Use the <strong>Year</strong> filter to narrow the list.</p>
   <img src="screenshots/16-schedules-new-preview.png" alt="New schedule preview — no conflicts" />
   <figcaption><b>Figure 6.2</b> — A clean preview: “N day(s) ready to assign. No conflicts.” You can now generate.</figcaption>
 </figure>
+<p>The preview calendar marks every <strong>open on-call day</strong> with a red border and an
+<span class="pill red">OPEN</span> badge (see the legend above the calendar). Open days recur on a fixed cycle —
+the first one was 2&nbsp;October&nbsp;2026 and every 8th day after it is open again; all other days are closed
+on-call days. The spacing is a setting, not a fixed rule: administrators can change it on the
+<strong>Profile</strong> page (see 8.3).</p>
 
 <h2>6.3 Step 2 — Resolve conflicts if any</h2>
 <p>If some days cannot be filled, the preview shows a red conflict panel listing each unfillable date and why.
@@ -472,6 +477,14 @@ your other sessions are unaffected.</p>
 <h2>8.2 Dark mode</h2>
 <p>The <strong>Appearance</strong> card has a single <strong>Dark mode</strong> switch. Turning it on restyles every page of the application; turning it off returns to the light theme. The preference is saved to your account, so it follows you to any browser you sign in from — after signing in, the theme you last selected is applied automatically.</p>
 <div class="note info"><span class="t">Info</span>The sign-in page itself always uses the light theme, regardless of anyone's preference, so the login screen looks the same for everyone.</div>
+
+<h2>8.3 On-call duty cycle (administrators)</h2>
+<p>Administrators (and the superadmin) see an <strong>On-call duty cycle</strong> card. It controls how far apart
+<strong>open on-call days</strong> fall: enter the interval in days (1–365) and choose
+<span class="kbd">Save interval</span>. The first open on-call day is fixed — 2&nbsp;October&nbsp;2026 — and every
+Nth day after it is open; every change takes effect immediately in schedule previews and detail pages, and is
+recorded in the activity log. Doctors do not see this card.</p>
+<div class="note info"><span class="t">Info</span>With the seeded interval of 8, if a Monday is an open on-call day, the next open day is the Tuesday of the following week.</div>
 
 <!-- ============================ 9. DOMAIN RULES ============================ -->
 <h1 class="chapter"><span class="num">9.</span> Domain Rules &amp; the Scheduling Engine</h1>

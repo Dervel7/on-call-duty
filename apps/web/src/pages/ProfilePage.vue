@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import type { Doctor } from '@oncall/shared'
-import { changePasswordSchema, updateUsernameSchema } from '@oncall/shared'
+import type { Doctor, OpenDutySettings } from '@oncall/shared'
+import { changePasswordSchema, updateOpenDutySchema, updateUsernameSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import * as doctorService from '@/services/doctor'
+import * as settingsService from '@/services/settings'
 import Avatar from '@/components/ui/Avatar.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -37,6 +38,11 @@ const doctorError = ref('')
 const isDoctor = computed(() => auth.user?.role === 'doctor')
 const darkMode = computed(() => auth.user?.darkMode ?? false)
 const themeError = ref('')
+const openDuty = ref<OpenDutySettings | null>(null)
+const intervalInput = ref('')
+const intervalError = ref('')
+const intervalSuccess = ref(false)
+const intervalSubmitting = ref(false)
 
 async function loadMyDoctor() {
   if (!isDoctor.value) return
@@ -57,10 +63,41 @@ async function onToggleDarkMode(value: boolean) {
   }
 }
 
+async function loadOpenDuty() {
+  if (!auth.isAdmin) return
+  try {
+    openDuty.value = await settingsService.getOpenDuty()
+    intervalInput.value = String(openDuty.value.intervalDays)
+  } catch (e) {
+    intervalError.value = e instanceof Error ? e.message : 'Could not load on-call settings'
+  }
+}
+
+async function onSubmitInterval() {
+  intervalError.value = ''
+  intervalSuccess.value = false
+  const parsed = updateOpenDutySchema.safeParse({ intervalDays: intervalInput.value })
+  if (!parsed.success) {
+    intervalError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
+    return
+  }
+  intervalSubmitting.value = true
+  try {
+    openDuty.value = await settingsService.updateOpenDutyInterval(parsed.data.intervalDays)
+    intervalInput.value = String(openDuty.value.intervalDays)
+    intervalSuccess.value = true
+  } catch (e) {
+    intervalError.value = e instanceof Error ? e.message : 'Could not save interval'
+  } finally {
+    intervalSubmitting.value = false
+  }
+}
+
 onMounted(() => {
   // Doctors can rename themselves; start from the current username.
   if (isDoctor.value && auth.user) newUsername.value = auth.user.username
   loadMyDoctor()
+  loadOpenDuty()
 })
 
 async function onSubmit() {
@@ -176,6 +213,34 @@ async function onSubmitUsername() {
             <Switch id="dark-mode" :model-value="darkMode" @update:model-value="onToggleDarkMode" />
           </div>
           <p v-if="themeError" class="mt-3 text-xs text-destructive" role="alert">{{ themeError }}</p>
+        </CardContent>
+      </Card>
+
+      <Card v-if="auth.isAdmin" class="flex flex-col">
+        <CardHeader class="p-5 pb-2">
+          <CardTitle>On-call duty cycle</CardTitle>
+          <CardDescription class="text-xs">
+            Days between open on-call duties — the red-bordered days in schedules. The first open
+            on-call day is {{ openDuty?.anchorDate ?? '—' }}.
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="flex flex-1 flex-col p-5 pt-0">
+          <form class="flex flex-1 flex-col gap-3" novalidate @submit.prevent="onSubmitInterval">
+            <div class="flex flex-col gap-1.5">
+              <Label for="open-duty-interval">Interval (days)</Label>
+              <Input
+                id="open-duty-interval"
+                v-model="intervalInput"
+                type="number"
+                min="1"
+                max="365"
+                inputmode="numeric"
+              />
+            </div>
+            <p v-if="intervalError" class="text-xs text-destructive" role="alert">{{ intervalError }}</p>
+            <p v-if="intervalSuccess" class="text-xs text-success" role="status">Interval updated.</p>
+            <Button class="mt-auto" type="submit" :disabled="intervalSubmitting">Save interval</Button>
+          </form>
         </CardContent>
       </Card>
 

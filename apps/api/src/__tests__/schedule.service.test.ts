@@ -670,6 +670,7 @@ describe('computeEligibility', () => {
     isHoliday,
   })
   const empty = () => ({
+    openDuty: { anchorDate: '2026-10-02', intervalDays: 8 },
     dutiesByDate: new Map<string, Set<number>>(),
     dutyCountByDoctor: new Map<number, number>(),
     saturdayByDoctor: new Map<number, number>(),
@@ -693,7 +694,35 @@ describe('computeEligibility', () => {
       ...empty(),
     })
     expect(result).toEqual([
-      { date: '2026-09-10', isWeekend: false, eligibleDoctorIds: [1], availableDoctorIds: [1] },
+      {
+        date: '2026-09-10',
+        isWeekend: false,
+        dutyType: 'closed',
+        eligibleDoctorIds: [1],
+        availableDoctorIds: [1],
+      },
+    ])
+  })
+
+  it('dutyType: the anchor and whole intervals after it are open, all else closed', () => {
+    const result = computeEligibility({
+      doctors: [doctor(1)],
+      unavailability: new Map(),
+      days: [
+        day('2026-10-01'),
+        day('2026-10-02'),
+        day('2026-10-09'),
+        day('2026-10-10'),
+        day('2026-11-11'),
+      ],
+      ...empty(),
+    })
+    expect(result.map((d) => [d.date, d.dutyType])).toEqual([
+      ['2026-10-01', 'closed'], // before the anchor: never open
+      ['2026-10-02', 'open'], // the anchor itself
+      ['2026-10-09', 'closed'], // 7 days after the anchor
+      ['2026-10-10', 'open'], // one interval after the anchor
+      ['2026-11-11', 'open'], // 40 days = 5 intervals, wraps the month
     ])
   })
 

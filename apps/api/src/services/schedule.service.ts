@@ -4,6 +4,7 @@ import type {
   DayInfo,
   Duty,
   GenerateAssignment,
+  OpenDutySettings,
   PreviewResult,
   ReassignDutyRequest,
   ScheduleDetail,
@@ -29,6 +30,7 @@ import {
   daysInMonth,
   dayOfWeekISO,
   inMonth,
+  isOpenDutyDate,
   isWeekendISO,
   isoDate,
   nextDate,
@@ -37,6 +39,7 @@ import {
 import type { DoctorSpec, GenerateResult, SchedulingContext } from '../scheduling/types'
 import { recordGeneration } from './usage.service'
 import { recordActivity } from './activity.service'
+import { getOpenDutySettings } from './settings.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 
@@ -208,6 +211,8 @@ export interface EligibilityInput {
   doctors: DoctorSpec[]
   unavailability: Map<number, Array<{ start: string; end: string }>>
   days: { date: string; dayOfWeek: number; isWeekend: boolean; isHoliday: boolean }[]
+  /** Classifies each day as an open or closed on-call day while building DayInfo. */
+  openDuty: OpenDutySettings
   dutiesByDate: Map<string, Set<number>>
   dutyCountByDoctor: Map<number, number>
   saturdayByDoctor: Map<number, number>
@@ -255,6 +260,9 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
     out.push({
       date: day.date,
       isWeekend: day.isWeekend,
+      dutyType: isOpenDutyDate(day.date, input.openDuty.anchorDate, input.openDuty.intervalDays)
+        ? 'open'
+        : 'closed',
       eligibleDoctorIds: eligible,
       availableDoctorIds: available,
     })
@@ -318,6 +326,7 @@ export async function preview(
   plan?: GenerateAssignment[],
 ): Promise<PreviewResult> {
   const ctx = await buildContext(year, month, scope.clinicId)
+  const openDuty = await getOpenDutySettings()
   if (plan) {
     // WYSIWYG refresh: the admin edited the proposal in the browser, so
     // eligibility must answer against their plan, not the engine's. Nothing
@@ -328,6 +337,7 @@ export async function preview(
       doctors: ctx.doctors,
       unavailability: ctx.unavailability,
       days: ctx.days,
+      openDuty,
       ...maps,
     })
     const names = new Map(ctx.doctors.map((d) => [d.id, d]))
@@ -354,6 +364,7 @@ export async function preview(
     doctors: ctx.doctors,
     unavailability: ctx.unavailability,
     days: ctx.days,
+    openDuty,
     ...maps,
   })
   return { assignments: result.assignments, conflicts: result.conflicts, days }
@@ -590,6 +601,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
   }
   if (!isAdmin) {
     // Calendar shape only — skip the eligibility work that gets blanked anyway.
+    const openDuty = await getOpenDutySettings()
     const total = daysInMonth(schedule.year, schedule.month)
     const days: DayInfo[] = []
     for (let d = 1; d <= total; d++) {
@@ -597,6 +609,9 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
       days.push({
         date,
         isWeekend: isWeekendISO(date),
+        dutyType: isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays)
+          ? 'open'
+          : 'closed',
         eligibleDoctorIds: [],
         availableDoctorIds: [],
       })
@@ -625,6 +640,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     doctors: ctx.doctors,
     unavailability: ctx.unavailability,
     days: ctx.days,
+    openDuty: await getOpenDutySettings(),
     dutiesByDate,
     dutyCountByDoctor,
     saturdayByDoctor,

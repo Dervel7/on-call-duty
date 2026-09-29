@@ -289,3 +289,11 @@ ON CONFLICT (clinic_id, holiday_date) DO NOTHING;
 INSERT INTO app_meta (key, value)
 VALUES ('billing_paid_through', to_char(CURRENT_DATE + INTERVAL '30 days', 'YYYY-MM-DD'))
 ON CONFLICT (key) DO NOTHING;
+
+-- Open on-call cycle: the first open on-call day (2026-10-02) and the days
+-- between open days (8). The interval is editable by administrators from the
+-- profile page; schedule previews/details classify days from these rows.
+INSERT INTO app_meta (key, value) VALUES
+  ('open_duty_anchor_date', '2026-10-02'),
+  ('open_duty_interval_days', '8')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();

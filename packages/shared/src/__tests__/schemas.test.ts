@@ -245,13 +245,28 @@ describe('schedule schemas', () => {
   })
 })
 
-import { updateBillingSchema } from '../index'
+import { updateBillingSchema, updateOpenDutySchema } from '../index'
 
 describe('billing schemas', () => {
   it('updateBillingSchema accepts a real calendar date and rejects malformed ones', () => {
     expect(updateBillingSchema.safeParse({ paidThrough: '2026-12-31' }).success).toBe(true)
     expect(updateBillingSchema.safeParse({ paidThrough: '2026-02-30' }).success).toBe(false)
     expect(updateBillingSchema.safeParse({ paidThrough: 'oops' }).success).toBe(false)
+  })
+})
+
+describe('open-duty settings schemas', () => {
+  it('updateOpenDutySchema coerces numeric strings and accepts 1..365 integers', () => {
+    expect(updateOpenDutySchema.safeParse({ intervalDays: 8 }).success).toBe(true)
+    expect(updateOpenDutySchema.safeParse({ intervalDays: '14' }).success).toBe(true)
+    expect(updateOpenDutySchema.safeParse({ intervalDays: 1 }).success).toBe(true)
+    expect(updateOpenDutySchema.safeParse({ intervalDays: 365 }).success).toBe(true)
+  })
+
+  it('updateOpenDutySchema rejects zero, negatives, fractions, and absurd ranges', () => {
+    for (const intervalDays of [0, -1, 1.5, 366, 'abc', '']) {
+      expect(updateOpenDutySchema.safeParse({ intervalDays }).success).toBe(false)
+    }
   })
 })
 

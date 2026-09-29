@@ -44,6 +44,7 @@ interface Cell {
   dayNum: number | null
   isWeekend: boolean
   isToday: boolean
+  isOpen: boolean
   slots: (CalendarAssignment | null)[]
   conflict?: string
   options: number[][]
@@ -67,7 +68,7 @@ const cells = computed<Cell[]>(() => {
   const firstJs = new Date(`${first.date}T00:00:00`)
   const lead = (firstJs.getDay() + 6) % 7
   for (let i = 0; i < lead; i++) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, slots: [], options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, isOpen: false, slots: [], options: [] })
   }
   for (const day of props.days) {
     const slotsArr = props.assignmentByDate.get(day.date) ?? []
@@ -81,13 +82,14 @@ const cells = computed<Cell[]>(() => {
       dayNum: js.getDate(),
       isWeekend: day.isWeekend,
       isToday: day.date === todayIso,
+      isOpen: day.dutyType === 'open',
       slots,
       conflict: props.conflictsByDate.get(day.date),
       options,
     })
   }
   while (out.length % 7 !== 0) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, slots: [], options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, isOpen: false, slots: [], options: [] })
   }
   return out
 })
@@ -115,6 +117,19 @@ function filledCount(slots: (CalendarAssignment | null)[]): number {
 
 function cellBg(c: Cell): string {
   if (c.blank) return 'border-transparent bg-transparent'
+  // Open on-call days always carry the red border, above every other cue; the
+  // fill/conflict background underneath keeps coverage readable.
+  if (c.isOpen) {
+    if (props.showFillHints) {
+      const n = filledCount(c.slots)
+      if (n >= SLOTS.value) return 'border-2 border-destructive bg-success/10'
+      if (n === 0) return 'border-2 border-destructive bg-destructive/10'
+      return 'border-2 border-destructive bg-warning/10'
+    }
+    if (c.conflict) return 'border-2 border-destructive bg-destructive/5'
+    if (c.isWeekend) return 'border-2 border-destructive bg-muted/40'
+    return 'border-2 border-destructive bg-card'
+  }
   if (props.showFillHints) {
     const n = filledCount(c.slots)
     if (n >= SLOTS.value) return 'border-success/25 bg-success/10'
@@ -158,6 +173,11 @@ function cellBg(c: Cell): string {
                   v-if="c.isWeekend"
                   class="inline-flex rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
                   >WE</span
+                >
+                <span
+                  v-if="c.isOpen"
+                  class="inline-flex rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive"
+                  >OPEN</span
                 >
               </span>
             </div>

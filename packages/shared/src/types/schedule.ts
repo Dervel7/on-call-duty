@@ -1,5 +1,8 @@
 export type ScheduleStatus = 'draft' | 'published'
 
+/** On-call duty kind: 'open' days recur on a fixed cycle, all others are 'closed'. */
+export type DutyType = 'open' | 'closed'
+
 export interface ScheduleSummary {
   id: number
   year: number
@@ -41,6 +44,8 @@ export interface ConflictPlan {
 export interface DayInfo {
   date: string
   isWeekend: boolean
+  /** Open on-call day (per the app_meta cycle) or a regular closed day. */
+  dutyType: DutyType
   eligibleDoctorIds: number[]
   availableDoctorIds: number[]
 }

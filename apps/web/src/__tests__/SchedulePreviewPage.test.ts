@@ -30,7 +30,7 @@ vi.mock('vue-router', () => ({
 import SchedulePreviewPage from '../pages/SchedulePreviewPage.vue'
 import { pickOptionFrom } from './pick-option'
 
-function daysFor(year: number, month: number) {
+function daysFor(year: number, month: number, openDates: Set<string> = new Set()) {
   const total = new Date(year, month, 0).getDate()
   return Array.from({ length: total }, (_, i) => {
     const iso = `${year}-${String(month).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
@@ -38,6 +38,7 @@ function daysFor(year: number, month: number) {
     return {
       date: iso,
       isWeekend: dow === 0 || dow === 6,
+      dutyType: openDates.has(iso) ? ('open' as const) : ('closed' as const),
       eligibleDoctorIds: [5, 6],
       availableDoctorIds: [],
     }
@@ -212,5 +213,27 @@ describe('SchedulePreviewPage', () => {
     expect(preview.mock.calls[1]![2]).toEqual([
       { date: '2026-09-01', doctorId: 5, reason: 'manual override' },
     ])
+  })
+
+  it('open on-call days get the red border, the OPEN badge, and the legend', async () => {
+    preview.mockResolvedValue({
+      assignments: [],
+      conflicts: [],
+      days: daysFor(2026, 9, new Set(['2026-09-05', '2026-09-13'])),
+    })
+    const wrapper = mount(SchedulePreviewPage)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Open on-call')
+    const badges = wrapper.findAll('span').filter((s) => s.text() === 'OPEN')
+    // Two calendar badges plus the legend chip render OPEN; only the badges
+    // inside day cells must carry the red border.
+    expect(badges).toHaveLength(3)
+    const inCells = badges.filter(
+      (b) => b.element.closest('[class*="border-2 border-destructive"]') !== null,
+    )
+    expect(inCells).toHaveLength(2)
+    // Closed days keep the thin border even when empty (fill hint only).
+    expect(wrapper.findAll('[class*="border-destructive/25"]').length).toBeGreaterThan(0)
   })
 })

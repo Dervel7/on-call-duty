@@ -16,6 +16,7 @@ import { healthRouter } from './routes/health.routes'
 import { dutyRouter, scheduleRouter } from './routes/schedule.routes'
 import { statsRouter } from './routes/stats.routes'
 import { reportsRouter } from './routes/reports.routes'
+import { settingsRouter } from './routes/settings.routes'
 import { unavailabilityRouter } from './routes/unavailability.routes'
 import { usageRouter } from './routes/usage.routes'
 import { userRouter } from './routes/user.routes'
@@ -36,6 +37,7 @@ app.use('/health', healthRouter)
 app.use('/auth', authRouter)
 app.use('/clinics', clinicRouter)
 app.use('/billing', billingRouter)
+app.use('/settings', settingsRouter)
 app.use('/activity', activityRouter)
 app.use('/users', userRouter)
 app.use('/doctors', doctorRouter)

@@ -52,6 +52,8 @@ Known keys:
 |---|---|---|
 | `schema_version` | `'1'` | Schema baseline marker, upserted by both seeds. |
 | `billing_paid_through` | `'YYYY-MM-DD'` | Billing lockdown: while `CURRENT_DATE > value`, non-superadmin access is refused (comparison runs in SQL against the database's `CURRENT_DATE`). A missing row means unlocked (`paidThrough` reported as `null`). Seeds insert it 30 days ahead with `ON CONFLICT DO NOTHING` — re-seeding never extends an existing deadline. |
+| `open_duty_anchor_date` | `'YYYY-MM-DD'` | Open on-call cycle start: the first open on-call day (seeded `2026-10-02`). A date is an open on-call day when it is the anchor or a whole multiple of the interval after it; earlier dates are closed. Missing/corrupt rows fall back to the seeded default. |
+| `open_duty_interval_days` | integer as text | Days between open on-call days (seeded `8`). Administrators edit it via the profile page (`PATCH /settings/open-duty`); every change is audited as `open_duty_settings.updated`. |
 
 ### `clinics`
 

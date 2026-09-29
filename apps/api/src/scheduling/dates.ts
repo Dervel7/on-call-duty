@@ -34,3 +34,15 @@ export function inMonth(date: string, year: number, month: number): boolean {
 export function dayOfWeekISO(date: string): number {
   return new Date(`${date}T00:00:00Z`).getUTCDay()
 }
+
+/**
+ * Open on-call classification: the anchor is the first open on-call day and
+ * every intervalDays-th day after it is open too. Days before the anchor are
+ * always closed — the cycle starts there.
+ */
+export function isOpenDutyDate(date: string, anchorDate: string, intervalDays: number): boolean {
+  if (date < anchorDate) return false
+  const ms =
+    new Date(`${date}T00:00:00Z`).getTime() - new Date(`${anchorDate}T00:00:00Z`).getTime()
+  return Math.round(ms / 86_400_000) % intervalDays === 0
+}

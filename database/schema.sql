@@ -231,3 +231,11 @@ CREATE INDEX IF NOT EXISTS idx_users_clinic ON users (clinic_id) WHERE is_delete
 -- Dark mode UI preference (per user, applied after sign-in; the login page
 -- always renders light). Evolution line covers pre-existing databases.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT FALSE;
+
+
+-- Open on-call cycle (app_meta keys, no DDL):
+-- 'open_duty_anchor_date' ('YYYY-MM-DD') — the first open on-call day
+-- (seeded 2026-10-02); 'open_duty_interval_days' — spacing in days between
+-- open on-call days (seeded 8, editable by administrators via /settings).
+-- A date is an open on-call day when it is the anchor or a whole interval
+-- after it; earlier dates are closed.

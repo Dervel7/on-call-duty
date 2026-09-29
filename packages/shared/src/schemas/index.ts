@@ -30,5 +30,11 @@ export { reportQuerySchema } from './reports'
 export { ACTIVITY_ACTIONS, activityQuerySchema } from './audit'
 export { createClinicSchema, updateClinicSchema } from './clinic'
 export { holidayQuerySchema, setMonthHolidaysSchema } from './holiday'
-export { updateBillingSchema, SYSTEM_LOCKED_MESSAGE } from './settings'
+export {
+  updateBillingSchema,
+  SYSTEM_LOCKED_MESSAGE,
+  updateOpenDutySchema,
+  DEFAULT_OPEN_DUTY_ANCHOR_DATE,
+  DEFAULT_OPEN_DUTY_INTERVAL_DAYS,
+} from './settings'
 export type { ActivityAction } from './audit'
