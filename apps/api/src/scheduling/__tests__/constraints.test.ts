@@ -1,5 +1,4 @@
-import { describe, expect, it } from 'vitest'
-import { isAvailable, notConsecutive, underCap } from '../constraints'
+import { HOLIDAY_DUTY_CAP, isAvailable, notConsecutive, underCap, underHolidayCap } from '../constraints'
 
 describe('constraints', () => {
   it('isAvailable respects inclusive ranges', () => {
@@ -15,6 +14,16 @@ describe('constraints', () => {
     expect(underCap(0, 7).ok).toBe(true)
     expect(underCap(6, 7).ok).toBe(true)
     expect(underCap(7, 7).ok).toBe(false)
+  })
+
+  it('underHolidayCap is exclusive at the cap (count < cap means eligible)', () => {
+    expect(HOLIDAY_DUTY_CAP).toBe(2)
+    expect(underHolidayCap(0).ok).toBe(true)
+    expect(underHolidayCap(1).ok).toBe(true)
+    expect(underHolidayCap(2).ok).toBe(false)
+    expect(underHolidayCap(3).ok).toBe(false)
+    expect(underHolidayCap(2).reason).toBe('at holiday cap')
+    expect(underHolidayCap(0).reason).toBe('')
   })
 
   it('notConsecutive blocks only when on duty the previous day', () => {

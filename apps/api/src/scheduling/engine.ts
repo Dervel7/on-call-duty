@@ -1,11 +1,12 @@
 import { nextDate, prevDate } from './dates'
-import {
-  balanceCap,
-  DOCTORS_PER_DAY,
-  isAvailable,
-  notConsecutive,
-  underCap,
-} from './constraints'
+ import {
+   balanceCap,
+   DOCTORS_PER_DAY,
+   isAvailable,
+   notConsecutive,
+  underHolidayCap,
+   underCap,
+ } from './constraints'
 import { scoreCandidate, weekendBudget, fridayBudget } from './scoring'
 import type {
   AssignmentPlan,
@@ -27,15 +28,17 @@ interface RunState {
   weekend: Map<number, number>
   saturday: Map<number, number>
   sunday: Map<number, number>
-  friday: Map<number, number>
-  byDate: Map<string, Set<number>>
+   friday: Map<number, number>
+  holiday: Map<number, number>
+   byDate: Map<string, Set<number>>
 }
 
 interface Tally {
   unavailable: number
   'at cap': number
-  'at weekend cap': number
-  'back-to-back': number
+   'at weekend cap': number
+  'at holiday cap': number
+   'back-to-back': number
   'already on duty': number
 }
 
@@ -65,6 +68,7 @@ export function generate(ctx: SchedulingContext): GenerateResult {
     saturday: new Map(),
     sunday: new Map(),
     friday: new Map(),
+    holiday: new Map(),
     byDate: new Map(),
   }
   for (const d of ctx.doctors) {
@@ -72,7 +76,8 @@ export function generate(ctx: SchedulingContext): GenerateResult {
     state.weekend.set(d.id, 0)
     state.saturday.set(d.id, 0)
     state.sunday.set(d.id, 0)
-    state.friday.set(d.id, 0)
+     state.friday.set(d.id, 0)
+    state.holiday.set(d.id, 0)
   }
 
   const activeCount = ctx.doctors.length
@@ -103,8 +108,9 @@ export function generate(ctx: SchedulingContext): GenerateResult {
       unavailable: 0,
       'at cap': 0,
       'at weekend cap': 0,
-      'back-to-back': 0,
+      'at holiday cap': 0,
       'already on duty': 0,
+      'back-to-back': 0,
     }
 
     for (const doctor of ctx.doctors) {
@@ -129,7 +135,11 @@ export function generate(ctx: SchedulingContext): GenerateResult {
         tally['at weekend cap']++
         continue
       }
-      const prev = prevDate(day.date)
+      if (day.isHoliday && !underHolidayCap(state.holiday.get(doctor.id) ?? 0).ok) {
+        tally['at holiday cap']++
+        continue
+      }
+       const prev = prevDate(day.date)
       const onDutyYesterday =
         prev === firstDayPrev
           ? ctx.priorDayDoctorIds.has(doctor.id)
@@ -187,8 +197,10 @@ export function generate(ctx: SchedulingContext): GenerateResult {
       state.saturday.set(winner.doctor.id, (state.saturday.get(winner.doctor.id) ?? 0) + 1)
     if (day.dayOfWeek === 0)
       state.sunday.set(winner.doctor.id, (state.sunday.get(winner.doctor.id) ?? 0) + 1)
-    if (day.dayOfWeek === 5)
-      state.friday.set(winner.doctor.id, (state.friday.get(winner.doctor.id) ?? 0) + 1)
+     if (day.dayOfWeek === 5)
+       state.friday.set(winner.doctor.id, (state.friday.get(winner.doctor.id) ?? 0) + 1)
+    if (day.isHoliday)
+      state.holiday.set(winner.doctor.id, (state.holiday.get(winner.doctor.id) ?? 0) + 1)
   }
 }
 
@@ -199,7 +211,7 @@ function conflictFor(date: string, activeCount: number, tally: Tally, assigned: 
     tally['already on duty'] > 0 ? `, ${tally['already on duty']} already on duty` : ''
   return {
     date,
-    detail: `only ${assigned} of ${DOCTORS_PER_DAY} doctors assigned; of ${activeCount} active doctor(s): ${tally.unavailable} unavailable, ${tally['at cap']} at monthly cap, ${tally['at weekend cap']} at weekend cap, ${tally['back-to-back']} back-to-back${onDutyNote}`,
+     detail: `only ${assigned} of ${DOCTORS_PER_DAY} doctors assigned; of ${activeCount} active doctor(s): ${tally.unavailable} unavailable, ${tally['at cap']} at monthly cap, ${tally['at weekend cap']} at weekend cap, ${tally['at holiday cap']} at holiday cap, ${tally['back-to-back']} back-to-back${onDutyNote}`,
   }
 }
 

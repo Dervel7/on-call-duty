@@ -93,10 +93,15 @@ CREATE INDEX IF NOT EXISTS idx_unavailability_dates ON unavailability (start_dat
 
 -- Phase 5: Scheduling Engine
 
--- Holidays removed: drop the table and the denormalized duty flag on existing
--- databases (is_holiday was NOT NULL with no default, so duty inserts would
--- fail if the column lingered).
-DROP TABLE IF EXISTS holidays;
+-- Per-clinic marked holidays: scheduling treats these days as Sundays.
+CREATE TABLE IF NOT EXISTS holidays (
+  id           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  clinic_id    INTEGER NOT NULL REFERENCES clinics (id),
+  holiday_date DATE NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (clinic_id, holiday_date)
+);
+CREATE INDEX IF NOT EXISTS idx_holidays_clinic_date ON holidays (clinic_id, holiday_date);
 
 -- Schedules are per clinic: one (clinic, year, month) per schedule.
 CREATE TABLE IF NOT EXISTS schedules (

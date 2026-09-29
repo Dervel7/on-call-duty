@@ -288,3 +288,29 @@ describe('clinic schemas and clinicId query params', () => {
     expect(updateClinicSchema.safeParse({ isActive: false }).success).toBe(true)
   })
 })
+
+import { holidayQuerySchema, setMonthHolidaysSchema } from '../index'
+
+describe('holiday schemas', () => {
+  it('holidayQuerySchema requires a year in range and coerces it', () => {
+    expect(holidayQuerySchema.safeParse({}).success).toBe(false)
+    expect(holidayQuerySchema.safeParse({ year: '2026' }).success).toBe(true)
+    expect(holidayQuerySchema.safeParse({ year: 1999 }).success).toBe(false)
+    expect(holidayQuerySchema.safeParse({ year: 2026, clinicId: '3' }).success).toBe(true)
+  })
+
+  it('setMonthHolidaysSchema rejects dates outside the given month', () => {
+    expect(
+      setMonthHolidaysSchema.safeParse({ year: 2026, month: 3, dates: ['2026-03-25'] }).success,
+    ).toBe(true)
+    expect(
+      setMonthHolidaysSchema.safeParse({ year: 2026, month: 3, dates: ['2026-04-01'] }).success,
+    ).toBe(false)
+    expect(
+      setMonthHolidaysSchema.safeParse({ year: 2026, month: 3, dates: ['2026-3-25'] }).success,
+    ).toBe(false)
+    expect(setMonthHolidaysSchema.safeParse({ year: 2026, month: 3, dates: [] }).success).toBe(
+      true,
+    )
+  })
+})

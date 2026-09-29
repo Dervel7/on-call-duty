@@ -19,6 +19,7 @@ export const ACTIVITY_ACTIONS = [
   'availability.created',
   'availability.updated',
   'availability.deleted',
+  'holidays.updated',
   'schedule.generated',
   'schedule.published',
   'schedule.reverted',

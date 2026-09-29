@@ -29,10 +29,11 @@ const dr = (id: number, max = 7): DoctorSpec => ({
   maxMonthlyDuties: max,
   isActive: true,
 })
-const day = (d: string, isWeekend = false): DaySpec => ({
+const day = (d: string, isWeekend = false, isHoliday = isWeekend): DaySpec => ({
   date: d,
   dayOfWeek: dayOfWeekISO(d),
   isWeekend,
+  isHoliday,
 })
 
 describe('engine.generate', () => {
@@ -143,5 +144,32 @@ describe('engine.generate', () => {
     const a = generate(ctx(days, [dr(1), dr(2), dr(3), dr(4)]))
     const b = generate(ctx(days, [dr(1), dr(2), dr(3), dr(4)]))
     expect(JSON.stringify(a)).toBe(JSON.stringify(b))
+  })
+
+  it('blocks a third duty on marked weekday holidays and records the holiday conflict', () => {
+    // Marked weekdays (Tue/Thu, non-adjacent): the doctor hits the holiday cap.
+    const days = [
+      day('2026-09-01', false, true),
+      day('2026-09-03', false, true),
+      day('2026-09-08', false, true),
+    ]
+    const { assignments, conflicts } = generate(ctx(days, [dr(1)]))
+    expect(assignments).toHaveLength(2)
+    expect(assignments.every((a) => a.doctorId === 1)).toBe(true)
+    expect(conflicts.find((c) => c.date === '2026-09-08')?.detail).toContain('at holiday cap')
+  })
+
+  it('weekends count as holidays with zero marked dates', () => {
+    const sats = ['2026-09-05', '2026-09-12', '2026-09-19'].map((d) => day(d, true))
+    const { assignments, conflicts } = generate(ctx(sats, [dr(1)]))
+    expect(assignments).toHaveLength(2)
+    expect(conflicts.find((c) => c.date === '2026-09-19')?.detail).toContain('at holiday cap')
+  })
+
+  it('non-holiday weekdays are unaffected: a doctor may exceed 2 duties there', () => {
+    const days = ['2026-09-01', '2026-09-03', '2026-09-08', '2026-09-10'].map((d) => day(d))
+    const { assignments } = generate(ctx(days, [dr(1)]))
+    expect(assignments).toHaveLength(4)
+    expect(assignments.every((a) => a.doctorId === 1)).toBe(true)
   })
 })

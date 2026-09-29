@@ -268,6 +268,11 @@
       inset 0 0 14px -10px hsl(var(--primary) / 1);
     font-weight: 600;
   }
+  @media (max-width: 1279.98px) {
+    .nav-link {
+      padding: 0.4rem 0.55rem;
+    }
+  }
 
   .brand-tile {
     display: grid;

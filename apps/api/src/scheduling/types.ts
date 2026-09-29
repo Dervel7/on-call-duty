@@ -10,6 +10,8 @@ export interface DaySpec {
   date: string
   dayOfWeek: number // 0=Sun … 6=Sat
   isWeekend: boolean
+  /** Weekend or admin-marked holiday for the clinic; holiday-duty cap applies. */
+  isHoliday: boolean
 }
 
 export interface SchedulingContext {

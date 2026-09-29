@@ -20,6 +20,7 @@ erDiagram
     clinics ||--o{ doctors : ""
     clinics ||--o{ schedules : ""
     clinics ||--o{ schedule_generation_log : ""
+    clinics ||--o{ holidays : ""
     clinics ||--o{ activity_log : "nullable"
     users ||--o| doctors : "1:1 for role = doctor"
     users ||--o{ refresh_tokens : ""
@@ -155,6 +156,27 @@ Behavior:
 
 Indexes: `idx_unavailability_doctor` (`doctor_id`, `start_date`, `end_date`); `idx_unavailability_dates` (`start_date`, `end_date`).
 
+### `holidays`
+
+Per-clinic marked holidays: the scheduling engine treats these dates as Sundays.
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | INTEGER | PK, GENERATED ALWAYS AS IDENTITY |
+| `clinic_id` | INTEGER | NOT NULL, FK → `clinics(id)` |
+| `holiday_date` | DATE | NOT NULL |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+
+Constraint: UNIQUE (`clinic_id`, `holiday_date`).
+
+Behavior:
+
+- Marked per clinic and per date — no ranges, no per-doctor scoping.
+- The admin API replaces a whole (clinic, year, month) set in one transaction (`PUT /holidays/month`), writing a `holidays.updated` audit entry inside it.
+- Seeds insert the default Greek public holidays (Jan 1, Jan 6, Mar 25, Oct 28, Dec 25) for 2026 and 2027 for every clinic, with `ON CONFLICT DO NOTHING`.
+
+Index: `idx_holidays_clinic_date` (`clinic_id`, `holiday_date`).
+
 ### `schedules`
 
 One duty schedule per clinic per month.
@@ -197,7 +219,7 @@ Behavior:
 
 - A duty on `duty_date` spans 07:00 → next day 15:00 (overnight, hands off at next day's 15:00).
 - The engine targets two doctors per day (`DOCTORS_PER_DAY`); the unique index alone does not cap the count — the engine/service layer does.
-- Legacy `is_holiday` column was dropped (the `holidays` table is gone).
+- Legacy `is_holiday` denormalized flag was dropped; holiday duties derive from the `holidays` table instead.
 
 ### `schedule_generation_log`
 
@@ -260,6 +282,7 @@ Indexes: `idx_activity_log_user` (`user_id`); `idx_activity_log_clinic` (`clinic
 | `users` | Soft delete (`is_deleted = TRUE`, `is_active = FALSE`). A hard DELETE cascades to `doctors` and `refresh_tokens` and nulls `schedules.created_by` / `activity_log.user_id`, but is RESTRICT-blocked once the doctor row has duties — use soft delete. |
 | `doctors` | Deactivated/soft-deleted via the user account. Hard DELETE is RESTRICT-blocked by `duties` and `schedule_generation_log`. |
 | `unavailability` | Hard-deleted freely (CASCADE only from its doctor). |
+| `holidays` | Hard-deleted freely (replaced wholesale by the month-set API; no FK references this table). |
 | `schedules` | Deletable in `draft`; `published` deletion is rejected (409) at the service layer. Deleting cascades to `duties`; `schedule_generation_log` and `operator_alerts` survive. |
 | `refresh_tokens` | Expire/revoked; rows cascade on user hard delete. |
 | `schedule_generation_log`, `activity_log` | Append-only — never deleted by application flows. |
@@ -269,8 +292,8 @@ Indexes: `idx_activity_log_user` (`user_id`); `idx_activity_log_clinic` (`clinic
 
 Both seeds are idempotent upserts applied by `database/scripts/seed.ts`, which first **drops and recreates the database** (reads `DATABASE_URL` from `apps/api/.env`), applies `schema.sql`, then the chosen seed file. All seeded accounts use password `changeme123`.
 
-- `single-clinic.seed.sql` — one clinic (`Main Clinic`), vendor superadmin, one administrator, nine doctors `dr1`–`dr9` (all `max_monthly_duties = 7`). Deterministic pseudo-random unavailability for September 2026 derived from `hashtext(email)`; dr3's and dr8's exclusions are seeded `is_disabled = TRUE`. Sets `billing_paid_through` 30 days ahead (`ON CONFLICT DO NOTHING`).
-- `multi-clinic.seed.sql` — six clinics (Cardiology A/B, Neurology A/B, Radiology A/B), vendor superadmin, one hospital-wide manager, one administrator per clinic, ten doctors per clinic (`dr1`–`dr60`). Fixed unavailability: dr1 Sep 7–11, dr2 Sep 15. Same billing seed behavior.
+- `single-clinic.seed.sql` — one clinic (`Main Clinic`), vendor superadmin, one administrator, nine doctors `dr1`–`dr9` (all `max_monthly_duties = 7`). Deterministic pseudo-random unavailability for September 2026 derived from `hashtext(email)`; dr3's and dr8's exclusions are seeded `is_disabled = TRUE`. Seeds the default Greek public holidays (Jan 1, Jan 6, Mar 25, Oct 28, Dec 25) for 2026 and 2027 (`ON CONFLICT DO NOTHING`). Sets `billing_paid_through` 30 days ahead (`ON CONFLICT DO NOTHING`).
+- `multi-clinic.seed.sql` — six clinics (Cardiology A/B, Neurology A/B, Radiology A/B), vendor superadmin, one hospital-wide manager, one administrator per clinic, ten doctors per clinic (`dr1`–`dr60`). Fixed unavailability: dr1 Sep 7–11, dr2 Sep 15. Same default holiday seeds (all six clinics) and the same billing seed behavior.
 
 ## Evolving the schema
 

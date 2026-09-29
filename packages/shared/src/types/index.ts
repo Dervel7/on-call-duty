@@ -51,6 +51,7 @@ export type {
 } from './stats'
 export type { ReportQuery, MonthlyReport } from './reports'
 export type { Clinic, CreateClinicRequest, UpdateClinicRequest } from './clinic'
+export type { Holiday, HolidayQuery, SetMonthHolidaysRequest } from './holiday'
 export type { BillingState, PaymentAlert, UpdateBillingRequest } from './settings'
 export * from './usage'
 export type {

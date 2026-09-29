@@ -180,6 +180,16 @@ describe('schedule.service', () => {
     expect(query.mock.calls.some((c) => String(c[0]).startsWith('INSERT'))).toBe(false)
   })
 
+  it('buildContext loads clinic-marked holidays within the month bounds', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await preview(2026, 9, SCOPE)
+    const hol = query.mock.calls.find((c) => String(c[0]).includes('FROM holidays'))
+    expect(String(hol?.[0])).toContain('clinic_id = $1')
+    expect(String(hol?.[0])).toContain('holiday_date >= $2')
+    expect(String(hol?.[0])).toContain('holiday_date <= $3')
+    expect(hol?.[1]).toEqual([1, '2026-09-01', '2026-09-30'])
+  })
+
   it('preview with a plan applies monthly caps with own-day swap semantics', async () => {
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
@@ -653,16 +663,18 @@ describe('publish / unpublish', () => {
 })
 
 describe('computeEligibility', () => {
-  const day = (date: string, isWeekend = false) => ({
+  const day = (date: string, isWeekend = false, isHoliday = isWeekend) => ({
     date,
     dayOfWeek: new Date(`${date}T00:00:00Z`).getUTCDay(),
     isWeekend,
+    isHoliday,
   })
   const empty = () => ({
     dutiesByDate: new Map<string, Set<number>>(),
     dutyCountByDoctor: new Map<number, number>(),
     saturdayByDoctor: new Map<number, number>(),
     sundayByDoctor: new Map<number, number>(),
+    holidayByDoctor: new Map<number, number>(),
   })
 
   const doctor = (id: number, maxMonthlyDuties = 7): DoctorSpec => ({

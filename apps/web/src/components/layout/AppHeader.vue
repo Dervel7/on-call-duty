@@ -6,6 +6,7 @@ import {
   CalendarCheck2,
   CalendarClock,
   CalendarDays,
+  CalendarHeart,
   CalendarOff,
   Gauge,
   History,
@@ -39,6 +40,7 @@ const navItems = computed(() => {
       { to: '/users', label: 'Users', icon: Users },
       { to: '/availability', label: 'Availability', icon: CalendarOff },
       { to: '/schedules', label: 'Schedules', icon: CalendarDays },
+      { to: '/holidays', label: 'Holidays', icon: CalendarHeart },
       { to: '/reports', label: 'Reports', icon: BarChart3 },
     )
   }
@@ -62,7 +64,7 @@ function isActive(to: string): boolean {
   <header
     class="sticky top-0 z-40 w-full border-b border-border/60 bg-background/70 shadow-header backdrop-blur-xl"
   >
-    <div class="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
+    <div class="flex h-16 w-full items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
       <RouterLink to="/" class="group flex shrink-0 items-center gap-2.5">
         <span class="brand-tile transition-transform duration-200 group-hover:scale-105">
           <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" aria-hidden="true">
@@ -83,7 +85,7 @@ function isActive(to: string): boolean {
 
       <nav
         v-if="auth.isAuthenticated"
-        class="hidden md:flex flex-1 items-center gap-1 overflow-x-auto no-scrollbar"
+        class="hidden md:flex min-w-0 flex-1 items-center gap-0.5 lg:gap-1 overflow-x-auto no-scrollbar"
       >
         <RouterLink
           v-for="item in navItems"
@@ -102,7 +104,7 @@ function isActive(to: string): boolean {
             class="hidden items-center gap-2.5 rounded-full border border-border/70 bg-card/60 py-1 pl-1 pr-3 shadow-card backdrop-blur sm:flex"
           >
             <Avatar :name="`${auth.user.firstName} ${auth.user.lastName}`" size="sm" />
-            <span class="text-sm text-foreground">
+            <span class="hidden text-sm text-foreground xl:inline">
               {{ auth.user.firstName }} {{ auth.user.lastName }}
             </span>
             <Badge variant="outline">{{ auth.user.role }}</Badge>

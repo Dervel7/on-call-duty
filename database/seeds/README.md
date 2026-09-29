@@ -91,5 +91,9 @@ administrator, 9 doctors) and 9 doctor records.
 | `admin@oncall.local` | `admin` | Administrator |
 | `dr1@oncall.local` … `dr9@oncall.local` | `dr1` … `dr9` | Doctor |
 
+Both seeds also insert the default Greek public holidays (Jan 1, Jan 6, Mar 25,
+Oct 28, Dec 25) for 2026 and 2027 — for every clinic they create
+(`ON CONFLICT DO NOTHING`).
+
 Sample unavailability rows are generated deterministically (window: September
 2026); `dr3` and `dr8` arrive with disabled unavailability records.

@@ -16,9 +16,9 @@ const doctor = (id: number, max: number): DoctorSpec => ({
   maxMonthlyDuties: max,
   isActive: true,
 })
-const weekday = (d: string): DaySpec => ({ date: d, dayOfWeek: 3, isWeekend: false })
-const weekend = (d: string): DaySpec => ({ date: d, dayOfWeek: 6, isWeekend: true })
-const friday = (d: string): DaySpec => ({ date: d, dayOfWeek: 5, isWeekend: false })
+const weekday = (d: string): DaySpec => ({ date: d, dayOfWeek: 3, isWeekend: false, isHoliday: false })
+const weekend = (d: string): DaySpec => ({ date: d, dayOfWeek: 6, isWeekend: true, isHoliday: true })
+const friday = (d: string): DaySpec => ({ date: d, dayOfWeek: 5, isWeekend: false, isHoliday: false })
 
 describe('scoring', () => {
   it('budgets use 2-slots/day ceiling division and 0 on no doctors', () => {

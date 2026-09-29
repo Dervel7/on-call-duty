@@ -101,6 +101,18 @@ CROSS JOIN LATERAL (
 WHERE u.is_deleted = FALSE
   AND NOT EXISTS (SELECT 1 FROM unavailability x WHERE x.doctor_id = d.id);
 
+-- Default Greek public holidays (Jan 1, Jan 6, Mar 25, Oct 28, Dec 25) for
+-- 2026 and 2027, for the single clinic. Idempotent.
+INSERT INTO holidays (clinic_id, holiday_date)
+SELECT c.id, d.holiday_date
+FROM clinics c
+CROSS JOIN (VALUES
+  (DATE '2026-01-01'), (DATE '2026-01-06'), (DATE '2026-03-25'), (DATE '2026-10-28'), (DATE '2026-12-25'),
+  (DATE '2027-01-01'), (DATE '2027-01-06'), (DATE '2027-03-25'), (DATE '2027-10-28'), (DATE '2027-12-25')
+) d (holiday_date)
+WHERE c.name = 'Main Clinic'
+ON CONFLICT (clinic_id, holiday_date) DO NOTHING;
+
 -- Phase 13: seed the billing deadline 30 days ahead. DO NOTHING is deliberate:
 -- re-seeding must never extend an existing deadline.
 INSERT INTO app_meta (key, value)

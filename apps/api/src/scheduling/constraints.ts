@@ -24,6 +24,15 @@ export function underCap(count: number, maxMonthlyDuties: number): ConstraintRes
     : { ok: false, reason: 'at cap' }
 }
 
+/** Max on-call duties per doctor on holiday days (weekends + marked dates) per month. */
+export const HOLIDAY_DUTY_CAP = 2
+
+export function underHolidayCap(count: number): ConstraintResult {
+  return count < HOLIDAY_DUTY_CAP
+    ? { ok: true, reason: '' }
+    : { ok: false, reason: 'at holiday cap' }
+}
+
 export function notConsecutive(onDutyYesterday: boolean): ConstraintResult {
   return onDutyYesterday ? { ok: false, reason: 'back-to-back' } : { ok: true, reason: '' }
 }
