@@ -14,7 +14,8 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "db:seed:single": "tsx database/scripts/seed.ts single-clinic",
-    "db:seed:multi": "tsx database/scripts/seed.ts multi-clinic"
+    "db:seed:multi": "tsx database/scripts/seed.ts multi-clinic",
+    "db:exclusions": "tsx database/scripts/dump-exclusions.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

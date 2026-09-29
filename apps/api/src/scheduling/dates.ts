@@ -46,3 +46,18 @@ export function isOpenDutyDate(date: string, anchorDate: string, intervalDays: n
     new Date(`${date}T00:00:00Z`).getTime() - new Date(`${anchorDate}T00:00:00Z`).getTime()
   return Math.round(ms / 86_400_000) % intervalDays === 0
 }
+
+/**
+ * Strict double-coverage rule: an open on-call day and the calendar day
+ * right after it must always carry 2 on-call doctors. Pure date math, so the
+ * rule holds across month boundaries without extra state.
+ */
+export function requiresDoubleCoverage(
+  date: string,
+  openDuty: { anchorDate: string; intervalDays: number },
+): boolean {
+  return (
+    isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays) ||
+    isOpenDutyDate(prevDate(date), openDuty.anchorDate, openDuty.intervalDays)
+  )
+}

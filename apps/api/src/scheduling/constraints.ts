@@ -24,6 +24,16 @@ export function underCap(count: number, maxMonthlyDuties: number): ConstraintRes
     : { ok: false, reason: 'at cap' }
 }
 
+/** Max duties per doctor on open on-call days per schedule (strict rule). */
+export const OPEN_DUTY_DUTY_CAP = 1
+
+export function underOpenDutyCap(count: number): ConstraintResult {
+  return count < OPEN_DUTY_DUTY_CAP
+    ? { ok: true, reason: '' }
+    : { ok: false, reason: 'at open on-call cap' }
+}
+
+
 /** Max on-call duties per doctor on holiday days (weekends + marked dates) per month. */
 export const HOLIDAY_DUTY_CAP = 2
 

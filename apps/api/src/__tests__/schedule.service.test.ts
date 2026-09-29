@@ -332,6 +332,37 @@ describe('schedule.service', () => {
     )
   })
 
+
+  it('addDuty on a critical Saturday skips the weekend balance cap (strict rule outranks fairness)', async () => {
+    // Seeded defaults: 2026-10-02 is open, so 2026-10-03 (a Saturday, the day
+    // after an open day) is critical — no ISODOW balance query may run.
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FOR UPDATE')) return { rows: [{ status: 'draft' }] }
+      if (sql.includes('FROM schedules') && sql.includes('WHERE s.id =')) {
+        return { rows: [scheduleRow({ year: 2026, month: 10 })] }
+      }
+      if (sql.includes('FROM duties WHERE schedule_id = $1 AND duty_date =')) {
+        return { rows: [{ n: 0 }] }
+      }
+      if (sql.includes('FROM doctors d JOIN users') && sql.includes('WHERE d.id = $1')) {
+        return { rows: [{ max_monthly_duties: 7, is_active: true }] }
+      }
+      if (sql.includes('FROM unavailability WHERE doctor_id')) return { rows: [] }
+      if (sql.includes('FROM duties WHERE schedule_id = $1 AND doctor_id')) {
+        return { rows: [{ n: 0 }] }
+      }
+      if (sql.includes('du.duty_date IN')) return { rows: [] }
+      if (sql.includes('INSERT INTO duties')) return { rows: [{ id: 21 }] }
+      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
+        return { rows: [dutyRow({ id: 21, duty_date: '2026-10-03' })] }
+      }
+      return { rows: [] } // app_meta empty -> seeded defaults
+    })
+    const d = await addDuty(1, { date: '2026-10-03', doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 })
+    expect(d.id).toBe(21)
+    expect(query.mock.calls.some((c) => String(c[0]).includes('EXTRACT(ISODOW'))).toBe(false)
+  })
   it('reassignDuty runs validateAssignment and updates the row', async () => {
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
@@ -359,6 +390,35 @@ describe('schedule.service', () => {
       expect.anything(),
       expect.objectContaining({ action: 'duty.reassigned', entityId: 10 }),
     )
+  })
+
+  it('reassignDuty 409 when the doctor already holds a duty on an open on-call day', async () => {
+    // Anchor 2026-09-05, interval 7: 09-05 and 09-12 are both open Saturdays.
+    // Doctor 5 already holds an open-day duty on 09-05, so taking over the
+    // 09-12 duty is refused — one open on-call duty per doctor.
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
+        return { rows: [dutyRow({ duty_date: '2026-09-12' })] }
+      }
+      if (sql.includes('FROM schedules s JOIN clinics')) return { rows: [scheduleRow()] }
+      if (sql.includes('FROM doctors d JOIN users')) return { rows: [{ max_monthly_duties: 7, is_active: true }] }
+      if (sql.includes('FROM unavailability')) return { rows: [] }
+      if (sql.includes('FROM app_meta'))
+        return {
+          rows: [
+            { key: 'open_duty_anchor_date', value: '2026-09-05' },
+            { key: 'open_duty_interval_days', value: '7' },
+          ],
+        }
+      if (sql.includes('duty_date::text AS duty_date FROM duties'))
+        return { rows: [{ duty_date: '2026-09-05' }] }
+      return { rows: [] }
+    })
+    await expect(
+      reassignDuty(10, { doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 }),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('open on-call') })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE duties'))).toBe(false)
   })
 
   it('reassignDuty 404 when duty missing', async () => {
@@ -393,6 +453,26 @@ describe('schedule.service', () => {
     await expect(removeDuty(99, { id: 2, role: 'administrator', clinicId: 1 })).rejects.toMatchObject({
       status: 404,
     })
+  })
+
+  it('removeDuty 409 on an open on-call day or the day after (must reassign instead)', async () => {
+    // 2026-10-02 is the seeded anchor; the duty falls on it, and removing
+    // either duty there would leave at most one doctor.
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
+        return { rows: [dutyRow({ duty_date: '2026-10-02' })] }
+      }
+      if (sql.includes('FROM schedules s JOIN clinics') && sql.includes('WHERE s.id = $1')) {
+        return { rows: [scheduleRow({ year: 2026, month: 10 })] }
+      }
+      return { rows: [] } // app_meta empty -> seeded defaults
+    })
+    await expect(removeDuty(10, { id: 2, role: 'administrator', clinicId: 1 })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining('reassign'),
+    })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM duties'))).toBe(false)
   })
 })
 
@@ -446,6 +526,157 @@ describe('generate plan path', () => {
     ).rejects.toMatchObject({ status: 422 })
     expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO schedules'))).toBe(false)
   })
+
+  it('422 when an open on-call day (or the day after) has fewer than 2 doctors', async () => {
+    // Anchor 2026-09-01: 09-01 is open, so 09-01 and 09-02 both need 2 doctors.
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM app_meta'))
+        return {
+          rows: [
+            { key: 'open_duty_anchor_date', value: '2026-09-01' },
+            { key: 'open_duty_interval_days', value: '30' },
+          ],
+        }
+      if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
+      if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
+      if (sql.includes('FROM unavailability')) return { rows: [] }
+      if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [] }
+      return { rows: [] }
+    })
+    const assignments = Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+      doctorId: (i % 12) + 1,
+    }))
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, assignments),
+    ).rejects.toMatchObject({ status: 422, message: expect.stringContaining('2 doctors') })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO schedules'))).toBe(false)
+  })
+
+  it('accepts over-balance weekend duties on critical days (strict rules outrank fairness)', async () => {
+    // Anchor 2026-09-05, interval 7: every Saturday is open and every Sunday
+    // the day after one — all critical. Doctors 3, 7 and 10 take two Sunday
+    // duties each — over the ±1 cap of 1 for 16 doctors — and the plan still
+    // persists. The open Saturdays use distinct doctors: one open on-call
+    // duty per doctor is a hard rule now.
+    const manyDoctors = Array.from({ length: 16 }, (_, i) => ({
+      id: i + 1,
+      max_monthly_duties: 7,
+      first_name: `D${i + 1}`,
+      last_name: `D${i + 1}`,
+      is_active: true,
+    }))
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM app_meta'))
+        return {
+          rows: [
+            { key: 'open_duty_anchor_date', value: '2026-09-05' },
+            { key: 'open_duty_interval_days', value: '7' },
+          ],
+        }
+      if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
+      if (sql.includes('FROM doctors d JOIN users')) return { rows: manyDoctors }
+      if (sql.includes('FROM unavailability')) return { rows: [] }
+      if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [] }
+      if (sql.includes('INSERT INTO schedules')) return { rows: [{ id: 7 }] }
+      if (sql.includes('INSERT INTO duties')) return { rows: [] }
+      if (sql.includes('FROM schedules') && sql.includes('WHERE s.id =')) {
+        return { rows: [scheduleRow({ id: 7 })] }
+      }
+      return { rows: [] }
+    })
+    const critical: Array<[number, number, number]> = [
+      // [date, doctorA, doctorB] for 05,06,12,13,19,20,26,27
+      [5, 1, 2],
+      [6, 3, 4],
+      [12, 5, 6],
+      [13, 3, 7],
+      [19, 8, 9],
+      [20, 7, 10],
+      [26, 11, 12],
+      [27, 10, 5],
+    ]
+    // Regular weekdays rotate over doctors 13-16, avoiding the doctors held
+    // by each neighbouring critical pair (verified: no back-to-back, all
+    // monthly counts <= 7).
+    const regular: Array<[number, number]> = [
+      [1, 13], [2, 14], [3, 15], [4, 13],
+      [7, 13], [8, 16], [9, 13], [10, 14],
+      [11, 15], [14, 16], [15, 15], [16, 16],
+      [17, 13], [18, 14], [21, 13], [22, 14],
+      [23, 15], [24, 16], [25, 15], [28, 14],
+      [29, 13], [30, 14],
+    ]
+    const assignments = [
+      ...critical.flatMap(([d, a, b]) => [
+        { date: `2026-09-${String(d).padStart(2, '0')}`, doctorId: a },
+        { date: `2026-09-${String(d).padStart(2, '0')}`, doctorId: b },
+      ]),
+      ...regular.map(([d, doc]) => ({ date: `2026-09-${String(d).padStart(2, '0')}`, doctorId: doc })),
+    ]
+    const detail = await generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, assignments)
+    expect(detail.schedule.id).toBe(7)
+    expect(query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties')).length).toBe(38)
+  })
+
+  it('409 when a doctor is assigned a second open on-call day (one per doctor)', async () => {
+    // Same month as the test above, but doctor 1 holds BOTH open Saturdays
+    // 05 and 12 — the strict open on-call cap must refuse the plan.
+    const manyDoctors = Array.from({ length: 16 }, (_, i) => ({
+      id: i + 1,
+      max_monthly_duties: 7,
+      first_name: `D${i + 1}`,
+      last_name: `D${i + 1}`,
+      is_active: true,
+    }))
+    query.mockImplementation(async (text: unknown) => {
+      const sql = String(text)
+      if (sql.includes('FROM app_meta'))
+        return {
+          rows: [
+            { key: 'open_duty_anchor_date', value: '2026-09-05' },
+            { key: 'open_duty_interval_days', value: '7' },
+          ],
+        }
+      if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
+      if (sql.includes('FROM doctors d JOIN users')) return { rows: manyDoctors }
+      if (sql.includes('FROM unavailability')) return { rows: [] }
+      if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [] }
+      return { rows: [] }
+    })
+    const critical: Array<[number, number, number]> = [
+      [5, 1, 2],
+      [6, 3, 4],
+      [12, 1, 6],
+      [13, 3, 7],
+      [19, 8, 9],
+      [20, 7, 10],
+      [26, 11, 12],
+      [27, 10, 5],
+    ]
+    const regular: Array<[number, number]> = [
+      [1, 13], [2, 14], [3, 15], [4, 13],
+      [7, 13], [8, 16], [9, 13], [10, 14],
+      [11, 15], [14, 16], [15, 15], [16, 16],
+      [17, 13], [18, 14], [21, 13], [22, 14],
+      [23, 15], [24, 16], [25, 15], [28, 14],
+      [29, 13], [30, 14],
+    ]
+    const assignments = [
+      ...critical.flatMap(([d, a, b]) => [
+        { date: `2026-09-${String(d).padStart(2, '0')}`, doctorId: a },
+        { date: `2026-09-${String(d).padStart(2, '0')}`, doctorId: b },
+      ]),
+      ...regular.map(([d, doc]) => ({ date: `2026-09-${String(d).padStart(2, '0')}`, doctorId: doc })),
+    ]
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, assignments),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('open on-call') })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO schedules'))).toBe(false)
+  })
+
 
   it('409 when a doctor is on vacation that date (availability is hard)', async () => {
     query.mockImplementation(async (text: unknown) => {
@@ -552,19 +783,41 @@ describe('publish / unpublish', () => {
   it('publish 409 when a day is left uncovered', async () => {
     query
       .mockResolvedValueOnce({ rows: [scheduleRow()] }) // select (draft)
+      .mockResolvedValueOnce({ rows: [] }) // app_meta -> seeded open-duty defaults
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
-      .mockResolvedValueOnce({ rows: [{ n: 29 }] }) // coverage count
+      .mockResolvedValueOnce({
+        rows: Array.from({ length: 29 }, (_, i) => ({ duty_date: `2026-09-${String(i + 1).padStart(2, '0')}`, n: 1 })),
+      }) // coverage per date: 29 of 30 days
     await expect(publish(1, { id: 2, role: 'administrator', clinicId: 1 })).rejects.toMatchObject({
       status: 409,
       message: expect.stringContaining('incomplete'),
     })
     expect(recordActivity).not.toHaveBeenCalled()
   })
+  it('publish 409 when an open on-call day lacks its second doctor', async () => {
+    // Seeded defaults (anchor 2026-10-02, interval 8) make 2026-10-02 and the
+    // day after it critical; every day has one duty but those need two.
+    query
+      .mockResolvedValueOnce({ rows: [scheduleRow({ year: 2026, month: 10 })] }) // select (draft)
+      .mockResolvedValueOnce({ rows: [] }) // app_meta -> seeded defaults
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
+      .mockResolvedValueOnce({
+        rows: Array.from({ length: 31 }, (_, i) => ({ duty_date: `2026-10-${String(i + 1).padStart(2, '0')}`, n: 1 })),
+      }) // every day covered once
+    await expect(publish(1, { id: 2, role: 'administrator', clinicId: 1 })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining('2 doctors'),
+    })
+    expect(recordActivity).not.toHaveBeenCalled()
+  })
   it('publish flips draft->published; 404 missing; 409 already published', async () => {
     query
       .mockResolvedValueOnce({ rows: [scheduleRow()] }) // select (draft)
+      .mockResolvedValueOnce({ rows: [] }) // app_meta -> seeded defaults (no critical Sept days)
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
-      .mockResolvedValueOnce({ rows: [{ n: 30 }] }) // coverage
+      .mockResolvedValueOnce({
+        rows: Array.from({ length: 30 }, (_, i) => ({ duty_date: `2026-09-${String(i + 1).padStart(2, '0')}`, n: 1 })),
+      }) // coverage complete
       .mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] }) // re-select
     const published = await publish(1, { id: 2, role: 'administrator', clinicId: 1 })
     expect(published.status).toBe('published')
@@ -582,6 +835,7 @@ describe('publish / unpublish', () => {
 
     query.mockReset()
     query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] }) // select finds it
+    query.mockResolvedValueOnce({ rows: [] }) // app_meta -> seeded defaults
     query.mockResolvedValueOnce({ rows: [] }) // UPDATE matches nothing (already published) -> 409
     await expect(publish(1, { id: 2, role: 'administrator', clinicId: 1 })).rejects.toMatchObject({
       status: 409,
@@ -676,6 +930,7 @@ describe('computeEligibility', () => {
     saturdayByDoctor: new Map<number, number>(),
     sundayByDoctor: new Map<number, number>(),
     holidayByDoctor: new Map<number, number>(),
+    openByDoctor: new Map<number, number>(),
   })
 
   const doctor = (id: number, maxMonthlyDuties = 7): DoctorSpec => ({
@@ -778,6 +1033,23 @@ describe('computeEligibility', () => {
       dutiesByDate: new Map([['2026-09-11', new Set([1])]]),
     })
     expect(fromNext[0]?.eligibleDoctorIds).toEqual([])
+  })
+
+  it('open on-call cap: a doctor holding an open-day duty -> excluded from other open days', () => {
+    // Defaults: anchor 2026-10-02, interval 8 — 10-02 and 10-10 are open.
+    const result = computeEligibility({
+      doctors: [doctor(1)],
+      unavailability: new Map(),
+      days: [day('2026-10-02'), day('2026-10-10')],
+      ...empty(),
+      dutiesByDate: new Map([['2026-10-02', new Set([1])]]),
+      dutyCountByDoctor: new Map([[1, 1]]),
+      openByDoctor: new Map([[1, 1]]),
+    })
+    // On their own open day the doctor stays eligible (swap semantics);
+    // on another open day they are excluded — never a second open duty.
+    expect(result[0]?.eligibleDoctorIds).toEqual([1])
+    expect(result[1]?.eligibleDoctorIds).toEqual([])
   })
 
   it('empty: when no doctor passes -> eligibleDoctorIds is []', () => {

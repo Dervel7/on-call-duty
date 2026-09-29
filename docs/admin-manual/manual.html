@@ -373,6 +373,8 @@ Use the <strong>Year</strong> filter to narrow the list.</p>
 the first one was 2&nbsp;October&nbsp;2026 and every 8th day after it is open again; all other days are closed
 on-call days. The spacing is a setting, not a fixed rule: administrators can change it on the
 <strong>Profile</strong> page (see 8.3).</p>
+<div class="note info"><span class="t">Info</span>Open on-call days — and the day right after each of them — are <strong>always double-covered</strong>: the engine
+guarantees 2 doctors on those dates before filling any other day (see 9.2).</div>
 
 <h2>6.3 Step 2 — Resolve conflicts if any</h2>
 <p>If some days cannot be filled, the preview shows a red conflict panel listing each unfillable date and why.
@@ -505,7 +507,11 @@ recorded in the activity log. Doctors do not see this card.</p>
   <tr><td><strong>No back-to-back</strong></td><td>A doctor cannot be on duty the day immediately after a day they were already on duty. This is checked across month boundaries, so the last day of one month protects the first day of the next.</td></tr>
   <tr><td><strong>Availability</strong></td><td>A doctor is never assigned on a date covered by one of their exclusions.</td></tr>
   <tr><td><strong>Active only</strong></td><td>Disabled doctors are skipped entirely.</td></tr>
+  <tr><td><strong>Double coverage on open on-call days</strong></td><td>Every <em>open on-call day</em> and the day right after it always carries <strong>2 doctors</strong>. The engine fills these days first, before any other day gets a single doctor, and weekend/holiday balancing never blocks them — only the other hard rules above can. A schedule cannot be generated (or published) with fewer than 2 doctors on such a day, and a duty on one of these days cannot be removed, only reassigned.</td></tr>
+  <tr><td><strong>One open on-call duty per doctor</strong></td><td>A doctor holds at most <strong>1 duty on open on-call days</strong> per monthly schedule. A second open-day duty is refused everywhere — automatic generation, manual plans, and single-duty edits — even when the open day would otherwise be short of its second doctor. The day <em>after</em> an open day is protected by double coverage but is not itself an open day, so it does not count.</td></tr>
 </table>
+
+<div class="note info"><span class="t">Info</span>Open on-call days follow the cycle described in §7 (the red-bordered days in the preview). Because a duty hands over at 15:00 the next day, the day after an open day is protected too — that is why both dates are doubled.</div>
 
 <h2>9.3 How the engine balances work</h2>
 <p>Among the doctors who satisfy the hard rules for a given day, the engine picks the one with the best
@@ -524,7 +530,8 @@ recorded as <code>manual override by admin</code>.</p>
 
 <h2>9.5 Conflict detection</h2>
 <p>When a day cannot be filled (no eligible doctor), the preview lists it as a conflict with the exact breakdown
-(unavailable / at cap / back-to-back). You resolve conflicts as described in §6.3 before generating.</p>
+(unavailable / at cap / at open on-call cap / back-to-back). Conflicts on open on-call days (or the day after them) are prefixed with
+<code>requires 2 doctors (open on-call rule)</code>. You resolve conflicts as described in §6.3 before generating.</p>
 
 <!-- ============================ 10. TROUBLESHOOTING ============================ -->
 <h1 class="chapter"><span class="num">10.</span> Troubleshooting &amp; FAQ</h1>
