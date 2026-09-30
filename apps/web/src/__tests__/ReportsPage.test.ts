@@ -8,6 +8,10 @@ const monthly = vi.fn()
 vi.mock('@/services/reports', () => ({
   monthly: (...a: unknown[]) => monthly(...a),
 }))
+const scheduleGet = vi.fn()
+vi.mock('@/services/schedule', () => ({
+  get: (...a: unknown[]) => scheduleGet(...a),
+}))
 const downloadCsv = vi.fn()
 vi.mock('@/lib/download', () => ({
   downloadCsv: (...a: unknown[]) => downloadCsv(...a),
@@ -62,11 +66,30 @@ function fullReport(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function scheduleDetail(overrides: Record<string, unknown> = {}) {
+  const base = fullReport()
+  const days = Array.from({ length: 31 }, (_, i) => {
+    const date = `2026-08-${String(i + 1).padStart(2, '0')}`
+    const dow = new Date(`${date}T00:00:00Z`).getUTCDay()
+    return {
+      date,
+      isWeekend: dow === 0 || dow === 6,
+      dutyType: 'closed',
+      slotsRequired: 2,
+      eligibleDoctorIds: [5],
+      availableDoctorIds: [5],
+    }
+  })
+  return { schedule: base.schedule, duties: base.roster, days, ...overrides }
+}
+
 beforeEach(() => {
   setActivePinia(createPinia())
   monthly.mockReset()
   downloadCsv.mockReset()
   push.mockReset()
+  scheduleGet.mockReset()
+  scheduleGet.mockResolvedValue(scheduleDetail())
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -169,5 +192,28 @@ describe('ReportsPage', () => {
     } finally {
       window.print = original
     }
+  })
+
+  it('renders the printable duty roster calendar from the schedule detail', async () => {
+    monthly.mockResolvedValue(fullReport())
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(scheduleGet).toHaveBeenCalledWith(1)
+    const printArea = w.find('.print-only')
+    expect(printArea.exists()).toBe(true)
+    expect(printArea.text()).toContain('Duty roster')
+    expect(printArea.text()).toContain('August 2026')
+    expect(printArea.text()).toContain('Roe J.')
+    expect(printArea.text()).not.toContain('Workload')
+  })
+
+  it('disables Print when the duty roster calendar fails to load', async () => {
+    monthly.mockResolvedValue(fullReport())
+    scheduleGet.mockRejectedValue(new Error('boom'))
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const printBtn = w.findAll('button').find((b) => b.text().includes('Print'))!
+    expect(printBtn.attributes('disabled')).toBeDefined()
+    expect(w.text()).toContain('Failed to load the duty roster calendar')
   })
 })

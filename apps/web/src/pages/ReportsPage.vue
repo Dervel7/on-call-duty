@@ -2,8 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { BarChart3 } from 'lucide-vue-next'
-import type { Duty, MonthlyReport } from '@oncall/shared'
+import type { Duty, MonthlyReport, ScheduleDetail } from '@oncall/shared'
 import { dutiesToCsv } from '@oncall/utils'
+import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -22,6 +23,7 @@ import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 import * as reportsService from '@/services/reports'
+import * as scheduleService from '@/services/schedule'
 import { downloadCsv } from '@/lib/download'
 
 const router = useRouter()
@@ -37,6 +39,7 @@ const year = ref(String(now.getUTCFullYear()))
 const month = ref(String(now.getUTCMonth() + 1))
 
 const report = ref<MonthlyReport | null>(null)
+const calendar = ref<ScheduleDetail | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
 
@@ -87,6 +90,19 @@ const fairnessBadge = computed(() => {
     : { text: 'Imbalanced — review workload', variant: 'destructive' as const }
 })
 
+// The print/PDF export is the duty roster calendar the Schedule page shows;
+// it renders from the same schedule detail that view uses.
+const calendarAssignmentByDate = computed(() => {
+  const m = new Map<string, { doctorId: number; firstName: string; lastName: string; reason: string }[]>()
+  for (const d of calendar.value?.duties ?? []) {
+    const arr = m.get(d.dutyDate) ?? []
+    arr.push({ doctorId: d.doctorId, firstName: d.doctorFirstName, lastName: d.doctorLastName, reason: d.reason })
+    m.set(d.dutyDate, arr)
+  }
+  return m
+})
+const noConflicts = new Map<string, string>()
+
 function fmtGenerated(iso: string): string {
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
@@ -101,8 +117,16 @@ function fmtGenerated(iso: string): string {
 async function load() {
   loading.value = true
   errorMsg.value = ''
+  calendar.value = null
   try {
     report.value = await reportsService.monthly({ year: Number(year.value), month: Number(month.value) })
+    if (report.value.schedule) {
+      try {
+        calendar.value = await scheduleService.get(report.value.schedule.id)
+      } catch {
+        errorMsg.value = 'Failed to load the duty roster calendar'
+      }
+    }
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load report'
   } finally {
@@ -165,10 +189,10 @@ onMounted(load)
     <template v-if="report && report.schedule">
       <div class="no-print flex items-center gap-2">
         <Button :disabled="!report.roster.length" @click="exportCsv">Export CSV</Button>
-        <Button variant="outline" @click="printReport">Print / Save as PDF</Button>
+        <Button variant="outline" :disabled="!calendar" @click="printReport">Print / Save as PDF</Button>
       </div>
 
-      <div class="flex flex-col gap-1">
+      <div class="no-print flex flex-col gap-1">
         <PageHeader :icon="BarChart3" title="On-Call Duty" subtitle="Monthly duty report and exports">
           <template #actions>
             <div class="flex flex-wrap items-center gap-3">
@@ -180,7 +204,7 @@ onMounted(load)
         <p class="text-lg font-medium text-foreground">{{ monthLabel }}</p>
       </div>
 
-      <div class="grid gap-4 md:grid-cols-2">
+      <div class="no-print grid gap-4 md:grid-cols-2">
         <Card class="animate-rise hud-corners">
           <CardHeader><p class="hud-label">COVERAGE</p><CardTitle>Coverage</CardTitle></CardHeader>
           <CardContent class="flex flex-col gap-2">
@@ -214,7 +238,7 @@ onMounted(load)
         </Card>
       </div>
 
-      <Card>
+      <Card class="no-print">
         <CardHeader><CardTitle>Duty roster</CardTitle></CardHeader>
         <CardContent>
           <Table>
@@ -253,7 +277,7 @@ onMounted(load)
         </CardContent>
       </Card>
 
-      <Card>
+      <Card class="no-print">
         <CardHeader><CardTitle>Workload</CardTitle></CardHeader>
         <CardContent>
           <Table>
@@ -291,6 +315,28 @@ onMounted(load)
           </Table>
         </CardContent>
       </Card>
+
+      <!-- Print / PDF export: only the duty roster calendar, exactly as the
+           Schedule page renders it (names, weekend/open markers, gaps). -->
+      <div v-if="calendar" class="print-only">
+        <div class="mb-3 flex items-center justify-between gap-3 border-b border-border/60 pb-2">
+          <div>
+            <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">Duty roster</p>
+            <p class="text-lg font-semibold">{{ MONTHS[report.month - 1] }} {{ report.year }}</p>
+          </div>
+          <Badge :variant="isPublished ? 'primary' : 'neutral'" dot>{{ isPublished ? 'Published' : 'Draft' }}</Badge>
+        </div>
+        <DutyCalendar
+          :year="report.year"
+          :month="report.month"
+          :days="calendar.days"
+          :assignment-by-date="calendarAssignmentByDate"
+          :conflicts-by-date="noConflicts"
+          :doctors="[]"
+          mode="readonly"
+          class="calendar-print"
+        />
+      </div>
     </template>
   </div>
 </template>

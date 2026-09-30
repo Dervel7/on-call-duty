@@ -520,6 +520,10 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  /* Rendered on screen never; unhidden by the @media print block below. */
+  .print-only {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -561,5 +565,18 @@
   .bar-shine::after,
   .hud-corners::after {
     content: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  /* Duty roster print export: let DutyCalendar's 760px minimum width compress
+     to the paper width and keep its color cues (weekend/open/fill states). */
+  .calendar-print {
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .calendar-print > div {
+    min-width: 0 !important;
   }
 }
