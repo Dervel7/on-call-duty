@@ -54,7 +54,10 @@ function installDb(rows: Record<string, unknown>[] = [row()]) {
     if (sql.includes('WHERE username =')) return { rows: [] }
     if (sql.includes('INSERT INTO users')) return { rows: [{ id: 10 }] }
     if (sql.includes('INSERT INTO doctors')) return { rows: [{ id: 1 }] }
-    if (sql.includes('FROM clinics ORDER BY id')) return { rows: [{ id: 1 }] } // sole clinic
+    if (sql.includes('FROM clinics')) {
+      // Sole-clinic scope lookup and create's is_active guard both target clinic 1.
+      return { rows: [{ id: 1, is_active: true }] }
+    }
     return { rows }
   })
 }
