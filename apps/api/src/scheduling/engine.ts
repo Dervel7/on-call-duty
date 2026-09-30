@@ -117,86 +117,115 @@ export function generate(ctx: SchedulingContext): GenerateResult {
 
   /** Assigns the single best-scoring eligible doctor to `day`, or records why nobody could. */
   function fillDay(day: DaySpec, critical: boolean): void {
-    const eligible: Eligible[] = []
-    const tally: Tally = {
-      unavailable: 0,
-      'at cap': 0,
-      'at open on-call cap': 0,
-      'at weekend cap': 0,
-      'at holiday cap': 0,
-      'already on duty': 0,
-      'back-to-back': 0,
-    }
     const openDay = isOpenDutyDate(day.date, ctx.openDuty.anchorDate, ctx.openDuty.intervalDays)
+    const dayEmpty = (state.byDate.get(day.date)?.size ?? 0) === 0
 
-
-    for (const doctor of ctx.doctors) {
-      if (state.byDate.get(day.date)?.has(doctor.id)) {
-        tally['already on duty']++
-        continue
+    /** Constraint pass over the doctor pool; `relaxFairness` skips the ±1
+     * weekend balance and holiday caps (they yield to the day-fill rule). */
+    const collect = (relaxFairness: boolean): { eligible: Eligible[]; tally: Tally } => {
+      const eligible: Eligible[] = []
+      const tally: Tally = {
+        unavailable: 0,
+        'at cap': 0,
+        'at open on-call cap': 0,
+        'at weekend cap': 0,
+        'at holiday cap': 0,
+        'already on duty': 0,
+        'back-to-back': 0,
       }
-      const ranges = ctx.unavailability.get(doctor.id)
-      if (!isAvailable(doctor.id, day.date, ranges).ok) {
-        tally.unavailable++
-        continue
-      }
-      if (!underCap(state.total.get(doctor.id) ?? 0, doctor.maxMonthlyDuties).ok) {
-        tally['at cap']++
-        continue
-      }
-      // Strict rule: one open on-call duty per doctor per schedule. A second
-      // is never allowed — not even to complete an open day's required
-      // double coverage — so it outranks the fairness relaxations below.
-      if (openDay && !underOpenDutyCap(state.openDays.get(doctor.id) ?? 0).ok) {
-        tally['at open on-call cap']++
-        continue
-      }
-      // Fairness caps (±1 weekend balance, holiday cap) never block the
-      // strict open on-call rule; hard constraints still apply everywhere.
-      if (
-        !critical &&
-        day.dayOfWeek === 6 &&
-        !underCap(state.saturday.get(doctor.id) ?? 0, caps.saturday).ok
-      ) {
-        tally['at weekend cap']++
-        continue
-      }
-      if (
-        !critical &&
-        day.dayOfWeek === 0 &&
-        !underCap(state.sunday.get(doctor.id) ?? 0, caps.sunday).ok
-      ) {
-        tally['at weekend cap']++
-        continue
-      }
-      if (day.isHoliday && !critical && !underHolidayCap(state.holiday.get(doctor.id) ?? 0).ok) {
-        tally['at holiday cap']++
-        continue
-      }
-       const prev = prevDate(day.date)
-      const onDutyYesterday =
-        prev === firstDayPrev
-          ? ctx.priorDayDoctorIds.has(doctor.id)
-          : state.byDate.get(prev)?.has(doctor.id) ?? false
-      // Later slot passes must also look at the next day: it may already
-      // hold an earlier-pass duty, and the pair would be back-to-back.
-      const onDutyTomorrow = state.byDate.get(nextDate(day.date))?.has(doctor.id) ?? false
-      if (!notConsecutive(onDutyYesterday || onDutyTomorrow).ok) {
-        tally['back-to-back']++
-        continue
-      }
-      eligible.push({
-        doctor,
-        score: scoreCandidate(
+      for (const doctor of ctx.doctors) {
+        if (state.byDate.get(day.date)?.has(doctor.id)) {
+          tally['already on duty']++
+          continue
+        }
+        const ranges = ctx.unavailability.get(doctor.id)
+        if (!isAvailable(doctor.id, day.date, ranges).ok) {
+          tally.unavailable++
+          continue
+        }
+        if (!underCap(state.total.get(doctor.id) ?? 0, doctor.maxMonthlyDuties).ok) {
+          tally['at cap']++
+          continue
+        }
+        // Strict rule: one open on-call duty per doctor per schedule. A second
+        // is never allowed — not even to complete an open day's required
+        // double coverage — so it outranks the fairness relaxations below.
+        if (openDay && !underOpenDutyCap(state.openDays.get(doctor.id) ?? 0).ok) {
+          tally['at open on-call cap']++
+          continue
+        }
+        // Fairness caps (±1 weekend balance, holiday cap) never block the
+        // strict open on-call rule and yield to the day-fill guarantee
+        // below; hard constraints still apply everywhere.
+        if (
+          !critical &&
+          !relaxFairness &&
+          day.dayOfWeek === 6 &&
+          !underCap(state.saturday.get(doctor.id) ?? 0, caps.saturday).ok
+        ) {
+          tally['at weekend cap']++
+          continue
+        }
+        if (
+          !critical &&
+          !relaxFairness &&
+          day.dayOfWeek === 0 &&
+          !underCap(state.sunday.get(doctor.id) ?? 0, caps.sunday).ok
+        ) {
+          tally['at weekend cap']++
+          continue
+        }
+        if (
+          day.isHoliday &&
+          !critical &&
+          !relaxFairness &&
+          !underHolidayCap(state.holiday.get(doctor.id) ?? 0).ok
+        ) {
+          tally['at holiday cap']++
+          continue
+        }
+        const prev = prevDate(day.date)
+        const onDutyYesterday =
+          prev === firstDayPrev
+            ? ctx.priorDayDoctorIds.has(doctor.id)
+            : state.byDate.get(prev)?.has(doctor.id) ?? false
+        // Later slot passes must also look at the next day: it may already
+        // hold an earlier-pass duty, and the pair would be back-to-back.
+        const onDutyTomorrow = state.byDate.get(nextDate(day.date))?.has(doctor.id) ?? false
+        if (!notConsecutive(onDutyYesterday || onDutyTomorrow).ok) {
+          tally['back-to-back']++
+          continue
+        }
+        eligible.push({
           doctor,
-          day,
-          state.total.get(doctor.id) ?? 0,
-          state.weekend.get(doctor.id) ?? 0,
-          state.friday.get(doctor.id) ?? 0,
-          wBudget,
-          fBudget,
-        ),
-      })
+          score: scoreCandidate(
+            doctor,
+            day,
+            state.total.get(doctor.id) ?? 0,
+            state.weekend.get(doctor.id) ?? 0,
+            state.friday.get(doctor.id) ?? 0,
+            wBudget,
+            fBudget,
+          ),
+        })
+      }
+      return { eligible, tally }
+    }
+
+    let { eligible, tally } = collect(false)
+    let relaxedFill = false
+    // Strict rule — day-fill guarantee: every day carries at least one
+    // doctor, the same tier as the no-back-to-back rule. Before a regular
+    // day is left empty, the fairness caps above give way; the hard
+    // constraints (availability, monthly cap, open on-call cap, no
+    // back-to-back) never do. A day filled this way stays single-doctor:
+    // eligibility only shrinks as the run proceeds, so the later top-up
+    // pass can never add a second doctor to it.
+    if (eligible.length === 0 && dayEmpty && !critical) {
+      const retry = collect(true)
+      eligible = retry.eligible
+      tally = retry.tally
+      relaxedFill = eligible.length > 0
     }
 
     if (eligible.length === 0) {
@@ -221,7 +250,7 @@ export function generate(ctx: SchedulingContext): GenerateResult {
       doctorFirstName: winner.doctor.firstName,
       doctorLastName: winner.doctor.lastName,
       isWeekend: day.isWeekend,
-      reason: `score ${winner.score.score} (workload +${winner.score.workload}, weekend +${winner.score.weekend}, friday +${winner.score.friday})${describeTiebreak(winner, eligible, state.total, state.weekend)}`,
+      reason: `score ${winner.score.score} (workload +${winner.score.workload}, weekend +${winner.score.weekend}, friday +${winner.score.friday})${describeTiebreak(winner, eligible, state.total, state.weekend)}${relaxedFill ? '; day-fill guarantee overrode fairness caps' : ''}`,
     })
     state.total.set(winner.doctor.id, (state.total.get(winner.doctor.id) ?? 0) + 1)
     state.byDate.set(day.date, (state.byDate.get(day.date) ?? new Set()).add(winner.doctor.id))
@@ -231,8 +260,8 @@ export function generate(ctx: SchedulingContext): GenerateResult {
       state.saturday.set(winner.doctor.id, (state.saturday.get(winner.doctor.id) ?? 0) + 1)
     if (day.dayOfWeek === 0)
       state.sunday.set(winner.doctor.id, (state.sunday.get(winner.doctor.id) ?? 0) + 1)
-     if (day.dayOfWeek === 5)
-       state.friday.set(winner.doctor.id, (state.friday.get(winner.doctor.id) ?? 0) + 1)
+    if (day.dayOfWeek === 5)
+      state.friday.set(winner.doctor.id, (state.friday.get(winner.doctor.id) ?? 0) + 1)
     if (day.isHoliday)
       state.holiday.set(winner.doctor.id, (state.holiday.get(winner.doctor.id) ?? 0) + 1)
     if (openDay)

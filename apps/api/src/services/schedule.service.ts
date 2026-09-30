@@ -564,12 +564,33 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
         409,
         `Constraint violation: doctor ${a.doctorId} exceeds the limit of ${OPEN_DUTY_DUTY_CAP} duty on open on-call days`,
       )
-    // Fairness caps never block a duty on a critical day, mirroring the engine.
-    if (!criticalDates.has(a.date) && info.dayOfWeek === 6 && c.saturday > satCap)
+    // Fairness caps never block a duty on a critical day, mirroring the
+    // engine, and they yield to the day-fill guarantee: an over-cap duty is
+    // accepted exactly when its day has no other doctor, because removing it
+    // would leave that day empty. Engine-relaxed days always end up with a
+    // single doctor, so this admits precisely the overflows the engine can
+    // produce — nothing looser.
+    const soleDoctorDay = (byDate.get(a.date)?.length ?? 0) <= 1
+    if (
+      !criticalDates.has(a.date) &&
+      !soleDoctorDay &&
+      info.dayOfWeek === 6 &&
+      c.saturday > satCap
+    )
       throw new HttpError(409, `Constraint violation: doctor ${a.doctorId} exceeds the Saturday balance cap`)
-    if (!criticalDates.has(a.date) && info.dayOfWeek === 0 && c.sunday > sunCap)
+    if (
+      !criticalDates.has(a.date) &&
+      !soleDoctorDay &&
+      info.dayOfWeek === 0 &&
+      c.sunday > sunCap
+    )
       throw new HttpError(409, `Constraint violation: doctor ${a.doctorId} exceeds the Sunday balance cap`)
-    if (!criticalDates.has(a.date) && info.isHoliday && c.holiday > HOLIDAY_DUTY_CAP)
+    if (
+      !criticalDates.has(a.date) &&
+      !soleDoctorDay &&
+      info.isHoliday &&
+      c.holiday > HOLIDAY_DUTY_CAP
+    )
       throw new HttpError(
         409,
         `Constraint violation: doctor ${a.doctorId} exceeds the holiday cap of ${HOLIDAY_DUTY_CAP} duties on holiday days`,

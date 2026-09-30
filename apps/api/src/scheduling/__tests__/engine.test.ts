@@ -149,24 +149,63 @@ describe('engine.generate', () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b))
   })
 
-  it('blocks a third duty on marked weekday holidays and records the holiday conflict', () => {
-    // Marked weekdays (Tue/Thu, non-adjacent): the doctor hits the holiday cap.
+  it('holiday cap yields to the day-fill guarantee: a sole doctor still covers the day', () => {
+    // Marked weekdays (Tue/Thu, non-adjacent): the doctor is at the holiday
+    // cap (2/2) on the third day, but the strict ≥1-doctor-per-day rule
+    // overrides the fairness cap instead of leaving the day empty. Only the
+    // first slot relaxes: the top-up pass still short-fills.
     const days = [
       day('2026-09-01', false, true),
       day('2026-09-03', false, true),
       day('2026-09-08', false, true),
     ]
     const { assignments, conflicts } = generate(ctx(days, [dr(1)]))
-    expect(assignments).toHaveLength(2)
+    expect(assignments).toHaveLength(3)
     expect(assignments.every((a) => a.doctorId === 1)).toBe(true)
-    expect(conflicts.find((c) => c.date === '2026-09-08')?.detail).toContain('at holiday cap')
+    expect(assignments.find((a) => a.date === '2026-09-08')?.reason).toContain(
+      'day-fill guarantee overrode fairness caps',
+    )
+    expect(conflicts.every((c) => c.detail.includes('only 1 of 2'))).toBe(true)
   })
 
-  it('weekends count as holidays with zero marked dates', () => {
+  it('weekend holiday cap yields to the day-fill guarantee too', () => {
     const sats = ['2026-09-05', '2026-09-12', '2026-09-19'].map((d) => day(d, true))
     const { assignments, conflicts } = generate(ctx(sats, [dr(1)]))
-    expect(assignments).toHaveLength(2)
-    expect(conflicts.find((c) => c.date === '2026-09-19')?.detail).toContain('at holiday cap')
+    expect(assignments).toHaveLength(3)
+    expect(assignments.find((a) => a.date === '2026-09-19')?.reason).toContain(
+      'day-fill guarantee overrode fairness caps',
+    )
+    expect(conflicts.every((c) => c.detail.includes('only 1 of 2'))).toBe(true)
+  })
+
+  it('day-fill guarantee: a Sunday nobody can take under fairness caps still gets a doctor', () => {
+    // Four Sundays, nine doctors → Sunday balance cap 1. Doctors 1-3 spend
+    // their Sunday duty on the first three Sundays; everyone else is
+    // excluded on the last one. The strict ≥1-doctor-per-day rule overrides
+    // the balance cap instead of leaving the day empty — and only for the
+    // first slot: the top-up pass never relaxes.
+    const sundays = ['2026-09-06', '2026-09-13', '2026-09-20', '2026-09-27'].map((d) =>
+      day(d, true),
+    )
+    const doctors = Array.from({ length: 9 }, (_, i) => dr(i + 1))
+    const un = new Map<number, Array<{ start: string; end: string }>>()
+    for (let id = 4; id <= 9; id++) un.set(id, [{ start: '2026-09-27', end: '2026-09-27' }])
+    const { assignments, conflicts } = generate(ctx(sundays, doctors, { unavailability: un }))
+    const last = assignments.filter((a) => a.date === '2026-09-27')
+    expect(last).toHaveLength(1)
+    expect(last[0]?.reason).toContain('day-fill guarantee overrode fairness caps')
+    expect(conflicts.map((c) => c.date)).toEqual(['2026-09-27'])
+    expect(conflicts[0]?.detail).toContain('only 1 of 2')
+  })
+
+  it('day-fill guarantee never breaks hard constraints: back-to-back still empties the day', () => {
+    // Consecutive marked holidays: the sole doctor takes the first; the
+    // second is back-to-back, and relaxing fairness caps cannot fix that.
+    const days = [day('2026-09-01', false, true), day('2026-09-02', false, true)]
+    const { assignments, conflicts } = generate(ctx(days, [dr(1)]))
+    expect(assignments.map((a) => a.date)).toEqual(['2026-09-01'])
+    expect(conflicts.map((c) => c.date)).toEqual(['2026-09-02', '2026-09-01'])
+    expect(conflicts.find((c) => c.date === '2026-09-02')?.detail).toContain('back-to-back')
   })
 
   it('non-holiday weekdays are unaffected: a doctor may exceed 2 duties there', () => {

@@ -621,6 +621,41 @@ describe('generate plan path', () => {
     expect(query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties')).length).toBe(38)
   })
 
+  it('accepts an over-balance Sunday duty when its day has a single doctor (day-fill guarantee)', async () => {
+    // Same rotation as the valid plan, but Sunday 2026-09-27 goes to doctor 6,
+    // who already held Sunday 2026-09-06 — over the ±1 Sunday cap of 1 for
+    // 12 doctors. The day carries no other doctor, so removing the duty
+    // would empty it: the strict ≥1-doctor-per-day rule outranks fairness
+    // and the plan persists.
+    mockContext()
+    const assignments = Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+      doctorId: i + 1 === 27 ? 6 : (i % 12) + 1,
+    }))
+    const detail = await generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, assignments)
+    expect(detail.schedule.id).toBe(7)
+    expect(query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties')).length).toBe(30)
+  })
+
+  it('409 when an over-balance weekend duty sits on a day with two doctors', async () => {
+    // Doctor 6 takes Sunday 2026-09-27 next to doctor 3: still over the ±1
+    // Sunday cap, but the day keeps a doctor without this duty, so the
+    // fairness cap must refuse the plan.
+    mockContext()
+    const base = Array.from({ length: 30 }, (_, i) => ({
+      date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+      doctorId: (i % 12) + 1,
+    }))
+    const assignments = [...base, { date: '2026-09-27', doctorId: 6 }]
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, assignments),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining('Sunday balance cap'),
+    })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO schedules'))).toBe(false)
+  })
+
   it('409 when a doctor is assigned a second open on-call day (one per doctor)', async () => {
     // Same month as the test above, but doctor 1 holds BOTH open Saturdays
     // 05 and 12 — the strict open on-call cap must refuse the plan.
