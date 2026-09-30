@@ -44,7 +44,7 @@ function fullReport(overrides: Record<string, unknown> = {}) {
         doctorFirstName: 'Jane',
         doctorLastName: 'Roe',
         isWeekend: false,
-        reason: 'engine',
+        reason: 'score 30 (workload +30, weekend +0, friday +0)',
         createdAt: '',
       },
     ],
@@ -119,7 +119,8 @@ describe('ReportsPage', () => {
     expect(w.text()).toContain('On-Call Duty')
     expect(w.text()).toContain('Published')
     expect(w.text()).toContain('Jane Roe')
-    expect(w.text()).toContain('Well balanced')
+    expect(w.text()).toContain('Why this doctor')
+    expect(w.text()).toContain('Picked for fair workload — most room left under their monthly duty limit')
   })
 
   it('marks an unassigned gap day in the roster', async () => {

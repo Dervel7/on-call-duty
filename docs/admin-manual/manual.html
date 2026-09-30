@@ -443,7 +443,7 @@ The report is read-only; it cannot be edited here.</p>
   <tr><td><strong>Title block</strong></td><td>“On-Call Duty”, the month, the <strong>Published/Draft</strong> badge, and the generation timestamp.</td></tr>
   <tr><td><strong>Coverage</strong></td><td>Days filled vs. total, and the list of gap days (if any).</td></tr>
   <tr><td><strong>Fairness</strong></td><td>Duty spread with a <em>Well balanced / Imbalanced</em> badge, plus the weekend spread.</td></tr>
-  <tr><td><strong>Duty roster</strong></td><td>Day-by-day table: date, doctor (or <em>Unassigned</em>), flags, and the assignment reason.</td></tr>
+  <tr><td><strong>Duty roster</strong></td><td>Day-by-day table: date, doctor (or <em>Unassigned</em>), flags, and a plain-language reason for each assignment (hover a reason to see the engine's detailed score breakdown).</td></tr>
   <tr><td><strong>Workload</strong></td><td>Per doctor: duties (with a proportional bar), weekend count, and cap. Inactive doctors are greyed.</td></tr>
 </table>
 
@@ -536,9 +536,12 @@ log. Days already drawn keep their old shape until the schedule is regenerated. 
 The result is stable — generating the same month with the same inputs always yields the same roster.</p>
 
 <h2>9.4 Explainable assignments</h2>
-<p>Every duty stores a human-readable <strong>Reason</strong>, visible on the schedule detail page (hover a date) and in the
-report. It looks like <code>score 18 (workload +12, weekend +6)</code> and notes any tie-break used. Manual changes are
-recorded as <code>manual override by admin</code>.</p>
+<p>Every duty stores a human-readable <strong>Reason</strong>. In the report's duty roster it is shown in plain
+language — e.g. <em>“Picked for fair workload — most room left under their monthly duty limit”</em>, with any
+tie-break or coverage-override note. Hovering a reason shows the engine's detailed stored form, which looks like
+<code>score 18 (workload +12, weekend +0, friday +0); tie-break: fewer duties</code>. Manual changes are recorded as
+<code>manual override by admin</code> and shown as <em>“Assigned manually by an administrator”</em>. The CSV export
+always carries the detailed stored form.</p>
 
 <h2>9.5 Conflict detection</h2>
 <p>When a day cannot be filled even after the fairness caps yield to the at-least-one-doctor rule, the preview lists it as a conflict with the exact breakdown
@@ -621,7 +624,7 @@ regenerate.</p>
   <tr><td><strong>Cap</strong></td><td>A doctor's maximum duties per month (Max monthly duties, 1–7).</td></tr>
   <tr><td><strong>Exclusion</strong></td><td>A date range a doctor is unavailable.</td></tr>
   <tr><td><strong>Duty spread</strong></td><td>Busiest minus quietest doctor's duty count; 0–1 is “Well balanced”.</td></tr>
-  <tr><td><strong>Reason</strong></td><td>The engine's stored explanation for an assignment.</td></tr>
+  <tr><td><strong>Reason</strong></td><td>The engine's stored explanation for an assignment; the report shows it in plain language, the raw form on hover and in the CSV export.</td></tr>
   <tr><td><strong>Conflict</strong></td><td>A day the engine cannot fill under the hard rules.</td></tr>
 </table>
 

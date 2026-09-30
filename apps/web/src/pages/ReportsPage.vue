@@ -25,6 +25,7 @@ import TableRow from '@/components/ui/TableRow.vue'
 import * as reportsService from '@/services/reports'
 import * as scheduleService from '@/services/schedule'
 import { downloadCsv } from '@/lib/download'
+import { explainDutyReason } from '@/lib/duty-reason'
 
 const router = useRouter()
 const MONTHS = [
@@ -247,7 +248,7 @@ onMounted(load)
                 <TableHead>Date</TableHead>
                 <TableHead>Doctor</TableHead>
                 <TableHead>Flags</TableHead>
-                <TableHead>Reason</TableHead>
+                <TableHead>Why this doctor</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -269,7 +270,16 @@ onMounted(load)
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span v-if="r.duties.length" class="text-xs text-muted-foreground">{{ r.duties.map((d) => d.reason).join(' | ') }}</span>
+                  <ul v-if="r.duties.length" class="flex flex-col gap-1">
+                    <li
+                      v-for="d in r.duties"
+                      :key="d.id"
+                      class="text-xs text-muted-foreground"
+                      :title="d.reason"
+                    >
+                      {{ explainDutyReason(d.reason) }}
+                    </li>
+                  </ul>
                 </TableCell>
               </TableRow>
             </TableBody>
