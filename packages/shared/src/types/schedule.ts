@@ -46,6 +46,8 @@ export interface DayInfo {
   isWeekend: boolean
   /** Open on-call day (per the app_meta cycle) or a regular closed day. */
   dutyType: DutyType
+  /** On-call doctors the day holds: open slots on open days, closed slots otherwise. */
+  slotsRequired: number
   eligibleDoctorIds: number[]
   availableDoctorIds: number[]
 }

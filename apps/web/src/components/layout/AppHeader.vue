@@ -12,6 +12,7 @@ import {
   History,
   House,
   LogOut,
+  ScrollText,
   UserRound,
   Users,
 } from 'lucide-vue-next'
@@ -41,6 +42,7 @@ const navItems = computed(() => {
       { to: '/availability', label: 'Availability', icon: CalendarOff },
       { to: '/schedules', label: 'Schedules', icon: CalendarDays },
       { to: '/holidays', label: 'Holidays', icon: CalendarHeart },
+      { to: '/rules', label: 'Rules', icon: ScrollText },
       { to: '/reports', label: 'Reports', icon: BarChart3 },
     )
   }

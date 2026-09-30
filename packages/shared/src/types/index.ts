@@ -59,6 +59,8 @@ export type {
   UpdateBillingRequest,
   OpenDutySettings,
   UpdateOpenDutyRequest,
+  DutySlotsSettings,
+  UpdateDutySlotsRequest,
 } from './settings'
 export * from './usage'
 export type {

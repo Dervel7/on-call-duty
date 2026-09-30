@@ -39,6 +39,7 @@ function daysFor(year: number, month: number, openDates: Set<string> = new Set()
       date: iso,
       isWeekend: dow === 0 || dow === 6,
       dutyType: openDates.has(iso) ? ('open' as const) : ('closed' as const),
+      slotsRequired: 2,
       eligibleDoctorIds: [5, 6],
       availableDoctorIds: [],
     }

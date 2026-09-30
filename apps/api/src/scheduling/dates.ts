@@ -61,3 +61,18 @@ export function requiresDoubleCoverage(
     isOpenDutyDate(prevDate(date), openDuty.anchorDate, openDuty.intervalDays)
   )
 }
+
+/**
+ * How many on-call doctors a date holds: the open-day slot count on open
+ * on-call days, the closed-day count on every other day (including the day
+ * right after an open day — protected by critical fill order, but closed).
+ */
+export function slotsForDate(
+  date: string,
+  openDuty: { anchorDate: string; intervalDays: number },
+  slots: { openDutySlots: number; closedDutySlots: number },
+): number {
+  return isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays)
+    ? slots.openDutySlots
+    : slots.closedDutySlots
+}

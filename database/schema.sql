@@ -239,3 +239,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT FA
 -- open on-call days (seeded 8, editable by administrators via /settings).
 -- A date is an open on-call day when it is the anchor or a whole interval
 -- after it; earlier dates are closed.
+-- Per-day on-call capacity (app_meta keys, no DDL):
+-- 'open_duty_slots' / 'closed_duty_slots' — on-call doctors per open /
+-- closed on-call day (seeded 2 each, editable 1–7 by administrators via
+-- /settings/duty-slots; consumed by the engine, previews, and publishing).

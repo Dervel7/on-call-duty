@@ -24,3 +24,18 @@ export interface UpdateOpenDutyRequest {
 export interface UpdateBillingRequest {
   paidThrough: string
 }
+
+/**
+ * On-call capacity per day type: how many doctors a single day holds. Open
+ * days follow the cycle above; every other day (including the day right
+ * after an open day) is closed.
+ */
+export interface DutySlotsSettings {
+  openDutySlots: number
+  closedDutySlots: number
+}
+
+export interface UpdateDutySlotsRequest {
+  openDutySlots: number
+  closedDutySlots: number
+}

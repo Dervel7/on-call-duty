@@ -53,7 +53,9 @@ Known keys:
 | `schema_version` | `'1'` | Schema baseline marker, upserted by both seeds. |
 | `billing_paid_through` | `'YYYY-MM-DD'` | Billing lockdown: while `CURRENT_DATE > value`, non-superadmin access is refused (comparison runs in SQL against the database's `CURRENT_DATE`). A missing row means unlocked (`paidThrough` reported as `null`). Seeds insert it 30 days ahead with `ON CONFLICT DO NOTHING` — re-seeding never extends an existing deadline. |
 | `open_duty_anchor_date` | `'YYYY-MM-DD'` | Open on-call cycle start: the first open on-call day (seeded `2026-10-02`). A date is an open on-call day when it is the anchor or a whole multiple of the interval after it; earlier dates are closed. Missing/corrupt rows fall back to the seeded default. |
-| `open_duty_interval_days` | integer as text | Days between open on-call days (seeded `8`). Administrators edit it via the profile page (`PATCH /settings/open-duty`); every change is audited as `open_duty_settings.updated`. |
+| `open_duty_interval_days` | integer as text | Days between open on-call days (seeded `8`). Administrators edit it via the Rules page (`PATCH /settings/open-duty`); every change is audited as `open_duty_settings.updated`. |
+| `open_duty_slots` | integer as text | On-call doctors per **open** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`, audited as `duty_slots_settings.updated`). Consumed by the engine, previews, duty edits, and publishing; missing/corrupt rows fall back to the default. |
+| `closed_duty_slots` | integer as text | On-call doctors per **closed** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`). The day after an open day is closed but still critical — it uses this count. |
 
 ### `clinics`
 
@@ -214,13 +216,13 @@ Individual on-call assignments within a schedule.
 
 Constraints and indexes:
 
-- `idx_duties_schedule_date_doctor` — UNIQUE on (`schedule_id`, `duty_date`, `doctor_id`): the same doctor cannot appear twice on one day in one schedule, but **two distinct doctors per day are allowed**. The older one-duty-per-day constraint (`duties_schedule_id_duty_date_key`) is dropped.
+- `idx_duties_schedule_date_doctor` — UNIQUE on (`schedule_id`, `duty_date`, `doctor_id`): the same doctor cannot appear twice on one day in one schedule, but multiple distinct doctors per day are allowed (up to the day's configured slot count). The older one-duty-per-day constraint (`duties_schedule_id_duty_date_key`) is dropped.
 - `idx_duties_schedule` (`schedule_id`); `idx_duties_doctor_date` (`doctor_id`, `duty_date`); `idx_duties_date` (`duty_date`).
 
 Behavior:
 
 - A duty on `duty_date` spans 07:00 → next day 15:00 (overnight, hands off at next day's 15:00).
-- The engine targets two doctors per day (`DOCTORS_PER_DAY`); the unique index alone does not cap the count — the engine/service layer does.
+- Each day's slot count comes from `app_meta` (`open_duty_slots` on open on-call days, `closed_duty_slots` otherwise; seeded 2/2); the unique index alone does not cap the count — the engine/service layer does.
 - Legacy `is_holiday` denormalized flag was dropped; holiday duties derive from the `holidays` table instead.
 
 ### `schedule_generation_log`

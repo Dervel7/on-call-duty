@@ -19,4 +19,20 @@ export const settingsController = {
       next(err)
     }
   },
+  async getDutySlots(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const dutySlots = await settingsService.getDutySlots()
+      res.status(200).json(ok({ dutySlots }))
+    } catch (err) {
+      next(err)
+    }
+  },
+  async updateDutySlots(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dutySlots = await settingsService.setDutySlots(req.body, req.user!)
+      res.status(200).json(ok({ dutySlots }))
+    } catch (err) {
+      next(err)
+    }
+  },
 }

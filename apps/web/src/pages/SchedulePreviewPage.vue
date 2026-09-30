@@ -90,10 +90,15 @@ const errorCount = computed(
   () => days.value.filter((d) => (countByDate.value.get(d.date) ?? 0) === 0).length,
 )
 const warningCount = computed(
-  () => days.value.filter((d) => (countByDate.value.get(d.date) ?? 0) === 1).length,
+  () =>
+    days.value.filter((d) => {
+      const n = countByDate.value.get(d.date) ?? 0
+      return n > 0 && n < d.slotsRequired
+    }).length,
 )
 const fullCount = computed(
-  () => days.value.filter((d) => (countByDate.value.get(d.date) ?? 0) >= 2).length,
+  () =>
+    days.value.filter((d) => (countByDate.value.get(d.date) ?? 0) >= d.slotsRequired).length,
 )
 
 type StatusTone = 'destructive' | 'warning' | 'success'
@@ -122,8 +127,8 @@ const status = computed<{ tone: StatusTone; title: string; detail: string } | nu
   if (warningCount.value > 0) {
     return {
       tone: 'warning',
-      title: `${warningCount.value} day(s) with only 1 doctor`,
-      detail: 'Ready to generate — consider adding a second doctor where you can.',
+      title: `${warningCount.value} day(s) below their slot count`,
+      detail: 'Ready to generate — consider adding doctors where you can.',
     }
   }
   return {

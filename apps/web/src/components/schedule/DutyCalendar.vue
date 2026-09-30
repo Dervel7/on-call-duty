@@ -18,14 +18,11 @@ const props = defineProps<{
   conflictsByDate: Map<string, string>
   doctors: Doctor[]
   mode: 'editable' | 'readonly'
-  slotsPerDay?: number
   savingDates?: Set<string>
   pool?: 'eligible' | 'available'
   allowClear?: boolean
   showFillHints?: boolean
 }>()
-
-const SLOTS = computed(() => props.slotsPerDay ?? 2)
 
 const emit = defineEmits<{ select: [date: string, slotIndex: number, doctorId: number | null] }>()
 
@@ -45,6 +42,8 @@ interface Cell {
   isWeekend: boolean
   isToday: boolean
   isOpen: boolean
+  /** The day's configured on-call capacity (open vs closed count). */
+  required: number
   slots: (CalendarAssignment | null)[]
   conflict?: string
   options: number[][]
@@ -68,11 +67,12 @@ const cells = computed<Cell[]>(() => {
   const firstJs = new Date(`${first.date}T00:00:00`)
   const lead = (firstJs.getDay() + 6) % 7
   for (let i = 0; i < lead; i++) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, isOpen: false, slots: [], options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, isOpen: false, required: 0, slots: [], options: [] })
   }
   for (const day of props.days) {
+    const required = day.slotsRequired
     const slotsArr = props.assignmentByDate.get(day.date) ?? []
-    const slots: (CalendarAssignment | null)[] = Array.from({ length: SLOTS.value }, (_, i) => slotsArr[i] ?? null)
+    const slots: (CalendarAssignment | null)[] = Array.from({ length: required }, (_, i) => slotsArr[i] ?? null)
     const poolIds = props.pool === 'available' ? day.availableDoctorIds : day.eligibleDoctorIds
     const options = slots.map((_, i) => slotOptions(poolIds, slots, i))
     const js = new Date(`${day.date}T00:00:00`)
@@ -83,13 +83,14 @@ const cells = computed<Cell[]>(() => {
       isWeekend: day.isWeekend,
       isToday: day.date === todayIso,
       isOpen: day.dutyType === 'open',
+      required,
       slots,
       conflict: props.conflictsByDate.get(day.date),
       options,
     })
   }
   while (out.length % 7 !== 0) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, isOpen: false, slots: [], options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, isOpen: false, required: 0, slots: [], options: [] })
   }
   return out
 })
@@ -122,7 +123,7 @@ function cellBg(c: Cell): string {
   if (c.isOpen) {
     if (props.showFillHints) {
       const n = filledCount(c.slots)
-      if (n >= SLOTS.value) return 'border-2 border-destructive bg-success/10'
+      if (n >= c.required) return 'border-2 border-destructive bg-success/10'
       if (n === 0) return 'border-2 border-destructive bg-destructive/10'
       return 'border-2 border-destructive bg-warning/10'
     }
@@ -132,7 +133,7 @@ function cellBg(c: Cell): string {
   }
   if (props.showFillHints) {
     const n = filledCount(c.slots)
-    if (n >= SLOTS.value) return 'border-success/25 bg-success/10'
+    if (n >= c.required) return 'border-success/25 bg-success/10'
     if (n === 0) return 'border-destructive/25 bg-destructive/10'
     return 'border-warning/30 bg-warning/10'
   }

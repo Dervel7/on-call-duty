@@ -149,7 +149,7 @@ Rules:
 - Availability constraints
 - Vacation exclusions
 - Consecutive duty prevention (including across month boundaries)
-- Weekend balancing (±1 across eligible doctors)
+- Holiday cap: max 2 duties on holiday days (Saturdays, Sundays + marked dates) per doctor per month; no separate Saturday/Sunday caps
 /- Fair workload distribution
 
 The algorithm must always:

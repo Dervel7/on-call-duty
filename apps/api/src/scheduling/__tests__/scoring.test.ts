@@ -21,11 +21,11 @@ const weekend = (d: string): DaySpec => ({ date: d, dayOfWeek: 6, isWeekend: tru
 const friday = (d: string): DaySpec => ({ date: d, dayOfWeek: 5, isWeekend: false, isHoliday: false })
 
 describe('scoring', () => {
-  it('budgets use 2-slots/day ceiling division and 0 on no doctors', () => {
-    expect(weekendBudget(8, 3)).toBe(6) // ceil(16/3)
-    expect(weekendBudget(9, 3)).toBe(6) // ceil(18/3)
-    expect(weekendBudget(8, 0)).toBe(0)
-    expect(fridayBudget(4, 8)).toBe(1) // ceil(8/8)
+  it('budgets ceiling-divide total slots and 0 on no doctors', () => {
+    expect(weekendBudget(16, 3)).toBe(6) // ceil(16/3)
+    expect(weekendBudget(18, 3)).toBe(6) // ceil(18/3)
+    expect(weekendBudget(16, 0)).toBe(0)
+    expect(fridayBudget(8, 8)).toBe(1) // ceil(8/8)
     expect(fridayBudget(0, 8)).toBe(0)
   })
 

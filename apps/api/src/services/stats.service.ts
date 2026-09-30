@@ -10,7 +10,8 @@ import type {
 } from '@oncall/shared'
 import { query } from '../db/client'
 import type { ClinicScope } from '../lib/scope'
-import { daysInMonth, isoDate } from '../scheduling/dates'
+import { daysInMonth, isoDate, slotsForDate } from '../scheduling/dates'
+import { getDutySlots, getOpenDutySettings } from './settings.service'
 import { getByUserId as getDoctorByUserId } from './doctor.service'
 
 interface ScheduleRow {
@@ -82,10 +83,12 @@ export async function adminStats(year: number, month: number, scope: ClinicScope
     )
     for (const r of dres.rows) perDate.set(r.duty_date, r.n)
   }
+  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const required = (d: string) => slotsForDate(d, openDuty, dutySlots)
   const coverage: AdminCoverage = {
     daysInMonth: total,
-    filled: allDays.filter((d) => (perDate.get(d) ?? 0) >= 2).length,
-    gaps: allDays.filter((d) => (perDate.get(d) ?? 0) < 2),
+    filled: allDays.filter((d) => (perDate.get(d) ?? 0) >= required(d)).length,
+    gaps: allDays.filter((d) => (perDate.get(d) ?? 0) < required(d)),
   }
 
   const activeRes = await query<{

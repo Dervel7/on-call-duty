@@ -1,1 +1,1 @@
-export { updateBillingSchema, updateOpenDutySchema } from '@oncall/shared'
+export { updateBillingSchema, updateDutySlotsSchema, updateOpenDutySchema } from '@oncall/shared'

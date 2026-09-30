@@ -3,6 +3,7 @@ import type {
   CreateDutyRequest,
   DayInfo,
   Duty,
+  DutySlotsSettings,
   GenerateAssignment,
   OpenDutySettings,
   PreviewResult,
@@ -17,16 +18,14 @@ import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
 import type { ClinicScope } from '../lib/scope'
  import {
-   balanceCap,
-   DOCTORS_PER_DAY,
   HOLIDAY_DUTY_CAP,
   OPEN_DUTY_DUTY_CAP,
    generate as runEngine,
    isAvailable,
    notConsecutive,
-  underCap,
-  underHolidayCap,
-  underOpenDutyCap,
+   underCap,
+   underHolidayCap,
+   underOpenDutyCap,
  } from '../scheduling'
 import {
   daysInMonth,
@@ -38,11 +37,12 @@ import {
   nextDate,
   prevDate,
   requiresDoubleCoverage,
- } from '../scheduling/dates'
+  slotsForDate,
+} from '../scheduling/dates'
 import type { DoctorSpec, GenerateResult, SchedulingContext } from '../scheduling/types'
 import { recordGeneration } from './usage.service'
 import { recordActivity } from './activity.service'
-import { getOpenDutySettings } from './settings.service'
+import { getDutySlots, getOpenDutySettings } from './settings.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 
@@ -147,7 +147,7 @@ async function buildContext(
   clinicId: number,
 ): Promise<SchedulingContext> {
   const { first, last } = monthBounds(year, month)
-  const openDuty = await getOpenDutySettings()
+  const [openDuty, slots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
 
   const dr = await query<{
     id: number
@@ -208,7 +208,7 @@ async function buildContext(
   )
   const priorDayDoctorIds = new Set(pres.rows.map((r) => r.doctor_id))
 
-  return { year, month, days, doctors, unavailability, priorDayDoctorIds, openDuty }
+  return { year, month, days, doctors, unavailability, priorDayDoctorIds, openDuty, slots }
 }
 
 export interface EligibilityInput {
@@ -217,10 +217,10 @@ export interface EligibilityInput {
   days: { date: string; dayOfWeek: number; isWeekend: boolean; isHoliday: boolean }[]
   /** Classifies each day as an open or closed on-call day while building DayInfo. */
   openDuty: OpenDutySettings
+  /** Per-day on-call capacity: open slots on open days, closed slots otherwise. */
+  slots: DutySlotsSettings
   dutiesByDate: Map<string, Set<number>>
   dutyCountByDoctor: Map<number, number>
-  saturdayByDoctor: Map<number, number>
-  sundayByDoctor: Map<number, number>
   holidayByDoctor: Map<number, number>
   /** Duties each doctor already holds on open on-call days (strict cap of 1). */
   openByDoctor: Map<number, number>
@@ -228,11 +228,6 @@ export interface EligibilityInput {
 
 export function computeEligibility(input: EligibilityInput): DayInfo[] {
   const out: DayInfo[] = []
-  const activeCount = input.doctors.length
-  const saturdays = input.days.filter((d) => d.dayOfWeek === 6).length
-  const sundays = input.days.filter((d) => d.dayOfWeek === 0).length
-  const satCap = balanceCap(DOCTORS_PER_DAY * saturdays, activeCount)
-  const sunCap = balanceCap(DOCTORS_PER_DAY * sundays, activeCount)
   for (const day of input.days) {
     const eligible: number[] = []
     const available: number[] = []
@@ -256,10 +251,6 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
         !underOpenDutyCap((input.openByDoctor.get(doc.id) ?? 0) - (assignedToday ? 1 : 0)).ok
       )
         continue
-      if (day.dayOfWeek === 6 && !underCap((input.saturdayByDoctor.get(doc.id) ?? 0) - (assignedToday ? 1 : 0), satCap).ok)
-        continue
-      if (day.dayOfWeek === 0 && !underCap((input.sundayByDoctor.get(doc.id) ?? 0) - (assignedToday ? 1 : 0), sunCap).ok)
-        continue
       if (
         day.isHoliday &&
         !underHolidayCap((input.holidayByDoctor.get(doc.id) ?? 0) - (assignedToday ? 1 : 0)).ok
@@ -274,6 +265,7 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
       date: day.date,
       isWeekend: day.isWeekend,
       dutyType: isOpen ? 'open' : 'closed',
+      slotsRequired: slotsForDate(day.date, input.openDuty, input.slots),
       eligibleDoctorIds: eligible,
       availableDoctorIds: available,
     })
@@ -322,8 +314,6 @@ function buildDutyMaps(
 ) {
   const dutiesByDate = new Map<string, Set<number>>()
   const dutyCountByDoctor = new Map<number, number>()
-  const saturdayByDoctor = new Map<number, number>()
-  const sundayByDoctor = new Map<number, number>()
   const holidayByDoctor = new Map<number, number>()
   const openByDoctor = new Map<number, number>()
   for (const a of assignments) {
@@ -331,15 +321,12 @@ function buildDutyMaps(
     set.add(a.doctorId)
     dutiesByDate.set(a.date, set)
     dutyCountByDoctor.set(a.doctorId, (dutyCountByDoctor.get(a.doctorId) ?? 0) + 1)
-    const dow = dayOfWeekISO(a.date)
-    if (dow === 6) saturdayByDoctor.set(a.doctorId, (saturdayByDoctor.get(a.doctorId) ?? 0) + 1)
-    if (dow === 0) sundayByDoctor.set(a.doctorId, (sundayByDoctor.get(a.doctorId) ?? 0) + 1)
     if (holidayDates.has(a.date))
       holidayByDoctor.set(a.doctorId, (holidayByDoctor.get(a.doctorId) ?? 0) + 1)
     if (openDates.has(a.date))
       openByDoctor.set(a.doctorId, (openByDoctor.get(a.doctorId) ?? 0) + 1)
   }
-  return { dutiesByDate, dutyCountByDoctor, saturdayByDoctor, sundayByDoctor, holidayByDoctor, openByDoctor }
+  return { dutiesByDate, dutyCountByDoctor, holidayByDoctor, openByDoctor }
 }
 
 export async function preview(
@@ -361,6 +348,7 @@ export async function preview(
       unavailability: ctx.unavailability,
       days: ctx.days,
       openDuty,
+      slots: ctx.slots,
       ...maps,
     })
     const names = new Map(ctx.doctors.map((d) => [d.id, d]))
@@ -388,6 +376,7 @@ export async function preview(
     unavailability: ctx.unavailability,
     days: ctx.days,
     openDuty,
+    slots: ctx.slots,
     ...maps,
   })
   return { assignments: result.assignments, conflicts: result.conflicts, days }
@@ -501,10 +490,11 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
   }
 
   for (const [date, arr] of byDate) {
-    if (arr.length > DOCTORS_PER_DAY)
+    const max = slotsForDate(date, ctx.openDuty, ctx.slots)
+    if (arr.length > max)
       throw new HttpError(
         409,
-        `Too many assignments (${arr.length}) for ${date}; max ${DOCTORS_PER_DAY}`,
+        `Too many assignments (${arr.length}) for ${date}; max ${max}`,
       )
   }
 
@@ -524,29 +514,24 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
     ctx.days.filter((d) => requiresDoubleCoverage(d.date, ctx.openDuty)).map((d) => d.date),
   )
   const short = [...criticalDates].filter(
-    (date) => (byDate.get(date)?.length ?? 0) < DOCTORS_PER_DAY,
+    (date) => (byDate.get(date)?.length ?? 0) < slotsForDate(date, ctx.openDuty, ctx.slots),
   )
   if (short.length > 0)
     throw new HttpError(
       422,
-      `${short.length} open on-call coverage day(s) have fewer than 2 doctors: ${short.join(', ')}; every open on-call day and the day after it needs both slots filled`,
+      `${short.length} open on-call coverage day(s) are not filled to their slot count: ${short.join(', ')}; every open on-call day and the day after it needs all its slots filled`,
     )
 
   // Same hard constraints the engine and validateAssignment enforce, so a
   // manual plan cannot persist an impossible schedule.
   const doctorsById = new Map(ctx.doctors.map((d) => [d.id, d]))
-  const activeCount = ctx.doctors.length
-  const satCap = balanceCap(DOCTORS_PER_DAY * ctx.days.filter((d) => d.dayOfWeek === 6).length, activeCount)
-  const sunCap = balanceCap(DOCTORS_PER_DAY * ctx.days.filter((d) => d.dayOfWeek === 0).length, activeCount)
   const firstDate = ctx.days[0]?.date ?? ''
   const beforeFirst = firstDate ? prevDate(firstDate) : ''
-  const counts = new Map<number, { total: number; saturday: number; sunday: number; holiday: number; open: number }>()
+  const counts = new Map<number, { total: number; holiday: number; open: number }>()
   for (const a of assignments) {
     const info = dayInfo.get(a.date)!
-    const c = counts.get(a.doctorId) ?? { total: 0, saturday: 0, sunday: 0, holiday: 0, open: 0 }
+    const c = counts.get(a.doctorId) ?? { total: 0, holiday: 0, open: 0 }
     c.total++
-    if (info.dayOfWeek === 6) c.saturday++
-    if (info.dayOfWeek === 0) c.sunday++
     if (info.isHoliday) c.holiday++
     const isOpenDay = isOpenDutyDate(a.date, ctx.openDuty.anchorDate, ctx.openDuty.intervalDays)
     if (isOpenDay) c.open++
@@ -571,20 +556,6 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
     // single doctor, so this admits precisely the overflows the engine can
     // produce — nothing looser.
     const soleDoctorDay = (byDate.get(a.date)?.length ?? 0) <= 1
-    if (
-      !criticalDates.has(a.date) &&
-      !soleDoctorDay &&
-      info.dayOfWeek === 6 &&
-      c.saturday > satCap
-    )
-      throw new HttpError(409, `Constraint violation: doctor ${a.doctorId} exceeds the Saturday balance cap`)
-    if (
-      !criticalDates.has(a.date) &&
-      !soleDoctorDay &&
-      info.dayOfWeek === 0 &&
-      c.sunday > sunCap
-    )
-      throw new HttpError(409, `Constraint violation: doctor ${a.doctorId} exceeds the Sunday balance cap`)
     if (
       !criticalDates.has(a.date) &&
       !soleDoctorDay &&
@@ -669,7 +640,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
   }
   if (!isAdmin) {
     // Calendar shape only — skip the eligibility work that gets blanked anyway.
-    const openDuty = await getOpenDutySettings()
+    const [openDuty, slots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
     const total = daysInMonth(schedule.year, schedule.month)
     const days: DayInfo[] = []
     for (let d = 1; d <= total; d++) {
@@ -680,6 +651,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
         dutyType: isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays)
           ? 'open'
           : 'closed',
+        slotsRequired: slotsForDate(date, openDuty, slots),
         eligibleDoctorIds: [],
         availableDoctorIds: [],
       })
@@ -689,8 +661,6 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
   const ctx = await buildContext(schedule.year, schedule.month, schedule.clinicId)
   const dutiesByDate = new Map<string, Set<number>>()
   const dutyCountByDoctor = new Map<number, number>()
-  const saturdayByDoctor = new Map<number, number>()
-  const sundayByDoctor = new Map<number, number>()
   const holidayByDoctor = new Map<number, number>()
   const openByDoctor = new Map<number, number>()
   const holidayDates = holidayDatesOf(ctx.days)
@@ -700,8 +670,6 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     set.add(d.doctorId)
     dutiesByDate.set(d.dutyDate, set)
     dutyCountByDoctor.set(d.doctorId, (dutyCountByDoctor.get(d.doctorId) ?? 0) + 1)
-    const dow = dayOfWeekISO(d.dutyDate)
-    if (dow === 6) saturdayByDoctor.set(d.doctorId, (saturdayByDoctor.get(d.doctorId) ?? 0) + 1)
     if (holidayDates.has(d.dutyDate))
       holidayByDoctor.set(d.doctorId, (holidayByDoctor.get(d.doctorId) ?? 0) + 1)
     if (openDates.has(d.dutyDate))
@@ -713,10 +681,9 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     unavailability: ctx.unavailability,
     days: ctx.days,
     openDuty: ctx.openDuty,
+    slots: ctx.slots,
     dutiesByDate,
     dutyCountByDoctor,
-    saturdayByDoctor,
-    sundayByDoctor,
     holidayByDoctor,
     openByDoctor,
   })
@@ -759,28 +726,6 @@ async function getVisibleDuty(dutyId: number, actor: Actor): Promise<DutyRow> {
   const schedule = await selectScheduleRow(duty.schedule_id)
   assertScheduleVisible(schedule, actor)
   return duty
-}
-
-/** ±1 balance caps for one schedule month, computed like the engine does. */
-async function monthCaps(year: number, month: number, clinicId: number) {
-  const total = daysInMonth(year, month)
-  let saturdays = 0
-  let sundays = 0
-  for (let d = 1; d <= total; d++) {
-    const dow = dayOfWeekISO(isoDate(year, month, d))
-    if (dow === 6) saturdays++
-    else if (dow === 0) sundays++
-  }
-  const active = await query<{ n: number }>(
-    `SELECT COUNT(*)::int AS n FROM doctors d JOIN users u ON u.id = d.user_id
-     WHERE u.is_active = TRUE AND d.clinic_id = $1`,
-    [clinicId],
-  )
-  const activeCount = active.rows[0]?.n ?? 0
-  return {
-    saturday: balanceCap(DOCTORS_PER_DAY * saturdays, activeCount),
-    sunday: balanceCap(DOCTORS_PER_DAY * sundays, activeCount),
-  }
 }
 
 async function validateAssignment(
@@ -854,25 +799,10 @@ async function validateAssignment(
       )
   }
 
-  // Fairness caps (±1 weekend balance, holiday cap) never block a duty on an
-  // open on-call day or the day after it — same relaxation as the engine.
-  // Hard constraints above (availability, monthly cap, duplicates, open-day
-  // limit) still apply.
+  // The holiday cap never blocks a duty on an open on-call day or the day
+  // after it — same relaxation as the engine. Hard constraints above
+  // (availability, monthly cap, duplicates, open-day limit) still apply.
   if (!requiresDoubleCoverage(date, openDuty)) {
-    const caps = await monthCaps(year, month, clinicId)
-    const dow = dayOfWeekISO(date)
-    if (dow === 6 || dow === 0) {
-      const wkRes = await query<{ n: number }>(
-        `SELECT COUNT(*)::int AS n FROM duties
-         WHERE schedule_id = $1 AND doctor_id = $2 AND is_weekend AND ($3::int IS NULL OR id <> $3)
-         AND EXTRACT(ISODOW FROM duty_date) = $4`,
-        [scheduleId, doctorId, excludeDutyId, dow === 6 ? 6 : 7],
-      )
-      const cap = dow === 6 ? caps.saturday : caps.sunday
-      if (!underCap(wkRes.rows[0]?.n ?? 0, cap).ok)
-        throw new HttpError(409, `Constraint violation: ${dow === 6 ? 'saturday' : 'sunday'} balance cap reached`)
-    }
-
     // Holiday cap: weekends always count; marked clinic holidays add more.
     let marked: string[] = []
     if (!isWeekendISO(date)) {
@@ -945,8 +875,10 @@ export async function addDuty(
     'SELECT COUNT(*)::int AS n FROM duties WHERE schedule_id = $1 AND duty_date = $2',
     [scheduleId, input.date],
   )
-  if ((existing.rows[0]?.n ?? 0) >= DOCTORS_PER_DAY)
-    throw new HttpError(409, 'Both on-call slots for this date are already filled')
+  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const slots = slotsForDate(input.date, openDuty, dutySlots)
+  if ((existing.rows[0]?.n ?? 0) >= slots)
+    throw new HttpError(409, `All ${slots} on-call slots for this date are already filled`)
 
   await validateAssignment(
     scheduleId,
@@ -1028,10 +960,12 @@ export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
   // Strict rule: an open on-call day and the day after it always keep both
   // doctors. With the 2-per-day ceiling, deleting any duty on such a date
   // would leave at most one doctor — the duty must be reassigned, not removed.
-  if (requiresDoubleCoverage(duty.duty_date, await getOpenDutySettings()))
+  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const required = slotsForDate(duty.duty_date, openDuty, dutySlots)
+  if (requiresDoubleCoverage(duty.duty_date, openDuty))
     throw new HttpError(
       409,
-      `Open on-call rule: ${duty.duty_date} (an open on-call day or the day after one) must keep 2 doctors; reassign the duty instead of removing it`,
+      `Open on-call rule: ${duty.duty_date} (an open on-call day or the day after one) must keep ${required} doctors; reassign the duty instead of removing it`,
     )
   await withTransaction(async (client) => {
     await lockScheduleForEdit(client, duty.schedule_id)
@@ -1051,8 +985,9 @@ export async function publish(id: number, actor: Actor): Promise<ScheduleSummary
   const existing = await selectScheduleRow(id)
   assertScheduleVisible(existing, actor)
   // Strict rule gate: every day needs a doctor, and open on-call days (plus
-  // the day after them) need both. Settings are read outside the transaction.
-  const openDuty = await getOpenDutySettings()
+  // the day after them) must be filled to their slot count. Settings are read
+  // outside the transaction.
+  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
   await withTransaction(async (client) => {
     const upd = await client.query(
       `UPDATE schedules SET status = 'published', updated_at = NOW()
@@ -1072,13 +1007,14 @@ export async function publish(id: number, actor: Actor): Promise<ScheduleSummary
     const short: string[] = []
     for (let d = 1; d <= total; d++) {
       const date = isoDate(existing.year, existing.month, d)
-      if (requiresDoubleCoverage(date, openDuty) && (byDate.get(date) ?? 0) < DOCTORS_PER_DAY)
+      const required = slotsForDate(date, openDuty, dutySlots)
+      if (requiresDoubleCoverage(date, openDuty) && (byDate.get(date) ?? 0) < required)
         short.push(date)
     }
     if (short.length > 0)
       throw new HttpError(
         409,
-        `Open on-call rule: ${short.length} day(s) need 2 doctors before publishing: ${short.join(', ')}`,
+        `Open on-call rule: ${short.length} day(s) are not filled to their slot count before publishing: ${short.join(', ')}`,
       )
     await recordActivity(client, {
       userId: actor.id,

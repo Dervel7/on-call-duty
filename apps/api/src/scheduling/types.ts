@@ -1,4 +1,4 @@
-import type { OpenDutySettings } from '@oncall/shared'
+import type { DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
 
 export interface DoctorSpec {
   id: number
@@ -23,8 +23,10 @@ export interface SchedulingContext {
    doctors: DoctorSpec[]
    unavailability: Map<number, Array<{ start: string; end: string }>>
    priorDayDoctorIds: Set<number>
-  /** Open on-call cycle; open days and the day after them require 2 doctors. */
+  /** Open on-call cycle; open days and the day after them are critical. */
   openDuty: OpenDutySettings
+  /** Per-day on-call capacity: open slots on open days, closed slots otherwise. */
+  slots: DutySlotsSettings
 }
 
 export interface CandidateScore {

@@ -22,20 +22,27 @@ multiple of the interval after it (`isOpenDutyDate` in
 - `open_duty_anchor_date` — first open day (seeded `2026-10-02`), fixed
 - `open_duty_interval_days` — spacing between open days (seeded `8`),
   editable by administrators via `PATCH /settings/open-duty`
+- `open_duty_slots` — on-call doctors per **open** on-call day (seeded `2`,
+  editable 1–7 via `PATCH /settings/duty-slots`)
+- `closed_duty_slots` — on-call doctors per **closed** on-call day (seeded
+  `2`, editable 1–7 via `PATCH /settings/duty-slots`)
 
-Days before the anchor are always closed. A date needs **double coverage**
+Days before the anchor are always closed. A date needs **critical fill**
 when it is an open day **or the calendar day right after one**
 (`requiresDoubleCoverage`) — the day after is protected because a duty hands
 over at 15:00 the next day, but it is **not** itself an open day and does not
-count toward the one-open-duty cap.
+count toward the one-open-duty cap. Critical days must be filled to their
+type's slot count (open slots on open days, closed slots on the day after).
 
 ## 3. Hard rules (never broken — engine, manual plans, and single-duty edits)
 
 Checked per candidate doctor, per day, in this order (`fillDay` in
 `apps/api/src/scheduling/engine.ts`):
 
-1. **One slot per doctor per day** — a doctor cannot hold both slots of a date.
-2. **Max 2 doctors per day** — a third duty on a date is rejected (409).
+1. **One slot per doctor per day** — a doctor cannot hold two slots of a date.
+2. **Per-day slot count** — a date holds `open_duty_slots` doctors when it is
+   an open on-call day and `closed_duty_slots` otherwise (`slotsForDate`).
+   One duty above the day's count is rejected (409).
 3. **Availability** — no assignment on a date covered by one of the doctor's
    unavailability ranges (disabled ranges are ignored).
 4. **Monthly cap** — `doctors.max_monthly_duties` (1–7) per schedule month.
@@ -43,15 +50,16 @@ Checked per candidate doctor, per day, in this order (`fillDay` in
    on-call days per doctor per schedule (`OPEN_DUTY_DUTY_CAP = 1`). A second
    open-day duty is refused everywhere: engine assignment, manual plans
    (`validatePlan` → 409), and add/reassign (`validateAssignment` → 409). It
-   is never relaxed to complete an open day's double coverage.
+   is never relaxed to complete an open day's full coverage.
 6. **No back-to-back** — a doctor cannot be on duty the day immediately after
    (or, for later slots, the day before) a day they are already on duty.
    Checked across month boundaries via the previous month's last-day duties.
-7. **Double coverage on open on-call days** *(strict)* — an open on-call day
-   and the day right after it always carry **2 doctors**. They are filled
-   first (both slots before any regular day gets a single one), and fairness
-   caps never block them — only rules 3–6 above can leave a slot unfilled,
-   which surfaces as a conflict.
+7. **Full coverage on critical days** *(strict)* — an open on-call day and
+   the day right after it always carry **their full slot count** (open slots
+   on the open day, closed slots on the day after). They are filled first
+   (every slot before any regular day gets a single one), and fairness caps
+   never block them — only rules 3–6 can leave a slot unfilled, which
+   surfaces as a conflict.
 8. **Active doctors only** — disabled doctors are skipped entirely.
 9. **Every day needs at least one doctor** *(strict)* — before a regular day
    is left empty, the fairness caps (§4) are relaxed for its first slot; the
@@ -63,38 +71,36 @@ Checked per candidate doctor, per day, in this order (`fillDay` in
 
 ### Strictness ordering
 
-`Double coverage (7) > fairness caps (§4)` — weekend/holiday balancing is
+`Critical fill (7) > fairness caps (§4)` — holiday balancing is
 skipped on open days and the day after them.
 `Day-fill guarantee (9) > fairness caps (§4)` — balancing yields before a day
 is left empty (first slot of a regular day only; critical days skip fairness
 anyway).
-`Rules 3–6` are absolute: they can leave even a double-coverage day short,
+`Rules 3–6` are absolute: they can leave even a critical day short,
 reported as a conflict with the exact breakdown (e.g.
-`requires 2 doctors (open on-call rule); only 1 of 2 doctors assigned; …
+`requires 3 doctors (open on-call rule); only 2 of 3 doctors assigned; …
 1 at open on-call cap, …`).
 
 ## 4. Fairness rules (soft — enforced everywhere except critical days)
 
 | Rule | Cap | Where |
 |---|---|---|
-| Saturday balance | nobody takes more than ±1 above an even split of Saturday slots: `floor(2 × Saturdays ÷ active doctors) + 1` | `balanceCap` in `constraints.ts` |
-| Sunday balance | same formula over Sunday slots | `balanceCap` |
-| Holiday duty cap | max 2 duties on holiday days (weekends + admin-marked dates) per month | `HOLIDAY_DUTY_CAP` |
+| Holiday duty cap | max 2 duties on holiday days (Saturdays, Sundays + admin-marked dates) per month — the only weekend limit | `HOLIDAY_DUTY_CAP` in `constraints.ts` |
 
 These never block a duty on an open on-call day or the day right after one.
 
 They also yield to the day-fill guarantee (§3 rule 9): when a regular day's
-first slot has no eligible doctor, the balance/holiday caps are skipped for
-that slot. They still block every second slot, and single-duty edits
-(`validateAssignment`) enforce them without exception.
+first slot has no eligible doctor, the holiday cap is skipped for
+that slot. It still blocks every second slot, and single-duty edits
+(`validateAssignment`) enforce it without exception.
 
 ## 5. Scoring (how the engine picks among eligible doctors)
 
 Per candidate, `apps/api/src/scheduling/scoring.ts`:
 
 - **Workload +3** × remaining headroom under the doctor's monthly cap
-- **Weekend +4** × headroom under the weekend budget `ceil(2 × weekend days ÷ active doctors)` (weekend days only)
-- **Friday +2** × headroom under the Friday budget `ceil(2 × Fridays ÷ active doctors)` (Fridays only)
+- **Weekend +4** × headroom under the weekend budget `ceil(total weekend slots ÷ active doctors)` (weekend days only)
+- **Friday +2** × headroom under the Friday budget `ceil(total Friday slots ÷ active doctors)` (Fridays only)
 
 Ties break deterministically: fewest total duties → fewest weekend duties →
 lower doctor id. Same inputs always yield the same roster.
@@ -102,13 +108,13 @@ lower doctor id. Same inputs always yield the same roster.
 ## 6. Fill order
 
 1. All open on-call days and the days right after them (critical days),
-   slot 0 across all of them, then slot 1.
-2. All remaining days, slot 0, then slot 1.
+   slot 0 across all of them, then slot 1, and so on up to each day's count.
+2. All remaining days, the same slot-by-slot order.
 
 If a regular day's slot-0 pass finds no eligible doctor, the fairness caps
 are relaxed once for that slot (§3 rule 9) before the day is recorded as a
 conflict; eligibility only shrinks afterwards, so such a day never gains a
-second doctor.
+second slot.
 
 Every assignment persists a human-readable `reason`
 (`score N (workload +x, weekend +y, friday +z)…`); manual edits persist
@@ -120,11 +126,11 @@ Every assignment persists a human-readable `reason`
 |---|---|
 | `POST /schedules/preview` | Engine runs cold; conflicts listed per day with the full breakdown; nothing persisted |
 | `POST /schedules` (auto) | Engine must produce zero conflicts, else 422; then persist |
-| `POST /schedules` (manual plan) | `validatePlan`: date in month, active doctor, availability, no dup per date, ≤2/day, every day ≥1, double coverage complete, monthly cap, open-duty cap, Sat/Sun/holiday balance (relaxed on critical days and for a day's sole doctor — day-fill guarantee), no back-to-back |
-| `POST /schedules/:id/duties` | `validateAssignment`: active, available, monthly cap, no dup, open-duty cap, balance caps (relaxed on critical days), holiday cap, no back-to-back; max 2/day |
+| `POST /schedules` (manual plan) | `validatePlan`: date in month, active doctor, availability, no dup per date, ≤ the day's slot count, every day ≥1, critical days filled to their count, monthly cap, open-duty cap, holiday cap (relaxed on critical days and for a day's sole doctor — day-fill guarantee), no back-to-back |
+| `POST /schedules/:id/duties` | `validateAssignment`: active, available, monthly cap, no dup, open-duty cap, holiday cap (relaxed on critical days), no back-to-back; max the day's slot count |
 | `PATCH /duties/:id` | Same as add, excluding the reassigned duty itself |
 | `DELETE /duties/:id` | Refused (409) on an open day or the day after one — those slots must be reassigned, not removed |
-| `POST /schedules/:id/publish` | Every day ≥1 duty and double coverage complete, else 409 |
+| `POST /schedules/:id/publish` | Every day ≥1 duty and critical days filled to their slot count, else 409 |
 | Published schedules | All duty edits and deletion refused (409) until reverted to draft |
 | `GET /schedules/:id` (admin) | Per-day eligibility recomputes every hard/fairness rule against the persisted duties (swap-aware: a doctor's own duty on the day doesn't count against them) |
 

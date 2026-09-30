@@ -13,7 +13,7 @@ vi.mock('../services/activity.service', () => ({
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
 
-import { getOpenDutySettings, setOpenDutyInterval } from '../services/settings.service'
+import { getDutySlots, getOpenDutySettings, setOpenDutyInterval, setDutySlots } from '../services/settings.service'
 
 beforeEach(() => {
   query.mockReset()
@@ -81,6 +81,79 @@ describe('settings.service', () => {
       entityType: 'open_duty_settings',
       entityId: null,
       detail: { previousIntervalDays: 8, intervalDays: 14 },
+    })
+  })
+})
+
+describe('settings.service duty slots', () => {
+  it('missing app_meta rows fall back to the seeded 2/2 defaults', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await expect(getDutySlots()).resolves.toEqual({
+      openDutySlots: 2,
+      closedDutySlots: 2,
+    })
+  })
+
+  it('reads the stored slot rows', async () => {
+    query.mockResolvedValue({
+      rows: [
+        { key: 'open_duty_slots', value: '3' },
+        { key: 'closed_duty_slots', value: '1' },
+      ],
+    })
+    await expect(getDutySlots()).resolves.toEqual({
+      openDutySlots: 3,
+      closedDutySlots: 1,
+    })
+  })
+
+  it('corrupt rows fall back to the defaults instead of breaking scheduling', async () => {
+    query.mockResolvedValue({
+      rows: [
+        { key: 'open_duty_slots', value: 'three' },
+        { key: 'closed_duty_slots', value: '0' },
+      ],
+    })
+    await expect(getDutySlots()).resolves.toEqual({
+      openDutySlots: 2,
+      closedDutySlots: 2,
+    })
+  })
+
+  it('setDutySlots upserts both keys, audits duty_slots_settings.updated, returns fresh settings', async () => {
+    const appMeta = new Map<string, string>()
+    query.mockImplementation(async (sql: string, params: unknown[] = []) => {
+      if (sql.includes('INSERT INTO app_meta')) {
+        appMeta.set(String(params[0]), String(params[1]))
+        appMeta.set(String(params[2]), String(params[3]))
+        return { rows: [] }
+      }
+      const rows: Array<{ key: string; value: string }> = []
+      for (const key of params.map(String)) {
+        const value = appMeta.get(key)
+        if (value !== undefined) rows.push({ key, value })
+      }
+      return { rows }
+    })
+
+    const settings = await setDutySlots(
+      { openDutySlots: 3, closedDutySlots: 2 },
+      { id: 1, role: 'administrator' },
+    )
+    expect(settings).toEqual({ openDutySlots: 3, closedDutySlots: 2 })
+    const upsert = query.mock.calls.find((c) => String(c[0]).includes('ON CONFLICT'))
+    expect(upsert?.[1]).toEqual(['open_duty_slots', '3', 'closed_duty_slots', '2'])
+    expect(logActivity).toHaveBeenCalledWith({
+      userId: 1,
+      action: 'duty_slots_settings.updated',
+      entityType: 'duty_slots_settings',
+      entityId: null,
+      detail: {
+        previousOpenDutySlots: 2,
+        previousClosedDutySlots: 2,
+        openDutySlots: 3,
+        closedDutySlots: 2,
+      },
     })
   })
 })

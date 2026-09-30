@@ -3,7 +3,7 @@ import { settingsController } from '../controllers/settings.controller'
 import { authenticate } from '../middleware/authenticate'
 import { authorize } from '../middleware/authorize'
 import { validate } from '../middleware/validate'
-import { updateOpenDutySchema } from '../validators/settings'
+import { updateDutySlotsSchema, updateOpenDutySchema } from '../validators/settings'
 
 export const settingsRouter = Router()
 
@@ -17,4 +17,14 @@ settingsRouter.patch(
   authorize('administrator'),
   validate(updateOpenDutySchema, 'body'),
   settingsController.updateOpenDuty,
+)
+
+// Per-day on-call capacity (open vs closed days): administrators tune both
+// counts; the engine, previews, duty edits, and publishing consume them.
+settingsRouter.get('/duty-slots', authorize('administrator'), settingsController.getDutySlots)
+settingsRouter.patch(
+  '/duty-slots',
+  authorize('administrator'),
+  validate(updateDutySlotsSchema, 'body'),
+  settingsController.updateDutySlots,
 )

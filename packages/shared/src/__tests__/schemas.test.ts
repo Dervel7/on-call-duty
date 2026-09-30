@@ -245,7 +245,7 @@ describe('schedule schemas', () => {
   })
 })
 
-import { updateBillingSchema, updateOpenDutySchema } from '../index'
+import { updateBillingSchema, updateDutySlotsSchema, updateOpenDutySchema } from '../index'
 
 describe('billing schemas', () => {
   it('updateBillingSchema accepts a real calendar date and rejects malformed ones', () => {
@@ -266,6 +266,27 @@ describe('open-duty settings schemas', () => {
   it('updateOpenDutySchema rejects zero, negatives, fractions, and absurd ranges', () => {
     for (const intervalDays of [0, -1, 1.5, 366, 'abc', '']) {
       expect(updateOpenDutySchema.safeParse({ intervalDays }).success).toBe(false)
+    }
+  })
+})
+
+describe('duty-slots settings schemas', () => {
+  it('updateDutySlotsSchema coerces numeric strings and accepts 1..7 integers', () => {
+    expect(updateDutySlotsSchema.safeParse({ openDutySlots: 2, closedDutySlots: 2 }).success).toBe(true)
+    expect(updateDutySlotsSchema.safeParse({ openDutySlots: '3', closedDutySlots: '1' }).success).toBe(true)
+    expect(updateDutySlotsSchema.safeParse({ openDutySlots: 7, closedDutySlots: 1 }).success).toBe(true)
+  })
+
+  it('updateDutySlotsSchema rejects zero, over-7, fractions, and missing fields', () => {
+    for (const body of [
+      { openDutySlots: 0, closedDutySlots: 2 },
+      { openDutySlots: 2, closedDutySlots: 8 },
+      { openDutySlots: 1.5, closedDutySlots: 2 },
+      { openDutySlots: 'abc', closedDutySlots: 2 },
+      { openDutySlots: 2 },
+      {},
+    ]) {
+      expect(updateDutySlotsSchema.safeParse(body).success).toBe(false)
     }
   })
 })

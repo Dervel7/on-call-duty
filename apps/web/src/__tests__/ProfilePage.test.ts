@@ -22,12 +22,6 @@ vi.mock('@/services/user', () => ({
   updateUsername: (...a: unknown[]) => updateUsername(...a),
 }))
 
-const getOpenDuty = vi.fn()
-const updateOpenDutyInterval = vi.fn()
-vi.mock('@/services/settings', () => ({
-  getOpenDuty: (...a: unknown[]) => getOpenDuty(...a),
-  updateOpenDutyInterval: (...a: unknown[]) => updateOpenDutyInterval(...a),
-}))
 
 import ProfilePage from '../pages/ProfilePage.vue'
 
@@ -36,9 +30,6 @@ beforeEach(() => {
   changePassword.mockReset()
   updateTheme.mockReset()
   updateUsername.mockReset()
-  getOpenDuty.mockReset()
-  getOpenDuty.mockResolvedValue({ anchorDate: '2026-10-02', intervalDays: 8 })
-  updateOpenDutyInterval.mockReset()
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -256,78 +247,3 @@ describe('ProfilePage change username', () => {
   })
 })
 
-describe('ProfilePage on-call duty cycle', () => {
-  const adminAuth = () => ({
-    id: 2,
-    email: 'admin@h.com',
-    username: 'admin',
-    role: 'administrator' as const,
-    firstName: 'Ada',
-    lastName: 'Admin',
-    darkMode: false,
-    clinicId: 1,
-    clinicName: 'Main Clinic',
-  })
-
-  async function mountAdmin() {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const auth = useAuthStore()
-    auth.user = adminAuth()
-    getOpenDuty.mockResolvedValue({ anchorDate: '2026-10-02', intervalDays: 8 })
-    const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
-    await flushPromises()
-    return { wrapper }
-  }
-
-  it('shows the cycle card with the anchor and current interval to admins', async () => {
-    const { wrapper } = await mountAdmin()
-    expect(getOpenDuty).toHaveBeenCalled()
-    expect(wrapper.text()).toContain('On-call duty cycle')
-    expect(wrapper.text()).toContain('2026-10-02')
-    expect((wrapper.find('#open-duty-interval').element as HTMLInputElement).value).toBe('8')
-  })
-
-  it('saves a new interval through the service and confirms', async () => {
-    updateOpenDutyInterval.mockResolvedValue({ anchorDate: '2026-10-02', intervalDays: 14 })
-    const { wrapper } = await mountAdmin()
-    await wrapper.find('#open-duty-interval').setValue('14')
-    const form = wrapper.findAll('form').find((f) => f.find('#open-duty-interval').exists())!
-    await form.trigger('submit')
-    await flushPromises()
-    expect(updateOpenDutyInterval).toHaveBeenCalledWith(14)
-    expect(form.find('[role="status"]').text()).toContain('Interval updated.')
-    expect(form.find('[role="alert"]').exists()).toBe(false)
-  })
-
-  it('rejects an invalid interval without calling the service', async () => {
-    const { wrapper } = await mountAdmin()
-    await wrapper.find('#open-duty-interval').setValue('0')
-    const form = wrapper.findAll('form').find((f) => f.find('#open-duty-interval').exists())!
-    await form.trigger('submit')
-    await flushPromises()
-    expect(updateOpenDutyInterval).not.toHaveBeenCalled()
-    expect(form.find('[role="alert"]').exists()).toBe(true)
-  })
-
-  it('hides the cycle card from doctors', async () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const auth = useAuthStore()
-    auth.user = {
-      id: 10,
-      email: 'dr@h.com',
-      username: 'dr1',
-      role: 'doctor',
-      firstName: 'Jane',
-      lastName: 'Roe',
-      darkMode: false,
-      clinicId: 1,
-      clinicName: 'Main Clinic',
-    }
-    const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
-    await flushPromises()
-    expect(wrapper.text()).not.toContain('On-call duty cycle')
-    expect(getOpenDuty).not.toHaveBeenCalled()
-  })
-})
