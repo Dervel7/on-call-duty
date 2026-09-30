@@ -9,7 +9,7 @@ export const doctorController = {
     try {
       // req.query is typed by validate(doctorQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
-      const scope = resolveClinicScope(req.user!, clinicId)
+      const scope = await resolveClinicScope(req.user!, clinicId)
       const doctors = await doctorService.list(scope)
       res.status(200).json(ok({ doctors }))
     } catch (err) {
@@ -37,7 +37,7 @@ export const doctorController = {
     try {
       // req.query is typed by validate(doctorQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
-      const scope = resolveClinicScope(req.user!, clinicId)
+      const scope = await resolveClinicScope(req.user!, clinicId)
       const doctor = await doctorService.create(req.body, req.user!, scope)
       res.status(201).json(ok({ doctor }))
     } catch (err) {

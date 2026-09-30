@@ -10,7 +10,7 @@ export const scheduleController = {
     try {
       // req.query is typed by validate(scheduleQuerySchema) upstream.
       const { clinicId, ...filters } = req.query as ScheduleQuery & { clinicId?: number }
-      const scope = resolveClinicScope(req.user!, clinicId)
+      const scope = await resolveClinicScope(req.user!, clinicId)
       const schedules = await scheduleService.list(filters, req.user, scope)
       res.status(200).json(ok({ schedules }))
     } catch (err) {
@@ -29,7 +29,7 @@ export const scheduleController = {
     try {
       // req.query is typed by validate(scheduleQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
-      const scope = resolveClinicScope(req.user!, clinicId)
+      const scope = await resolveClinicScope(req.user!, clinicId)
       const result = await scheduleService.preview(
         req.body.year,
         req.body.month,
@@ -46,7 +46,7 @@ export const scheduleController = {
       if (!req.user) throw new HttpError(401, 'Unauthorized')
       // req.query is typed by validate(scheduleQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
-      const scope = resolveClinicScope(req.user!, clinicId)
+      const scope = await resolveClinicScope(req.user!, clinicId)
       const detail = await scheduleService.generate(
         req.body.year,
         req.body.month,

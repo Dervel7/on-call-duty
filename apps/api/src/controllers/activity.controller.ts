@@ -8,7 +8,7 @@ export const activityController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
       const { clinicId, ...filters } = req.query as ActivityQuery & { clinicId?: number }
-      const scope = resolveClinicScope(req.user!, clinicId)
+      const scope = await resolveClinicScope(req.user!, clinicId)
       const activity = await activityService.list(filters, scope)
       res.status(200).json(ok({ activity }))
     } catch (err) {

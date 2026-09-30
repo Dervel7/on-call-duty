@@ -25,6 +25,13 @@ vi.mock('../services/schedule.service', () => ({
   unpublish: (...a: unknown[]) => unpublish(...a),
 }))
 vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+// The superadmin scope default resolves the sole clinic through the db pool.
+const query = vi.fn()
+vi.mock('../db/client', () => ({
+  query: (...a: unknown[]) => query(...a),
+  withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
+}))
+
 
 
 import { signAccessToken } from '../lib/jwt'
@@ -72,6 +79,7 @@ beforeEach(() => {
   [preview, generate, list, getById, remove, addDuty, reassignDuty, removeDuty, publish, unpublish].forEach((m) =>
     m.mockReset(),
   )
+  query.mockReset()
 })
 
 describe('schedule routes', () => {
@@ -289,15 +297,25 @@ describe('clinic scoping on schedule routes', () => {
     ).toBe(403)
   })
 
-  it('superadmin preview/generate without clinicId is 400 (I25)', async () => {
+  it('superadmin preview/generate without clinicId default to the sole clinic', async () => {
+    query.mockResolvedValue({ rows: [{ id: 1 }] })
+    preview.mockResolvedValue({ conflicts: [], assignments: [] })
+    generate.mockResolvedValue(detail())
     const token = superadminToken()
     const app = build()
     expect(
       (await request(app).post('/schedules/preview').set('Authorization', `Bearer ${token}`).send({ year: 2026, month: 9 })).status,
-    ).toBe(400)
+    ).toBe(200)
     expect(
       (await request(app).post('/schedules').set('Authorization', `Bearer ${token}`).send({ year: 2026, month: 9 })).status,
-    ).toBe(400)
+    ).toBe(201)
+    expect(generate).toHaveBeenCalledWith(
+      2026,
+      9,
+      expect.anything(),
+      expect.objectContaining({ clinicId: 1 }),
+      undefined,
+    )
   })
 
   it('administrator generate without clinicId resolves to own clinic', async () => {

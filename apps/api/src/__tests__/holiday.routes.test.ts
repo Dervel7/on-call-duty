@@ -70,19 +70,24 @@ describe('holiday routes', () => {
     expect(res.status).toBe(400)
   })
 
-  it('superadmin without clinicId is 400; with clinicId is 200', async () => {
-    const missing = await request(build())
+  it('superadmin defaults to the sole clinic; explicit clinicId drill-down', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // sole-clinic scope lookup
+    query.mockResolvedValue({ rows: [row()] })
+    const defaulted = await request(build())
       .get('/holidays?year=2026')
       .set('Authorization', `Bearer ${superadminToken()}`)
-    expect(missing.status).toBe(400)
+    expect(defaulted.status).toBe(200)
+    expect(query.mock.calls[0]?.[0]).toContain('FROM clinics')
+    expect(query.mock.calls[1]?.[1]).toEqual([1, 2026])
 
     query.mockResolvedValue({ rows: [] })
     const okRes = await request(build())
       .get('/holidays?year=2026&clinicId=3')
       .set('Authorization', `Bearer ${superadminToken()}`)
     expect(okRes.status).toBe(200)
-    expect(query.mock.calls[0]?.[1]).toEqual([3, 2026])
+    expect(query.mock.calls[2]?.[1]).toEqual([3, 2026])
   })
+
 
   it('admin replaces a month (200): DELETE + INSERT inside the transaction, audited', async () => {
     query.mockResolvedValueOnce({ rows: [] }) // DELETE
@@ -121,11 +126,20 @@ describe('holiday routes', () => {
     expect(query).not.toHaveBeenCalled()
   })
 
-  it('superadmin PUT without clinicId is 400', async () => {
+  it('superadmin PUT defaults to the sole clinic', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // sole-clinic scope lookup
+    query.mockResolvedValueOnce({ rows: [] }) // DELETE
+    query.mockResolvedValueOnce({ rows: [] }) // INSERT
+    query.mockResolvedValue({ rows: [{ id: 7, clinic_id: 1, holiday_date: '2026-03-25' }] })
     const res = await request(build())
       .put('/holidays/month')
       .set('Authorization', `Bearer ${superadminToken()}`)
       .send({ year: 2026, month: 3, dates: ['2026-03-25'] })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(200)
+    expect(res.body.data.holidays).toEqual([{ id: 7, clinicId: 1, date: '2026-03-25' }])
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM holidays'),
+      [1, 2026, 3],
+    )
   })
 })

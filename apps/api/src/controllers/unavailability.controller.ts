@@ -10,7 +10,7 @@ export const unavailabilityController = {
     try {
       // req.query is typed by validate(unavailabilityQuerySchema) upstream.
       const { clinicId, ...filters } = req.query as UnavailabilityQuery & { clinicId?: number }
-      const scope = resolveClinicScope(req.user!, clinicId)
+      const scope = await resolveClinicScope(req.user!, clinicId)
       const unavailability = await unavailabilityService.listAll(filters, scope)
       res.status(200).json(ok({ unavailability }))
     } catch (err) {
@@ -30,7 +30,7 @@ export const unavailabilityController = {
     try {
       // req.query is typed by validate(unavailabilityQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
-      const scope = resolveClinicScope(req.user!, clinicId)
+      const scope = await resolveClinicScope(req.user!, clinicId)
       const unavailability = await unavailabilityService.create(
         req.body.doctorId,
         req.body,

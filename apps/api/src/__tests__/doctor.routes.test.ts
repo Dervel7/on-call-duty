@@ -54,6 +54,7 @@ function installDb(rows: Record<string, unknown>[] = [row()]) {
     if (sql.includes('WHERE username =')) return { rows: [] }
     if (sql.includes('INSERT INTO users')) return { rows: [{ id: 10 }] }
     if (sql.includes('INSERT INTO doctors')) return { rows: [{ id: 1 }] }
+    if (sql.includes('FROM clinics ORDER BY id')) return { rows: [{ id: 1 }] } // sole clinic
     return { rows }
   })
 }
@@ -102,12 +103,16 @@ describe('doctor routes', () => {
     expect(write.status).toBe(403)
   })
 
-  it('superadmin create without clinicId is 400 (I25)', async () => {
+  it('superadmin create without clinicId targets the sole clinic (201)', async () => {
+    installDb()
     const res = await request(build())
       .post('/doctors')
       .set('Authorization', `Bearer ${superadminToken()}`)
       .send({ email: 'n@h.com', username: 'ndr', password: 'secret1', firstName: 'N', lastName: 'D' })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(201)
+    expect(res.body.data.doctor.clinicId).toBe(1)
+    const insert = query.mock.calls.find((c) => String(c[0]).includes('INSERT INTO doctors'))
+    expect(insert?.[1]).toContain(1) // clinic_id = sole clinic
   })
 
   it('doctor reads own profile via /doctors/me (200)', async () => {

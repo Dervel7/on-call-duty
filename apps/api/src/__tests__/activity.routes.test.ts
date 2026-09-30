@@ -7,6 +7,13 @@ vi.mock('../services/activity.service', () => ({
   list: (...a: unknown[]) => list(...a),
 }))
 vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+// The superadmin scope default resolves the sole clinic through the db pool.
+const query = vi.fn()
+vi.mock('../db/client', () => ({
+  query: (...a: unknown[]) => query(...a),
+  withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
+}))
+
 
 
 import { signAccessToken } from '../lib/jwt'
@@ -26,7 +33,12 @@ const adminToken = () => signAccessToken({ sub: 1, role: 'administrator', clinic
 const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 10 })
 const managerToken = () => signAccessToken({ sub: 2, role: 'manager', clinicId: null })
 
-beforeEach(() => list.mockReset())
+beforeEach(() => {
+  list.mockReset()
+  query.mockReset()
+  // Single-clinic deployment: the sole clinic is id 1.
+  query.mockResolvedValue({ rows: [{ id: 1 }] })
+})
 
 describe('activity routes', () => {
   it('superadmin lists activity (200); unauthenticated is 401; admin and doctor are 403', async () => {

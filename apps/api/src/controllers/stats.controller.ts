@@ -12,7 +12,7 @@ export const statsController = {
       const now = currentYearMonthUTC()
       const year = q.year ?? now.year
       const month = q.month ?? now.month
-      const scope = resolveClinicScope(req.user!, q.clinicId)
+      const scope = await resolveClinicScope(req.user!, q.clinicId)
       const stats = await adminStats(year, month, scope)
       res.status(200).json(ok({ stats }))
     } catch (err) {

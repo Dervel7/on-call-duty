@@ -13,6 +13,13 @@ vi.mock('../services/stats.service', () => ({
   },
 }))
 vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+// The superadmin scope default resolves the sole clinic through the db pool.
+const query = vi.fn()
+vi.mock('../db/client', () => ({
+  query: (...a: unknown[]) => query(...a),
+  withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
+}))
+
 
 
 import { errorHandler } from '../middleware/error-handler'
@@ -44,7 +51,9 @@ const emptyStats = () => ({
 beforeEach(() => {
   adminStats.mockReset()
   meStats.mockReset()
+  query.mockReset()
 })
+
 
 describe('stats routes', () => {
   it('admin 200; doctor 403; unauth 401', async () => {
@@ -97,12 +106,17 @@ describe('stats routes', () => {
     expect(adminStats.mock.calls[0]?.[2]).toEqual({ kind: 'clinic', clinicId: 2 })
   })
 
-  it('superadmin without clinicId gets 400 (scope is explicit, never global)', async () => {
+  it('superadmin without clinicId defaults to the sole clinic', async () => {
+    adminStats.mockResolvedValue(emptyStats())
+    query.mockResolvedValue({ rows: [{ id: 4 }] })
     const res = await request(build())
       .get('/stats/admin')
       .set('Authorization', `Bearer ${superadminToken()}`)
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(200)
+    expect(query.mock.calls[0]?.[0]).toContain('FROM clinics')
+    expect(adminStats.mock.calls[0]?.[2]).toEqual({ kind: 'clinic', clinicId: 4 })
   })
+
 
   it('administrator passing a foreign clinicId gets 403; own clinicId is forced', async () => {
     adminStats.mockResolvedValue(emptyStats())

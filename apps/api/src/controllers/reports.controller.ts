@@ -12,7 +12,7 @@ export const reportsController = {
       const now = currentYearMonthUTC()
       const year = q.year ?? now.year
       const month = q.month ?? now.month
-      const scope = resolveClinicScope(req.user!, q.clinicId)
+      const scope = await resolveClinicScope(req.user!, q.clinicId)
       const report = await monthlyReport(year, month, req.user!, scope)
       res.status(200).json(ok({ report }))
     } catch (err) {
