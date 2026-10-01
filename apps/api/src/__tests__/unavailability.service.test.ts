@@ -428,6 +428,27 @@ describe('unavailability.service', () => {
       ])
     })
 
+    it('keeps the id on segments[0] as sent, even when it is not the earliest (page toggle payload)', async () => {
+      installSplitDb(false)
+      const xs = await split(
+        1,
+        {
+          segments: [
+            { startDate: '2026-09-09', endDate: '2026-09-09' },
+            { startDate: '2026-09-07', endDate: '2026-09-08' },
+            { startDate: '2026-09-10', endDate: '2026-09-11' },
+          ],
+          isDisabled: true,
+        },
+        admin,
+      )
+      expect(xs.map((x) => [x.id, x.startDate, x.endDate, x.isDisabled])).toEqual([
+        [1, '2026-09-09', '2026-09-09', true],
+        [7, '2026-09-07', '2026-09-08', false],
+        [8, '2026-09-10', '2026-09-11', false],
+      ])
+    })
+
     it('rejects segments outside the record or overlapping each other (400) without writing', async () => {
       installSplitDb(false)
       await expect(
