@@ -33,6 +33,8 @@ const updateTheme = vi.fn()
 vi.mock('@/services/user', () => ({ updateTheme: (...a: unknown[]) => updateTheme(...a) }))
 
 import { useAuthStore } from '../stores/auth'
+import { apiGet, setAccessToken } from '../lib/http'
+import { logout as logoutService } from '@/services/auth'
 
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => vi.restoreAllMocks())
@@ -63,6 +65,27 @@ describe('auth store', () => {
     vi.mocked(logout).mockRejectedValueOnce(new Error('net'))
     await auth.logout()
     expect(auth.isAuthenticated).toBe(false)
+  })
+
+  it('a failed logout stops later requests from sending the old token', async () => {
+    const auth = useAuthStore()
+    await auth.login('a@b.com', 'secret1')
+    // The real auth service hands the token to the http module; the mock doesn't.
+    setAccessToken('AAA')
+    vi.mocked(logoutService).mockRejectedValueOnce(new Error('net'))
+    await auth.logout()
+    const fetchMock = vi.fn(
+      async (_url: string, _init: RequestInit) =>
+        new Response(JSON.stringify({ success: true, data: {} }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      await apiGet('/doctors')
+      const init = fetchMock.mock.calls[0]?.[1] as RequestInit
+      expect(init.headers).not.toHaveProperty('Authorization')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('setDarkMode persists the preference and updates the stored user', async () => {

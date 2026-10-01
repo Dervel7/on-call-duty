@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { AuthUser } from '@oncall/shared'
-import { setLockedHandler, setRefreshHandler } from '@/lib/http'
+import { setAccessToken, setLockedHandler, setRefreshHandler } from '@/lib/http'
 import * as authService from '@/services/auth'
 import * as userService from '@/services/user'
 
@@ -21,6 +21,13 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = data.accessToken
   }
 
+  /** Clears the store and the token the http module sends, so the two never drift. */
+  function clearSession(): void {
+    user.value = null
+    accessToken.value = null
+    setAccessToken(null)
+  }
+
   async function refresh(): Promise<string | null> {
     try {
       const data = await authService.refresh()
@@ -28,8 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
       accessToken.value = data.accessToken
       return data.accessToken
     } catch {
-      user.value = null
-      accessToken.value = null
+      clearSession()
       return null
     }
   }
@@ -39,8 +45,7 @@ export const useAuthStore = defineStore('auth', () => {
       await authService.logout()
     } catch {
     } finally {
-      user.value = null
-      accessToken.value = null
+      clearSession()
     }
   }
 
@@ -67,8 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
   setRefreshHandler(refresh)
 
   setLockedHandler(() => {
-    user.value = null
-    accessToken.value = null
+    clearSession()
     import('@/router')
       .then(({ router }) => router.push({ name: 'locked' }))
       .catch(() => {})

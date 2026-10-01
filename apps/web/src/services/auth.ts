@@ -14,8 +14,11 @@ export async function refresh(): Promise<LoginResponse> {
 }
 
 export async function logout(): Promise<void> {
-  await apiPost<void>('/auth/logout')
-  setAccessToken(null)
+  try {
+    await apiPost<void>('/auth/logout')
+  } finally {
+    setAccessToken(null)
+  }
 }
 
 export async function fetchMe(): Promise<AuthUser> {
