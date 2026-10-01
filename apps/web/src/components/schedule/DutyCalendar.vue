@@ -165,19 +165,21 @@ function cellBg(c: Cell): string {
           ]"
         >
           <template v-if="!c.blank">
-            <div class="flex items-start justify-between">
+            <!-- Fixed height = both badges stacked (WE + OPEN), so the slots
+                 start at the same place in every day cell. -->
+            <div class="flex h-[34px] items-start justify-between">
               <span v-if="c.isToday" class="grid h-6 w-6 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground shadow-glow">{{ c.dayNum }}</span>
               <span v-else-if="c.isWeekend" class="font-mono text-xs font-bold text-primary">{{ c.dayNum }}</span>
               <span v-else class="font-mono text-xs font-bold">{{ c.dayNum }}</span>
               <span class="flex flex-col items-end gap-0.5">
                 <span
                   v-if="c.isWeekend"
-                  class="inline-flex rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+                  class="inline-flex rounded bg-primary/10 px-1.5 py-[3px] text-[10px] leading-none font-medium text-primary"
                   >WE</span
                 >
                 <span
                   v-if="c.isOpen"
-                  class="inline-flex rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive"
+                  class="inline-flex rounded bg-destructive/10 px-1.5 py-[3px] text-[10px] leading-none font-medium text-destructive"
                   >OPEN</span
                 >
               </span>
