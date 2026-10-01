@@ -77,6 +77,19 @@ export const unavailabilityController = {
       next(err)
     }
   },
+  async split(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) throw new HttpError(401, 'Unauthorized')
+      const unavailability = await unavailabilityService.split(
+        Number(req.params.id),
+        req.body,
+        req.user,
+      )
+      res.status(200).json(ok({ unavailability }))
+    } catch (err) {
+      next(err)
+    }
+  },
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new HttpError(401, 'Unauthorized')

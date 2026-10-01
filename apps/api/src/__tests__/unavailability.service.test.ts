@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
+type Work = (c: { query: typeof query }) => Promise<unknown>
+const transaction = vi.fn()
 vi.mock('../db/client', () => ({
   query: (...a: unknown[]) => query(...a),
-  withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
+  withTransaction: (work: Work) => transaction(work),
 }))
 
 const logActivity = vi.fn()
@@ -20,6 +22,7 @@ import {
   listOwn,
   remove,
   setDisabled,
+  split,
   update,
 } from '../services/unavailability.service'
 import type { ClinicScope } from '../lib/scope'
@@ -67,6 +70,8 @@ beforeEach(() => {
   query.mockReset()
   logActivity.mockReset()
   recordActivity.mockReset()
+  transaction.mockReset()
+  transaction.mockImplementation((work: Work) => work({ query }))
 })
 
 describe('unavailability.service', () => {
@@ -322,5 +327,154 @@ describe('unavailability.service', () => {
       return { rows: [] }
     })
     await expect(remove(1, admin)).rejects.toMatchObject({ status: 404 })
+  })
+
+  describe('split', () => {
+    interface Row {
+      id: number
+      doctor_id: number
+      [column: string]: unknown
+    }
+    let table: Map<number, Row>
+
+    // In-memory unavailability table. withTransaction snapshots it and restores
+    // the snapshot on error, mirroring the real BEGIN/ROLLBACK semantics.
+    function installSplitDb(isDisabled: boolean, failOnInsert?: number) {
+      table = new Map([[1, row({ is_disabled: isDisabled })]])
+      let nextId = 7
+      let inserts = 0
+      transaction.mockImplementation(async (work: Work) => {
+        const snapshot = new Map([...table].map(([k, v]) => [k, { ...v }]))
+        try {
+          return await work({ query })
+        } catch (err) {
+          table = snapshot
+          throw err
+        }
+      })
+      query.mockImplementation(async (sql: string, params: unknown[] = []) => {
+        if (sql.includes('x.id = ANY($1')) {
+          const ids = params[0] as number[]
+          return { rows: [...table.values()].filter((r) => ids.includes(r.id)) }
+        }
+        if (sql.includes('SELECT x.doctor_id, d.clinic_id')) {
+          const r = table.get(params[0] as number)
+          return { rows: r ? [{ doctor_id: r.doctor_id, clinic_id: 1 }] : [] }
+        }
+        if (sql.includes('FROM doctors WHERE id = $1 AND clinic_id = $2')) return { rows: [{ 1: 1 }] }
+        if (sql.includes('FROM doctors WHERE user_id = $1')) return { rows: [{ id: 5 }] }
+        if (sql.includes('SELECT 1 FROM doctors WHERE id = $1 FOR UPDATE')) return { rows: [{ 1: 1 }] }
+        if (sql.includes('FROM unavailability WHERE id = $1 FOR UPDATE')) {
+          const r = table.get(params[0] as number)
+          return { rows: r ? [r] : [] }
+        }
+        if (sql.includes('UPDATE unavailability')) {
+          const [startDate, endDate, disabled, id] = params as [string, string, boolean, number]
+          const r = table.get(id)!
+          table.set(id, { ...r, start_date: startDate, end_date: endDate, is_disabled: disabled })
+          return { rows: [] }
+        }
+        if (sql.includes('INSERT INTO unavailability')) {
+          inserts += 1
+          if (inserts === failOnInsert) throw new Error('insert failed')
+          const [doctorId, startDate, endDate, disabled] = params as [number, string, string, boolean]
+          const id = nextId++
+          table.set(id, row({ id, doctor_id: doctorId, start_date: startDate, end_date: endDate, is_disabled: disabled }))
+          return { rows: [{ id }] }
+        }
+        return { rows: [] }
+      })
+    }
+
+    const middleOut = [
+      { startDate: '2026-09-07', endDate: '2026-09-08' },
+      { startDate: '2026-09-10', endDate: '2026-09-11' },
+    ]
+
+    it('cuts a middle day out: kept record shrinks, new record carries the disabled flag', async () => {
+      installSplitDb(true)
+      const xs = await split(1, { segments: middleOut }, admin)
+      expect(xs.map((x) => [x.id, x.startDate, x.endDate, x.isDisabled])).toEqual([
+        [1, '2026-09-07', '2026-09-08', true],
+        [7, '2026-09-10', '2026-09-11', true],
+      ])
+      expect(table.size).toBe(2)
+      expect(recordActivity).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          action: 'availability.updated',
+          entityId: 1,
+          detail: { doctorId: 5, before: { endDate: '2026-09-11' }, after: { endDate: '2026-09-08' } },
+        }),
+      )
+      expect(recordActivity).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ action: 'availability.created', entityId: 7 }),
+      )
+    })
+
+    it('a doctor may split their own disabled record; the days stay disabled', async () => {
+      installSplitDb(true)
+      const xs = await split(1, { segments: middleOut }, doctor)
+      expect(xs.map((x) => x.isDisabled)).toEqual([true, true])
+    })
+
+    it('isDisabled flips only the record that keeps the id', async () => {
+      installSplitDb(true)
+      const xs = await split(1, { segments: middleOut, isDisabled: false }, admin)
+      expect(xs.map((x) => [x.id, x.isDisabled])).toEqual([
+        [1, false],
+        [7, true],
+      ])
+    })
+
+    it('rejects segments outside the record or overlapping each other (400) without writing', async () => {
+      installSplitDb(false)
+      await expect(
+        split(1, { segments: [{ startDate: '2026-09-06', endDate: '2026-09-08' }] }, admin),
+      ).rejects.toMatchObject({ status: 400 })
+      await expect(
+        split(
+          1,
+          {
+            segments: [
+              { startDate: '2026-09-07', endDate: '2026-09-09' },
+              { startDate: '2026-09-09', endDate: '2026-09-11' },
+            ],
+          },
+          admin,
+        ),
+      ).rejects.toMatchObject({ status: 400 })
+      expect(query.mock.calls.some((c) => /^(UPDATE|INSERT)/.test(String(c[0])))).toBe(false)
+    })
+
+    it('rolls everything back when a later insert fails', async () => {
+      installSplitDb(false, 2)
+      const original = { ...table.get(1)! }
+      await expect(
+        split(
+          1,
+          {
+            segments: [
+              { startDate: '2026-09-07', endDate: '2026-09-07' },
+              { startDate: '2026-09-09', endDate: '2026-09-09' },
+              { startDate: '2026-09-11', endDate: '2026-09-11' },
+            ],
+          },
+          admin,
+        ),
+      ).rejects.toThrow('insert failed')
+      expect([...table.values()]).toEqual([original])
+    })
+
+    it('doctor passing isDisabled is 403; manager 403; missing record 404', async () => {
+      installSplitDb(true)
+      await expect(split(1, { segments: middleOut, isDisabled: false }, doctor)).rejects.toMatchObject({
+        status: 403,
+      })
+      expect(query).not.toHaveBeenCalled()
+      await expect(split(1, { segments: middleOut }, manager)).rejects.toMatchObject({ status: 403 })
+      await expect(split(99, { segments: middleOut }, admin)).rejects.toMatchObject({ status: 404 })
+    })
   })
 })

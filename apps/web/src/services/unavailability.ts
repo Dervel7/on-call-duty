@@ -1,5 +1,6 @@
 import type {
   CreateUnavailabilitySelfRequest,
+  SplitUnavailabilityRequest,
   Unavailability,
   UnavailabilityQuery,
   UpdateUnavailabilityRequest,
@@ -58,6 +59,21 @@ export async function setDisabled(id: number, isDisabled: boolean): Promise<Unav
   const { unavailability } = await apiPatch<{ unavailability: Unavailability }>(
     `/unavailability/${id}/disabled`,
     { isDisabled },
+  )
+  return unavailability
+}
+/**
+ * Atomically splits a record: it keeps the first segment, the others become
+ * new records with its disabled flag. `isDisabled` (admin only) re-flags the
+ * record that keeps the id.
+ */
+export async function split(
+  id: number,
+  input: SplitUnavailabilityRequest,
+): Promise<Unavailability[]> {
+  const { unavailability } = await apiPost<{ unavailability: Unavailability[] }>(
+    `/unavailability/${id}/split`,
+    input,
   )
   return unavailability
 }

@@ -8,6 +8,7 @@ import {
   createUnavailabilitySelfSchema,
   idParams,
   setUnavailabilityDisabledSchema,
+  splitUnavailabilitySchema,
   unavailabilityQuerySchema,
   updateUnavailabilitySchema,
 } from '../validators/unavailability'
@@ -21,4 +22,5 @@ unavailabilityRouter.post('/', authorize('administrator'), validate(createUnavai
 unavailabilityRouter.post('/me', validate(createUnavailabilitySelfSchema, 'body'), unavailabilityController.createMe)
 unavailabilityRouter.patch('/:id', validate(idParams, 'params'), validate(updateUnavailabilitySchema, 'body'), unavailabilityController.update)
 unavailabilityRouter.patch('/:id/disabled', authorize('administrator'), validate(idParams, 'params'), validate(setUnavailabilityDisabledSchema, 'body'), unavailabilityController.setDisabled)
+unavailabilityRouter.post('/:id/split', validate(idParams, 'params'), validate(splitUnavailabilitySchema, 'body'), unavailabilityController.split)
 unavailabilityRouter.delete('/:id', validate(idParams, 'params'), unavailabilityController.remove)

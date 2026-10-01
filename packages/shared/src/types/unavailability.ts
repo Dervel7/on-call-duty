@@ -31,6 +31,13 @@ export interface SetUnavailabilityDisabledRequest {
   isDisabled: boolean
 }
 
+export interface SplitUnavailabilityRequest {
+  /** First segment stays on the original record; the rest become new records. */
+  segments: CreateUnavailabilitySelfRequest[]
+  /** Optional new disabled flag for the record that keeps the id (admin/superadmin only). */
+  isDisabled?: boolean
+}
+
 export interface UnavailabilityQuery {
   doctorId?: number
   from?: string

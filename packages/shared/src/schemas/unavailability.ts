@@ -39,6 +39,11 @@ export const setUnavailabilityDisabledSchema = z.object({
   isDisabled: z.boolean(),
 })
 
+export const splitUnavailabilitySchema = z.object({
+  segments: z.array(createUnavailabilitySelfSchema).min(1),
+  isDisabled: z.boolean().optional(),
+})
+
 export const unavailabilityQuerySchema = z.object({
   doctorId: z.coerce.number().int().positive().optional(),
   clinicId: z.coerce.number().int().positive().optional(),

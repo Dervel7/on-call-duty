@@ -20,6 +20,7 @@ export type {
   CreateUnavailabilitySelfRequest,
   UpdateUnavailabilityRequest,
   SetUnavailabilityDisabledRequest,
+  SplitUnavailabilityRequest,
   UnavailabilityQuery,
 } from './unavailability'
 export type {

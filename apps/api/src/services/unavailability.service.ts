@@ -2,6 +2,7 @@ import type {
   AuthUser,
   CreateUnavailabilityAdminRequest,
   CreateUnavailabilitySelfRequest,
+  SplitUnavailabilityRequest,
   Unavailability,
   UnavailabilityQuery,
   UpdateUnavailabilityRequest,
@@ -309,6 +310,118 @@ export async function setDisabled(
     }
   })
   return getById(id)
+}
+
+/**
+ * Atomically replaces one record by several sub-ranges of it: the record keeps
+ * segments[0], the remaining segments become new records that inherit the
+ * original is_disabled flag. Any failure rolls the whole split back.
+ */
+export async function split(
+  id: number,
+  input: SplitUnavailabilityRequest,
+  actor: Actor,
+): Promise<Unavailability[]> {
+  // Same rule as setDisabled: only administrators (and superadmins) flip the flag.
+  if (
+    input.isDisabled !== undefined &&
+    actor.role !== 'administrator' &&
+    actor.role !== 'superadmin'
+  )
+    throw new HttpError(403, 'Forbidden')
+  const existing = await query<{ doctor_id: number; clinic_id: number }>(
+    `SELECT x.doctor_id, d.clinic_id
+     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id WHERE x.id = $1`,
+    [id],
+  )
+  const existingRow = existing.rows[0]
+  if (!existingRow) throw new HttpError(404, 'Unavailability record not found')
+  await assertCanModify(existingRow.doctor_id, actor)
+
+  const ids = await withTransaction(async (client) => {
+    await client.query('SELECT 1 FROM doctors WHERE id = $1 FOR UPDATE', [existingRow.doctor_id])
+    // Re-read under lock so the range checks use committed state.
+    const locked = await client.query<{
+      doctor_id: number
+      start_date: string
+      end_date: string
+      is_disabled: boolean
+    }>(
+      'SELECT doctor_id, start_date, end_date, is_disabled FROM unavailability WHERE id = $1 FOR UPDATE',
+      [id],
+    )
+    const current = locked.rows[0]
+    if (!current) throw new HttpError(404, 'Unavailability record not found')
+
+    // Segments stay inside the original range, which already overlaps no
+    // other record, so no cross-record overlap check is needed.
+    for (const s of input.segments) {
+      if (s.startDate < current.start_date || s.endDate > current.end_date)
+        throw new HttpError(400, 'Every segment must lie within the original record range')
+    }
+    const sorted = [...input.segments].sort((a, b) => a.startDate.localeCompare(b.startDate))
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i]!.startDate <= sorted[i - 1]!.endDate)
+        throw new HttpError(400, 'Segments must not overlap')
+    }
+
+    const [kept, ...rest] = input.segments
+    const isDisabled = input.isDisabled ?? current.is_disabled
+    await client.query(
+      'UPDATE unavailability SET start_date = $1, end_date = $2, is_disabled = $3, updated_at = NOW() WHERE id = $4',
+      [kept!.startDate, kept!.endDate, isDisabled, id],
+    )
+    const before: Record<string, unknown> = {}
+    const after: Record<string, unknown> = {}
+    if (kept!.startDate !== current.start_date) {
+      before.startDate = current.start_date
+      after.startDate = kept!.startDate
+    }
+    if (kept!.endDate !== current.end_date) {
+      before.endDate = current.end_date
+      after.endDate = kept!.endDate
+    }
+    if (isDisabled !== current.is_disabled) {
+      before.isDisabled = current.is_disabled
+      after.isDisabled = isDisabled
+    }
+    if (Object.keys(before).length > 0) {
+      await recordActivity(client, {
+        userId: actor.id,
+        action: 'availability.updated',
+        entityType: 'unavailability',
+        entityId: id,
+        clinicId: existingRow.clinic_id,
+        detail: { doctorId: current.doctor_id, before, after },
+      })
+    }
+
+    const created: number[] = []
+    for (const s of rest) {
+      // New records carry over the ORIGINAL flag: splitting a disabled record
+      // must never re-enable any of its days.
+      const ins = await client.query<{ id: number }>(
+        'INSERT INTO unavailability (doctor_id, start_date, end_date, is_disabled) VALUES ($1, $2, $3, $4) RETURNING id',
+        [current.doctor_id, s.startDate, s.endDate, current.is_disabled],
+      )
+      const newId = ins.rows[0]?.id
+      if (newId === undefined) throw new HttpError(500, 'Failed to create unavailability record')
+      await recordActivity(client, {
+        userId: actor.id,
+        action: 'availability.created',
+        entityType: 'unavailability',
+        entityId: newId,
+        clinicId: existingRow.clinic_id,
+        detail: { doctorId: current.doctor_id, startDate: s.startDate, endDate: s.endDate },
+      })
+      created.push(newId)
+    }
+    return [id, ...created]
+  })
+
+  const res = await query<UnavailabilityRow>(`${SELECT} WHERE x.id = ANY($1::int[])`, [ids])
+  const byId = new Map(res.rows.map((r) => [r.id, toUnavailability(r)]))
+  return ids.flatMap((rowId) => byId.get(rowId) ?? [])
 }
 
 export async function remove(id: number, actor: Actor): Promise<void> {

@@ -146,6 +146,7 @@ import {
   createUnavailabilitySelfSchema,
   unavailabilityQuerySchema,
   setUnavailabilityDisabledSchema,
+  splitUnavailabilitySchema,
   updateUnavailabilitySchema,
 } from '../index'
 
@@ -185,6 +186,22 @@ describe('unavailability schemas', () => {
     expect(setUnavailabilityDisabledSchema.safeParse({ isDisabled: false }).success).toBe(true)
     expect(setUnavailabilityDisabledSchema.safeParse({}).success).toBe(false)
     expect(setUnavailabilityDisabledSchema.safeParse({ isDisabled: 'yes' }).success).toBe(false)
+  })
+
+  it('splitUnavailabilitySchema needs at least one valid segment; isDisabled optional', () => {
+    expect(splitUnavailabilitySchema.safeParse({ segments: [validSelf] }).success).toBe(true)
+    expect(
+      splitUnavailabilitySchema.safeParse({ segments: [validSelf], isDisabled: false }).success,
+    ).toBe(true)
+    expect(splitUnavailabilitySchema.safeParse({ segments: [] }).success).toBe(false)
+    expect(
+      splitUnavailabilitySchema.safeParse({
+        segments: [validSelf, { startDate: '2026-09-05', endDate: '2026-09-04' }],
+      }).success,
+    ).toBe(false)
+    expect(
+      splitUnavailabilitySchema.safeParse({ segments: [validSelf], isDisabled: 'yes' }).success,
+    ).toBe(false)
   })
 
   it('unavailabilityQuerySchema coerces doctorId from string', () => {

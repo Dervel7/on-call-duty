@@ -250,4 +250,44 @@ describe('unavailability routes', () => {
       .send({})
     expect(emptyBody.status).toBe(400)
   })
+
+  it('POST /:id/split returns the kept record then the created ones (200); bad body 400', async () => {
+    query.mockResolvedValueOnce({ rows: [{ doctor_id: 5, clinic_id: 1 }] })
+    query.mockResolvedValueOnce({ rows: [{ 1: 1 }] }) // clinic check
+    query.mockResolvedValueOnce({ rows: [{ 1: 1 }] }) // doctor lock
+    query.mockResolvedValueOnce({
+      rows: [{ doctor_id: 5, start_date: '2026-09-07', end_date: '2026-09-11', is_disabled: true }],
+    })
+    query.mockResolvedValueOnce({ rows: [] }) // UPDATE
+    query.mockResolvedValueOnce({ rows: [{ id: 7 }] }) // INSERT
+    query.mockResolvedValueOnce({
+      rows: [
+        { ...row(), id: 7, start_date: '2026-09-10', is_disabled: true },
+        { ...row(), end_date: '2026-09-08', is_disabled: true },
+      ],
+    })
+    const res = await request(build())
+      .post('/unavailability/1/split')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({
+        segments: [
+          { startDate: '2026-09-07', endDate: '2026-09-08' },
+          { startDate: '2026-09-10', endDate: '2026-09-11' },
+        ],
+      })
+    expect(res.status).toBe(200)
+    expect(res.body.data.unavailability.map((x: { id: number }) => x.id)).toEqual([1, 7])
+
+    const empty = await request(build())
+      .post('/unavailability/1/split')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ segments: [] })
+    expect(empty.status).toBe(400)
+
+    const inverted = await request(build())
+      .post('/unavailability/1/split')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ segments: [{ startDate: '2026-09-09', endDate: '2026-09-08' }] })
+    expect(inverted.status).toBe(400)
+  })
 })

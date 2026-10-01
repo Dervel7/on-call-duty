@@ -16,6 +16,7 @@ export {
   createUnavailabilitySelfSchema,
   updateUnavailabilitySchema,
   setUnavailabilityDisabledSchema,
+  splitUnavailabilitySchema,
   unavailabilityQuerySchema,
 } from './unavailability'
 export {

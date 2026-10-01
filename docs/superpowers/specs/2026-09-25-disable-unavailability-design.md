@@ -24,6 +24,13 @@ Give administrators a reversible alternative to deleting a doctor's exclusion: a
 - 400 invalid body, 401 unauthenticated, 403 non-admin (manager, doctor), 404 unknown id (and, for an administrator, records outside their clinic — existence hidden), 409 never (no overlap interaction).
 - Updates `updated_at`; logs `availability.updated` only when the stored value actually changes.
 
+`POST /unavailability/:id/split` — body `{ "segments": [{ "startDate", "endDate" }, ...], "isDisabled"?: true | false }` (Zod: `splitUnavailabilitySchema`; at least one segment). Added 2026-10-01 so the web UI can cut days out of a record atomically.
+
+- One transaction: `segments[0]` replaces the record's range (and `isDisabled`, when given); every further segment is inserted as a new record that inherits the record's original `is_disabled`. Any failure rolls the whole split back.
+- 200 `{ success: true, data: { unavailability: Unavailability[] } }` — the record keeping the id first, then the created records in segment order.
+- 400 invalid body, a segment outside the record's current range, or overlapping segments; 401 unauthenticated; 403 manager, a doctor on another doctor's record, or a non-administrator passing `isDisabled`; 404 unknown id (administrator: records outside their clinic).
+- Logs `availability.updated` for the kept record (when it changed) and `availability.created` for each new record.
+
 ## File Changes
 
 ### Modified — database
