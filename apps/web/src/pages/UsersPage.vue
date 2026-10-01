@@ -200,14 +200,6 @@ async function save() {
   await load()
 }
 
-// The reset dialog stacks on top of the edit dialog, and Dialog's
-// click-outside handler counts the overlay as "outside" — so while a reset is
-// in progress the edit dialog must refuse to close itself.
-function setEditOpen(v: boolean) {
-  if (!v && reset.value.open) return
-  edit.value.open = v
-}
-
 function openReset() {
   reset.value = { ...emptyReset(), open: true }
 }
@@ -313,7 +305,7 @@ onMounted(load)
       </TableBody>
     </Table>
 
-    <Dialog :open="edit.open" :title="edit.id === null ? 'New user' : 'Edit user'" @update:open="setEditOpen">
+    <Dialog v-model:open="edit.open" :title="edit.id === null ? 'New user' : 'Edit user'">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="save">
         <div class="flex flex-col gap-1">
           <Label for="e-email">Email</Label>
