@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { CalendarCheck2, CalendarOff } from 'lucide-vue-next'
 import type { ScheduleSummary } from '@oncall/shared'
 import { monthLabel } from '@oncall/utils'
@@ -17,6 +18,7 @@ import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 
+const { t } = useI18n()
 const router = useRouter()
 const intlLocale = useIntlLocale()
 
@@ -30,7 +32,7 @@ async function load() {
   try {
     records.value = await scheduleService.list()
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to load schedules'
+    errorMsg.value = e instanceof Error ? e.message : t('schedules.loadFailed')
   } finally {
     loading.value = false
   }
@@ -45,31 +47,31 @@ onMounted(load)
 
 <template>
   <div class="flex flex-col gap-4 animate-rise">
-    <PageHeader :icon="CalendarCheck2" title="Duty roster" subtitle="Published on-call schedules" />
+    <PageHeader :icon="CalendarCheck2" :title="t('nav.dutyRoster')" :subtitle="t('scheduleRoster.subtitle')" />
 
     <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
       <Spinner :size="16" />
-      Loading…
+      {{ t('common.loading') }}
     </div>
     <p v-if="errorMsg" role="alert" class="text-sm text-destructive">{{ errorMsg }}</p>
 
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Month</TableHead>
-          <TableHead class="text-right">Actions</TableHead>
+          <TableHead>{{ t('common.month') }}</TableHead>
+          <TableHead class="text-right">{{ t('common.actions') }}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         <TableRow v-for="s in records" :key="s.id">
           <TableCell class="font-mono text-sm">{{ monthLabel(s.year, s.month, intlLocale) }}</TableCell>
           <TableCell class="text-right">
-            <Button size="sm" variant="outline" @click="view(s.id)">View</Button>
+            <Button size="sm" variant="outline" @click="view(s.id)">{{ t('common.view') }}</Button>
           </TableCell>
         </TableRow>
       </TableBody>
     </Table>
 
-    <EmptyState v-if="!loading && !errorMsg && records.length === 0" :icon="CalendarOff" title="No published schedules yet." />
+    <EmptyState v-if="!loading && !errorMsg && records.length === 0" :icon="CalendarOff" :title="t('scheduleRoster.empty')" />
   </div>
 </template>

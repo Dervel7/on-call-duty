@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { DayInfo, Doctor } from '@oncall/shared'
 import { toIsoDate, weekdayNames } from '@oncall/utils'
 import Select from '@/components/ui/Select.vue'
@@ -28,6 +29,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ select: [date: string, slotIndex: number, doctorId: number | null] }>()
 
+const { t } = useI18n()
 const todayIso = toIsoDate(new Date())
 const intlLocale = useIntlLocale()
 const weekdays = computed(() => weekdayNames(intlLocale.value))
@@ -178,12 +180,12 @@ function cellBg(c: Cell): string {
                 <span
                   v-if="c.isWeekend"
                   class="inline-flex rounded bg-primary/10 px-1.5 py-[3px] text-[10px] leading-none font-medium text-primary"
-                  >WE</span
+                  >{{ t('dutyCalendar.weekendBadge') }}</span
                 >
                 <span
                   v-if="c.isOpen"
                   class="inline-flex rounded bg-destructive/10 px-1.5 py-[3px] text-[10px] leading-none font-medium text-destructive"
-                  >OPEN</span
+                  >{{ t('dutyCalendar.openBadge') }}</span
                 >
               </span>
             </div>
@@ -194,11 +196,11 @@ function cellBg(c: Cell): string {
                   <Select
                     :model-value="slot ? String(slot.doctorId) : ''"
                     :disabled="savingDates?.has(c.date ?? '')"
-                    :aria-label="`${c.date} slot ${sIdx + 1}`"
+                    :aria-label="t('dutyCalendar.slotLabel', { date: c.date, n: sIdx + 1 })"
                     @update:model-value="onSelect(c.date!, sIdx, $event)"
                   >
                     <option value="" :disabled="!!slot && !allowClear">
-                      {{ slot ? 'Unassigned' : 'Assign…' }}
+                      {{ slot ? t('dutyCalendar.unassigned') : t('dutyCalendar.assign') }}
                     </option>
                     <option v-for="did in c.options[sIdx]" :key="did" :value="String(did)">
                       {{ doctorLabel(did) }}
@@ -219,18 +221,18 @@ function cellBg(c: Cell): string {
                 v-if="mode !== 'editable' && c.conflict && !c.slots.some((s) => s)"
                 class="block text-[11px] font-medium text-destructive"
                 :title="c.conflict"
-                >Unfillable</span
+                >{{ t('dutyCalendar.unfillable') }}</span
               >
               <span
                 v-if="mode === 'editable' && showFillHints && filledCount(c.slots) === 0"
                 class="block text-[11px] font-medium text-destructive"
                 :title="c.conflict"
-                >No doctor</span
+                >{{ t('dutyCalendar.noDoctor') }}</span
               >
               <span
                 v-else-if="mode === 'editable' && showFillHints && filledCount(c.slots) < c.required"
                 class="block text-[11px] font-medium text-warning"
-                >{{ filledCount(c.slots) }} of {{ c.required }}</span
+                >{{ t('dutyCalendar.filledOf', { filled: filledCount(c.slots), required: c.required }) }}</span
               >
             </div>
           </template>

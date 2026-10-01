@@ -9,6 +9,7 @@ vi.mock('@/services/stats', () => ({
 }))
 
 import DoctorDashboard from '../components/dashboard/DoctorDashboard.vue'
+import { setTestLocale } from './i18n'
 
 function fullMe(overrides: Record<string, unknown> = {}) {
   return {
@@ -97,5 +98,20 @@ describe('DoctorDashboard', () => {
     expect(w.text()).toContain("isn't published yet")
     expect(w.text()).toContain('No published schedule covers this period.')
     expect(w.text()).toContain('No upcoming on-call duties.')
+  })
+})
+
+describe('DoctorDashboard in Greek', () => {
+  it('renders the greeting, badges and dates in the active UI language', async () => {
+    setTestLocale('el')
+    me.mockResolvedValue(fullMe())
+    const w = mount(DoctorDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(w.text()).toContain('Καλώς ήρθατε, Jane')
+    expect(w.text()).toContain('4 / 7 εφημερίες αυτόν τον μήνα')
+    const rows = w.findAll('ul')[0]?.findAll('li') ?? []
+    expect(rows[0]?.text()).toContain('Εσείς')
+    expect(rows[1]?.text()).toContain('Παρ 02 Ιαν')
+    expect(rows[1]?.text()).toContain('Σαββατοκύριακο')
   })
 })

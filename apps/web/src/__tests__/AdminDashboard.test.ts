@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { pickOption } from './pick-option'
+import { setTestLocale } from './i18n'
 
 const admin = vi.fn()
 vi.mock('@/services/stats', () => ({
@@ -199,5 +200,30 @@ describe('AdminDashboard', () => {
       vi.useRealTimers()
       process.env.TZ = tz
     }
+  })
+})
+
+describe('AdminDashboard in Greek', () => {
+  it('renders stats and the payment alert in the active UI language', async () => {
+    setTestLocale('el')
+    admin.mockResolvedValue(fullStats())
+    paymentAlert.mockResolvedValue({ daysLeft: 2 })
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(w.find('[role="alert"]').text()).toBe('Προθεσμία πληρωμής: απομένουν 2 ημέρες')
+    expect(w.text()).toContain('31 / 31 ημέρες με πλήρη στελέχωση')
+    expect(w.text()).toContain('Μη ισορροπημένο — ελέγξτε τον φόρτο εργασίας')
+    expect(w.text()).toContain('ανενεργός')
+  })
+
+  it('names the empty month in the active UI language', async () => {
+    setTestLocale('el')
+    admin.mockResolvedValue(
+      fullStats({ schedule: null, workload: [], fairness: { dutySpread: null, weekendSpread: null } }),
+    )
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const month = new Intl.DateTimeFormat('el-GR', { month: 'long', year: 'numeric' }).format(new Date())
+    expect(w.text()).toContain(`Δεν υπάρχει πρόγραμμα: ${month}`)
   })
 })

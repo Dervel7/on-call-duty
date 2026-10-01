@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Activity } from 'lucide-vue-next'
 import type { MeStats } from '@oncall/shared'
 import Badge from '@/components/ui/Badge.vue'
@@ -8,6 +9,7 @@ import CardContent from '@/components/ui/CardContent.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import * as statsService from '@/services/stats'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 
 interface OnCallRow {
   date: string
@@ -16,6 +18,8 @@ interface OnCallRow {
   isMine: boolean
 }
 
+const { t } = useI18n()
+const intlLocale = useIntlLocale()
 const stats = ref<MeStats | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
@@ -46,14 +50,12 @@ const progress = computed(() => {
   return Math.min(100, (stats.value.currentMonth.duties / cap) * 100)
 })
 
+const dateFormat = computed(
+  () => new Intl.DateTimeFormat(intlLocale.value, { weekday: 'short', day: '2-digit', month: 'short', timeZone: 'UTC' }),
+)
+
 function fmt(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`)
-  return new Intl.DateTimeFormat('en-GB', {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    timeZone: 'UTC',
-  }).format(d)
+  return dateFormat.value.format(new Date(`${iso}T00:00:00Z`))
 }
 
 async function load() {
@@ -62,7 +64,7 @@ async function load() {
   try {
     stats.value = await statsService.me()
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to load statistics'
+    errorMsg.value = e instanceof Error ? e.message : t('doctorDashboard.loadFailed')
   } finally {
     loading.value = false
   }
@@ -73,7 +75,7 @@ onMounted(load)
 
 <template>
   <div class="flex flex-col gap-4">
-    <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
+    <p v-if="loading" class="text-sm text-muted-foreground">{{ t('common.loading') }}</p>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <template v-if="stats">
@@ -83,15 +85,15 @@ onMounted(load)
           class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-gradient opacity-10 blur-3xl"
         ></div>
         <CardHeader>
-          <p class="hud-label">VITALS · MONTH</p>
+          <p class="hud-label">{{ t('doctorDashboard.vitalsKicker') }}</p>
           <CardTitle class="flex items-center gap-2">
             <Activity class="h-5 w-5 text-primary" />
-            Welcome, {{ stats.doctor.firstName }}
+            {{ t('doctorDashboard.welcome', { name: stats.doctor.firstName }) }}
           </CardTitle>
         </CardHeader>
         <CardContent class="flex flex-col gap-3">
           <p class="tabular-nums">
-            <span class="font-mono text-4xl font-bold tracking-tight text-glow">{{ stats.currentMonth.duties }} / {{ stats.currentMonth.maxMonthly }}</span><span class="text-sm font-medium text-muted-foreground"> duties this month</span>
+            <span class="font-mono text-4xl font-bold tracking-tight text-glow">{{ stats.currentMonth.duties }} / {{ stats.currentMonth.maxMonthly }}</span> <span class="text-sm font-medium text-muted-foreground">{{ t('doctorDashboard.dutiesThisMonth') }}</span>
           </p>
           <div class="flex items-center gap-3">
             <div class="h-2.5 w-full rounded-full bg-muted ring-1 ring-inset ring-border/60">
@@ -103,18 +105,18 @@ onMounted(load)
             <span class="font-mono text-xs font-semibold text-muted-foreground tabular-nums">{{ Math.round(progress) }}%</span>
           </div>
           <p v-if="!stats.currentMonth.published" class="text-sm text-muted-foreground">
-            This month's schedule isn't published yet.
+            {{ t('doctorDashboard.notPublished') }}
           </p>
           <div>
-            <Badge variant="outline">Weekend {{ stats.currentMonth.weekend }}</Badge>
+            <Badge variant="outline">{{ t('doctorDashboard.weekendCount', { n: stats.currentMonth.weekend }) }}</Badge>
           </div>
         </CardContent>
       </Card>
 
       <Card class="animate-rise [animation-delay:60ms]">
         <CardHeader>
-          <p class="hud-label">NEXT 7 DAYS</p>
-          <CardTitle>Who's on call (today + 6 days)</CardTitle>
+          <p class="hud-label">{{ t('doctorDashboard.nextDaysKicker') }}</p>
+          <CardTitle>{{ t('doctorDashboard.whoIsOnCall') }}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul v-if="onCallRows.length > 0" class="flex flex-col gap-1">
@@ -130,19 +132,19 @@ onMounted(load)
                 {{ fmt(e.date) }} · {{ e.names.join(', ') }}
               </span>
               <span class="flex items-center gap-1">
-                <Badge v-if="e.isMine" variant="accent">You</Badge>
-                <Badge v-if="e.isWeekend" variant="neutral">Weekend</Badge>
+                <Badge v-if="e.isMine" variant="accent">{{ t('doctorDashboard.you') }}</Badge>
+                <Badge v-if="e.isWeekend" variant="neutral">{{ t('common.weekend') }}</Badge>
               </span>
             </li>
           </ul>
-          <p v-else class="text-sm text-muted-foreground">No published schedule covers this period.</p>
+          <p v-else class="text-sm text-muted-foreground">{{ t('doctorDashboard.noOnCall') }}</p>
         </CardContent>
       </Card>
 
       <Card class="animate-rise [animation-delay:120ms]">
         <CardHeader>
-          <p class="hud-label">MY DUTIES</p>
-          <CardTitle>My upcoming duties</CardTitle>
+          <p class="hud-label">{{ t('doctorDashboard.myDutiesKicker') }}</p>
+          <CardTitle>{{ t('doctorDashboard.myUpcomingDuties') }}</CardTitle>
         </CardHeader>
         <CardContent>
           <ul v-if="stats.upcoming.length > 0" class="flex flex-col gap-1">
@@ -153,11 +155,11 @@ onMounted(load)
             >
               <span class="text-sm text-foreground">{{ fmt(u.dutyDate) }}</span>
               <span class="flex items-center gap-1">
-                <Badge v-if="u.isWeekend" variant="neutral">Weekend</Badge>
+                <Badge v-if="u.isWeekend" variant="neutral">{{ t('common.weekend') }}</Badge>
               </span>
             </li>
           </ul>
-          <p v-else class="text-sm text-muted-foreground">No upcoming on-call duties.</p>
+          <p v-else class="text-sm text-muted-foreground">{{ t('doctorDashboard.noUpcoming') }}</p>
         </CardContent>
       </Card>
     </template>

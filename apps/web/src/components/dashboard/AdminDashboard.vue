@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { TriangleAlert } from 'lucide-vue-next'
 import type { AdminStats } from '@oncall/shared'
 import { monthLabel as formatMonth, monthNames } from '@oncall/utils'
@@ -25,6 +26,7 @@ import TableRow from '@/components/ui/TableRow.vue'
 import * as statsService from '@/services/stats'
 import * as billingService from '@/services/billing'
 
+const { t } = useI18n()
 const router = useRouter()
 const intlLocale = useIntlLocale()
 
@@ -40,8 +42,8 @@ const errorMsg = ref('')
 const paymentLabel = computed(() => {
   const days = paymentDaysLeft.value
   if (days === null || days < 0 || days > 3) return ''
-  if (days === 0) return 'Payment deadline: due today'
-  return `Payment deadline: ${days} ${days === 1 ? 'day' : 'days'} left`
+  if (days === 0) return t('adminDashboard.paymentDueToday')
+  return t('adminDashboard.paymentDaysLeft', { n: days }, days)
 })
 const monthLabel = computed(() => formatMonth(year.value, Number(month.value), intlLocale.value))
 const months = computed(() => monthNames(intlLocale.value))
@@ -51,10 +53,10 @@ const maxInSet = computed(() =>
 )
 const fairnessBadge = computed(() => {
   const s = stats.value ? stats.value.fairness.dutySpread : null
-  if (s === null) return { text: 'N/A', class: 'bg-muted text-muted-foreground' }
+  if (s === null) return { text: t('common.notAvailable'), class: 'bg-muted text-muted-foreground' }
   return s <= 1
-    ? { text: 'Well balanced', class: 'bg-success/10 text-success' }
-    : { text: 'Imbalanced — review workload', class: 'bg-destructive/10 text-destructive' }
+    ? { text: t('adminDashboard.wellBalanced'), class: 'bg-success/10 text-success' }
+    : { text: t('adminDashboard.imbalanced'), class: 'bg-destructive/10 text-destructive' }
 })
 
 const latest = useLatestRequest()
@@ -69,7 +71,7 @@ async function load() {
     stats.value = res
   } catch (e) {
     if (!isCurrent()) return
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to load statistics'
+    errorMsg.value = e instanceof Error ? e.message : t('adminDashboard.loadFailed')
   } finally {
     if (isCurrent()) loading.value = false
   }
@@ -109,28 +111,28 @@ onMounted(loadPaymentAlert)
     </div>
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
-        <Label for="s-year">Year</Label>
+        <Label for="s-year">{{ t('common.year') }}</Label>
         <Input id="s-year" v-model="year" type="number" />
       </div>
       <div class="flex flex-col gap-1">
-        <Label for="s-month">Month</Label>
+        <Label for="s-month">{{ t('common.month') }}</Label>
         <Select id="s-month" v-model="month">
           <option v-for="(m, i) in months" :key="i" :value="String(i + 1)">{{ m }}</option>
         </Select>
       </div>
-      <Button variant="outline" @click="load">Apply</Button>
+      <Button variant="outline" @click="load">{{ t('common.apply') }}</Button>
     </div>
 
-    <p v-if="loading" class="text-sm text-muted-foreground">Loading…</p>
+    <p v-if="loading" class="text-sm text-muted-foreground">{{ t('common.loading') }}</p>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <Card v-if="stats && !stats.schedule">
       <CardHeader>
-        <CardTitle>No schedule for {{ monthLabel }}</CardTitle>
+        <CardTitle>{{ t('adminDashboard.noSchedule', { month: monthLabel }) }}</CardTitle>
       </CardHeader>
       <CardContent class="flex flex-col gap-3">
-        <p class="text-sm text-muted-foreground">Generate a schedule for this month to see statistics.</p>
-        <Button class="w-fit" @click="gotoSchedules">Go to Schedules</Button>
+        <p class="text-sm text-muted-foreground">{{ t('adminDashboard.noScheduleDescription') }}</p>
+        <Button class="w-fit" @click="gotoSchedules">{{ t('adminDashboard.goToSchedules') }}</Button>
       </CardContent>
     </Card>
 
@@ -142,12 +144,12 @@ onMounted(loadPaymentAlert)
             class="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-brand-gradient opacity-10 blur-3xl"
           ></div>
           <CardHeader>
-            <p class="hud-label">COVERAGE</p>
-            <CardTitle>Coverage</CardTitle>
+            <p class="hud-label">{{ t('adminDashboard.coverageKicker') }}</p>
+            <CardTitle>{{ t('adminDashboard.coverage') }}</CardTitle>
           </CardHeader>
           <CardContent class="flex flex-col gap-3">
             <p class="tabular-nums">
-              <span class="font-mono text-3xl font-bold tracking-tight tabular-nums">{{ stats.coverage.filled }} / {{ stats.coverage.daysInMonth }}</span><span class="text-sm font-medium text-muted-foreground"> days fully staffed</span>
+              <span class="font-mono text-3xl font-bold tracking-tight tabular-nums">{{ stats.coverage.filled }} / {{ stats.coverage.daysInMonth }}</span> <span class="text-sm font-medium text-muted-foreground">{{ t('adminDashboard.daysFullyStaffed') }}</span>
             </p>
             <div class="h-2.5 w-full rounded-full bg-muted ring-1 ring-inset ring-border/60">
               <div
@@ -156,21 +158,21 @@ onMounted(loadPaymentAlert)
               ></div>
             </div>
             <p v-if="stats.coverage.gaps.length > 0" class="text-sm text-destructive">
-              Understaffed days: {{ stats.coverage.gaps.join(', ') }}
+              {{ t('adminDashboard.understaffedDays', { days: stats.coverage.gaps.join(', ') }) }}
             </p>
-            <p v-else class="text-sm text-muted-foreground">No understaffed days.</p>
+            <p v-else class="text-sm text-muted-foreground">{{ t('adminDashboard.noUnderstaffedDays') }}</p>
           </CardContent>
         </Card>
 
         <Card class="animate-rise [animation-delay:60ms]">
           <CardHeader>
-            <p class="hud-label">FAIRNESS</p>
-            <CardTitle>Fairness</CardTitle>
+            <p class="hud-label">{{ t('adminDashboard.fairnessKicker') }}</p>
+            <CardTitle>{{ t('adminDashboard.fairness') }}</CardTitle>
           </CardHeader>
           <CardContent class="flex flex-col gap-2">
-            <p class="text-sm text-muted-foreground">Duty spread (max − min across assigned doctors)</p>
+            <p class="text-sm text-muted-foreground">{{ t('adminDashboard.dutySpread') }}</p>
             <p class="font-mono text-3xl font-semibold tabular-nums text-foreground">
-              {{ stats.fairness.dutySpread ?? 'N/A' }}
+              {{ stats.fairness.dutySpread ?? t('common.notAvailable') }}
             </p>
             <span
               :class="`inline-flex w-fit items-center rounded-md px-2 py-0.5 text-xs font-medium ${fairnessBadge.class}`"
@@ -178,7 +180,7 @@ onMounted(loadPaymentAlert)
               {{ fairnessBadge.text }}
             </span>
             <p class="text-xs text-muted-foreground">
-              Weekend spread {{ stats.fairness.weekendSpread ?? 'N/A' }}
+              {{ t('adminDashboard.weekendSpread', { value: stats.fairness.weekendSpread ?? t('common.notAvailable') }) }}
             </p>
           </CardContent>
         </Card>
@@ -186,17 +188,17 @@ onMounted(loadPaymentAlert)
 
       <Card>
         <CardHeader>
-          <p class="hud-label">WORKLOAD</p>
-          <CardTitle>Workload</CardTitle>
+          <p class="hud-label">{{ t('adminDashboard.workloadKicker') }}</p>
+          <CardTitle>{{ t('adminDashboard.workload') }}</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Doctor</TableHead>
-                <TableHead>Duties</TableHead>
-                <TableHead class="text-right">Weekend</TableHead>
-                <TableHead class="text-right">Cap</TableHead>
+                <TableHead>{{ t('adminDashboard.doctor') }}</TableHead>
+                <TableHead>{{ t('adminDashboard.duties') }}</TableHead>
+                <TableHead class="text-right">{{ t('common.weekend') }}</TableHead>
+                <TableHead class="text-right">{{ t('adminDashboard.cap') }}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -207,7 +209,7 @@ onMounted(loadPaymentAlert)
                     <span :class="w.isActive ? 'text-foreground' : 'text-muted-foreground'">
                       {{ w.firstName }} {{ w.lastName }}
                     </span>
-                    <Badge v-if="!w.isActive" variant="neutral">inactive</Badge>
+                    <Badge v-if="!w.isActive" variant="neutral">{{ t('adminDashboard.inactive') }}</Badge>
                   </div>
                 </TableCell>
                 <TableCell>

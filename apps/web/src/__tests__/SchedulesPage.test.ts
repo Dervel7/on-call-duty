@@ -25,6 +25,7 @@ vi.mock('vue-router', () => ({
 
 import SchedulesPage from '../pages/SchedulesPage.vue'
 import { pickOption } from './pick-option'
+import { setTestLocale } from './i18n'
 
 function summary(overrides: Record<string, unknown> = {}) {
   return {
@@ -99,7 +100,7 @@ describe('SchedulesPage', () => {
       list.mockResolvedValue([summary({ createdAt: '2026-08-31T20:00:00.000Z' })])
       const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
       await flushPromises()
-      const expected = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(2026, 8, 1))
+      const expected = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(2026, 8, 1))
       expect(wrapper.text()).toContain(expected)
       expect(wrapper.text()).not.toContain('2026-08-31')
     } finally {
@@ -179,5 +180,18 @@ describe('SchedulesPage', () => {
     const admin = mountAs('administrator')
     await flushPromises()
     expect(admin.findAll('button').some((b) => b.text().includes('New schedule'))).toBe(true)
+  })
+})
+
+describe('SchedulesPage in Greek', () => {
+  it('renders the month, status, created date and empty state in the active UI language', async () => {
+    setTestLocale('el')
+    list.mockResolvedValue([summary({ createdAt: '2026-09-01T12:00:00.000Z' })])
+    const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Αύγουστος 2026')
+    expect(wrapper.text()).toContain('Πρόχειρο')
+    expect(wrapper.text()).toContain('1 Σεπ 2026')
+    expect(wrapper.find('h1').text()).toBe('Προγράμματα')
   })
 })

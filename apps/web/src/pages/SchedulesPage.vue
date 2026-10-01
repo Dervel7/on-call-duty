@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import type { ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import { monthLabel, monthNames } from '@oncall/utils'
@@ -25,13 +26,14 @@ import TableHead from '@/components/ui/TableHead.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 
+const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const intlLocale = useIntlLocale()
 const months = computed(() => monthNames(intlLocale.value))
-const createdFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
+const createdFormat = computed(() => new Intl.DateTimeFormat(intlLocale.value, { dateStyle: 'medium' }))
 function createdLabel(iso: string): string {
-  return createdFormat.format(new Date(iso))
+  return createdFormat.value.format(new Date(iso))
 }
 
 const records = ref<ScheduleSummary[]>([])
@@ -46,7 +48,7 @@ async function load() {
     const query = filterYear.value ? { year: Number(filterYear.value) } : undefined
     records.value = await scheduleService.list(query)
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to load schedules'
+    errorMsg.value = e instanceof Error ? e.message : t('schedules.loadFailed')
   } finally {
     loading.value = false
   }
@@ -84,7 +86,7 @@ async function runGenerate() {
     month: Number(gen.value.month),
   })
   if (!parsed.success) {
-    gen.value.errorMsg = parsed.error.issues[0]?.message ?? 'Invalid input'
+    gen.value.errorMsg = parsed.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
   gen.value.generating = true
@@ -101,7 +103,7 @@ async function runGenerate() {
       })
       return
     }
-    gen.value.errorMsg = e instanceof Error ? e.message : 'Failed to generate'
+    gen.value.errorMsg = e instanceof Error ? e.message : t('schedules.generateFailed')
   } finally {
     gen.value.generating = false
   }
@@ -112,34 +114,34 @@ onMounted(load)
 
 <template>
   <div class="flex flex-col gap-4 animate-rise">
-    <PageHeader :icon="CalendarDays" title="Schedules" subtitle="Generate, review, and publish monthly rosters">
+    <PageHeader :icon="CalendarDays" :title="t('nav.schedules')" :subtitle="t('schedules.subtitle')">
       <template #actions>
-        <Button v-if="auth.isAdmin" @click="openGenerate">New schedule</Button>
+        <Button v-if="auth.isAdmin" @click="openGenerate">{{ t('schedules.newSchedule') }}</Button>
       </template>
     </PageHeader>
 
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
-        <Label for="f-year">Year</Label>
+        <Label for="f-year">{{ t('common.year') }}</Label>
         <Input id="f-year" v-model="filterYear" type="number" />
       </div>
-      <Button variant="outline" @click="load">Apply</Button>
+      <Button variant="outline" @click="load">{{ t('common.apply') }}</Button>
     </div>
 
     <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
       <Spinner :size="16" />
-      Loading…
+      {{ t('common.loading') }}
     </div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
-    <p class="hud-label mb-2">ROSTERS</p>
+    <p class="hud-label mb-2">{{ t('schedules.rostersKicker') }}</p>
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Month</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Created</TableHead>
-          <TableHead class="text-right">Actions</TableHead>
+          <TableHead>{{ t('common.month') }}</TableHead>
+          <TableHead>{{ t('schedules.status') }}</TableHead>
+          <TableHead>{{ t('schedules.created') }}</TableHead>
+          <TableHead class="text-right">{{ t('common.actions') }}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -147,27 +149,27 @@ onMounted(load)
           <TableCell>{{ monthLabel(s.year, s.month, intlLocale) }}</TableCell>
           <TableCell>
             <Badge :variant="s.status === 'published' ? 'success' : 'neutral'" dot>
-              {{ s.status === 'published' ? 'Published' : 'Draft' }}
+              {{ s.status === 'published' ? t('scheduleStatus.published') : t('scheduleStatus.draft') }}
             </Badge>
           </TableCell>
           <TableCell class="font-mono text-sm">{{ createdLabel(s.createdAt) }}</TableCell>
           <TableCell class="text-right">
-            <Button size="sm" variant="outline" @click="view(s.id)">View</Button>
+            <Button size="sm" variant="outline" @click="view(s.id)">{{ t('common.view') }}</Button>
           </TableCell>
         </TableRow>
       </TableBody>
     </Table>
 
-    <EmptyState v-if="!loading && !errorMsg && records.length === 0" :icon="CalendarOff" title="No schedules yet." />
+    <EmptyState v-if="!loading && !errorMsg && records.length === 0" :icon="CalendarOff" :title="t('schedules.empty')" />
 
-    <Dialog v-model:open="gen.open" title="New schedule">
+    <Dialog v-model:open="gen.open" :title="t('schedules.newSchedule')">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="runGenerate">
         <div class="flex flex-col gap-1">
-          <Label for="g-year">Year</Label>
+          <Label for="g-year">{{ t('common.year') }}</Label>
           <Input id="g-year" v-model="gen.year" type="number" />
         </div>
         <div class="flex flex-col gap-1">
-          <Label for="g-month">Month</Label>
+          <Label for="g-month">{{ t('common.month') }}</Label>
           <Select id="g-month" v-model="gen.month">
             <option v-for="(m, i) in months" :key="i" :value="String(i + 1)">{{ m }}</option>
           </Select>
@@ -175,7 +177,7 @@ onMounted(load)
 
         <div class="flex items-center gap-2">
           <Button type="submit" :disabled="gen.generating">
-            {{ gen.generating ? 'Generating…' : 'Generate' }}
+            {{ gen.generating ? t('schedules.generating') : t('schedules.generate') }}
           </Button>
         </div>
 

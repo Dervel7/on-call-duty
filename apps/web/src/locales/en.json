@@ -10,7 +10,15 @@
     "confirm": "Confirm",
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
-    "invalidInput": "Invalid input"
+    "invalidInput": "Invalid input",
+    "loading": "Loading…",
+    "year": "Year",
+    "month": "Month",
+    "apply": "Apply",
+    "view": "View",
+    "actions": "Actions",
+    "weekend": "Weekend",
+    "notAvailable": "N/A"
   },
   "roles": {
     "superadmin": "superadmin",
@@ -119,5 +127,75 @@
     "tieBreakFewerWeekendDuties": "tie-break: fewer weekend duties",
     "tieBreakRosterOrder": "tie-break: roster order",
     "dayFillGuarantee": "assigned to guarantee the day was covered, usual fairness caps were relaxed"
+  },
+  "scheduleStatus": {
+    "published": "Published",
+    "draft": "Draft"
+  },
+  "adminDashboard": {
+    "paymentDueToday": "Payment deadline: due today",
+    "paymentDaysLeft": "Payment deadline: {n} day left | Payment deadline: {n} days left",
+    "loadFailed": "Failed to load statistics",
+    "noSchedule": "No schedule for {month}",
+    "noScheduleDescription": "Generate a schedule for this month to see statistics.",
+    "goToSchedules": "Go to Schedules",
+    "coverageKicker": "COVERAGE",
+    "coverage": "Coverage",
+    "daysFullyStaffed": "days fully staffed",
+    "understaffedDays": "Understaffed days: {days}",
+    "noUnderstaffedDays": "No understaffed days.",
+    "fairnessKicker": "FAIRNESS",
+    "fairness": "Fairness",
+    "dutySpread": "Duty spread (max − min across assigned doctors)",
+    "wellBalanced": "Well balanced",
+    "imbalanced": "Imbalanced — review workload",
+    "weekendSpread": "Weekend spread {value}",
+    "workloadKicker": "WORKLOAD",
+    "workload": "Workload",
+    "doctor": "Doctor",
+    "duties": "Duties",
+    "cap": "Cap",
+    "inactive": "inactive"
+  },
+  "doctorDashboard": {
+    "loadFailed": "Failed to load statistics",
+    "vitalsKicker": "VITALS · MONTH",
+    "welcome": "Welcome, {name}",
+    "dutiesThisMonth": "duties this month",
+    "notPublished": "This month's schedule isn't published yet.",
+    "weekendCount": "Weekend {n}",
+    "nextDaysKicker": "NEXT 7 DAYS",
+    "whoIsOnCall": "Who's on call (today + 6 days)",
+    "you": "You",
+    "noOnCall": "No published schedule covers this period.",
+    "myDutiesKicker": "MY DUTIES",
+    "myUpcomingDuties": "My upcoming duties",
+    "noUpcoming": "No upcoming on-call duties."
+  },
+  "dutyCalendar": {
+    "weekendBadge": "WE",
+    "openBadge": "OPEN",
+    "slotLabel": "{date} slot {n}",
+    "unassigned": "Unassigned",
+    "assign": "Assign…",
+    "unfillable": "Unfillable",
+    "noDoctor": "No doctor",
+    "filledOf": "{filled} of {required}"
+  },
+  "schedules": {
+    "subtitle": "Generate, review, and publish monthly rosters",
+    "newSchedule": "New schedule",
+    "rostersKicker": "ROSTERS",
+    "status": "Status",
+    "created": "Created",
+    "empty": "No schedules yet.",
+    "loadFailed": "Failed to load schedules",
+    "generate": "Generate",
+    "generating": "Generating…",
+    "generateFailed": "Failed to generate"
+  },
+  "scheduleRoster": {
+    "subtitle": "Published on-call schedules",
+    "empty": "No published schedules yet."
   }
 }

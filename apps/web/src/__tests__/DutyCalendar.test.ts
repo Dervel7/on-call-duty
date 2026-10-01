@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import type { DayInfo } from '@oncall/shared'
 
 import DutyCalendar from '../components/schedule/DutyCalendar.vue'
+import { setTestLocale } from './i18n'
 
 function day(date: string, slotsRequired: number): DayInfo {
   return { date, isWeekend: false, dutyType: 'closed', slotsRequired, slotsMinimum: 1, eligibleDoctorIds: [], availableDoctorIds: [] }
@@ -70,5 +71,19 @@ describe('DutyCalendar', () => {
       vi.useRealTimers()
       process.env.TZ = tz
     }
+  })
+})
+
+describe('DutyCalendar in Greek', () => {
+  it('renders weekday headers, slot names and fill hints in the active UI language', () => {
+    setTestLocale('el')
+    const w = mountCalendar(3, 1)
+    expect(w.text()).toContain('Δευ')
+    expect(w.findAll('[role="combobox"]').map((c) => c.attributes('aria-label'))).toEqual([
+      '2026-09-01 θέση 1',
+      '2026-09-01 θέση 2',
+      '2026-09-01 θέση 3',
+    ])
+    expect(w.text()).toContain('1 από 3')
   })
 })

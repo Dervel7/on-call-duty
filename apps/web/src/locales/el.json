@@ -10,7 +10,15 @@
     "confirm": "Επιβεβαίωση",
     "previousMonth": "Προηγούμενος μήνας",
     "nextMonth": "Επόμενος μήνας",
-    "invalidInput": "Μη έγκυρα στοιχεία"
+    "invalidInput": "Μη έγκυρα στοιχεία",
+    "loading": "Φόρτωση…",
+    "year": "Έτος",
+    "month": "Μήνας",
+    "apply": "Εφαρμογή",
+    "view": "Προβολή",
+    "actions": "Ενέργειες",
+    "weekend": "Σαββατοκύριακο",
+    "notAvailable": "Δ/Υ"
   },
   "roles": {
     "superadmin": "υπερδιαχειριστής",
@@ -119,5 +127,75 @@
     "tieBreakFewerWeekendDuties": "ισοβαθμία: λιγότερες εφημερίες Σαββατοκύριακου",
     "tieBreakRosterOrder": "ισοβαθμία: σειρά στη λίστα ιατρών",
     "dayFillGuarantee": "ανατέθηκε για να καλυφθεί η ημέρα, τα συνήθη όρια δικαιοσύνης χαλάρωσαν"
+  },
+  "scheduleStatus": {
+    "published": "Δημοσιευμένο",
+    "draft": "Πρόχειρο"
+  },
+  "adminDashboard": {
+    "paymentDueToday": "Προθεσμία πληρωμής: λήγει σήμερα",
+    "paymentDaysLeft": "Προθεσμία πληρωμής: απομένει {n} ημέρα | Προθεσμία πληρωμής: απομένουν {n} ημέρες",
+    "loadFailed": "Η φόρτωση των στατιστικών απέτυχε",
+    "noSchedule": "Δεν υπάρχει πρόγραμμα: {month}",
+    "noScheduleDescription": "Δημιουργήστε πρόγραμμα για αυτόν τον μήνα για να δείτε στατιστικά.",
+    "goToSchedules": "Μετάβαση στα Προγράμματα",
+    "coverageKicker": "ΚΑΛΥΨΗ",
+    "coverage": "Κάλυψη",
+    "daysFullyStaffed": "ημέρες με πλήρη στελέχωση",
+    "understaffedDays": "Ημέρες με ελλιπή στελέχωση: {days}",
+    "noUnderstaffedDays": "Δεν υπάρχουν ημέρες με ελλιπή στελέχωση.",
+    "fairnessKicker": "ΔΙΚΑΙΟΣΥΝΗ",
+    "fairness": "Δικαιοσύνη",
+    "dutySpread": "Διασπορά εφημεριών (μέγ. − ελάχ. μεταξύ των ιατρών με ανάθεση)",
+    "wellBalanced": "Καλά ισορροπημένο",
+    "imbalanced": "Μη ισορροπημένο — ελέγξτε τον φόρτο εργασίας",
+    "weekendSpread": "Διασπορά Σαββατοκύριακων {value}",
+    "workloadKicker": "ΦΟΡΤΟΣ ΕΡΓΑΣΙΑΣ",
+    "workload": "Φόρτος εργασίας",
+    "doctor": "Ιατρός",
+    "duties": "Εφημερίες",
+    "cap": "Όριο",
+    "inactive": "ανενεργός"
+  },
+  "doctorDashboard": {
+    "loadFailed": "Η φόρτωση των στατιστικών απέτυχε",
+    "vitalsKicker": "ΖΩΤΙΚΑ ΣΤΟΙΧΕΙΑ · ΜΗΝΑΣ",
+    "welcome": "Καλώς ήρθατε, {name}",
+    "dutiesThisMonth": "εφημερίες αυτόν τον μήνα",
+    "notPublished": "Το πρόγραμμα αυτού του μήνα δεν έχει δημοσιευτεί ακόμη.",
+    "weekendCount": "Σαββατοκύριακο {n}",
+    "nextDaysKicker": "ΕΠΟΜΕΝΕΣ 7 ΗΜΕΡΕΣ",
+    "whoIsOnCall": "Ποιος εφημερεύει (σήμερα + 6 ημέρες)",
+    "you": "Εσείς",
+    "noOnCall": "Κανένα δημοσιευμένο πρόγραμμα δεν καλύπτει αυτή την περίοδο.",
+    "myDutiesKicker": "ΟΙ ΕΦΗΜΕΡΙΕΣ ΜΟΥ",
+    "myUpcomingDuties": "Οι επερχόμενες εφημερίες μου",
+    "noUpcoming": "Δεν υπάρχουν επερχόμενες εφημερίες."
+  },
+  "dutyCalendar": {
+    "weekendBadge": "ΣΚ",
+    "openBadge": "ΑΝΟΙΧΤΗ",
+    "slotLabel": "{date} θέση {n}",
+    "unassigned": "Χωρίς ανάθεση",
+    "assign": "Ανάθεση…",
+    "unfillable": "Μη καλύψιμη",
+    "noDoctor": "Χωρίς ιατρό",
+    "filledOf": "{filled} από {required}"
+  },
+  "schedules": {
+    "subtitle": "Δημιουργία, έλεγχος και δημοσίευση μηνιαίων προγραμμάτων",
+    "newSchedule": "Νέο πρόγραμμα",
+    "rostersKicker": "ΠΡΟΓΡΑΜΜΑΤΑ",
+    "status": "Κατάσταση",
+    "created": "Δημιουργήθηκε",
+    "empty": "Δεν υπάρχουν ακόμη προγράμματα.",
+    "loadFailed": "Η φόρτωση των προγραμμάτων απέτυχε",
+    "generate": "Δημιουργία",
+    "generating": "Δημιουργία…",
+    "generateFailed": "Η δημιουργία απέτυχε"
+  },
+  "scheduleRoster": {
+    "subtitle": "Δημοσιευμένα προγράμματα εφημεριών",
+    "empty": "Δεν υπάρχουν ακόμη δημοσιευμένα προγράμματα."
   }
 }
