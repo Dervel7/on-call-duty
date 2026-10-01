@@ -1,18 +1,22 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ScrollText } from 'lucide-vue-next'
+import { ChevronDown, ScrollText } from 'lucide-vue-next'
 import type { DutyMinimumSettings, DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
 import { updateDutyMinimumsSchema, updateDutySlotsSchema, updateOpenDutySchema } from '@oncall/shared'
 import * as settingsService from '@/services/settings'
 import Button from '@/components/ui/Button.vue'
-import Card from '@/components/ui/Card.vue'
-import CardContent from '@/components/ui/CardContent.vue'
-import CardDescription from '@/components/ui/CardDescription.vue'
-import CardHeader from '@/components/ui/CardHeader.vue'
-import CardTitle from '@/components/ui/CardTitle.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
+
+type RuleKey = 'cycle' | 'slots' | 'minimums'
+
+/** The rule whose form is open; only one rule is expanded at a time. */
+const expandedRule = ref<RuleKey | null>(null)
+
+function toggleRule(key: RuleKey): void {
+  expandedRule.value = expandedRule.value === key ? null : key
+}
 
 const openDuty = ref<OpenDutySettings | null>(null)
 const intervalInput = ref('')
@@ -157,17 +161,29 @@ onMounted(loadSettings)
       subtitle="Every dynamic scheduling rule lives here. Changes apply to new previews and generations immediately and are recorded in the activity log."
     />
 
-    <div class="grid items-start gap-4 md:grid-cols-2">
-      <Card class="flex flex-col">
-        <CardHeader class="p-5 pb-2">
-          <CardTitle>On-call duty cycle</CardTitle>
-          <CardDescription class="text-xs">
+    <ul class="overflow-hidden rounded-lg border border-border/70">
+      <li class="border-b border-border/70 last:border-b-0">
+        <button
+          id="rule-cycle-toggle"
+          type="button"
+          class="flex w-full items-center justify-between gap-3 bg-card px-4 py-3 text-left transition-colors hover:bg-primary/[0.035]"
+          aria-controls="rule-cycle-panel"
+          :aria-expanded="expandedRule === 'cycle'"
+          @click="toggleRule('cycle')"
+        >
+          <span class="font-display font-semibold text-foreground">On-call duty cycle</span>
+          <span class="inline-flex items-center gap-2 font-mono text-sm text-muted-foreground">
+            <span v-if="intervalError" class="text-destructive">Error</span>
+            <template v-else-if="openDuty">Every {{ openDuty.intervalDays }} days</template>
+            <ChevronDown class="size-4 transition-transform" :class="{ 'rotate-180': expandedRule === 'cycle' }" />
+          </span>
+        </button>
+        <div v-if="expandedRule === 'cycle'" id="rule-cycle-panel" class="flex flex-col gap-3 px-4 pb-4">
+          <p class="text-xs text-muted-foreground">
             Days between open on-call duties — the red-bordered days in schedules. The first open
             on-call day is {{ openDuty?.anchorDate ?? '—' }}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="flex flex-1 flex-col p-5 pt-0">
-          <form class="flex flex-1 flex-col gap-3" novalidate @submit.prevent="onSubmitInterval">
+          </p>
+          <form class="flex max-w-sm flex-col gap-3" novalidate @submit.prevent="onSubmitInterval">
             <div class="flex flex-col gap-1.5">
               <Label for="open-duty-interval">Interval (days)</Label>
               <Input
@@ -182,21 +198,35 @@ onMounted(loadSettings)
             </div>
             <p v-if="intervalError" class="text-xs text-destructive" role="alert">{{ intervalError }}</p>
             <p v-if="intervalSuccess" class="text-xs text-success" role="status">Interval updated.</p>
-            <Button class="mt-auto" type="submit" :disabled="loading || intervalSubmitting">Save interval</Button>
+            <Button class="self-start" type="submit" :disabled="loading || intervalSubmitting">Save interval</Button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </li>
 
-      <Card class="flex flex-col">
-        <CardHeader class="p-5 pb-2">
-          <CardTitle>On-call slots</CardTitle>
-          <CardDescription class="text-xs">
+      <li class="border-b border-border/70 last:border-b-0">
+        <button
+          id="rule-slots-toggle"
+          type="button"
+          class="flex w-full items-center justify-between gap-3 bg-card px-4 py-3 text-left transition-colors hover:bg-primary/[0.035]"
+          aria-controls="rule-slots-panel"
+          :aria-expanded="expandedRule === 'slots'"
+          @click="toggleRule('slots')"
+        >
+          <span class="font-display font-semibold text-foreground">On-call slots</span>
+          <span class="inline-flex items-center gap-2 font-mono text-sm text-muted-foreground">
+            <span v-if="slotsError" class="text-destructive">Error</span>
+            <template v-else-if="dutySlots"
+              >Open {{ dutySlots.openDutySlots }} · Closed {{ dutySlots.closedDutySlots }}</template
+            >
+            <ChevronDown class="size-4 transition-transform" :class="{ 'rotate-180': expandedRule === 'slots' }" />
+          </span>
+        </button>
+        <div v-if="expandedRule === 'slots'" id="rule-slots-panel" class="flex flex-col gap-3 px-4 pb-4">
+          <p class="text-xs text-muted-foreground">
             How many on-call doctors a single day holds. Open on-call days use their own count; all
             other days (including the day after an open one) use the closed count.
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="flex flex-1 flex-col p-5 pt-0">
-          <form class="flex flex-1 flex-col gap-3" novalidate @submit.prevent="onSubmitSlots">
+          </p>
+          <form class="flex max-w-sm flex-col gap-3" novalidate @submit.prevent="onSubmitSlots">
             <div class="flex flex-col gap-1.5">
               <Label for="open-duty-slots">Open on-call days (1–7)</Label>
               <Input
@@ -223,23 +253,40 @@ onMounted(loadSettings)
             </div>
             <p v-if="slotsError" class="text-xs text-destructive" role="alert">{{ slotsError }}</p>
             <p v-if="slotsSuccess" class="text-xs text-success" role="status">Slots updated.</p>
-            <Button class="mt-auto" type="submit" :disabled="loading || slotsSubmitting">Save slots</Button>
+            <Button class="self-start" type="submit" :disabled="loading || slotsSubmitting">Save slots</Button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </li>
 
-      <Card class="flex flex-col">
-        <CardHeader class="p-5 pb-2">
-          <CardTitle>Minimum on-call doctors</CardTitle>
-          <CardDescription class="text-xs">
+      <li class="border-b border-border/70 last:border-b-0">
+        <button
+          id="rule-minimums-toggle"
+          type="button"
+          class="flex w-full items-center justify-between gap-3 bg-card px-4 py-3 text-left transition-colors hover:bg-primary/[0.035]"
+          aria-controls="rule-minimums-panel"
+          :aria-expanded="expandedRule === 'minimums'"
+          @click="toggleRule('minimums')"
+        >
+          <span class="font-display font-semibold text-foreground">Minimum on-call doctors</span>
+          <span class="inline-flex items-center gap-2 font-mono text-sm text-muted-foreground">
+            <span v-if="minimumsError" class="text-destructive">Error</span>
+            <template v-else-if="dutyMinimums"
+              >Open {{ dutyMinimums.openDutyMinimum }} · Closed {{ dutyMinimums.closedDutyMinimum }}</template
+            >
+            <ChevronDown
+              class="size-4 transition-transform"
+              :class="{ 'rotate-180': expandedRule === 'minimums' }"
+            />
+          </span>
+        </button>
+        <div v-if="expandedRule === 'minimums'" id="rule-minimums-panel" class="flex flex-col gap-3 px-4 pb-4">
+          <p class="text-xs text-muted-foreground">
             The fewest on-call doctors a day may hold. Open on-call days use their own minimum; all
             other days (including the day after an open one) use the closed minimum. Each minimum
             must not exceed its slot count. Any count from the minimum up to the slot count is
             accepted; filling every slot is preferred.
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="flex flex-1 flex-col p-5 pt-0">
-          <form class="flex flex-1 flex-col gap-3" novalidate @submit.prevent="onSubmitMinimums">
+          </p>
+          <form class="flex max-w-sm flex-col gap-3" novalidate @submit.prevent="onSubmitMinimums">
             <div class="flex flex-col gap-1.5">
               <Label for="open-duty-minimum">Open on-call days (1–7)</Label>
               <Input
@@ -266,10 +313,10 @@ onMounted(loadSettings)
             </div>
             <p v-if="minimumsError" class="text-xs text-destructive" role="alert">{{ minimumsError }}</p>
             <p v-if="minimumsSuccess" class="text-xs text-success" role="status">Minimums updated.</p>
-            <Button class="mt-auto" type="submit" :disabled="loading || minimumsSubmitting">Save minimums</Button>
+            <Button class="self-start" type="submit" :disabled="loading || minimumsSubmitting">Save minimums</Button>
           </form>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </li>
+    </ul>
   </div>
 </template>

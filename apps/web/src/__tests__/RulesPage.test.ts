@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 
@@ -45,6 +45,10 @@ async function mountRules() {
   return wrapper
 }
 
+async function expand(wrapper: VueWrapper, rule: 'cycle' | 'slots' | 'minimums') {
+  await wrapper.find(`#rule-${rule}-toggle`).trigger('click')
+}
+
 beforeEach(() => {
   getOpenDuty.mockReset()
   updateOpenDutyInterval.mockReset()
@@ -55,25 +59,45 @@ beforeEach(() => {
 })
 
 describe('RulesPage', () => {
-  it('loads and shows every dynamic rule with its current value', async () => {
+  it('lists every rule title with its current value and keeps the forms collapsed', async () => {
     const wrapper = await mountRules()
     expect(getOpenDuty).toHaveBeenCalled()
     expect(getDutySlots).toHaveBeenCalled()
     expect(getDutyMinimums).toHaveBeenCalled()
-    expect(wrapper.text()).toContain('On-call duty cycle')
-    expect(wrapper.text()).toContain('On-call slots')
-    expect(wrapper.text()).toContain('Minimum on-call doctors')
+    expect(wrapper.find('#rule-cycle-toggle').text()).toContain('On-call duty cycle')
+    expect(wrapper.find('#rule-cycle-toggle').text()).toContain('Every 8 days')
+    expect(wrapper.find('#rule-slots-toggle').text()).toContain('On-call slots')
+    expect(wrapper.find('#rule-slots-toggle').text()).toContain('Open 4 · Closed 2')
+    expect(wrapper.find('#rule-minimums-toggle').text()).toContain('Minimum on-call doctors')
+    expect(wrapper.find('#rule-minimums-toggle').text()).toContain('Open 2 · Closed 1')
+    expect(wrapper.findAll('form')).toHaveLength(0)
+  })
+
+  it('opens one rule at a time with its current values', async () => {
+    const wrapper = await mountRules()
+    await expand(wrapper, 'cycle')
+    expect(wrapper.find('#rule-cycle-toggle').attributes('aria-expanded')).toBe('true')
     expect(wrapper.text()).toContain('2026-10-02')
     expect((wrapper.find('#open-duty-interval').element as HTMLInputElement).value).toBe('8')
+
+    await expand(wrapper, 'slots')
+    expect(wrapper.find('#open-duty-interval').exists()).toBe(false)
     expect((wrapper.find('#open-duty-slots').element as HTMLInputElement).value).toBe('4')
     expect((wrapper.find('#closed-duty-slots').element as HTMLInputElement).value).toBe('2')
+
+    await expand(wrapper, 'minimums')
+    expect(wrapper.find('#open-duty-slots').exists()).toBe(false)
     expect((wrapper.find('#open-duty-minimum').element as HTMLInputElement).value).toBe('2')
     expect((wrapper.find('#closed-duty-minimum').element as HTMLInputElement).value).toBe('1')
+
+    await expand(wrapper, 'minimums')
+    expect(wrapper.findAll('form')).toHaveLength(0)
   })
 
   it('saves a new interval through the service and confirms', async () => {
     updateOpenDutyInterval.mockResolvedValue({ anchorDate: '2026-10-02', intervalDays: 14 })
     const wrapper = await mountRules()
+    await expand(wrapper, 'cycle')
     await wrapper.find('#open-duty-interval').setValue('14')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-interval').exists())!
     await form.trigger('submit')
@@ -85,6 +109,7 @@ describe('RulesPage', () => {
 
   it('rejects an invalid interval without calling the service', async () => {
     const wrapper = await mountRules()
+    await expand(wrapper, 'cycle')
     await wrapper.find('#open-duty-interval').setValue('0')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-interval').exists())!
     await form.trigger('submit')
@@ -96,6 +121,7 @@ describe('RulesPage', () => {
   it('saves new slot counts through the service and confirms', async () => {
     updateDutySlots.mockResolvedValue({ openDutySlots: 3, closedDutySlots: 1 })
     const wrapper = await mountRules()
+    await expand(wrapper, 'slots')
     await wrapper.find('#open-duty-slots').setValue('3')
     await wrapper.find('#closed-duty-slots').setValue('1')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-slots').exists())!
@@ -109,6 +135,7 @@ describe('RulesPage', () => {
 
   it('rejects out-of-range slot counts without calling the service', async () => {
     const wrapper = await mountRules()
+    await expand(wrapper, 'slots')
     await wrapper.find('#open-duty-slots').setValue('8')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-slots').exists())!
     await form.trigger('submit')
@@ -120,6 +147,7 @@ describe('RulesPage', () => {
   it('saves new minimums through the service and confirms', async () => {
     updateDutyMinimums.mockResolvedValue({ openDutyMinimum: 3, closedDutyMinimum: 2 })
     const wrapper = await mountRules()
+    await expand(wrapper, 'minimums')
     await wrapper.find('#open-duty-minimum').setValue('3')
     await wrapper.find('#closed-duty-minimum').setValue('2')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-minimum').exists())!
@@ -133,6 +161,7 @@ describe('RulesPage', () => {
 
   it('rejects out-of-range minimums without calling the service', async () => {
     const wrapper = await mountRules()
+    await expand(wrapper, 'minimums')
     await wrapper.find('#closed-duty-minimum').setValue('0')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-minimum').exists())!
     await form.trigger('submit')
@@ -144,6 +173,7 @@ describe('RulesPage', () => {
   it('shows a server rejection in the minimums card only', async () => {
     updateDutyMinimums.mockRejectedValue(new Error('Open minimum cannot exceed the open slot count (4)'))
     const wrapper = await mountRules()
+    await expand(wrapper, 'minimums')
     await wrapper.find('#open-duty-minimum').setValue('5')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-minimum').exists())!
     await form.trigger('submit')
@@ -154,7 +184,7 @@ describe('RulesPage', () => {
     expect(wrapper.findAll('[role="alert"]')).toHaveLength(1)
   })
 
-  it('disables inputs and buttons until settings have loaded', async () => {
+  it('disables the open rule form until settings have loaded', async () => {
     setActivePinia(createPinia())
     let resolveCycle!: (value: unknown) => void
     getOpenDuty.mockReturnValue(new Promise((resolve) => (resolveCycle = resolve)))
@@ -162,25 +192,29 @@ describe('RulesPage', () => {
     getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, closedDutyMinimum: 2 })
     const wrapper = mount(RulesPage)
     await flushPromises()
+    await expand(wrapper, 'cycle')
     expect((wrapper.find('#open-duty-interval').element as HTMLInputElement).disabled).toBe(true)
-    expect(wrapper.findAll('button').every((b) => (b.element as HTMLButtonElement).disabled)).toBe(true)
+    expect((wrapper.find('button[type="submit"]').element as HTMLButtonElement).disabled).toBe(true)
     resolveCycle({ anchorDate: '2026-10-02', intervalDays: 8 })
     await flushPromises()
     expect((wrapper.find('#open-duty-interval').element as HTMLInputElement).disabled).toBe(false)
-    expect(wrapper.findAll('button').every((b) => !(b.element as HTMLButtonElement).disabled)).toBe(true)
+    expect((wrapper.find('button[type="submit"]').element as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('keeps the slots card populated when only the interval fails to load', async () => {
+  it('flags only the rule that failed to load and keeps the others populated', async () => {
     getOpenDuty.mockRejectedValue(new Error('cycle down'))
     getDutySlots.mockResolvedValue({ openDutySlots: 3, closedDutySlots: 1 })
     getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, closedDutyMinimum: 1 })
     const wrapper = mount(RulesPage)
     await flushPromises()
-    const intervalForm = wrapper.findAll('form').find((f) => f.find('#open-duty-interval').exists())!
-    const slotsForm = wrapper.findAll('form').find((f) => f.find('#open-duty-slots').exists())!
-    expect(intervalForm.find('[role="alert"]').text()).toContain('cycle down')
-    expect(slotsForm.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.find('#rule-cycle-toggle').text()).toContain('Error')
+    expect(wrapper.find('#rule-slots-toggle').text()).toContain('Open 3 · Closed 1')
+    await expand(wrapper, 'cycle')
+    expect(wrapper.find('[role="alert"]').text()).toContain('cycle down')
+    await expand(wrapper, 'slots')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     expect((wrapper.find('#open-duty-slots').element as HTMLInputElement).value).toBe('3')
+    await expand(wrapper, 'minimums')
     expect((wrapper.find('#open-duty-minimum').element as HTMLInputElement).value).toBe('2')
   })
 })
