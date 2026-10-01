@@ -1,13 +1,92 @@
 {
   "app": {
-    "title": "On-Call Duty · Hospital Scheduling"
+    "title": "On-Call Duty · Hospital Scheduling",
+    "name": "On-Call Duty",
+    "tagline": "Hospital Scheduling"
   },
   "common": {
     "close": "Close",
     "cancel": "Cancel",
     "confirm": "Confirm",
     "previousMonth": "Previous month",
-    "nextMonth": "Next month"
+    "nextMonth": "Next month",
+    "invalidInput": "Invalid input"
+  },
+  "roles": {
+    "superadmin": "superadmin",
+    "manager": "manager",
+    "administrator": "administrator",
+    "doctor": "doctor"
+  },
+  "nav": {
+    "main": "Main",
+    "mainMobile": "Main (mobile)",
+    "home": "Home",
+    "dutyRoster": "Duty roster",
+    "myAvailability": "My availability",
+    "users": "Users",
+    "availability": "Availability",
+    "schedules": "Schedules",
+    "holidays": "Holidays",
+    "rules": "Rules",
+    "reports": "Reports",
+    "activity": "Activity",
+    "usage": "Usage",
+    "profile": "Profile",
+    "logout": "Logout"
+  },
+  "home": {
+    "welcome": "Welcome",
+    "emptyDescription": "There is nothing to show for your role yet."
+  },
+  "locked": {
+    "title": "System locked",
+    "message": "System locked. Contact your service provider.",
+    "goToLogin": "Go to login"
+  },
+  "login": {
+    "kicker": "Mission control · on-call rosters",
+    "headline": "Fair on-call rosters.",
+    "headlineAccent": "Zero spreadsheet chaos.",
+    "featureWeekends": "Balanced weekends, automatically",
+    "featureRules": "Hospital rules enforced for you",
+    "featureNotify": "Always know when you're on call",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "description": "On-Call Duty staff login",
+    "identifier": "Email or username",
+    "password": "Password",
+    "passwordChanged": "Password changed, please sign in again.",
+    "fieldsRequired": "Username and Password must not be empty",
+    "failed": "Login failed"
+  },
+  "profile": {
+    "loadFailed": "Could not load profile",
+    "passwordTitle": "Password",
+    "passwordDescription": "Change your password. You will be signed out of all sessions, including this one.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "updatePassword": "Update password",
+    "passwordChangeFailed": "Could not change password",
+    "usernameTitle": "Username",
+    "usernameDescription": "Change the username you use to sign in. No password is needed.",
+    "usernameUpdated": "Username updated.",
+    "updateUsername": "Update username",
+    "usernameChangeFailed": "Could not change username",
+    "appearanceTitle": "Appearance",
+    "appearanceDescription": "Dark mode is saved to your account and applied after sign-in. The sign-in page always stays light.",
+    "darkMode": "Dark mode",
+    "themeSaveFailed": "Could not save theme preference",
+    "languageTitle": "Language",
+    "languageDescription": "Language is saved to your account and applied after sign-in. The sign-in page always stays in English.",
+    "languageSaveFailed": "Could not save language preference",
+    "onCallTitle": "My on-call profile",
+    "onCallDescription": "Your doctor profile (read-only).",
+    "email": "Email",
+    "status": "Status",
+    "active": "active",
+    "disabled": "disabled",
+    "maxMonthlyDuties": "Max monthly duties"
   },
   "calendarDialog": {
     "pickDays": "Pick days",

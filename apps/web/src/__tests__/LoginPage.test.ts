@@ -3,6 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import LoginPage from '../pages/LoginPage.vue'
+import { setTestLocale } from './i18n'
 
 const login = vi.fn()
 vi.mock('@/stores/auth', () => ({
@@ -115,5 +116,16 @@ describe('LoginPage', () => {
     await submitValid(wrapper)
     expect(router.currentRoute.value.path).toBe('/')
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('renders the form and its errors in the active UI language', async () => {
+    setTestLocale('el')
+    const { wrapper } = await mountWithRouter()
+    expect(wrapper.find('label[for="identifier"]').text()).toBe('Email ή όνομα χρήστη')
+    await wrapper.find('form').trigger('submit.prevent')
+    expect(login).not.toHaveBeenCalled()
+    expect(wrapper.find('[role="alert"]').text()).toBe(
+      'Το όνομα χρήστη και ο κωδικός πρόσβασης δεν πρέπει να είναι κενά',
+    )
   })
 })

@@ -16,11 +16,13 @@ import {
   UserRound,
   Users,
 } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import Avatar from '@/components/ui/Avatar.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 
+const { t } = useI18n()
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
@@ -31,28 +33,28 @@ async function onLogout() {
 }
 
 const navItems = computed(() => {
-  const items: { to: string; label: string; icon: Component }[] = [{ to: '/', label: 'Home', icon: House }]
+  const items: { to: string; label: string; icon: Component }[] = [{ to: '/', label: t('nav.home'), icon: House }]
   if (auth.user?.role === 'doctor') {
-    items.push({ to: '/roster', label: 'Duty roster', icon: CalendarCheck2 })
-    items.push({ to: '/my-availability', label: 'My availability', icon: CalendarClock })
+    items.push({ to: '/roster', label: t('nav.dutyRoster'), icon: CalendarCheck2 })
+    items.push({ to: '/my-availability', label: t('nav.myAvailability'), icon: CalendarClock })
   }
   if (auth.isAdmin) {
     items.push(
-      { to: '/users', label: 'Users', icon: Users },
-      { to: '/availability', label: 'Availability', icon: CalendarOff },
-      { to: '/schedules', label: 'Schedules', icon: CalendarDays },
-      { to: '/holidays', label: 'Holidays', icon: CalendarHeart },
-      { to: '/rules', label: 'Rules', icon: ScrollText },
-      { to: '/reports', label: 'Reports', icon: BarChart3 },
+      { to: '/users', label: t('nav.users'), icon: Users },
+      { to: '/availability', label: t('nav.availability'), icon: CalendarOff },
+      { to: '/schedules', label: t('nav.schedules'), icon: CalendarDays },
+      { to: '/holidays', label: t('nav.holidays'), icon: CalendarHeart },
+      { to: '/rules', label: t('nav.rules'), icon: ScrollText },
+      { to: '/reports', label: t('nav.reports'), icon: BarChart3 },
     )
   }
   if (auth.isSuperadmin) {
     items.push(
-      { to: '/activity', label: 'Activity', icon: History },
-      { to: '/usage', label: 'Usage', icon: Gauge },
+      { to: '/activity', label: t('nav.activity'), icon: History },
+      { to: '/usage', label: t('nav.usage'), icon: Gauge },
     )
   }
-  items.push({ to: '/profile', label: 'Profile', icon: UserRound })
+  items.push({ to: '/profile', label: t('nav.profile'), icon: UserRound })
   return items
 })
 
@@ -78,16 +80,16 @@ function isActive(to: string): boolean {
           </svg>
         </span>
         <span class="flex flex-col leading-none">
-          <span class="font-display text-[15px] font-bold tracking-tight text-foreground">On-Call Duty</span>
+          <span class="font-display text-[15px] font-bold tracking-tight text-foreground">{{ t('app.name') }}</span>
           <span class="hud-label mt-1">
-            Hospital Scheduling
+            {{ t('app.tagline') }}
           </span>
         </span>
       </RouterLink>
 
       <nav
         v-if="auth.isAuthenticated"
-        aria-label="Main"
+        :aria-label="t('nav.main')"
         class="hidden md:flex min-w-0 flex-1 items-center gap-0.5 lg:gap-1 overflow-x-auto no-scrollbar"
       >
         <RouterLink
@@ -110,18 +112,18 @@ function isActive(to: string): boolean {
             <span class="hidden text-sm text-foreground xl:inline">
               {{ auth.user.firstName }} {{ auth.user.lastName }}
             </span>
-            <Badge variant="outline">{{ auth.user.role }}</Badge>
+            <Badge variant="outline">{{ t(`roles.${auth.user.role}`) }}</Badge>
           </div>
-          <Button size="sm" variant="outline" aria-label="Logout" @click="onLogout">
+          <Button size="sm" variant="outline" :aria-label="t('nav.logout')" @click="onLogout">
             <LogOut class="h-4 w-4" aria-hidden="true" />
-            <span class="hidden sm:inline">Logout</span>
+            <span class="hidden sm:inline">{{ t('nav.logout') }}</span>
           </Button>
         </template>
       </div>
     </div>
     <nav
       v-if="auth.isAuthenticated"
-      aria-label="Main (mobile)"
+      :aria-label="t('nav.mainMobile')"
       class="md:hidden flex items-center gap-1 overflow-x-auto no-scrollbar border-t border-border/60 px-3 py-2"
     >
       <RouterLink

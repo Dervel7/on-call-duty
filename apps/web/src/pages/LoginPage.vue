@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { loginSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
@@ -19,6 +20,7 @@ const password = ref('')
 const formError = ref('')
 const submitting = ref(false)
 
+const { t } = useI18n()
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
@@ -27,19 +29,19 @@ const passwordChanged = computed(() => route.query.passwordChanged === '1')
 async function onSubmit() {
   formError.value = ''
   if (!identifier.value.trim() || !password.value) {
-    formError.value = 'Username and Password must not be empty'
+    formError.value = t('login.fieldsRequired')
     return
   }
   const parsed = loginSchema.safeParse({ identifier: identifier.value, password: password.value })
   if (!parsed.success) {
-    formError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
+    formError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
   submitting.value = true
   try {
     await auth.login(parsed.data.identifier, parsed.data.password)
   } catch (e) {
-    formError.value = e instanceof ApiError ? e.message : 'Login failed'
+    formError.value = e instanceof ApiError ? e.message : t('login.failed')
     return
   } finally {
     submitting.value = false
@@ -72,22 +74,22 @@ async function onSubmit() {
             </svg>
           </span>
           <span class="flex flex-col leading-none">
-            <span class="font-display text-lg font-bold tracking-tight text-white">On-Call Duty</span>
+            <span class="font-display text-lg font-bold tracking-tight text-white">{{ t('app.name') }}</span>
             <span
               class="mt-1 font-mono text-[0.625rem] font-semibold uppercase tracking-[0.22em] text-cyan-300/80"
             >
-              Hospital Scheduling
+              {{ t('app.tagline') }}
             </span>
           </span>
         </div>
 
         <div>
           <p class="font-mono text-[0.625rem] font-semibold uppercase tracking-[0.22em] text-cyan-300/80">
-            Mission control · on-call rosters
+            {{ t('login.kicker') }}
           </p>
           <h1 class="mt-4 max-w-md font-display text-5xl font-bold leading-[1.05] tracking-tight text-white">
-            Fair on-call rosters.
-            <span class="text-brand-gradient">Zero spreadsheet chaos.</span>
+            {{ t('login.headline') }}
+            <span class="text-brand-gradient">{{ t('login.headlineAccent') }}</span>
           </h1>
           <ul class="mt-10 flex flex-col gap-5 text-sm font-medium text-white/80">
             <li class="flex items-center gap-4">
@@ -95,21 +97,21 @@ async function onSubmit() {
                 class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-cyan-300 ring-1 ring-inset ring-white/15">
                 <CalendarCheck2 class="size-4" />
               </span>
-              Balanced weekends, automatically
+              {{ t('login.featureWeekends') }}
             </li>
             <li class="flex items-center gap-4">
               <span
                 class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-cyan-300 ring-1 ring-inset ring-white/15">
                 <ShieldCheck class="size-4" />
               </span>
-              Hospital rules enforced for you
+              {{ t('login.featureRules') }}
             </li>
             <li class="flex items-center gap-4">
               <span
                 class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-cyan-300 ring-1 ring-inset ring-white/15">
                 <BellRing class="size-4" />
               </span>
-              Always know when you're on call
+              {{ t('login.featureNotify') }}
             </li>
           </ul>
         </div>
@@ -139,31 +141,31 @@ async function onSubmit() {
             </span>
           </div>
           <div>
-            <p class="font-display text-base font-bold tracking-tight text-foreground">On-Call Duty</p>
-            <p class="hud-label mt-1">Hospital Scheduling</p>
+            <p class="font-display text-base font-bold tracking-tight text-foreground">{{ t('app.name') }}</p>
+            <p class="hud-label mt-1">{{ t('app.tagline') }}</p>
           </div>
         </div>
 
         <CardHeader class="items-center text-center">
-          <CardTitle>Sign in</CardTitle>
-          <CardDescription>On-Call Duty staff login</CardDescription>
+          <CardTitle>{{ t('login.signIn') }}</CardTitle>
+          <CardDescription>{{ t('login.description') }}</CardDescription>
         </CardHeader>
         <CardContent>
           <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
             <div class="flex flex-col gap-2">
-              <Label for="identifier">Email or username</Label>
+              <Label for="identifier">{{ t('login.identifier') }}</Label>
               <Input id="identifier" v-model="identifier" type="text" autocomplete="username" />
             </div>
             <div class="flex flex-col gap-2">
-              <Label for="password">Password</Label>
+              <Label for="password">{{ t('login.password') }}</Label>
               <Input id="password" v-model="password" type="password" autocomplete="current-password" />
             </div>
             <p v-if="passwordChanged && !formError" class="text-sm text-success" role="status">
-              Password changed, please sign in again.
+              {{ t('login.passwordChanged') }}
             </p>
             <p v-if="formError" class="text-sm text-destructive" role="alert">{{ formError }}</p>
             <Button type="submit" :disabled="submitting" :aria-busy="submitting">
-              {{ submitting ? 'Signing in…' : 'Sign in' }}
+              {{ submitting ? t('login.signingIn') : t('login.signIn') }}
             </Button>
           </form>
         </CardContent>

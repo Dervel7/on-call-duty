@@ -30,6 +30,7 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
 import { ApiError } from '@/lib/http'
 import { pickOption } from './pick-option'
+import { setTestLocale } from './i18n'
 import ProfilePage from '../pages/ProfilePage.vue'
 
 beforeEach(() => {
@@ -262,6 +263,36 @@ describe('ProfilePage language', () => {
     expect(auth.user?.language).toBe('en')
     expect(wrapper.find('#language').text()).toContain('English')
     expect(wrapper.find('[role="alert"]').text()).toContain('Could not save language preference')
+  })
+})
+
+describe('ProfilePage in Greek', () => {
+  it('renders the role, labels and fallback errors in the active UI language', async () => {
+    setTestLocale('el')
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.user = {
+      id: 2,
+      email: 'admin@h.com',
+      username: 'admin',
+      role: 'administrator',
+      firstName: 'Ada',
+      lastName: 'Admin',
+      darkMode: false,
+      language: 'el',
+      clinicId: 1,
+      clinicName: 'Main Clinic',
+    }
+    updateTheme.mockRejectedValueOnce(new Error('net'))
+    const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('διαχειριστής · admin@h.com')
+    expect(wrapper.find('label[for="current"]').text()).toBe('Τρέχων κωδικός πρόσβασης')
+
+    await wrapper.find('[role="switch"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').text()).toBe('Δεν ήταν δυνατή η αποθήκευση της προτίμησης θέματος')
   })
 })
 

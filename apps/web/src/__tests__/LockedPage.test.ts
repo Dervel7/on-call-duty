@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
 import LockedPage from '../pages/LockedPage.vue'
+import { setTestLocale } from './i18n'
 
 function mountWithRouter(currentPath = '/locked') {
   const router = createRouter({
@@ -32,5 +33,13 @@ describe('LockedPage', () => {
     const link = wrapper.find('a[href="/login"]')
     expect(link.exists()).toBe(true)
     expect(link.text()).toContain('Go to login')
+  })
+
+  it('renders the heading, message and link in the active UI language', () => {
+    setTestLocale('el')
+    const wrapper = mountWithRouter()
+    expect(wrapper.find('.font-display').text()).toBe('Το σύστημα είναι κλειδωμένο')
+    expect(wrapper.text()).toContain('Επικοινωνήστε με τον πάροχο υπηρεσιών σας.')
+    expect(wrapper.find('a[href="/login"]').text()).toContain('Μετάβαση στη σύνδεση')
   })
 })

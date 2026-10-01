@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import type { Doctor } from '@oncall/shared'
 import { changePasswordSchema, languageSchema, updateUsernameSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
@@ -28,10 +29,11 @@ const usernameSuccess = ref(false)
 const usernameSubmitting = ref(false)
 
 
+const { t } = useI18n()
 const auth = useAuthStore()
 const router = useRouter()
 const heading = computed(() =>
-  auth.user ? `${auth.user.firstName} ${auth.user.lastName}` : 'Profile',
+  auth.user ? `${auth.user.firstName} ${auth.user.lastName}` : t('nav.profile'),
 )
 
 const myDoctor = ref<Doctor | null>(null)
@@ -48,7 +50,7 @@ async function loadMyDoctor() {
   try {
     myDoctor.value = await doctorService.me()
   } catch (e) {
-    doctorError.value = e instanceof Error ? e.message : 'Could not load profile'
+    doctorError.value = e instanceof Error ? e.message : t('profile.loadFailed')
   }
 }
 
@@ -57,7 +59,7 @@ async function onToggleDarkMode(value: boolean) {
   try {
     await auth.setDarkMode(value)
   } catch (e) {
-    themeError.value = e instanceof ApiError ? e.message : 'Could not save theme preference'
+    themeError.value = e instanceof ApiError ? e.message : t('profile.themeSaveFailed')
   }
 }
 
@@ -68,7 +70,7 @@ async function onSelectLanguage(value: string | number) {
   try {
     await auth.setLanguage(parsed.data)
   } catch (e) {
-    languageError.value = e instanceof ApiError ? e.message : 'Could not save language preference'
+    languageError.value = e instanceof ApiError ? e.message : t('profile.languageSaveFailed')
   }
 }
 
@@ -86,7 +88,7 @@ async function onSubmit() {
     newPassword: newPassword.value,
   })
   if (!parsed.success) {
-    formError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
+    formError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
   submitting.value = true
@@ -96,7 +98,7 @@ async function onSubmit() {
     await auth.logout()
     await router.push({ name: 'login', query: { passwordChanged: '1' } })
   } catch (e) {
-    formError.value = e instanceof ApiError ? e.message : 'Could not change password'
+    formError.value = e instanceof ApiError ? e.message : t('profile.passwordChangeFailed')
   } finally {
     submitting.value = false
   }
@@ -107,7 +109,7 @@ async function onSubmitUsername() {
   usernameSuccess.value = false
   const parsed = updateUsernameSchema.safeParse({ username: newUsername.value })
   if (!parsed.success) {
-    usernameError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
+    usernameError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
   usernameSubmitting.value = true
@@ -115,7 +117,7 @@ async function onSubmitUsername() {
     await auth.setUsername(parsed.data.username)
     usernameSuccess.value = true
   } catch (e) {
-    usernameError.value = e instanceof ApiError ? e.message : 'Could not change username'
+    usernameError.value = e instanceof ApiError ? e.message : t('profile.usernameChangeFailed')
   } finally {
     usernameSubmitting.value = false
   }
@@ -128,7 +130,7 @@ async function onSubmitUsername() {
       <Avatar :name="heading" size="lg" />
       <div class="min-w-0">
         <h1 class="font-display text-2xl font-bold tracking-tight text-foreground">{{ heading }}</h1>
-        <p v-if="auth.user" class="hud-label mt-1 truncate">{{ auth.user.role }} · {{ auth.user.email }}</p>
+        <p v-if="auth.user" class="hud-label mt-1 truncate">{{ t(`roles.${auth.user.role}`) }} · {{ auth.user.email }}</p>
       </div>
     </div>
     <div class="hud-scan" aria-hidden="true"></div>
@@ -136,57 +138,57 @@ async function onSubmitUsername() {
     <div class="grid flex-1 items-stretch gap-4 md:grid-cols-2">
       <Card class="flex flex-col">
         <CardHeader class="p-5 pb-2">
-          <CardTitle>Password</CardTitle>
+          <CardTitle>{{ t('profile.passwordTitle') }}</CardTitle>
           <CardDescription class="text-xs">
-            Change your password. You will be signed out of all sessions, including this one.
+            {{ t('profile.passwordDescription') }}
           </CardDescription>
         </CardHeader>
         <CardContent class="flex flex-1 flex-col p-5 pt-0">
           <form class="flex flex-1 flex-col gap-3" novalidate @submit.prevent="onSubmit">
             <div class="flex flex-col gap-1.5">
-              <Label for="current">Current password</Label>
+              <Label for="current">{{ t('profile.currentPassword') }}</Label>
               <Input id="current" v-model="currentPassword" type="password" autocomplete="current-password" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label for="new">New password</Label>
+              <Label for="new">{{ t('profile.newPassword') }}</Label>
               <Input id="new" v-model="newPassword" type="password" autocomplete="new-password" />
             </div>
             <p v-if="formError" class="text-xs text-destructive" role="alert">{{ formError }}</p>
-            <Button class="mt-auto" type="submit" :disabled="submitting">Update password</Button>
+            <Button class="mt-auto" type="submit" :disabled="submitting">{{ t('profile.updatePassword') }}</Button>
           </form>
         </CardContent>
       </Card>
 
       <Card v-if="isDoctor" class="flex flex-col">
         <CardHeader class="p-5 pb-2">
-          <CardTitle>Username</CardTitle>
+          <CardTitle>{{ t('profile.usernameTitle') }}</CardTitle>
           <CardDescription class="text-xs">
-            Change the username you use to sign in. No password is needed.
+            {{ t('profile.usernameDescription') }}
           </CardDescription>
         </CardHeader>
         <CardContent class="flex flex-1 flex-col p-5 pt-0">
           <form class="flex flex-1 flex-col gap-3" novalidate @submit.prevent="onSubmitUsername">
             <div class="flex flex-col gap-1.5">
-              <Label for="username">Username</Label>
+              <Label for="username">{{ t('profile.usernameTitle') }}</Label>
               <Input id="username" v-model="newUsername" autocomplete="username" />
             </div>
             <p v-if="usernameError" class="text-xs text-destructive" role="alert">{{ usernameError }}</p>
-            <p v-if="usernameSuccess" class="text-xs text-success" role="status">Username updated.</p>
-            <Button class="mt-auto" type="submit" :disabled="usernameSubmitting">Update username</Button>
+            <p v-if="usernameSuccess" class="text-xs text-success" role="status">{{ t('profile.usernameUpdated') }}</p>
+            <Button class="mt-auto" type="submit" :disabled="usernameSubmitting">{{ t('profile.updateUsername') }}</Button>
           </form>
         </CardContent>
       </Card>
 
       <Card class="flex flex-col">
         <CardHeader class="p-5 pb-2">
-          <CardTitle>Appearance</CardTitle>
+          <CardTitle>{{ t('profile.appearanceTitle') }}</CardTitle>
           <CardDescription class="text-xs">
-            Dark mode is saved to your account and applied after sign-in. The sign-in page always stays light.
+            {{ t('profile.appearanceDescription') }}
           </CardDescription>
         </CardHeader>
         <CardContent class="flex flex-1 flex-col p-5 pt-0">
           <div class="flex items-center justify-between gap-4">
-            <Label for="dark-mode">Dark mode</Label>
+            <Label for="dark-mode">{{ t('profile.darkMode') }}</Label>
             <Switch id="dark-mode" :model-value="darkMode" @update:model-value="onToggleDarkMode" />
           </div>
           <p v-if="themeError" class="mt-3 text-xs text-destructive" role="alert">{{ themeError }}</p>
@@ -195,14 +197,15 @@ async function onSubmitUsername() {
 
       <Card class="flex flex-col">
         <CardHeader class="p-5 pb-2">
-          <CardTitle>Language</CardTitle>
+          <CardTitle>{{ t('profile.languageTitle') }}</CardTitle>
           <CardDescription class="text-xs">
-            Language is saved to your account and applied after sign-in. The sign-in page always stays in English.
+            {{ t('profile.languageDescription') }}
           </CardDescription>
         </CardHeader>
         <CardContent class="flex flex-1 flex-col p-5 pt-0">
           <div class="flex flex-col gap-1.5">
-            <Label for="language">Language</Label>
+            <Label for="language">{{ t('profile.languageTitle') }}</Label>
+            <!-- Each language is named in its own language, whatever the UI language. -->
             <Select id="language" :model-value="language" @update:model-value="onSelectLanguage">
               <option value="en">English</option>
               <option value="el">Ελληνικά</option>
@@ -214,17 +217,17 @@ async function onSubmitUsername() {
 
       <Card v-if="isDoctor" class="flex flex-col">
         <CardHeader class="p-5 pb-2">
-          <CardTitle>My on-call profile</CardTitle>
-          <CardDescription class="text-xs">Your doctor profile (read-only).</CardDescription>
+          <CardTitle>{{ t('profile.onCallTitle') }}</CardTitle>
+          <CardDescription class="text-xs">{{ t('profile.onCallDescription') }}</CardDescription>
         </CardHeader>
         <CardContent class="flex flex-1 flex-col p-5 pt-0">
           <p v-if="doctorError" class="text-xs text-destructive" role="alert">{{ doctorError }}</p>
           <dl v-else-if="myDoctor" class="grid grid-cols-2 gap-y-1.5 text-sm">
-            <dt class="text-muted-foreground">Email</dt>
+            <dt class="text-muted-foreground">{{ t('profile.email') }}</dt>
             <dd class="truncate">{{ myDoctor.email }}</dd>
-            <dt class="text-muted-foreground">Status</dt>
-            <dd>{{ myDoctor.isActive ? 'active' : 'disabled' }}</dd>
-            <dt class="text-muted-foreground">Max monthly duties</dt>
+            <dt class="text-muted-foreground">{{ t('profile.status') }}</dt>
+            <dd>{{ myDoctor.isActive ? t('profile.active') : t('profile.disabled') }}</dd>
+            <dt class="text-muted-foreground">{{ t('profile.maxMonthlyDuties') }}</dt>
             <dd class="font-mono">{{ myDoctor.maxMonthlyDuties }}</dd>
           </dl>
         </CardContent>

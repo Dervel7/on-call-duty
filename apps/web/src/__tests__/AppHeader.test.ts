@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Role } from '@oncall/shared'
 import { useAuthStore } from '@/stores/auth'
+import { setTestLocale } from './i18n'
 
 vi.mock('vue-router', () => ({
   RouterLink: { template: '<a><slot /></a>' },
@@ -90,5 +91,26 @@ describe('AppHeader accessibility', () => {
     await flushPromises()
     expect(wrapper.findAll('nav').map((n) => n.attributes('aria-label'))).toEqual(['Main', 'Main (mobile)'])
     expect(wrapper.find('button[aria-label="Logout"]').exists()).toBe(true)
+  })
+})
+
+describe('AppHeader language', () => {
+  it('renders navigation, role and logout in the active UI language', async () => {
+    setTestLocale('el')
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.user = user('doctor')
+    auth.accessToken = 'token'
+    const wrapper = mount(AppHeader, { global: { plugins: [pinia] } })
+    await flushPromises()
+    expect([...new Set(wrapper.findAll('nav a').map((a) => a.text()))]).toEqual([
+      'Αρχική',
+      'Πρόγραμμα εφημεριών',
+      'Η διαθεσιμότητά μου',
+      'Προφίλ',
+    ])
+    expect(wrapper.text()).toContain('ιατρός')
+    expect(wrapper.find('button[aria-label="Αποσύνδεση"]').exists()).toBe(true)
   })
 })

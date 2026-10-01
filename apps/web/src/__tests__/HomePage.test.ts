@@ -12,6 +12,7 @@ vi.mock('@/components/dashboard/DoctorDashboard.vue', () => ({
 import type { AuthUser } from '@oncall/shared'
 import HomePage from '../pages/HomePage.vue'
 import { useAuthStore } from '@/stores/auth'
+import { setTestLocale } from './i18n'
 
 function user(role: AuthUser['role']): AuthUser {
   return { id: 1, email: 'a@b.c', username: 'admin', role, firstName: 'A', lastName: 'B', darkMode: false, language: 'en', clinicId: 1, clinicName: 'Main Clinic' }
@@ -47,5 +48,14 @@ describe('HomePage', () => {
     expect(w.find('[data-test="doctor"]').exists()).toBe(false)
     expect(w.find('[data-test="admin"]').exists()).toBe(false)
     expect(w.text()).toContain('Welcome')
+  })
+
+  it('renders the empty state in the active UI language', () => {
+    setTestLocale('el')
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useAuthStore(pinia).user = user('manager')
+    const w = mount(HomePage, { global: { plugins: [pinia] } })
+    expect(w.text()).toContain('Καλώς ήρθατε')
   })
 })
