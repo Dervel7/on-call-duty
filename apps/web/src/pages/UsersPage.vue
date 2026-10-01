@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type {
   CreateDoctorRequest,
   Doctor,
@@ -47,6 +48,7 @@ const saving = ref(false)
 const resetting = ref(false)
 const busyUserId = ref<number | null>(null)
 const { confirm } = useConfirm()
+const { t } = useI18n()
 
 const doctorByUserId = computed(() => {
   const map = new Map<number, Doctor>()
@@ -133,7 +135,7 @@ async function load() {
   try {
     ;[users.value, doctors.value] = await Promise.all([userService.list(), doctorService.list()])
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to load users'
+    errorMsg.value = e instanceof Error ? e.message : t('users.loadFailed')
   } finally {
     loading.value = false
   }
@@ -175,7 +177,7 @@ async function persistEdit() {
   if (edit.value.id === null) {
     const u = usernameSchema.safeParse(edit.value.username)
     if (!u.success) {
-      edit.value.errorMsg = 'Username must be 3–32 characters: letters, digits, dot, underscore or hyphen'
+      edit.value.errorMsg = t('users.usernameInvalid')
       return
     }
     const payload: CreateDoctorRequest = {
@@ -188,13 +190,13 @@ async function persistEdit() {
     }
     const r = createDoctorSchema.safeParse(payload)
     if (!r.success) {
-      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
       return
     }
     try {
       await doctorService.create(r.data)
     } catch (e) {
-      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
+      edit.value.errorMsg = e instanceof Error ? e.message : t('users.saveFailed')
       return
     }
   } else if (edit.value.doctorId !== null) {
@@ -207,13 +209,13 @@ async function persistEdit() {
     }
     const r = updateDoctorSchema.safeParse(payload)
     if (!r.success) {
-      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
       return
     }
     try {
       await doctorService.update(edit.value.doctorId, r.data)
     } catch (e) {
-      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
+      edit.value.errorMsg = e instanceof Error ? e.message : t('users.saveFailed')
       return
     }
   } else {
@@ -226,13 +228,13 @@ async function persistEdit() {
     }
     const r = updateUserSchema.safeParse(payload)
     if (!r.success) {
-      edit.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
+      edit.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
       return
     }
     try {
       await userService.update(edit.value.id, r.data)
     } catch (e) {
-      edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to save user'
+      edit.value.errorMsg = e instanceof Error ? e.message : t('users.saveFailed')
       return
     }
   }
@@ -248,14 +250,14 @@ async function savePassword() {
   if (resetting.value) return
   const r = resetUserPasswordSchema.safeParse({ newPassword: reset.value.password })
   if (!r.success) {
-    reset.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
+    reset.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
   resetting.value = true
   try {
     await userService.resetPassword(edit.value.id!, reset.value.password)
   } catch (e) {
-    reset.value.errorMsg = e instanceof Error ? e.message : 'Failed to reset password'
+    reset.value.errorMsg = e instanceof Error ? e.message : t('users.resetFailed')
     return
   } finally {
     resetting.value = false
@@ -269,7 +271,7 @@ async function toggleActive(u: User) {
   try {
     await userService.update(u.id, { isActive: !u.isActive })
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to update user'
+    errorMsg.value = e instanceof Error ? e.message : t('users.updateFailed')
     return
   } finally {
     busyUserId.value = null
@@ -281,15 +283,15 @@ async function remove(u: User) {
   if (busyUserId.value !== null) return
   const d = doctorByUserId.value.get(u.id)
   const message = d
-    ? `Delete doctor ${u.email}? They will be permanently hidden from the list. Past duties in published schedules are kept. This cannot be undone.`
-    : `Delete ${u.email}?`
-  if (!(await confirm({ title: 'Delete user', message, confirmText: 'Delete' }))) return
+    ? t('users.deleteDoctorMessage', { email: u.email })
+    : t('users.deleteMessage', { email: u.email })
+  if (!(await confirm({ title: t('users.deleteTitle'), message, confirmText: t('common.delete') }))) return
   busyUserId.value = u.id
   try {
     if (d) await doctorService.remove(d.id)
     else await userService.remove(u.id)
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to delete user'
+    errorMsg.value = e instanceof Error ? e.message : t('users.deleteFailed')
     return
   } finally {
     busyUserId.value = null
@@ -302,29 +304,29 @@ onMounted(load)
 
 <template>
   <div class="flex flex-col gap-4 animate-rise">
-    <PageHeader :icon="Users" title="Users" subtitle="Manage doctor accounts and duty caps">
+    <PageHeader :icon="Users" :title="t('nav.users')" :subtitle="t('users.subtitle')">
       <template #actions>
-        <Button @click="openCreate">New user</Button>
+        <Button @click="openCreate">{{ t('users.newUser') }}</Button>
       </template>
     </PageHeader>
 
     <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
       <Spinner :size="16" />
-      Loading…
+      {{ t('common.loading') }}
     </div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
-    <p class="hud-label mb-2">DIRECTORY</p>
+    <p class="hud-label mb-2">{{ t('users.directoryKicker') }}</p>
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Email</TableHead>
-          <TableHead>Username</TableHead>
-          <TableHead>Role</TableHead>
-          <TableHead>Max monthly duties</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead class="text-right">Actions</TableHead>
+          <TableHead>{{ t('users.name') }}</TableHead>
+          <TableHead>{{ t('users.email') }}</TableHead>
+          <TableHead>{{ t('users.username') }}</TableHead>
+          <TableHead>{{ t('users.role') }}</TableHead>
+          <TableHead>{{ t('users.maxMonthlyDuties') }}</TableHead>
+          <TableHead>{{ t('users.status') }}</TableHead>
+          <TableHead class="text-right">{{ t('common.actions') }}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -338,20 +340,20 @@ onMounted(load)
           <TableCell>{{ u.email }}</TableCell>
           <TableCell>{{ u.username }}</TableCell>
           <TableCell>
-            <Badge variant="outline">{{ u.role }}</Badge>
+            <Badge variant="outline">{{ t(`roles.${u.role}`) }}</Badge>
           </TableCell>
           <TableCell class="font-mono text-sm">{{ doctorByUserId.get(u.id)?.maxMonthlyDuties ?? '—' }}</TableCell>
           <TableCell>
-            <Badge :variant="u.isActive ? 'success' : 'neutral'" dot>{{ u.isActive ? 'active' : 'disabled' }}</Badge>
+            <Badge :variant="u.isActive ? 'success' : 'neutral'" dot>{{ u.isActive ? t('users.active') : t('users.disabled') }}</Badge>
           </TableCell>
           <TableCell class="text-right">
             <div class="inline-flex gap-2">
-              <Button size="sm" variant="outline" @click="openUpdate(u)">Edit</Button>
+              <Button size="sm" variant="outline" @click="openUpdate(u)">{{ t('common.edit') }}</Button>
               <Button size="sm" variant="outline" :disabled="busyUserId === u.id" @click="toggleActive(u)">
-                {{ u.isActive ? 'Disable' : 'Enable' }}
+                {{ u.isActive ? t('common.disable') : t('common.enable') }}
               </Button>
               <Button size="sm" variant="destructive" :disabled="busyUserId === u.id" @click="remove(u)">
-                Delete
+                {{ t('common.delete') }}
               </Button>
             </div>
           </TableCell>
@@ -359,14 +361,14 @@ onMounted(load)
       </TableBody>
     </Table>
 
-    <Dialog v-model:open="edit.open" :title="edit.id === null ? 'New user' : 'Edit user'">
+    <Dialog v-model:open="edit.open" :title="edit.id === null ? t('users.newUser') : t('users.editUser')">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="save">
         <div class="flex flex-col gap-1">
-          <Label for="e-email">Email</Label>
+          <Label for="e-email">{{ t('users.email') }}</Label>
           <Input id="e-email" v-model="edit.email" type="email" />
         </div>
         <div class="flex flex-col gap-1">
-          <Label for="e-username">Username</Label>
+          <Label for="e-username">{{ t('users.username') }}</Label>
           <Input
             id="e-username"
             :model-value="edit.username"
@@ -374,46 +376,46 @@ onMounted(load)
             @update:model-value="onUsernameInput"
           />
           <p v-if="edit.id === null" class="text-xs text-muted-foreground">
-            Generated from the doctor's name (first 3 letters of each). Edit it if it is already taken.
+            {{ t('users.usernameHint') }}
           </p>
         </div>
         <div class="flex flex-col gap-1">
-          <Label for="e-first">First name</Label>
+          <Label for="e-first">{{ t('users.firstName') }}</Label>
           <Input id="e-first" v-model="edit.firstName" />
         </div>
         <div class="flex flex-col gap-1">
-          <Label for="e-last">Last name</Label>
+          <Label for="e-last">{{ t('users.lastName') }}</Label>
           <Input id="e-last" v-model="edit.lastName" />
         </div>
         <div v-if="edit.doctorId !== null || edit.id === null" class="flex flex-col gap-1">
-          <Label for="e-max">Max monthly duties (1–7)</Label>
+          <Label for="e-max">{{ t('users.maxMonthlyDutiesRange') }}</Label>
           <Input id="e-max" v-model="edit.maxMonthlyDuties" type="number" />
         </div>
         <p v-if="edit.id === null" class="text-xs text-muted-foreground">
-          Initial password is changeme123. The user should change it on first login.
+          {{ t('users.initialPassword', { password: INITIAL_PASSWORD }) }}
         </p>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">
           <Button v-if="edit.id !== null" type="button" variant="outline" :disabled="saving" @click="openReset">
-            Reset Password
+            {{ t('users.resetPassword') }}
           </Button>
-          <Button type="submit" :disabled="saving">Save</Button>
+          <Button type="submit" :disabled="saving">{{ t('common.save') }}</Button>
         </div>
       </form>
     </Dialog>
 
-    <Dialog v-model:open="reset.open" title="Reset password">
+    <Dialog v-model:open="reset.open" :title="t('users.resetPasswordTitle')">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="savePassword">
         <p class="text-sm text-muted-foreground">
-          Set a new password for this user. The current password is not needed.
+          {{ t('users.resetPasswordDescription') }}
         </p>
         <div class="flex flex-col gap-1">
-          <Label for="r-password">New password</Label>
+          <Label for="r-password">{{ t('users.newPassword') }}</Label>
           <Input id="r-password" v-model="reset.password" type="password" autocomplete="new-password" />
         </div>
         <p v-if="reset.errorMsg" class="text-sm text-destructive" role="alert">{{ reset.errorMsg }}</p>
         <div class="flex justify-end gap-2">
-          <Button type="submit" :disabled="resetting">Confirm</Button>
+          <Button type="submit" :disabled="resetting">{{ t('common.confirm') }}</Button>
         </div>
       </form>
     </Dialog>

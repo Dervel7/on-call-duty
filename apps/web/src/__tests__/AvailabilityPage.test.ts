@@ -32,6 +32,7 @@ import AvailabilityPage from '../pages/AvailabilityPage.vue'
 import { useConfirmState } from '../composables/useConfirm'
 import { pickOption } from './pick-option'
 import { navigateToMonth, pickDays } from './pick-days'
+import { setTestLocale } from './i18n'
 
 const { settle } = useConfirmState()
 
@@ -240,7 +241,7 @@ describe('AvailabilityPage', () => {
     const summary = Array.from(document.body.querySelectorAll('p'))
       .map((p) => p.textContent)
       .find((t) => t?.includes('2026-09-07'))
-    expect(summary).toContain('1 day(s): 2026-09-07')
+    expect(summary).toContain('1 day: 2026-09-07')
     const doctorCombobox = document.body.querySelector('#e-doctor') as HTMLButtonElement
     expect(doctorCombobox.disabled).toBe(true)
     // Saving without changes must not mutate anything.
@@ -442,7 +443,7 @@ describe('AvailabilityPage', () => {
     ])
     const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    expect(wrapper.text()).toContain('6 day(s) · 5 disabled')
+    expect(wrapper.text()).toContain('6 days · 5 disabled')
     await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
     const chip = wrapper.findAll('button').find((b) => b.text() === '2026-09-07')!
     expect(chip.classes()).toContain('line-through')
@@ -547,7 +548,7 @@ describe('AvailabilityPage', () => {
     listAll.mockResolvedValue([{ ...record, startDate: '2026-08-30', endDate: '2026-09-02' }])
     const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    expect(wrapper.text()).toContain('2 day(s)')
+    expect(wrapper.text()).toContain('2 days')
     await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
     const days = wrapper
       .findAll('button')
@@ -614,6 +615,24 @@ describe('AvailabilityPage', () => {
     expect(listAll).toHaveBeenCalledTimes(2)
     resolveReserved([])
     await flushPromises()
+    wrapper.unmount()
+  })
+})
+
+describe('AvailabilityPage in Greek', () => {
+  it('renders the header, filters, day counts and month label in Greek', async () => {
+    setTestLocale('el')
+    listAll.mockResolvedValue([{ ...record, isDisabled: true }])
+    doctorList.mockResolvedValue([doctor])
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Διαθεσιμότητα')
+    expect(wrapper.text()).toContain('Νέα εξαίρεση')
+    expect(wrapper.text()).toContain('5 ημέρες · 5 απενεργοποιημένες')
+    const monthLabel = new Intl.DateTimeFormat('el-GR', { month: 'long', year: 'numeric' }).format(
+      new Date(2026, 8, 1),
+    )
+    expect(wrapper.find('#f-month').text()).toContain(monthLabel)
     wrapper.unmount()
   })
 })

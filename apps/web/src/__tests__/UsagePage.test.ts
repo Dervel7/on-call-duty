@@ -21,6 +21,7 @@ vi.mock('@/services/billing', () => ({
 import UsagePage from '../pages/UsagePage.vue'
 import { pickDate } from './pick-date'
 import { useConfirmState } from '../composables/useConfirm'
+import { setTestLocale } from './i18n'
 
 const { settle } = useConfirmState()
 
@@ -217,5 +218,18 @@ describe('UsagePage', () => {
     await flushPromises()
     expect(wrapper.text()).not.toContain('Not set')
     expect(wrapper.find('[role="alert"]').text()).toContain('billing down')
+  })
+})
+
+describe('UsagePage in Greek', () => {
+  it('renders billing, alert badges and active-locale times in Greek', async () => {
+    setTestLocale('el')
+    const wrapper = await mountPage()
+    expect(wrapper.text()).toContain('Ανοιχτές ειδοποιήσεις: 1')
+    expect(wrapper.text()).toContain('Εξοφλημένο έως')
+    expect(wrapper.text()).toContain('επιλύθηκε')
+    expect(wrapper.text()).toContain('ανοιχτή')
+    expect(wrapper.findAll('button').some((b) => b.text() === 'Επίλυση')).toBe(true)
+    expect(wrapper.text()).toContain(new Date('2026-08-01T07:00:00.000Z').toLocaleString('el-GR'))
   })
 })

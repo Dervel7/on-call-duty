@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CalendarClock } from 'lucide-vue-next'
 import type { Unavailability } from '@oncall/shared'
 import {
@@ -27,6 +28,7 @@ const loading = ref(false)
 const errorMsg = ref('')
 const saving = ref(false)
 const { confirm } = useConfirm()
+const { t } = useI18n()
 
 const filterMonth = ref(nextMonthIso())
 
@@ -69,7 +71,7 @@ async function load() {
   try {
     records.value = await unavailabilityService.listMine()
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to load availability'
+    errorMsg.value = e instanceof Error ? e.message : t('availability.loadFailed')
   } finally {
     loading.value = false
   }
@@ -98,7 +100,7 @@ async function openCalendar() {
   try {
     await refreshRecords()
   } catch (e) {
-    edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to load existing exclusions'
+    edit.value.errorMsg = e instanceof Error ? e.message : t('availability.loadExclusionsFailed')
     return
   }
   edit.value.calendarOpen = true
@@ -116,7 +118,7 @@ async function save() {
   const st = edit.value
   st.errorMsg = ''
   if (st.days.length === 0) {
-    st.errorMsg = 'Select at least one day'
+    st.errorMsg = t('availability.selectAtLeastOneDay')
     return
   }
   saving.value = true
@@ -147,7 +149,7 @@ async function save() {
       for (const range of ranges) await unavailabilityService.createMine(range)
     }
   } catch (e) {
-    st.errorMsg = e instanceof Error ? e.message : 'Failed to save availability'
+    st.errorMsg = e instanceof Error ? e.message : t('availability.saveFailed')
     return
   } finally {
     saving.value = false
@@ -162,16 +164,16 @@ async function removeCurrent() {
   if (!x) return
   if (
     !(await confirm({
-      title: 'Delete record',
-      message: `Delete your exclusion (${x.startDate} → ${x.endDate})?`,
-      confirmText: 'Delete',
+      title: t('availability.deleteTitle'),
+      message: t('availability.deleteMyMessage', { start: x.startDate, end: x.endDate }),
+      confirmText: t('common.delete'),
     }))
   )
     return
   try {
     await unavailabilityService.remove(x.id)
   } catch (e) {
-    edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to delete availability'
+    edit.value.errorMsg = e instanceof Error ? e.message : t('availability.deleteFailed')
     return
   }
   edit.value = emptyEdit()
@@ -183,28 +185,28 @@ onMounted(load)
 
 <template>
   <div class="flex flex-col gap-4 animate-rise">
-    <PageHeader :icon="CalendarClock" title="My availability" subtitle="Days you can't take duty">
+    <PageHeader :icon="CalendarClock" :title="t('nav.myAvailability')" :subtitle="t('availability.mySubtitle')">
       <template #actions>
-        <Button @click="openCreate">New exclusion</Button>
+        <Button @click="openCreate">{{ t('availability.newExclusion') }}</Button>
       </template>
     </PageHeader>
 
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
-        <Label for="f-month">Month</Label>
-        <MonthPicker id="f-month" v-model="filterMonth" placeholder="Any month" class="w-44" />
+        <Label for="f-month">{{ t('common.month') }}</Label>
+        <MonthPicker id="f-month" v-model="filterMonth" :placeholder="t('availability.anyMonth')" class="w-44" />
       </div>
     </div>
 
     <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
       <Spinner :size="16" />
-      Loading…
+      {{ t('common.loading') }}
     </div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
     <EmptyState
       v-else-if="visibleDays.length === 0 && !loading"
       :icon="CalendarClock"
-      title="No exclusions for the selected month."
+      :title="t('availability.emptyMonth')"
     />
 
     <div
@@ -218,22 +220,31 @@ onMounted(load)
         class="rounded-md bg-muted/70 px-2 py-0.5 font-mono text-xs"
         variant="secondary"
         :class="{ 'line-through opacity-60': d.record.isDisabled }"
-        :title="d.record.isDisabled ? 'Disabled — ignored by scheduling' : undefined"
+        :title="d.record.isDisabled ? t('availability.disabledTitle') : undefined"
         @click="openUpdate(d.record)"
       >
         {{ d.iso }}
       </Button>
     </div>
 
-    <Dialog v-model:open="edit.open" :title="edit.id === null ? 'New exclusion' : 'Edit exclusion'">
+    <Dialog
+      v-model:open="edit.open"
+      :title="edit.id === null ? t('availability.newExclusion') : t('availability.editExclusion')"
+    >
       <form class="flex flex-col gap-3" novalidate @submit.prevent="save">
         <div class="flex flex-col gap-1">
-          <Label for="e-days">Excluded days</Label>
+          <Label for="e-days">{{ t('availability.excludedDays') }}</Label>
           <Button id="e-days" type="button" variant="outline" @click="openCalendar">
-            Select days…
+            {{ t('availability.selectDays') }}
           </Button>
           <p v-if="edit.days.length > 0" class="text-sm text-muted-foreground">
-            {{ edit.days.length }} day(s): {{ selectedRanges.map(formatRange).join(', ') }}
+            {{
+              t(
+                'availability.selectedDays',
+                { n: edit.days.length, ranges: selectedRanges.map(formatRange).join(', ') },
+                edit.days.length,
+              )
+            }}
           </p>
         </div>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
@@ -245,17 +256,17 @@ onMounted(load)
             :disabled="saving"
             @click="removeCurrent"
           >
-            Delete
+            {{ t('common.delete') }}
           </Button>
-          <Button type="submit" class="ml-auto" :disabled="saving">Save</Button>
+          <Button type="submit" class="ml-auto" :disabled="saving">{{ t('common.save') }}</Button>
         </div>
       </form>
       <CalendarDialog
         v-model:open="edit.calendarOpen"
         v-model="edit.days"
         :initial-month="nextMonthIso()"
-        title="Mark excluded days"
-        confirm-text="Confirm days"
+        :title="t('availability.calendarTitle')"
+        :confirm-text="t('availability.confirmDays')"
         :reserved-days="reservedDays"
       />
     </Dialog>

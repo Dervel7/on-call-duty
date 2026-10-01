@@ -14,6 +14,7 @@ vi.mock('@/services/user', () => ({
 
 import ActivityPage from '../pages/ActivityPage.vue'
 import { pickOption } from './pick-option'
+import { setTestLocale } from './i18n'
 
 function page(overrides: Record<string, unknown> = {}): PaginatedActivity {
   return {
@@ -110,5 +111,18 @@ describe('ActivityPage', () => {
     const wrapper = mount(ActivityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
+  })
+})
+
+describe('ActivityPage in Greek', () => {
+  it('renders labels, role, range and active-locale time in Greek', async () => {
+    setTestLocale('el')
+    getActivity.mockResolvedValue(page())
+    const wrapper = mount(ActivityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Δραστηριότητα χρηστών')
+    expect(wrapper.text()).toContain('ιατρός')
+    expect(wrapper.text()).toContain('Εμφάνιση 1–1 από 1')
+    expect(wrapper.text()).toContain(new Date('2026-08-16T10:00:00.000Z').toLocaleString('el-GR'))
   })
 })

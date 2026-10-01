@@ -34,7 +34,9 @@ import UsersPage from '../pages/UsersPage.vue'
 import { useConfirmState } from '../composables/useConfirm'
 import type { User } from '@oncall/shared'
 
-const { settle } = useConfirmState()
+import { setTestLocale } from './i18n'
+
+const { request, settle } = useConfirmState()
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -514,5 +516,25 @@ describe('UsersPage', () => {
     resolveUpdate(doctorUser)
     await flushPromises()
     wrapper.unmount()
+  })
+})
+
+describe('UsersPage in Greek', () => {
+  it('renders the directory, role, status, actions and delete dialog in Greek', async () => {
+    setTestLocale('el')
+    list.mockResolvedValue([doctorUser])
+    doctorList.mockResolvedValue([doctorProfile])
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Χρήστες')
+    expect(wrapper.text()).toContain('ΚΑΤΑΛΟΓΟΣ')
+    expect(wrapper.text()).toContain('ιατρός')
+    expect(wrapper.text()).toContain('ενεργός')
+    expect(wrapper.findAll('button').some((b) => b.text() === 'Απενεργοποίηση')).toBe(true)
+    await wrapper.findAll('button').find((b) => b.text() === 'Διαγραφή')!.trigger('click')
+    await flushPromises()
+    expect(request.value?.title).toBe('Διαγραφή χρήστη')
+    expect(request.value?.message).toContain('Διαγραφή του ιατρού dr@h.com;')
+    settle(false)
   })
 })

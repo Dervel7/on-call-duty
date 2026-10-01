@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CalendarOff, ChevronDown, Pencil } from 'lucide-vue-next'
 import type { Doctor, Unavailability } from '@oncall/shared'
 import {
@@ -32,6 +33,7 @@ const errorMsg = ref('')
 /** Set while a dialog request (open/save/delete/toggle) runs; blocks re-entry. */
 const busy = ref(false)
 const { confirm } = useConfirm()
+const { t } = useI18n()
 
 const filterDoctorId = ref('')
 
@@ -120,7 +122,7 @@ async function load() {
     records.value = res
   } catch (e) {
     if (!isCurrent()) return
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to load availability'
+    errorMsg.value = e instanceof Error ? e.message : t('availability.loadFailed')
   } finally {
     if (isCurrent()) loading.value = false
   }
@@ -168,13 +170,13 @@ async function openUpdate(iso: string, x: Unavailability) {
 
 async function openCalendar() {
   if (!edit.value.doctorId) {
-    edit.value.errorMsg = 'Select a doctor first'
+    edit.value.errorMsg = t('availability.selectDoctorFirst')
     return
   }
   try {
     edit.value.reservedDays = await reservedDaysFor(Number(edit.value.doctorId), edit.value.id)
   } catch (e) {
-    edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to load existing exclusions'
+    edit.value.errorMsg = e instanceof Error ? e.message : t('availability.loadExclusionsFailed')
     return
   }
   edit.value.errorMsg = ''
@@ -198,11 +200,11 @@ async function save() {
   const st = edit.value
   st.errorMsg = ''
   if (!st.doctorId) {
-    st.errorMsg = 'Select a doctor'
+    st.errorMsg = t('availability.selectDoctor')
     return
   }
   if (st.id === null && st.days.length === 0) {
-    st.errorMsg = 'Select at least one day'
+    st.errorMsg = t('availability.selectAtLeastOneDay')
     return
   }
   const doctorId = Number(st.doctorId)
@@ -239,7 +241,7 @@ async function save() {
       wrote = true
     }
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Failed to save availability'
+    const message = e instanceof Error ? e.message : t('availability.saveFailed')
     if (!wrote) {
       st.errorMsg = message
       return
@@ -248,7 +250,7 @@ async function save() {
     await load()
     errorMsg.value =
       unsaved.length > 0
-        ? `${message}. These days were not saved and must be re-entered: ${unsaved.map(formatRange).join(', ')}`
+        ? t('availability.unsavedDays', { message, ranges: unsaved.map(formatRange).join(', ') })
         : message
     return
   } finally {
@@ -265,9 +267,13 @@ async function removeCurrent() {
   if (!x) return
   if (
     !(await confirm({
-      title: 'Delete record',
-      message: `Delete ${x.doctorFirstName} ${x.doctorLastName}'s exclusion (${x.startDate} → ${x.endDate})?`,
-      confirmText: 'Delete',
+      title: t('availability.deleteTitle'),
+      message: t('availability.deleteMessage', {
+        name: `${x.doctorFirstName} ${x.doctorLastName}`,
+        start: x.startDate,
+        end: x.endDate,
+      }),
+      confirmText: t('common.delete'),
     }))
   )
     return
@@ -275,7 +281,7 @@ async function removeCurrent() {
   try {
     await unavailabilityService.remove(x.id)
   } catch (e) {
-    edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to delete availability'
+    edit.value.errorMsg = e instanceof Error ? e.message : t('availability.deleteFailed')
     return
   } finally {
     busy.value = false
@@ -306,7 +312,7 @@ async function toggleDisabledCurrent() {
       await unavailabilityService.setDisabled(x.id, !x.isDisabled)
     }
   } catch (e) {
-    edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to update availability'
+    edit.value.errorMsg = e instanceof Error ? e.message : t('availability.updateFailed')
     return
   } finally {
     busy.value = false
@@ -327,37 +333,37 @@ onMounted(async () => {
 
 <template>
   <div class="flex flex-col gap-4 animate-rise">
-    <PageHeader :icon="CalendarOff" title="Availability" subtitle="Excluded days per doctor">
+    <PageHeader :icon="CalendarOff" :title="t('nav.availability')" :subtitle="t('availability.subtitle')">
       <template #actions>
-        <Button @click="openCreate">New exclusion</Button>
+        <Button @click="openCreate">{{ t('availability.newExclusion') }}</Button>
       </template>
     </PageHeader>
 
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
-        <Label for="f-doctor">Doctor</Label>
+        <Label for="f-doctor">{{ t('availability.doctor') }}</Label>
         <Select id="f-doctor" v-model="filterDoctorId">
-          <option value="">All</option>
+          <option value="">{{ t('availability.allDoctors') }}</option>
           <option v-for="d in doctors" :key="d.id" :value="d.id">
             {{ d.firstName }} {{ d.lastName }}
           </option>
         </Select>
       </div>
       <div class="flex flex-col gap-1">
-        <Label for="f-month">Month</Label>
-        <MonthPicker id="f-month" v-model="filterMonth" placeholder="Any month" class="w-44" />
+        <Label for="f-month">{{ t('common.month') }}</Label>
+        <MonthPicker id="f-month" v-model="filterMonth" :placeholder="t('availability.anyMonth')" class="w-44" />
       </div>
     </div>
 
     <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
       <Spinner :size="16" />
-      Loading…
+      {{ t('common.loading') }}
     </div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
     <EmptyState
       v-else-if="grouped.length === 0 && !loading"
       :icon="CalendarOff"
-      title="No exclusions for the selected filters."
+      :title="t('availability.empty')"
     />
 
     <ul v-if="grouped.length > 0" class="overflow-hidden rounded-lg border border-border/70">
@@ -370,9 +376,9 @@ onMounted(async () => {
         >
           <span class="font-display font-semibold text-foreground">{{ g.name }}</span>
           <span class="inline-flex items-center gap-2 font-mono text-sm text-muted-foreground">
-            {{ g.days.length }} day(s)
+            {{ t('availability.dayCount', g.days.length) }}
             <template v-if="g.days.some((d) => d.record.isDisabled)"
-              >· {{ g.days.filter((d) => d.record.isDisabled).length }} disabled</template
+              >· {{ t('availability.disabledCount', g.days.filter((d) => d.record.isDisabled).length) }}</template
             >
             <ChevronDown
               class="size-4 transition-transform"
@@ -388,7 +394,7 @@ onMounted(async () => {
             class="rounded-md bg-muted/70 px-2 py-0.5 font-mono text-xs"
             variant="outline"
             :class="{ 'line-through opacity-60': d.record.isDisabled }"
-            :title="d.record.isDisabled ? 'Disabled — ignored by scheduling' : undefined"
+            :title="d.record.isDisabled ? t('availability.disabledTitle') : undefined"
             @click="openUpdate(d.iso, d.record)"
           >
             <Pencil class="size-3 text-muted-foreground" aria-hidden="true" />
@@ -398,24 +404,33 @@ onMounted(async () => {
       </li>
     </ul>
 
-    <Dialog v-model:open="edit.open" :title="edit.id === null ? 'New exclusion' : 'Edit exclusion'">
+    <Dialog
+      v-model:open="edit.open"
+      :title="edit.id === null ? t('availability.newExclusion') : t('availability.editExclusion')"
+    >
       <form class="flex flex-col gap-3" novalidate @submit.prevent="save">
         <div class="flex flex-col gap-1">
-          <Label for="e-doctor">Doctor</Label>
+          <Label for="e-doctor">{{ t('availability.doctor') }}</Label>
           <Select id="e-doctor" v-model="edit.doctorId" :disabled="edit.id !== null">
-            <option value="" disabled>Select a doctor</option>
+            <option value="" disabled>{{ t('availability.selectDoctor') }}</option>
             <option v-for="d in doctors" :key="d.id" :value="d.id">
               {{ d.firstName }} {{ d.lastName }}
             </option>
           </Select>
         </div>
         <div class="flex flex-col gap-1">
-          <Label for="e-days">Excluded days</Label>
+          <Label for="e-days">{{ t('availability.excludedDays') }}</Label>
           <Button id="e-days" type="button" variant="outline" @click="openCalendar">
-            Select days…
+            {{ t('availability.selectDays') }}
           </Button>
           <p v-if="edit.days.length > 0" class="text-sm text-muted-foreground">
-            {{ edit.days.length }} day(s): {{ selectedRanges.map(formatRange).join(', ') }}
+            {{
+              t(
+                'availability.selectedDays',
+                { n: edit.days.length, ranges: selectedRanges.map(formatRange).join(', ') },
+                edit.days.length,
+              )
+            }}
           </p>
         </div>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
@@ -427,7 +442,7 @@ onMounted(async () => {
             :disabled="busy"
             @click="removeCurrent"
           >
-            Delete
+            {{ t('common.delete') }}
           </Button>
           <Button
             v-if="edit.id !== null"
@@ -436,17 +451,17 @@ onMounted(async () => {
             :disabled="busy"
             @click="toggleDisabledCurrent"
           >
-            {{ records.find((r) => r.id === edit.id)?.isDisabled ? 'Enable' : 'Disable' }}
+            {{ records.find((r) => r.id === edit.id)?.isDisabled ? t('common.enable') : t('common.disable') }}
           </Button>
-          <Button type="submit" class="ml-auto" :disabled="busy">Save</Button>
+          <Button type="submit" class="ml-auto" :disabled="busy">{{ t('common.save') }}</Button>
         </div>
       </form>
       <CalendarDialog
         v-model:open="edit.calendarOpen"
         v-model="edit.days"
         :initial-month="nextMonthIso()"
-        title="Mark excluded days"
-        confirm-text="Confirm days"
+        :title="t('availability.calendarTitle')"
+        :confirm-text="t('availability.confirmDays')"
         :reserved-days="calendarReservedDays"
       />
     </Dialog>

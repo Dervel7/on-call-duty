@@ -21,6 +21,7 @@ vi.mock('@/services/unavailability', () => ({
 import MyAvailabilityPage from '../pages/MyAvailabilityPage.vue'
 import { useConfirmState } from '../composables/useConfirm'
 import { pickDays } from './pick-days'
+import { setTestLocale } from './i18n'
 
 const { settle } = useConfirmState()
 
@@ -379,6 +380,21 @@ describe('MyAvailabilityPage', () => {
     expect(remove).toHaveBeenCalledWith(1)
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('delete failed')
     expect(bodyButton('Save')).toBeTruthy()
+    wrapper.unmount()
+  })
+})
+
+describe('MyAvailabilityPage in Greek', () => {
+  it('renders the header, empty state and dialog in Greek', async () => {
+    setTestLocale('el')
+    listMine.mockResolvedValue([])
+    const wrapper = await mountPage()
+    expect(wrapper.text()).toContain('Η διαθεσιμότητά μου')
+    expect(wrapper.text()).toContain('Δεν υπάρχουν εξαιρέσεις για τον επιλεγμένο μήνα.')
+    await wrapper.findAll('button').find((b) => b.text() === 'Νέα εξαίρεση')!.trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('Ημέρες εξαίρεσης')
+    expect(bodyButton('Επιλογή ημερών…')).toBeDefined()
     wrapper.unmount()
   })
 })
