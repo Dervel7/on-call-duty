@@ -80,6 +80,20 @@ describe('ActivityPage', () => {
     )
   })
 
+  it('ignores a stale response that resolves after a newer one', async () => {
+    let resolveFirst!: (v: PaginatedActivity) => void
+    getActivity
+      .mockReturnValueOnce(new Promise((r) => (resolveFirst = r)))
+      .mockResolvedValueOnce(page({ items: [], total: 0 }))
+    const wrapper = mount(ActivityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await pickOption(wrapper.element, '#f-action', 'auth.login')
+    await flushPromises()
+    resolveFirst(page())
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('availability.created')
+  })
+
   it('paginates forward and back', async () => {
     getActivity.mockResolvedValue(page({ items: [], total: 120, page: 1, limit: 50 }))
     const wrapper = mount(ActivityPage, { global: { plugins: [createPinia()] } })

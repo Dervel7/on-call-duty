@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { loginSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
@@ -22,6 +22,7 @@ const submitting = ref(false)
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
+const passwordChanged = computed(() => route.query.passwordChanged === '1')
 
 async function onSubmit() {
   formError.value = ''
@@ -154,6 +155,9 @@ async function onSubmit() {
               <Label for="password">Password</Label>
               <Input id="password" v-model="password" type="password" />
             </div>
+            <p v-if="passwordChanged && !formError" class="text-sm text-success" role="status">
+              Password changed, please sign in again.
+            </p>
             <p v-if="formError" class="text-sm text-destructive" role="alert">{{ formError }}</p>
             <Button type="submit" :disabled="submitting" :aria-busy="submitting">
               {{ submitting ? 'Signing in…' : 'Sign in' }}

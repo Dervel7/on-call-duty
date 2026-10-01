@@ -42,7 +42,10 @@ const users = ref<User[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
 
+let loadSeq = 0
+
 async function load() {
+  const seq = ++loadSeq
   loading.value = true
   errorMsg.value = ''
   try {
@@ -51,11 +54,14 @@ async function load() {
     if (filters.value.userId) query.userId = Number(filters.value.userId)
     if (filters.value.from) query.from = filters.value.from
     if (filters.value.to) query.to = filters.value.to
-    data.value = await activityService.getActivity(query)
+    const res = await activityService.getActivity(query)
+    if (seq !== loadSeq) return
+    data.value = res
   } catch (e) {
+    if (seq !== loadSeq) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load activity'
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 

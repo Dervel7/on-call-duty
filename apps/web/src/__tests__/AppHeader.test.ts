@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import type { Role } from '@oncall/shared'
 import { useAuthStore } from '@/stores/auth'
 
 vi.mock('vue-router', () => ({
@@ -11,7 +12,7 @@ vi.mock('vue-router', () => ({
 
 import AppHeader from '../components/layout/AppHeader.vue'
 
-const user = (role: 'administrator' | 'superadmin' | 'doctor') => ({
+const user = (role: Role) => ({
   id: 1,
   email: 'u@h.com',
   username: 'u',
@@ -23,7 +24,7 @@ const user = (role: 'administrator' | 'superadmin' | 'doctor') => ({
   clinicName: 'Main Clinic',
 })
 
-async function mountHeader(role: 'administrator' | 'superadmin' | 'doctor') {
+async function mountHeader(role: Role) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const auth = useAuthStore()
@@ -69,5 +70,10 @@ describe('AppHeader navigation', () => {
   it('shows doctors only the doctor items — no Rules or Reports', async () => {
     const labels = await mountHeader('doctor')
     expect(labels).toEqual(['Home', 'Duty roster', 'My availability', 'Profile'])
+  })
+
+  it('shows a manager no doctor or admin items', async () => {
+    const labels = await mountHeader('manager')
+    expect(labels).toEqual(['Home', 'Profile'])
   })
 })

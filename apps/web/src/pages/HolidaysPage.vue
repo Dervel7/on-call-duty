@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { CalendarHeart } from 'lucide-vue-next'
+import { CalendarHeart, Check } from 'lucide-vue-next'
 import { daysInMonth, isWeekend, toIsoDate } from '@oncall/utils'
 import * as holidayService from '@/services/holiday'
 import { useAuthStore } from '@/stores/auth'
+import { useConfirm } from '@/composables/useConfirm'
 import Button from '@/components/ui/Button.vue'
 import Label from '@/components/ui/Label.vue'
 import MonthPicker from '@/components/ui/MonthPicker.vue'
@@ -11,6 +12,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import Spinner from '@/components/ui/Spinner.vue'
 
 const auth = useAuthStore()
+const { confirm } = useConfirm()
 
 const month = ref(toIsoDate(new Date()).slice(0, 7))
 const loading = ref(false)
@@ -66,22 +68,50 @@ const cells = computed<Cell[]>(() => {
   return out
 })
 
-function monthDates(iso: string): boolean {
-  return iso.startsWith(`${month.value}-`)
+const dateLabel = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
+function dayLabel(c: Cell): string {
+  const date = dateLabel.format(new Date(`${c.date}T00:00:00`))
+  if (c.weekend) return `${date}, weekend (holiday by default)`
+  return `${date}, ${c.holiday ? 'marked as holiday' : 'not a holiday'}`
 }
 
+function inMonth(ym: string) {
+  return (iso: string) => iso.startsWith(`${ym}-`)
+}
+
+let loadSeq = 0
+
 async function load() {
+  const seq = ++loadSeq
+  const ym = month.value
   loading.value = true
   errorMsg.value = ''
   try {
-    const holidays = await holidayService.listHolidays(year.value, auth.user?.clinicId ?? undefined)
-    marked.value = new Set(holidays.map((h) => h.date).filter(monthDates))
+    const holidays = await holidayService.listHolidays(Number(ym.slice(0, 4)), auth.user?.clinicId ?? undefined)
+    if (seq !== loadSeq) return
+    marked.value = new Set(holidays.map((h) => h.date).filter(inMonth(ym)))
     dirty.value = false
   } catch (e) {
+    if (seq !== loadSeq) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load holidays'
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
+}
+
+async function changeMonth(next: string) {
+  if (next === month.value) return
+  if (dirty.value) {
+    const ok = await confirm({
+      title: 'Discard unsaved changes?',
+      message: 'You have unsaved holiday changes for this month. Switching months will discard them.',
+      confirmText: 'Discard',
+    })
+    // Not updating `month` keeps the controlled picker on the current month.
+    if (!ok) return
+  }
+  month.value = next
 }
 
 watch(month, () => {
@@ -98,11 +128,13 @@ function toggle(date: string) {
 }
 
 async function save() {
+  const ym = month.value
   saving.value = true
   errorMsg.value = ''
   try {
     const holidays = await holidayService.setMonthHolidays(year.value, month1.value, [...marked.value])
-    marked.value = new Set(holidays.map((h) => h.date).filter(monthDates))
+    if (ym !== month.value) return
+    marked.value = new Set(holidays.map((h) => h.date).filter(inMonth(ym)))
     dirty.value = false
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to save holidays'
@@ -126,7 +158,7 @@ async function save() {
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
         <Label for="f-month">Month</Label>
-        <MonthPicker id="f-month" v-model="month" class="w-44" />
+        <MonthPicker id="f-month" :model-value="month" :disabled="saving" class="w-44" @update:model-value="changeMonth" />
       </div>
     </div>
 
@@ -155,6 +187,8 @@ async function save() {
               type="button"
               :data-date="c.date"
               :disabled="c.weekend"
+              :aria-pressed="c.holiday"
+              :aria-label="dayLabel(c)"
               :title="c.weekend ? 'Weekend — holiday by default' : undefined"
               :class="[
                 'flex min-h-[56px] flex-col items-start rounded-lg border p-2 text-left transition-colors',
@@ -173,6 +207,7 @@ async function save() {
                   c.holiday && !c.today ? 'text-primary' : '',
                 ]"
               >{{ c.dayNum }}</span>
+              <Check v-if="c.holiday && !c.weekend" :size="14" class="mt-auto self-end text-primary" aria-hidden="true" />
             </button>
           </template>
         </div>

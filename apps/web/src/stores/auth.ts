@@ -69,7 +69,21 @@ export const useAuthStore = defineStore('auth', () => {
     if (user.value) user.value = { ...user.value, username: updated.username }
   }
 
-  setRefreshHandler(refresh)
+  // A refresh that fails mid-request means the session is gone: send the user to sign in.
+  // The bootstrap refresh in main.ts calls refresh() directly and must not redirect.
+  setRefreshHandler(async () => {
+    const token = await refresh()
+    if (token === null) {
+      import('@/router')
+        .then(({ router }) => {
+          const current = router.currentRoute.value
+          if (current.name === 'login') return
+          return router.push({ name: 'login', query: { redirect: current.fullPath } })
+        })
+        .catch(() => {})
+    }
+    return token
+  })
 
   setLockedHandler(() => {
     clearSession()

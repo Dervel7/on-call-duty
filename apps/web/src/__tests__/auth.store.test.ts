@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { flushPromises } from '@vue/test-utils'
 
 vi.mock('@/services/auth', () => ({
   login: vi.fn(async () => ({
@@ -32,9 +33,21 @@ vi.mock('@/services/auth', () => ({
 const updateTheme = vi.fn()
 vi.mock('@/services/user', () => ({ updateTheme: (...a: unknown[]) => updateTheme(...a) }))
 
+import { createMemoryHistory, createRouter } from 'vue-router'
+
+// The store reaches the router lazily; give it a real in-memory one to land on.
+const testRouter = createRouter({
+  history: createMemoryHistory(),
+  routes: [
+    { path: '/login', name: 'login', component: { template: '<div />' } },
+    { path: '/doctors', name: 'doctors', component: { template: '<div />' } },
+  ],
+})
+vi.mock('@/router', () => ({ router: testRouter }))
+
 import { useAuthStore } from '../stores/auth'
 import { apiGet, setAccessToken } from '../lib/http'
-import { logout as logoutService } from '@/services/auth'
+import { logout as logoutService, refresh as refreshService } from '@/services/auth'
 
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => vi.restoreAllMocks())
@@ -96,5 +109,34 @@ describe('auth store', () => {
     await auth.setDarkMode(true)
     expect(updateTheme).toHaveBeenCalledWith(true)
     expect(auth.user?.darkMode).toBe(true)
+  })
+
+  describe('when the session expires mid-request', () => {
+    beforeEach(async () => {
+      await testRouter.push('/doctors?page=2')
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), { status: 401 })),
+      )
+    })
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('a 401 followed by a failed refresh ends on the login route', async () => {
+      const auth = useAuthStore()
+      await auth.login('a@b.com', 'secret1')
+      vi.mocked(refreshService).mockRejectedValueOnce(new Error('expired'))
+      await expect(apiGet('/doctors')).rejects.toThrow()
+      await vi.waitFor(() => expect(testRouter.currentRoute.value.name).toBe('login'))
+      expect(testRouter.currentRoute.value.query.redirect).toBe('/doctors?page=2')
+      expect(auth.isAuthenticated).toBe(false)
+    })
+
+    it('a failed bootstrap refresh stays put', async () => {
+      const auth = useAuthStore()
+      vi.mocked(refreshService).mockRejectedValueOnce(new Error('no cookie'))
+      await auth.refresh()
+      await flushPromises()
+      expect(testRouter.currentRoute.value.name).toBe('doctors')
+    })
   })
 })

@@ -7,10 +7,11 @@ const me = vi.fn()
 vi.mock('@/services/doctor', () => ({ me: (...a: unknown[]) => me(...a) }))
 
 const changePassword = vi.fn()
+const logout = vi.fn()
 vi.mock('@/services/auth', () => ({
   login: vi.fn(),
   refresh: vi.fn(),
-  logout: vi.fn(),
+  logout: (...a: unknown[]) => logout(...a),
   fetchMe: vi.fn(),
   changePassword: (...a: unknown[]) => changePassword(...a),
 }))
@@ -22,12 +23,17 @@ vi.mock('@/services/user', () => ({
   updateUsername: (...a: unknown[]) => updateUsername(...a),
 }))
 
+const push = vi.fn()
+vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
+import { ApiError } from '@/lib/http'
 import ProfilePage from '../pages/ProfilePage.vue'
 
 beforeEach(() => {
   me.mockReset()
   changePassword.mockReset()
+  logout.mockReset()
+  push.mockReset()
   updateTheme.mockReset()
   updateUsername.mockReset()
 })
@@ -70,7 +76,7 @@ describe('ProfilePage doctor self-view', () => {
 })
 
 describe('ProfilePage change password', () => {
-  it('shows a visible success message and warns the current session ends', async () => {
+  it('signs out of this session and sends the user to login with a notice', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
@@ -85,7 +91,8 @@ describe('ProfilePage change password', () => {
       clinicId: 1,
       clinicName: 'Main Clinic',
     }
-    changePassword.mockResolvedValue({ user: { ...auth.user } })
+    auth.accessToken = 'AAA'
+    changePassword.mockResolvedValue({ ...auth.user })
     const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
     await wrapper.vm.$nextTick()
     expect(wrapper.text()).toContain('including this one')
@@ -94,11 +101,38 @@ describe('ProfilePage change password', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(changePassword).toHaveBeenCalledWith('oldpass', 'newpass')
-    const status = wrapper.find('[role="status"]')
-    expect(status.exists()).toBe(true)
-    expect(status.text()).toContain('Password updated.')
-    expect(status.classes()).toContain('text-success')
+    expect(logout).toHaveBeenCalled()
+    expect(auth.isAuthenticated).toBe(false)
+    expect(push).toHaveBeenCalledWith({ name: 'login', query: { passwordChanged: '1' } })
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('stays signed in and shows the error when the change fails', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.user = {
+      id: 2,
+      email: 'admin@h.com',
+      username: 'admin',
+      role: 'administrator',
+      firstName: 'Ada',
+      lastName: 'Admin',
+      darkMode: false,
+      clinicId: 1,
+      clinicName: 'Main Clinic',
+    }
+    auth.accessToken = 'AAA'
+    changePassword.mockRejectedValueOnce(new ApiError('Current password is incorrect', 400))
+    const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
+    await wrapper.find('#current').setValue('oldpass')
+    await wrapper.find('#new').setValue('newpass')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(logout).not.toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
+    expect(auth.isAuthenticated).toBe(true)
+    expect(wrapper.find('[role="alert"]').text()).toContain('Current password is incorrect')
   })
 })
 

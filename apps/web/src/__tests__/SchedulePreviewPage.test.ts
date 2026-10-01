@@ -111,6 +111,44 @@ describe('SchedulePreviewPage', () => {
     expect(sent.every((a) => a.doctorId === 5)).toBe(true)
   })
 
+  function oneDoctorPerDay(year: number, month: number, doubled: string[] = []) {
+    return daysFor(year, month).flatMap((d) => [
+      { date: d.date, doctorId: 5, doctorFirstName: 'Jane', doctorLastName: 'Roe', reason: 'engine' },
+      ...(doubled.includes(d.date)
+        ? [{ date: d.date, doctorId: 6, doctorFirstName: 'Sam', doctorLastName: 'Doe', reason: 'engine' }]
+        : []),
+    ])
+  }
+
+  it('blocks Generate when an open day or the day after it is below its slot count', async () => {
+    preview.mockResolvedValue({
+      assignments: oneDoctorPerDay(2026, 9, ['2026-09-10']),
+      conflicts: [],
+      days: daysFor(2026, 9, new Set(['2026-09-10'])),
+    })
+    const wrapper = mount(SchedulePreviewPage)
+    await flushPromises()
+    const button = wrapper.findAll('button').find((b) => b.text().includes('Generate'))!
+    expect(button.attributes('disabled')).toBeDefined()
+    // The open day is full; only the day after it is short.
+    expect(wrapper.text()).toContain('1 open on-call day(s) below their slot count')
+    expect(wrapper.text()).not.toContain('Ready to generate')
+  })
+
+  it('allows Generate with partial non-critical days once open days and the day after are full', async () => {
+    preview.mockResolvedValue({
+      assignments: oneDoctorPerDay(2026, 9, ['2026-09-10', '2026-09-11']),
+      conflicts: [],
+      days: daysFor(2026, 9, new Set(['2026-09-10'])),
+    })
+    const wrapper = mount(SchedulePreviewPage)
+    await flushPromises()
+    const button = wrapper.findAll('button').find((b) => b.text().includes('Generate'))!
+    expect(button.attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).toContain('28 day(s) below their slot count')
+    expect(wrapper.text()).toContain('Ready to generate')
+  })
+
   it('clearing the first of two assigned doctors empties only the chosen select', async () => {
     preview.mockResolvedValue({
       assignments: [

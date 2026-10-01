@@ -75,4 +75,26 @@ describe('CalendarDialog', () => {
     expect(wrapper.emitted('update:open')?.[0]).toEqual([false])
     wrapper.unmount()
   })
+
+  it('is a labelled modal that focuses inside and restores focus on close', async () => {
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+    const wrapper = mount(CalendarDialog, {
+      props: { open: false, modelValue: [], title: 'Pick' },
+      attachTo: document.body,
+    })
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+
+    const panel = document.body.querySelector<HTMLElement>('[role="dialog"]')!
+    expect(panel.getAttribute('aria-modal')).toBe('true')
+    expect(document.getElementById(panel.getAttribute('aria-labelledby')!)?.textContent?.trim()).toBe('Pick')
+    expect(panel.contains(document.activeElement)).toBe(true)
+
+    await wrapper.setProps({ open: false })
+    expect(document.activeElement).toBe(opener)
+    wrapper.unmount()
+    opener.remove()
+  })
 })

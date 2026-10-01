@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import type { Doctor } from '@oncall/shared'
 import { changePasswordSchema, updateUsernameSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
@@ -19,7 +20,6 @@ import Switch from '@/components/ui/Switch.vue'
 const currentPassword = ref('')
 const newPassword = ref('')
 const formError = ref('')
-const success = ref(false)
 const submitting = ref(false)
 const newUsername = ref('')
 const usernameError = ref('')
@@ -28,6 +28,7 @@ const usernameSubmitting = ref(false)
 
 
 const auth = useAuthStore()
+const router = useRouter()
 const heading = computed(() =>
   auth.user ? `${auth.user.firstName} ${auth.user.lastName}` : 'Profile',
 )
@@ -66,7 +67,6 @@ onMounted(() => {
 
 async function onSubmit() {
   formError.value = ''
-  success.value = false
   const parsed = changePasswordSchema.safeParse({
     currentPassword: currentPassword.value,
     newPassword: newPassword.value,
@@ -78,9 +78,9 @@ async function onSubmit() {
   submitting.value = true
   try {
     await auth.changePassword(parsed.data.currentPassword, parsed.data.newPassword)
-    success.value = true
-    currentPassword.value = ''
-    newPassword.value = ''
+    // The API revoked every session, including this one: sign out and say why.
+    await auth.logout()
+    await router.push({ name: 'login', query: { passwordChanged: '1' } })
   } catch (e) {
     formError.value = e instanceof ApiError ? e.message : 'Could not change password'
   } finally {
@@ -138,7 +138,6 @@ async function onSubmitUsername() {
               <Input id="new" v-model="newPassword" type="password" autocomplete="new-password" />
             </div>
             <p v-if="formError" class="text-xs text-destructive" role="alert">{{ formError }}</p>
-            <p v-if="success" class="text-xs text-success" role="status">Password updated.</p>
             <Button class="mt-auto" type="submit" :disabled="submitting">Update password</Button>
           </form>
         </CardContent>

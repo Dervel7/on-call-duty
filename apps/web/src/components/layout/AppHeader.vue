@@ -32,7 +32,7 @@ async function onLogout() {
 
 const navItems = computed(() => {
   const items: { to: string; label: string; icon: Component }[] = [{ to: '/', label: 'Home', icon: House }]
-  if (auth.isAuthenticated && !auth.isAdmin) {
+  if (auth.user?.role === 'doctor') {
     items.push({ to: '/roster', label: 'Duty roster', icon: CalendarCheck2 })
     items.push({ to: '/my-availability', label: 'My availability', icon: CalendarClock })
   }

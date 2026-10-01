@@ -115,6 +115,20 @@ describe('AdminDashboard', () => {
     expect(admin).toHaveBeenCalledTimes(2)
   })
 
+  it('ignores a stale stats response that resolves after a newer one', async () => {
+    let resolveFirst!: (v: unknown) => void
+    admin
+      .mockReturnValueOnce(new Promise((r) => (resolveFirst = r)))
+      .mockResolvedValueOnce(fullStats({ fairness: { dutySpread: 1, weekendSpread: 0 } }))
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await w.findAll('button').find((b) => b.text().includes('Apply'))!.trigger('click')
+    await flushPromises()
+    resolveFirst(fullStats())
+    await flushPromises()
+    expect(w.text()).toContain('Well balanced')
+  })
+
   it('reloads immediately when the month changes and a year is set', async () => {
     admin.mockResolvedValue(fullStats())
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })

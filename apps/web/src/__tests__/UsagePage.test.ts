@@ -20,6 +20,9 @@ vi.mock('@/services/billing', () => ({
 
 import UsagePage from '../pages/UsagePage.vue'
 import { pickDate } from './pick-date'
+import { useConfirmState } from '../composables/useConfirm'
+
+const { settle } = useConfirmState()
 
 const generationsFixture: GenerationEvent[] = [
   {
@@ -64,6 +67,7 @@ beforeEach(() => {
   resolveAlert.mockReset()
   billingState.mockReset()
   billingUpdate.mockReset()
+  settle(false)
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -159,5 +163,39 @@ describe('UsagePage', () => {
     await flushPromises()
     expect(billingUpdate).toHaveBeenCalledWith('2026-12-31')
     expect(wrapper.find('[role="alert"]').text()).toContain('save denied')
+  })
+
+  it('does not send an empty date and shows an inline error instead', async () => {
+    mockResolved()
+    billingState.mockResolvedValue({ paidThrough: null, locked: true })
+    const wrapper = mount(UsagePage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(billingUpdate).not.toHaveBeenCalled()
+    expect(wrapper.find('[role="alert"]').text()).toContain('valid paid-through date')
+  })
+
+  it('asks for confirmation before saving a past date and skips the save on cancel', async () => {
+    const wrapper = await mountPage()
+    await pickDate(wrapper.element, '#billing-date', '2025-06-15')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+    const { request } = useConfirmState()
+    expect(request.value?.message).toContain('locks every user out')
+    settle(false)
+    await flushPromises()
+    expect(billingUpdate).not.toHaveBeenCalled()
+  })
+
+  it('saves a past date once the lock-out is confirmed', async () => {
+    const wrapper = await mountPage()
+    await pickDate(wrapper.element, '#billing-date', '2025-06-15')
+    billingUpdate.mockResolvedValue({ paidThrough: '2025-06-15', locked: true })
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+    settle(true)
+    await flushPromises()
+    expect(billingUpdate).toHaveBeenCalledWith('2025-06-15')
   })
 })

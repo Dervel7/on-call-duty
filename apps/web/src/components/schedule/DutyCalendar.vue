@@ -191,6 +191,7 @@ function cellBg(c: Cell): string {
                   <Select
                     :model-value="slot ? String(slot.doctorId) : ''"
                     :disabled="savingDates?.has(c.date ?? '')"
+                    :aria-label="`${c.date} slot ${sIdx + 1}`"
                     @update:model-value="onSelect(c.date!, sIdx, $event)"
                   >
                     <option value="" :disabled="!!slot && !allowClear">
@@ -224,9 +225,9 @@ function cellBg(c: Cell): string {
                 >No doctor</span
               >
               <span
-                v-else-if="mode === 'editable' && showFillHints && filledCount(c.slots) === 1"
+                v-else-if="mode === 'editable' && showFillHints && filledCount(c.slots) < c.required"
                 class="block text-[11px] font-medium text-warning"
-                >1 of 2</span
+                >{{ filledCount(c.slots) }} of {{ c.required }}</span
               >
             </div>
           </template>

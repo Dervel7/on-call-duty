@@ -11,6 +11,10 @@ vi.mock('@/services/holiday', () => ({
 }))
 
 import HolidaysPage from '../pages/HolidaysPage.vue'
+import MonthPicker from '../components/ui/MonthPicker.vue'
+import { useConfirmState } from '../composables/useConfirm'
+
+const { request, settle } = useConfirmState()
 
 function holiday(date: string) {
   return { id: 1, clinicId: 1, date }
@@ -103,6 +107,57 @@ describe('HolidaysPage', () => {
     const wrapper = mountAsAdmin()
     await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('boom')
+  })
+})
+
+describe('HolidaysPage review fixes', () => {
+  it('shows the newest month when responses arrive out of order', async () => {
+    let resolveFirst!: (v: unknown) => void
+    listHolidays.mockReturnValueOnce(new Promise((r) => (resolveFirst = r)))
+    const wrapper = mountAsAdmin()
+    const nextYm = `${year + 1}-${pad(month)}`
+    const nextWeekday = (() => {
+      const d = new Date(year + 1, month - 1, 1)
+      while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1)
+      return `${nextYm}-${pad(d.getDate())}`
+    })()
+    listHolidays.mockResolvedValueOnce([holiday(nextWeekday)])
+    wrapper.findComponent(MonthPicker).vm.$emit('update:modelValue', nextYm)
+    await flushPromises()
+    resolveFirst([holiday(firstWeekday)])
+    await flushPromises()
+    expect(wrapper.find(`button[data-date="${nextWeekday}"]`).attributes('aria-pressed')).toBe('true')
+    expect(wrapper.find(`button[data-date="${firstWeekday}"]`).exists()).toBe(false)
+  })
+
+  it('keeps the month and unsaved marks when the discard confirm is cancelled', async () => {
+    listHolidays.mockResolvedValue([])
+    const wrapper = mountAsAdmin()
+    await flushPromises()
+    await wrapper.find(`button[data-date="${firstWeekday}"]`).trigger('click')
+    const picker = wrapper.findComponent(MonthPicker)
+    picker.vm.$emit('update:modelValue', `${year + 1}-${pad(month)}`)
+    await flushPromises()
+    expect(request.value).not.toBeNull()
+    settle(false)
+    await flushPromises()
+    expect(listHolidays).toHaveBeenCalledTimes(1)
+    expect(picker.props('modelValue')).toBe(monthStr)
+    expect(wrapper.find(`button[data-date="${firstWeekday}"]`).attributes('aria-pressed')).toBe('true')
+    expect(wrapper.findAll('button').some((b) => b.text() === 'Save')).toBe(true)
+  })
+
+  it('exposes pressed state and a full-date label on day toggles', async () => {
+    listHolidays.mockResolvedValue([holiday(firstWeekday)])
+    const wrapper = mountAsAdmin()
+    await flushPromises()
+    const day = wrapper.find(`button[data-date="${firstWeekday}"]`)
+    expect(day.attributes('aria-pressed')).toBe('true')
+    expect(day.attributes('aria-label')).toContain('marked as holiday')
+    expect(day.find('svg').exists()).toBe(true)
+    const other = wrapper.find(`button[data-date="${nextWeekdayAfter(firstWeekday)}"]`)
+    expect(other.attributes('aria-pressed')).toBe('false')
+    expect(other.attributes('aria-label')).toContain('not a holiday')
   })
 })
 

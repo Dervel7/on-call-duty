@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type {
   CreateDoctorRequest,
   Doctor,
@@ -13,6 +13,7 @@ import {
   resetUserPasswordSchema,
   updateDoctorSchema,
   updateUserSchema,
+  usernameSchema,
 } from '@oncall/shared'
 import * as doctorService from '@/services/doctor'
 import * as userService from '@/services/user'
@@ -68,6 +69,8 @@ interface EditState {
   role: Role
   maxMonthlyDuties: string
   errorMsg: string
+  // True once the admin typed in the username field; stops auto-generation.
+  usernameEdited: boolean
 }
 
 const emptyEdit = (): EditState => ({
@@ -81,13 +84,30 @@ const emptyEdit = (): EditState => ({
   role: 'doctor',
   maxMonthlyDuties: '7',
   errorMsg: '',
+  usernameEdited: false,
 })
 const edit = ref<EditState>(emptyEdit())
 
 // Username convention for new doctor accounts: first 3 letters of the first
-// name followed by the first 3 letters of the last name, lowercased.
+// name followed by the first 3 letters of the last name, lowercased. Accents
+// are stripped and any character usernameSchema rejects is dropped.
 function generatedUsername(): string {
-  return (edit.value.firstName.slice(0, 3) + edit.value.lastName.slice(0, 3)).toLowerCase()
+  return (edit.value.firstName.slice(0, 3) + edit.value.lastName.slice(0, 3))
+    .normalize('NFD')
+    .replace(/[^A-Za-z0-9._-]/g, '')
+    .toLowerCase()
+}
+
+watch(
+  () => [edit.value.firstName, edit.value.lastName],
+  () => {
+    if (edit.value.id === null && !edit.value.usernameEdited) edit.value.username = generatedUsername()
+  },
+)
+
+function onUsernameInput(value: string | number) {
+  edit.value.username = String(value)
+  if (edit.value.id === null) edit.value.usernameEdited = true
 }
 
 interface ResetState {
@@ -132,15 +152,21 @@ function openUpdate(u: User) {
     role: u.role,
     maxMonthlyDuties: d ? String(d.maxMonthlyDuties) : '7',
     errorMsg: '',
+    usernameEdited: false,
   }
 }
 
 async function save() {
   errorMsg.value = ''
   if (edit.value.id === null) {
+    const u = usernameSchema.safeParse(edit.value.username)
+    if (!u.success) {
+      edit.value.errorMsg = 'Username must be 3–32 characters: letters, digits, dot, underscore or hyphen'
+      return
+    }
     const payload: CreateDoctorRequest = {
       email: edit.value.email,
-      username: generatedUsername(),
+      username: u.data,
       password: INITIAL_PASSWORD,
       firstName: edit.value.firstName,
       lastName: edit.value.lastName,
@@ -311,14 +337,18 @@ onMounted(load)
           <Label for="e-email">Email</Label>
           <Input id="e-email" v-model="edit.email" type="email" />
         </div>
-        <div v-if="edit.id !== null" class="flex flex-col gap-1">
+        <div class="flex flex-col gap-1">
           <Label for="e-username">Username</Label>
-          <Input id="e-username" v-model="edit.username" autocomplete="username" />
+          <Input
+            id="e-username"
+            :model-value="edit.username"
+            autocomplete="username"
+            @update:model-value="onUsernameInput"
+          />
+          <p v-if="edit.id === null" class="text-xs text-muted-foreground">
+            Generated from the doctor's name (first 3 letters of each). Edit it if it is already taken.
+          </p>
         </div>
-        <p v-else class="text-xs text-muted-foreground">
-          Username is generated from the doctor's name (first 3 letters of each):
-          {{ generatedUsername() || '…' }}
-        </p>
         <div class="flex flex-col gap-1">
           <Label for="e-first">First name</Label>
           <Input id="e-first" v-model="edit.firstName" />

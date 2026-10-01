@@ -126,6 +126,22 @@ describe('AvailabilityPage', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
   })
 
+  it('ignores a stale list response that resolves after a newer one', async () => {
+    doctorList.mockResolvedValue([doctor])
+    let resolveFirst!: (v: unknown) => void
+    listAll
+      .mockReturnValueOnce(new Promise((r) => (resolveFirst = r)))
+      .mockResolvedValueOnce([])
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await pickOption(wrapper.element, '#f-doctor', '5')
+    await flushPromises()
+    resolveFirst([record])
+    await flushPromises()
+    expect(wrapper.text()).toContain('No exclusions for the selected filters.')
+    wrapper.unmount()
+  })
+
   it('opens the day calendar on the next month', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-09-25T12:00:00') })
     doctorList.mockResolvedValue([doctor])

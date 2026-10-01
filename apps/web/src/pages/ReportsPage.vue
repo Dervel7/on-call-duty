@@ -44,7 +44,7 @@ const calendar = ref<ScheduleDetail | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
 
-const monthLabel = computed(() => `${MONTHS[Number(month.value) - 1]} ${year.value}`)
+const monthLabel = computed(() => (report.value ? `${MONTHS[report.value.month - 1]} ${report.value.year}` : ''))
 const isPublished = computed(() => report.value?.schedule?.status === 'published')
 
 interface DayRow {
@@ -53,10 +53,12 @@ interface DayRow {
   day: string
   isWeekend: boolean
   duties: Duty[]
+  slotsRequired: number | null
 }
 const rows = computed<DayRow[]>(() => {
   const r = report.value
   if (!r || !r.schedule) return []
+  const slotsByDate = new Map((calendar.value?.days ?? []).map((d) => [d.date, d.slotsRequired]))
   const total = new Date(Date.UTC(r.year, r.month, 0)).getUTCDate()
   const byDate = new Map<string, Duty[]>()
   for (const d of r.roster) {
@@ -75,6 +77,7 @@ const rows = computed<DayRow[]>(() => {
       day: dayFmt.format(js),
       isWeekend: dow === 0 || dow === 6,
       duties: byDate.get(iso) ?? [],
+      slotsRequired: slotsByDate.get(iso) ?? null,
     })
   }
   return out
@@ -115,23 +118,38 @@ function fmtGenerated(iso: string): string {
   }).format(new Date(iso))
 }
 
+let loadSeq = 0
+
 async function load() {
+  const y = Number(year.value)
+  if (!year.value || !Number.isInteger(y) || y < 1970 || y > 2100) {
+    errorMsg.value = 'Enter a year between 1970 and 2100'
+    return
+  }
+  const seq = ++loadSeq
   loading.value = true
   errorMsg.value = ''
   calendar.value = null
   try {
-    report.value = await reportsService.monthly({ year: Number(year.value), month: Number(month.value) })
-    if (report.value.schedule) {
+    const res = await reportsService.monthly({ year: y, month: Number(month.value) })
+    if (seq !== loadSeq) return
+    report.value = res
+    if (res.schedule) {
       try {
-        calendar.value = await scheduleService.get(report.value.schedule.id)
+        const cal = await scheduleService.get(res.schedule.id)
+        if (seq !== loadSeq) return
+        calendar.value = cal
       } catch {
+        if (seq !== loadSeq) return
         errorMsg.value = 'Failed to load the duty roster calendar'
       }
     }
   } catch (e) {
+    if (seq !== loadSeq) return
+    report.value = null
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load report'
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
@@ -142,9 +160,10 @@ watch(month, () => {
 })
 
 function exportCsv() {
-  if (!report.value?.roster.length) return
-  const csv = dutiesToCsv(report.value.roster)
-  downloadCsv(`oncall-${year.value}-${String(month.value).padStart(2, '0')}.csv`, csv)
+  const r = report.value
+  if (!r?.roster.length) return
+  const csv = dutiesToCsv(r.roster)
+  downloadCsv(`oncall-${r.year}-${String(r.month).padStart(2, '0')}.csv`, csv)
 }
 
 function printReport() {
@@ -261,11 +280,12 @@ onMounted(load)
                 <TableCell>
                   <div class="flex flex-wrap gap-1">
                     <Badge v-if="r.isWeekend" variant="primary">Weekend</Badge>
+                    <Badge v-if="r.duties.length === 0" variant="destructive">Gap day</Badge>
                     <Badge
-                      v-if="r.duties.length < 2"
-                      :variant="r.duties.length === 0 ? 'destructive' : 'warning'"
+                      v-else-if="r.slotsRequired !== null && r.duties.length < r.slotsRequired"
+                      variant="warning"
                     >
-                      {{ r.duties.length === 0 ? 'Gap day' : '1 of 2' }}
+                      {{ r.duties.length }} of {{ r.slotsRequired }}
                     </Badge>
                   </div>
                 </TableCell>

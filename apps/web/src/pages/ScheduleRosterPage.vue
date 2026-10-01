@@ -56,6 +56,7 @@ onMounted(load)
       <Spinner :size="16" />
       Loading…
     </div>
+    <p v-if="errorMsg" role="alert" class="text-sm text-destructive">{{ errorMsg }}</p>
 
     <Table>
       <TableHeader>
@@ -74,6 +75,6 @@ onMounted(load)
       </TableBody>
     </Table>
 
-    <EmptyState v-if="!loading && records.length === 0" :icon="CalendarOff" title="No published schedules yet." />
+    <EmptyState v-if="!loading && !errorMsg && records.length === 0" :icon="CalendarOff" title="No published schedules yet." />
   </div>
 </template>

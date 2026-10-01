@@ -41,6 +41,7 @@ RUN pnpm --filter @oncall/web build
 FROM nginx:1.27-alpine AS runtime
 
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/web/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=builder /repo/apps/web/dist /usr/share/nginx/html
 
 EXPOSE 80

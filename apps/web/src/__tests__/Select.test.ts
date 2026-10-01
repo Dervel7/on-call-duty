@@ -75,3 +75,36 @@ describe('Select popover direction', () => {
     expect(panel!.style.maxHeight).toBe('648px')
   })
 })
+
+describe('Select keyboard focus', () => {
+  async function openLabelled() {
+    wrapper = mount(Select, {
+      props: { modelValue: 'a', ariaLabel: '2026-09-01 slot 1' },
+      slots: { default: '<option value="a">Alpha</option><option value="b">Beta</option>' },
+      attachTo: document.body,
+    })
+    const trigger = wrapper.find('[role="combobox"]').element as HTMLButtonElement
+    await wrapper.find('[role="combobox"]').trigger('click')
+    await flushPromises()
+    const panel = document.body.querySelector<HTMLElement>('[role="listbox"]')!
+    expect(document.activeElement).toBe(panel)
+    return { trigger, panel }
+  }
+
+  it('puts ariaLabel on the combobox button', async () => {
+    const { trigger } = await openLabelled()
+    expect(trigger.getAttribute('aria-label')).toBe('2026-09-01 slot 1')
+  })
+
+  it.each([
+    ['choosing with Enter', { key: 'Enter' }],
+    ['Escape', { key: 'Escape' }],
+    ['Tab', { key: 'Tab' }],
+  ])('returns focus to the trigger after %s', async (_, init) => {
+    const { trigger, panel } = await openLabelled()
+    panel.dispatchEvent(new KeyboardEvent('keydown', { ...init, bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(document.body.querySelector('[role="listbox"]')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+  })
+})

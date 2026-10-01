@@ -56,15 +56,21 @@ const fairnessBadge = computed(() => {
     : { text: 'Imbalanced — review workload', class: 'bg-destructive/10 text-destructive' }
 })
 
+let loadSeq = 0
+
 async function load() {
+  const seq = ++loadSeq
   loading.value = true
   errorMsg.value = ''
   try {
-    stats.value = await statsService.admin({ year: Number(year.value), month: Number(month.value) })
+    const res = await statsService.admin({ year: Number(year.value), month: Number(month.value) })
+    if (seq !== loadSeq) return
+    stats.value = res
   } catch (e) {
+    if (seq !== loadSeq) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load statistics'
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 

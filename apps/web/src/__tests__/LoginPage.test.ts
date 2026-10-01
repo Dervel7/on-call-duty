@@ -19,7 +19,7 @@ vi.mock('@/stores/auth', () => ({
   }),
 }))
 
-function mountWithRouter(currentPath = '/login') {
+async function mountWithRouter(currentPath = '/login') {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -27,7 +27,8 @@ function mountWithRouter(currentPath = '/login') {
       { path: '/login', name: 'login', component: LoginPage },
     ],
   })
-  router.push(currentPath)
+  // Finish navigating before install, or the router's initial navigation to '/' wins.
+  await router.push(currentPath)
   return mount(LoginPage, { global: { plugins: [createPinia(), router] } })
 }
 
@@ -40,7 +41,7 @@ afterEach(() => vi.restoreAllMocks())
 describe('LoginPage', () => {
   it('shows a friendly error when fields are empty', async () => {
     login.mockResolvedValue(undefined)
-    const wrapper = mountWithRouter()
+    const wrapper = await mountWithRouter()
     const inputs = wrapper.findAll('input')
     await inputs[0]!.setValue('')
     await inputs[1]!.setValue('')
@@ -52,7 +53,7 @@ describe('LoginPage', () => {
 
   it('shows a validation error when the password is too short', async () => {
     login.mockResolvedValue(undefined)
-    const wrapper = mountWithRouter()
+    const wrapper = await mountWithRouter()
     const inputs = wrapper.findAll('input')
     await inputs[0]!.setValue('a@b.com')
     await inputs[1]!.setValue('123')
@@ -66,7 +67,7 @@ describe('LoginPage', () => {
   it('calls the store and shows a server error on failure', async () => {
     const { ApiError } = await import('@/lib/http')
     login.mockRejectedValue(new ApiError('Invalid credentials', 401))
-    const wrapper = mountWithRouter()
+    const wrapper = await mountWithRouter()
     const inputs = wrapper.findAll('input')
     await inputs[0]!.setValue('a@b.com')
     await inputs[1]!.setValue('secret1')
@@ -75,5 +76,15 @@ describe('LoginPage', () => {
     await wrapper.vm.$nextTick()
     expect(login).toHaveBeenCalledWith('a@b.com', 'secret1')
     expect(wrapper.find('[role="alert"]').text()).toContain('Invalid credentials')
+  })
+
+  it('tells the user to sign in again after a password change', async () => {
+    const wrapper = await mountWithRouter('/login?passwordChanged=1')
+    expect(wrapper.find('[role="status"]').text()).toContain('Password changed, please sign in again.')
+  })
+
+  it('shows no password notice on a plain visit', async () => {
+    const wrapper = await mountWithRouter('/login')
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
   })
 })

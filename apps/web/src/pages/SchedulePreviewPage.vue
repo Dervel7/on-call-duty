@@ -86,14 +86,34 @@ const countByDate = computed(() => {
   }
   return m
 })
-const errorCount = computed(
+// Mirrors the server's validatePlan: open on-call days and the day right
+// after them must be filled to their slot count, every other day needs one
+// doctor. `days` covers the month in order, so the previous entry is the
+// previous date.
+const criticalDates = computed(
+  () =>
+    new Set(
+      days.value
+        .filter((d, i) => d.dutyType === 'open' || days.value[i - 1]?.dutyType === 'open')
+        .map((d) => d.date),
+    ),
+)
+const emptyCount = computed(
   () => days.value.filter((d) => (countByDate.value.get(d.date) ?? 0) === 0).length,
 )
+const shortCriticalCount = computed(
+  () =>
+    days.value.filter((d) => {
+      const n = countByDate.value.get(d.date) ?? 0
+      return n > 0 && n < d.slotsRequired && criticalDates.value.has(d.date)
+    }).length,
+)
+const errorCount = computed(() => emptyCount.value + shortCriticalCount.value)
 const warningCount = computed(
   () =>
     days.value.filter((d) => {
       const n = countByDate.value.get(d.date) ?? 0
-      return n > 0 && n < d.slotsRequired
+      return n > 0 && n < d.slotsRequired && !criticalDates.value.has(d.date)
     }).length,
 )
 const fullCount = computed(
@@ -118,10 +138,15 @@ const totalAssignments = computed(() =>
 const status = computed<{ tone: StatusTone; title: string; detail: string } | null>(() => {
   if (!result.value) return null
   if (errorCount.value > 0) {
+    const parts: string[] = []
+    if (emptyCount.value > 0) parts.push(`${emptyCount.value} day(s) with no doctor`)
+    if (shortCriticalCount.value > 0)
+      parts.push(`${shortCriticalCount.value} open on-call day(s) below their slot count`)
     return {
       tone: 'destructive',
-      title: `${errorCount.value} day(s) with no doctor`,
-      detail: 'Assign at least one doctor to every day before generating.',
+      title: parts.join(' · '),
+      detail:
+        'Assign at least one doctor to every day and fill every slot on open on-call days and the day after them before generating.',
     }
   }
   if (warningCount.value > 0) {

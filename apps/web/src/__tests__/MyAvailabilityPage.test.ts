@@ -7,6 +7,7 @@ const listMine = vi.fn()
 const createMine = vi.fn()
 const update = vi.fn()
 const remove = vi.fn()
+const split = vi.fn()
 vi.mock('@/services/unavailability', () => ({
   listAll: vi.fn(),
   listMine: (...a: unknown[]) => listMine(...a),
@@ -14,6 +15,7 @@ vi.mock('@/services/unavailability', () => ({
   createMine: (...a: unknown[]) => createMine(...a),
   update: (...a: unknown[]) => update(...a),
   remove: (...a: unknown[]) => remove(...a),
+  split: (...a: unknown[]) => split(...a),
 }))
 
 import MyAvailabilityPage from '../pages/MyAvailabilityPage.vue'
@@ -40,6 +42,7 @@ beforeEach(() => {
   createMine.mockReset()
   update.mockReset()
   remove.mockReset()
+  split.mockReset()
   settle(false)
 })
 afterEach(() => {
@@ -204,6 +207,57 @@ describe('MyAvailabilityPage', () => {
     expect(update).toHaveBeenCalledWith(1, { startDate: `${nm}-07`, endDate: `${nm}-11` })
     expect(createMine).toHaveBeenCalledTimes(1)
     expect(createMine).toHaveBeenCalledWith({ startDate: `${nm}-21`, endDate: `${nm}-22` })
+    wrapper.unmount()
+  })
+
+  it('unmarking a middle day of a disabled record splits it atomically so every part stays disabled', async () => {
+    const nm = nextMonthIso()
+    listMine.mockResolvedValue([
+      { ...record, startDate: `${nm}-07`, endDate: `${nm}-11`, isDisabled: true },
+    ])
+    split.mockResolvedValue([])
+    createMine.mockResolvedValue({})
+    const wrapper = await mountPage()
+    await wrapper.findAll('button').find((b) => b.text() === `${nm}-07`)!.trigger('click')
+    await flushPromises()
+
+    bodyButton('Select days')!.click()
+    await flushPromises()
+    // Unmark 09 and add a new run on 21–22.
+    await pickDays([`${nm}-09`, `${nm}-21`, `${nm}-22`])
+    bodyButton('Save')!.click()
+    await flushPromises()
+    expect(split).toHaveBeenCalledWith(1, {
+      segments: [
+        { startDate: `${nm}-07`, endDate: `${nm}-08` },
+        { startDate: `${nm}-10`, endDate: `${nm}-11` },
+      ],
+    })
+    expect(update).not.toHaveBeenCalled()
+    expect(createMine).toHaveBeenCalledTimes(1)
+    expect(createMine).toHaveBeenCalledWith({ startDate: `${nm}-21`, endDate: `${nm}-22` })
+    wrapper.unmount()
+  })
+
+  it('keeps the record on its own days when a new run is marked before it', async () => {
+    const nm = nextMonthIso()
+    listMine.mockResolvedValue([
+      { ...record, startDate: `${nm}-10`, endDate: `${nm}-11`, isDisabled: true },
+    ])
+    update.mockResolvedValue({})
+    createMine.mockResolvedValue({})
+    const wrapper = await mountPage()
+    await wrapper.findAll('button').find((b) => b.text() === `${nm}-10`)!.trigger('click')
+    await flushPromises()
+
+    bodyButton('Select days')!.click()
+    await flushPromises()
+    await pickDays([`${nm}-03`])
+    bodyButton('Save')!.click()
+    await flushPromises()
+    expect(split).not.toHaveBeenCalled()
+    expect(update).toHaveBeenCalledWith(1, { startDate: `${nm}-10`, endDate: `${nm}-11` })
+    expect(createMine).toHaveBeenCalledWith({ startDate: `${nm}-03`, endDate: `${nm}-03` })
     wrapper.unmount()
   })
 

@@ -9,15 +9,17 @@ const openStack = moduleRef<symbol[]>([])
 </script>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { onClickOutside, useEventListener } from '@vueuse/core'
 import { X } from 'lucide-vue-next'
+import { useModal } from '@/composables/useModal'
 
 const props = defineProps<{ open: boolean; title?: string }>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 
 const panel = ref<HTMLElement | null>(null)
 const self = Symbol('dialog')
+const titleId = useId()
 
 const stackIndex = computed(() => openStack.value.indexOf(self))
 const isTop = computed(() => stackIndex.value !== -1 && stackIndex.value === openStack.value.length - 1)
@@ -46,16 +48,15 @@ watch(
   (v) => {
     if (v) {
       if (!openStack.value.includes(self)) openStack.value = [...openStack.value, self]
-      document.body.style.overflow = 'hidden'
     } else {
       leaveStack()
-      if (openStack.value.length === 0) document.body.style.overflow = ''
     }
   },
   { immediate: true },
 )
 
 onBeforeUnmount(leaveStack)
+useModal(() => props.open, panel)
 </script>
 
 <template>
@@ -63,7 +64,7 @@ onBeforeUnmount(leaveStack)
     <div
       v-if="open"
       data-popover-layer
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4"
       :style="{ zIndex: 50 + Math.max(stackIndex, 0) }"
     >
       <div
@@ -72,7 +73,11 @@ onBeforeUnmount(leaveStack)
       />
       <div
         ref="panel"
-        class="animate-dialog-panel glass-card glass-panel relative z-10 w-full max-w-md rounded-2xl p-6"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="title ? titleId : undefined"
+        tabindex="-1"
+        class="animate-dialog-panel glass-card glass-panel relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl p-6 focus-visible:outline-none"
       >
         <button
           type="button"
@@ -82,7 +87,7 @@ onBeforeUnmount(leaveStack)
         >
           <X class="h-4 w-4" aria-hidden="true" />
         </button>
-        <h2 v-if="title" class="mb-4 pr-10 text-lg font-semibold tracking-tight text-foreground">
+        <h2 v-if="title" :id="titleId" class="mb-4 pr-10 text-lg font-semibold tracking-tight text-foreground">
           {{ title }}
         </h2>
         <slot />

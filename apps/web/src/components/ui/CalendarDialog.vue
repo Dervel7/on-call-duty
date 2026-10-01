@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useId, watch } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import { ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
 import { daysInMonth } from '@oncall/utils'
 import { cn } from '@/lib/utils'
+import { useModal } from '@/composables/useModal'
 import Button from './Button.vue'
 
 const props = withDefaults(
@@ -30,6 +31,8 @@ const today = new Date()
 const view = ref({ year: today.getFullYear(), month0: today.getMonth() })
 const selected = ref<Set<string>>(new Set())
 const reserved = computed(() => new Set(props.reservedDays))
+const panel = ref<HTMLElement | null>(null)
+const titleId = useId()
 
 const monthFormat = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' })
 const monthLabel = computed(() =>
@@ -119,6 +122,8 @@ useEventListener(
   },
   { capture: true },
 )
+
+useModal(() => props.open, panel)
 </script>
 
 <template>
@@ -126,16 +131,20 @@ useEventListener(
     <!-- data-popover-layer covers backdrop + panel: an enclosing Dialog must
          treat the entire calendar surface as "inside", so its click-outside
          handler never fires while the calendar is open. -->
-    <div v-if="open" data-popover-layer class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div v-if="open" data-popover-layer class="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto p-4">
       <div
         class="animate-dialog-backdrop absolute inset-0 bg-foreground/40 backdrop-blur-sm"
         @click="close"
       />
       <div
+        ref="panel"
         :data-month="`${view.year}-${pad(view.month0 + 1)}`"
         role="dialog"
-        :aria-label="title ?? 'Pick days'"
-        class="animate-dialog-panel glass-card glass-panel relative z-10 w-full max-w-sm rounded-2xl p-3"
+        aria-modal="true"
+        :aria-labelledby="title ? titleId : undefined"
+        :aria-label="title ? undefined : 'Pick days'"
+        tabindex="-1"
+        class="animate-dialog-panel glass-card glass-panel relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl p-3 focus-visible:outline-none"
       >
         <button
           type="button"
@@ -145,7 +154,7 @@ useEventListener(
         >
           <X class="h-4 w-4" aria-hidden="true" />
         </button>
-        <h2 v-if="title" class="mb-3 pr-10 text-lg font-semibold tracking-tight text-foreground">
+        <h2 v-if="title" :id="titleId" class="mb-3 pr-10 text-lg font-semibold tracking-tight text-foreground">
           {{ title }}
         </h2>
 

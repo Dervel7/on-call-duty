@@ -217,4 +217,93 @@ describe('ReportsPage', () => {
     expect(printBtn.attributes('disabled')).toBeDefined()
     expect(w.text()).toContain('Failed to load the duty roster calendar')
   })
+
+  function deferred<T>() {
+    let resolve!: (v: T) => void
+    const promise = new Promise<T>((r) => (resolve = r))
+    return { promise, resolve }
+  }
+
+  it('ignores a stale report response that resolves after a newer one (M1)', async () => {
+    const first = deferred<unknown>()
+    monthly.mockReturnValueOnce(first.promise)
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    const july = fullReport({ month: 7, schedule: { ...fullReport().schedule, id: 2, month: 7 } })
+    monthly.mockResolvedValueOnce(july)
+    const apply = w.findAll('button').find((b) => b.text().includes('Apply'))!
+    await apply.trigger('click')
+    await flushPromises()
+    first.resolve(fullReport())
+    await flushPromises()
+    expect(w.find('p.text-lg').text()).toBe('July 2026')
+    expect(scheduleGet).toHaveBeenCalledTimes(1)
+    expect(scheduleGet).toHaveBeenCalledWith(2)
+  })
+
+  it('ignores a stale nested calendar response (M1)', async () => {
+    const cal = deferred<unknown>()
+    monthly.mockResolvedValue(fullReport())
+    scheduleGet.mockReturnValueOnce(cal.promise)
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    monthly.mockResolvedValue(fullReport({ schedule: null, roster: [] }))
+    const apply = w.findAll('button').find((b) => b.text().includes('Apply'))!
+    await apply.trigger('click')
+    await flushPromises()
+    cal.resolve(scheduleDetail())
+    await flushPromises()
+    expect(w.find('.print-only').exists()).toBe(false)
+    expect(w.text()).toContain('No schedule for')
+  })
+
+  it.each([
+    [1, 1, null],
+    [3, 2, '2 of 3'],
+    [2, 1, '1 of 2'],
+  ])('slotsRequired=%i with %i doctors shows %s (M4)', async (slots, filled, badge) => {
+    const roster = Array.from({ length: filled }, (_, i) => ({ ...fullReport().roster[0], id: i + 1, doctorId: 5 + i }))
+    monthly.mockResolvedValue(fullReport({ roster }))
+    const base = scheduleDetail()
+    scheduleGet.mockResolvedValue({ ...base, days: base.days.map((d) => ({ ...d, slotsRequired: slots })) })
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const row = w.findAll('tr').find((r) => r.text().includes('Sat 01'))!
+    if (badge) expect(row.text()).toContain(badge)
+    else expect(row.text()).not.toMatch(/\d of \d/)
+  })
+
+  it('uses the loaded report month for label and CSV filename, not unapplied inputs (M9)', async () => {
+    monthly.mockResolvedValue(fullReport())
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await w.find('#r-year').setValue('2030')
+    expect(w.find('p.text-lg').text()).toBe('August 2026')
+    const exportBtn = w.findAll('button').find((b) => b.text().includes('Export CSV'))!
+    await exportBtn.trigger('click')
+    expect(downloadCsv.mock.calls[0]![0]).toBe('oncall-2026-08.csv')
+  })
+
+  it('clears the report when a load fails (M9)', async () => {
+    monthly.mockResolvedValueOnce(fullReport()).mockRejectedValueOnce(new Error('nope'))
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const apply = w.findAll('button').find((b) => b.text().includes('Apply'))!
+    await apply.trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('nope')
+    expect(w.text()).not.toContain('Jane Roe')
+    expect(w.findAll('button').some((b) => b.text().includes('Export CSV'))).toBe(false)
+  })
+
+  it.each(['', '1969', '2101'])('rejects year %j without calling the API (M9)', async (y) => {
+    monthly.mockResolvedValue(fullReport())
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await w.find('#r-year').setValue(y)
+    const apply = w.findAll('button').find((b) => b.text().includes('Apply'))!
+    await apply.trigger('click')
+    await flushPromises()
+    expect(monthly).toHaveBeenCalledTimes(1)
+    expect(w.text()).toContain('Enter a year between 1970 and 2100')
+  })
 })

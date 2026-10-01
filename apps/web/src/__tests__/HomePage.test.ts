@@ -38,4 +38,14 @@ describe('HomePage', () => {
     expect(w.find('[data-test="doctor"]').exists()).toBe(true)
     expect(w.find('[data-test="admin"]').exists()).toBe(false)
   })
+
+  it('renders a neutral empty state for a manager', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useAuthStore(pinia).user = user('manager')
+    const w = mount(HomePage, { global: { plugins: [pinia] } })
+    expect(w.find('[data-test="doctor"]').exists()).toBe(false)
+    expect(w.find('[data-test="admin"]').exists()).toBe(false)
+    expect(w.text()).toContain('Welcome')
+  })
 })

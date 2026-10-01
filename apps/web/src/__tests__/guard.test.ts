@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RouteLocationNormalized } from 'vue-router'
 import { resolveGuard, type GuardAuth } from '../router/guard'
+import { router } from '../router'
 
 function to(fullPath: string, meta: Partial<RouteLocationNormalized['meta']> = {}): RouteLocationNormalized {
   return {
@@ -51,5 +52,12 @@ describe('resolveGuard', () => {
 
   it('allows any authenticated user on an open route', () => {
     expect(resolveGuard(to('/profile'), authed('doctor'))).toBe(true)
+  })
+
+  it('redirects administrators away from my-availability (doctor-only)', () => {
+    const resolved = router.resolve('/my-availability')
+    const route = to(resolved.fullPath, resolved.meta)
+    expect(resolveGuard(route, authed('administrator'))).toEqual({ name: 'home' })
+    expect(resolveGuard(route, authed('doctor'))).toBe(true)
   })
 })

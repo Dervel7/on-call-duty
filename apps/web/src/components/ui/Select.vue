@@ -10,6 +10,8 @@ const props = defineProps<{
   id?: string
   modelValue?: string | number
   disabled?: boolean
+  /** Accessible name for the combobox button (fallthrough attrs land on the wrapper). */
+  ariaLabel?: string
   class?: HTMLAttributes['class']
 }>()
 
@@ -104,10 +106,11 @@ function ariaActiveDescendant(): string | undefined {
 const open = ref(false)
 const activeValue = ref('')
 const root = ref<HTMLElement | null>(null)
+const trigger = ref<HTMLButtonElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
 
 function positionPanel() {
-  const btn = root.value?.querySelector('button')
+  const btn = trigger.value
   const p = panel.value
   if (!btn || !p) return
   const r = btn.getBoundingClientRect()
@@ -146,10 +149,17 @@ async function toggle() {
   panel.value?.focus()
 }
 
+// The panel is teleported to body and removed on close, so focus must be moved
+// back to the trigger explicitly or it falls to body (and out of any Dialog).
+function closeToTrigger() {
+  open.value = false
+  trigger.value?.focus()
+}
+
 function choose(o: Option) {
   if (o.disabled) return
   emit('update:modelValue', o.value)
-  open.value = false
+  closeToTrigger()
 }
 
 function move(delta: number) {
@@ -184,7 +194,8 @@ function onKeydown(e: KeyboardEvent) {
     const a = active()
     if (a) choose(a)
   } else if (e.key === 'Tab') {
-    open.value = false
+    // Refocus the trigger before the default action so Tab continues from it.
+    closeToTrigger()
   }
 }
 
@@ -223,7 +234,7 @@ useEventListener(
   (e: KeyboardEvent) => {
     if (!open.value || e.key !== 'Escape') return
     e.stopPropagation()
-    open.value = false
+    closeToTrigger()
   },
   { capture: true },
 )
@@ -233,8 +244,10 @@ useEventListener(
   <div ref="root" :class="cn('relative w-full', props.class)">
     <button
       :id="props.id"
+      ref="trigger"
       type="button"
       role="combobox"
+      :aria-label="props.ariaLabel"
       aria-haspopup="listbox"
       :aria-expanded="open"
       :disabled="props.disabled"

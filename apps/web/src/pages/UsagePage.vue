@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { BillingState, GenerationEvent, OperatorAlert } from '@oncall/shared'
+import { updateBillingSchema } from '@oncall/shared'
+import { toIsoDate } from '@oncall/utils'
 import { Gauge } from 'lucide-vue-next'
 import * as billingService from '@/services/billing'
 import * as usageService from '@/services/usage'
+import { useConfirm } from '@/composables/useConfirm'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -30,6 +33,7 @@ const billing = ref<BillingState | null>(null)
 const billingDate = ref('')
 const billingSaving = ref(false)
 const billingError = ref('')
+const { confirm } = useConfirm()
 
 const openAlerts = computed(() => alerts.value.filter((a) => a.resolvedAt === null).length)
 
@@ -72,9 +76,22 @@ async function loadBilling() {
 
 async function saveBilling() {
   billingError.value = ''
+  const r = updateBillingSchema.safeParse({ paidThrough: billingDate.value })
+  if (!r.success) {
+    billingError.value = 'Pick a valid paid-through date'
+    return
+  }
+  if (r.data.paidThrough < toIsoDate(new Date())) {
+    const ok = await confirm({
+      title: 'Lock the system?',
+      message: `${r.data.paidThrough} is in the past. Saving it locks every user out until a later date is set.`,
+      confirmText: 'Lock system',
+    })
+    if (!ok) return
+  }
   billingSaving.value = true
   try {
-    billing.value = await billingService.update(billingDate.value)
+    billing.value = await billingService.update(r.data.paidThrough)
     billingDate.value = billing.value.paidThrough ?? ''
   } catch (e) {
     billingError.value = e instanceof Error ? e.message : 'Failed to update billing'

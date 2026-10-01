@@ -99,7 +99,10 @@ const grouped = computed<DoctorGroup[]>(() => {
   return [...byDoctor.values()]
 })
 
+let loadSeq = 0
+
 async function load() {
+  const seq = ++loadSeq
   loading.value = true
   errorMsg.value = ''
   try {
@@ -107,11 +110,14 @@ async function load() {
       doctorId: filterDoctorId.value ? Number(filterDoctorId.value) : undefined,
       ...monthRange(filterMonth.value),
     }
-    records.value = await unavailabilityService.listAll(query)
+    const res = await unavailabilityService.listAll(query)
+    if (seq !== loadSeq) return
+    records.value = res
   } catch (e) {
+    if (seq !== loadSeq) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load availability'
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 

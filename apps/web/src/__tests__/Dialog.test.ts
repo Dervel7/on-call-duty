@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextTick } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 
 import Dialog from '../components/ui/Dialog.vue'
@@ -52,5 +52,69 @@ describe('Dialog', () => {
 
     confirm.unmount()
     edit.unmount()
+  })
+
+  it('is a labelled modal dialog that focuses inside, traps Tab and restores focus on close', async () => {
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+
+    const wrapper = mount(Dialog, {
+      props: { open: false, title: 'Edit' },
+      slots: { default: '<input id="field" />' },
+      attachTo: document.body,
+    })
+    await wrapper.setProps({ open: true })
+    await nextTick()
+
+    const panel = document.body.querySelector<HTMLElement>('[role="dialog"]')!
+    expect(panel.getAttribute('aria-modal')).toBe('true')
+    const titleId = panel.getAttribute('aria-labelledby')!
+    expect(document.getElementById(titleId)?.textContent?.trim()).toBe('Edit')
+
+    const close = panel.querySelector<HTMLElement>('button[aria-label="Close"]')!
+    const field = document.getElementById('field')!
+    expect(document.activeElement).toBe(close)
+
+    field.focus()
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(close)
+    close.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }),
+    )
+    expect(document.activeElement).toBe(field)
+
+    await wrapper.setProps({ open: false })
+    expect(document.activeElement).toBe(opener)
+
+    wrapper.unmount()
+    opener.remove()
+  })
+
+  it('keeps body scroll locked until the last stacked dialog closes', async () => {
+    const bottom = mount(Dialog, { props: { open: true, title: 'Bottom' }, attachTo: document.body })
+    const top = mount(Dialog, { props: { open: true, title: 'Top' }, attachTo: document.body })
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await top.setProps({ open: false })
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await bottom.setProps({ open: false })
+    expect(document.body.style.overflow).toBe('')
+
+    top.unmount()
+    bottom.unmount()
+  })
+
+  it('releases the scroll lock when unmounted while open', async () => {
+    const show = ref(true)
+    const Host = defineComponent(() => () => (show.value ? h(Dialog, { open: true, title: 'Page' }) : null))
+    const host = mount(Host, { attachTo: document.body })
+    expect(document.body.style.overflow).toBe('hidden')
+
+    show.value = false
+    await nextTick()
+    expect(document.body.style.overflow).toBe('')
+    host.unmount()
   })
 })
