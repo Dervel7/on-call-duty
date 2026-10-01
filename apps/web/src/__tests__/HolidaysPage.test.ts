@@ -13,6 +13,7 @@ vi.mock('@/services/holiday', () => ({
 import HolidaysPage from '../pages/HolidaysPage.vue'
 import MonthPicker from '../components/ui/MonthPicker.vue'
 import { useConfirmState } from '../composables/useConfirm'
+import { setTestLocale } from './i18n'
 
 const { request, settle } = useConfirmState()
 
@@ -159,6 +160,24 @@ describe('HolidaysPage review fixes', () => {
     const other = wrapper.find(`button[data-date="${nextWeekdayAfter(firstWeekday)}"]`)
     expect(other.attributes('aria-pressed')).toBe('false')
     expect(other.attributes('aria-label')).toContain('not a holiday')
+  })
+})
+
+describe('HolidaysPage in Greek', () => {
+  it('renders the heading, legend, Save and day labels in Greek', async () => {
+    setTestLocale('el')
+    listHolidays.mockResolvedValue([])
+    const wrapper = mountAsAdmin()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Αργίες')
+    expect(wrapper.text()).toContain('Κανονική ημέρα')
+    const day = wrapper.find(`button[data-date="${firstWeekday}"]`)
+    expect(day.attributes('aria-label')).toContain('δεν είναι αργία')
+    const date = new Intl.DateTimeFormat('el-GR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      .format(new Date(`${firstWeekday}T00:00:00`))
+    expect(day.attributes('aria-label')).toContain(date)
+    await day.trigger('click')
+    expect(wrapper.findAll('button').some((b) => b.text() === 'Αποθήκευση')).toBe(true)
   })
 })
 

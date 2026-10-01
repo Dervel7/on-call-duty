@@ -18,7 +18,11 @@
     "view": "View",
     "actions": "Actions",
     "weekend": "Weekend",
-    "notAvailable": "N/A"
+    "notAvailable": "N/A",
+    "delete": "Delete",
+    "remove": "Remove",
+    "date": "Date",
+    "save": "Save"
   },
   "roles": {
     "superadmin": "superadmin",
@@ -197,5 +201,110 @@
   "scheduleRoster": {
     "subtitle": "Published on-call schedules",
     "empty": "No published schedules yet."
+  },
+  "schedulePreview": {
+    "fallbackTitle": "Preview",
+    "subtitle": "Review the proposed roster, adjust any day, then generate the schedule.",
+    "back": "Back",
+    "generateSchedule": "Generate schedule",
+    "invalidMonth": "Invalid or missing month.",
+    "invalidMonthHint": "Open this preview from the schedules list to choose a valid month.",
+    "backToSchedules": "Back to schedules",
+    "daysNoDoctor": "{n} day(s) with no doctor",
+    "daysBelowMinimum": "{n} day(s) below their minimum",
+    "errorDetail": "Assign at least the minimum number of doctors to every day before generating.",
+    "daysBelowSlotCount": "{n} day(s) below their slot count",
+    "warningDetail": "Ready to generate — consider adding doctors where you can.",
+    "allCovered": "All days covered",
+    "successDetail": "{n} assignment(s) ready. No conflicts.",
+    "previewFailed": "Failed to preview",
+    "refreshFailed": "Failed to refresh eligible doctors",
+    "statDays": "days",
+    "statFull": "full",
+    "statPartial": "partial",
+    "statBelowMinimum": "below minimum",
+    "openOnCall": "Open on-call"
+  },
+  "scheduleDetail": {
+    "loadFailed": "Failed to load schedule",
+    "publishTitle": "Publish schedule",
+    "publishMessage": "Publish this schedule? Editing will be locked.",
+    "publish": "Publish",
+    "publishFailed": "Failed to publish",
+    "revertToDraft": "Revert to draft",
+    "revertMessage": "Revert this schedule to draft? Editing will be re-enabled.",
+    "revert": "Revert",
+    "revertFailed": "Failed to revert",
+    "deleteSchedule": "Delete schedule",
+    "deleteMessage": "Delete this schedule and all its duties?",
+    "deleteFailed": "Failed to delete",
+    "removeDutyTitle": "Remove duty",
+    "removeDutyMessage": "Remove {name} from {date}?",
+    "removeFailed": "Failed to remove",
+    "reassignFailed": "Failed to reassign",
+    "addFailed": "Failed to add",
+    "lockedNotice": "Schedule is published and locked. Revert to draft to edit duties."
+  },
+  "reports": {
+    "subtitle": "Monthly duty report and exports",
+    "yearRange": "Enter a year between 1970 and 2100",
+    "calendarLoadFailed": "Failed to load the duty roster calendar",
+    "loadFailed": "Failed to load report",
+    "noScheduleDescription": "Generate a schedule for this month to produce a report.",
+    "exportCsv": "Export CSV",
+    "printPdf": "Print / Save as PDF",
+    "generated": "Generated {date}",
+    "dutyRoster": "Duty roster",
+    "flags": "Flags",
+    "whyThisDoctor": "Why this doctor",
+    "unassigned": "Unassigned",
+    "gapDay": "Gap day",
+    "slotsFilled": "{filled} of {required}"
+  },
+  "rules": {
+    "subtitle": "Every dynamic scheduling rule lives here. Changes apply to new previews and generations immediately and are recorded in the activity log.",
+    "loadFailed": "Could not load rules",
+    "error": "Error",
+    "openClosedSummary": "Open {open} · Closed {closed}",
+    "openDaysLabel": "Open on-call days (1–7)",
+    "closedDaysLabel": "Closed on-call days (1–7)",
+    "cycle": {
+      "title": "On-call duty cycle",
+      "summary": "Every {n} day | Every {n} days",
+      "help": "Days between open on-call duties — the red-bordered days in schedules. The first open on-call day is {date}.",
+      "intervalLabel": "Interval (days)",
+      "updated": "Interval updated.",
+      "save": "Save interval",
+      "saveFailed": "Could not save interval"
+    },
+    "slots": {
+      "title": "On-call slots",
+      "help": "How many on-call doctors a single day holds. Open on-call days use their own count; all other days (including the day after an open one) use the closed count.",
+      "updated": "Slots updated.",
+      "save": "Save slots",
+      "saveFailed": "Could not save slots"
+    },
+    "minimums": {
+      "title": "Minimum on-call doctors",
+      "help": "The fewest on-call doctors a day may hold. Open on-call days use their own minimum; all other days (including the day after an open one) use the closed minimum. Each minimum must not exceed its slot count. Any count from the minimum up to the slot count is accepted; filling every slot is preferred.",
+      "updated": "Minimums updated.",
+      "save": "Save minimums",
+      "saveFailed": "Could not save minimums"
+    }
+  },
+  "holidays": {
+    "subtitle": "Mark clinic holidays for scheduling",
+    "dayWeekend": "{date}, weekend (holiday by default)",
+    "dayMarked": "{date}, marked as holiday",
+    "dayNotHoliday": "{date}, not a holiday",
+    "loadFailed": "Failed to load holidays",
+    "saveFailed": "Failed to save holidays",
+    "discardTitle": "Discard unsaved changes?",
+    "discardMessage": "You have unsaved holiday changes for this month. Switching months will discard them.",
+    "discard": "Discard",
+    "weekendTitle": "Weekend — holiday by default",
+    "legendWeekend": "Weekend (default holiday)",
+    "legendMarked": "Marked holiday",
+    "legendNormal": "Normal day"
   }
 }

@@ -33,6 +33,7 @@ import ScheduleDetailPage from '../pages/ScheduleDetailPage.vue'
 import { ApiError } from '../lib/http'
 import { useAuthStore } from '../stores/auth'
 import { pickOption } from './pick-option'
+import { setTestLocale } from './i18n'
 
 function daysFor(year: number, month: number) {
   const total = new Date(year, month, 0).getDate()
@@ -176,5 +177,19 @@ describe('ScheduleDetailPage', () => {
     await flushPromises()
     expect(get).toHaveBeenCalledTimes(2)
     expect(wrapper.find('[role="alert"]').text()).toContain('Constraint violation: back-to-back duty')
+  })
+})
+
+describe('ScheduleDetailPage in Greek', () => {
+  it('renders the month, status and admin actions in the active UI language', async () => {
+    setTestLocale('el')
+    get.mockResolvedValue(detail('published'))
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    const month = new Intl.DateTimeFormat('el-GR', { month: 'long', year: 'numeric' }).format(new Date(2026, 8, 1))
+    expect(wrapper.text()).toContain(month)
+    expect(wrapper.text()).toContain('Δημοσιευμένο')
+    expect(wrapper.text()).toContain('Επαναφορά σε πρόχειρο')
+    expect(wrapper.text()).toContain('Διαγραφή προγράμματος')
   })
 })

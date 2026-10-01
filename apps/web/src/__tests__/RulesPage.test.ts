@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
+import { setTestLocale } from './i18n'
 
 const getOpenDuty = vi.fn()
 const updateOpenDutyInterval = vi.fn()
@@ -217,5 +218,19 @@ describe('RulesPage', () => {
     expect((wrapper.find('#open-duty-slots').element as HTMLInputElement).value).toBe('3')
     await expand(wrapper, 'minimums')
     expect((wrapper.find('#open-duty-minimum').element as HTMLInputElement).value).toBe('2')
+  })
+})
+
+describe('RulesPage in Greek', () => {
+  it('renders rule titles, summaries and form labels in the active UI language', async () => {
+    setTestLocale('el')
+    const wrapper = await mountRules()
+    expect(wrapper.text()).toContain('Κανόνες')
+    expect(wrapper.find('#rule-cycle-toggle').text()).toContain('Κύκλος εφημεριών')
+    expect(wrapper.find('#rule-cycle-toggle').text()).toContain('Κάθε 8 ημέρες')
+    expect(wrapper.find('#rule-slots-toggle').text()).toContain('Ανοιχτές 4 · Κλειστές 2')
+    await expand(wrapper, 'slots')
+    expect(wrapper.find('label[for="open-duty-slots"]').text()).toBe('Ημέρες ανοιχτής εφημερίας (1–7)')
+    expect(wrapper.find('button[type="submit"]').text()).toBe('Αποθήκευση θέσεων')
   })
 })

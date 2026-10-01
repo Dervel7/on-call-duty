@@ -29,6 +29,7 @@ vi.mock('vue-router', () => ({
 
 import SchedulePreviewPage from '../pages/SchedulePreviewPage.vue'
 import { pickOptionFrom } from './pick-option'
+import { setTestLocale } from './i18n'
 
 function daysFor(
   year: number,
@@ -293,5 +294,20 @@ describe('SchedulePreviewPage', () => {
     expect(inCells).toHaveLength(2)
     // Closed days keep the thin border even when empty (fill hint only).
     expect(wrapper.findAll('[class*="border-destructive/25"]').length).toBeGreaterThan(0)
+  })
+})
+
+describe('SchedulePreviewPage in Greek', () => {
+  it('renders the heading, status and actions in Greek', async () => {
+    setTestLocale('el')
+    preview.mockResolvedValue({ assignments: [], conflicts: [], days: daysFor(2026, 9) })
+    const wrapper = mount(SchedulePreviewPage)
+    await flushPromises()
+    const heading = wrapper.find('h1').text()
+    expect(heading).toContain('2026')
+    expect(heading).not.toContain('September')
+    expect(wrapper.text()).toContain('30 ημέρα(-ες) χωρίς ιατρό')
+    expect(wrapper.text()).toContain('Ανοιχτή εφημερία')
+    expect(wrapper.findAll('button').some((b) => b.text() === 'Δημιουργία προγράμματος')).toBe(true)
   })
 })

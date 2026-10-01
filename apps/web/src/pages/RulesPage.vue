@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ChevronDown, ScrollText } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import type { DutyMinimumSettings, DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
 import { updateDutyMinimumsSchema, updateDutySlotsSchema, updateOpenDutySchema } from '@oncall/shared'
 import * as settingsService from '@/services/settings'
@@ -8,6 +9,8 @@ import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
+
+const { t } = useI18n()
 
 type RuleKey = 'cycle' | 'slots' | 'minimums'
 
@@ -40,7 +43,7 @@ const minimumsSubmitting = ref(false)
 const loading = ref(true)
 
 function errorText(r: PromiseSettledResult<unknown>): string {
-  return r.status === 'rejected' && r.reason instanceof Error ? r.reason.message : 'Could not load rules'
+  return r.status === 'rejected' && r.reason instanceof Error ? r.reason.message : t('rules.loadFailed')
 }
 
 async function loadSettings() {
@@ -81,7 +84,7 @@ async function onSubmitInterval() {
   intervalSuccess.value = false
   const parsed = updateOpenDutySchema.safeParse({ intervalDays: intervalInput.value })
   if (!parsed.success) {
-    intervalError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
+    intervalError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
   intervalSubmitting.value = true
@@ -90,7 +93,7 @@ async function onSubmitInterval() {
     intervalInput.value = String(openDuty.value.intervalDays)
     intervalSuccess.value = true
   } catch (e) {
-    intervalError.value = e instanceof Error ? e.message : 'Could not save interval'
+    intervalError.value = e instanceof Error ? e.message : t('rules.cycle.saveFailed')
   } finally {
     intervalSubmitting.value = false
   }
@@ -104,7 +107,7 @@ async function onSubmitSlots() {
     closedDutySlots: closedSlotsInput.value,
   })
   if (!parsed.success) {
-    slotsError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
+    slotsError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
   slotsSubmitting.value = true
@@ -117,7 +120,7 @@ async function onSubmitSlots() {
     closedSlotsInput.value = String(dutySlots.value.closedDutySlots)
     slotsSuccess.value = true
   } catch (e) {
-    slotsError.value = e instanceof Error ? e.message : 'Could not save slots'
+    slotsError.value = e instanceof Error ? e.message : t('rules.slots.saveFailed')
   } finally {
     slotsSubmitting.value = false
   }
@@ -131,7 +134,7 @@ async function onSubmitMinimums() {
     closedDutyMinimum: closedMinimumInput.value,
   })
   if (!parsed.success) {
-    minimumsError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
+    minimumsError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
   minimumsSubmitting.value = true
@@ -144,7 +147,7 @@ async function onSubmitMinimums() {
     closedMinimumInput.value = String(dutyMinimums.value.closedDutyMinimum)
     minimumsSuccess.value = true
   } catch (e) {
-    minimumsError.value = e instanceof Error ? e.message : 'Could not save minimums'
+    minimumsError.value = e instanceof Error ? e.message : t('rules.minimums.saveFailed')
   } finally {
     minimumsSubmitting.value = false
   }
@@ -157,8 +160,8 @@ onMounted(loadSettings)
   <div class="flex flex-col gap-4 animate-rise">
     <PageHeader
       :icon="ScrollText"
-      title="Rules"
-      subtitle="Every dynamic scheduling rule lives here. Changes apply to new previews and generations immediately and are recorded in the activity log."
+      :title="t('nav.rules')"
+      :subtitle="t('rules.subtitle')"
     />
 
     <ul class="overflow-hidden rounded-lg border border-border/70">
@@ -171,21 +174,20 @@ onMounted(loadSettings)
           :aria-expanded="expandedRule === 'cycle'"
           @click="toggleRule('cycle')"
         >
-          <span class="font-display font-semibold text-foreground">On-call duty cycle</span>
+          <span class="font-display font-semibold text-foreground">{{ t('rules.cycle.title') }}</span>
           <span class="inline-flex items-center gap-2 font-mono text-sm text-muted-foreground">
-            <span v-if="intervalError" class="text-destructive">Error</span>
-            <template v-else-if="openDuty">Every {{ openDuty.intervalDays }} days</template>
+            <span v-if="intervalError" class="text-destructive">{{ t('rules.error') }}</span>
+            <template v-else-if="openDuty">{{ t('rules.cycle.summary', { n: openDuty.intervalDays }, openDuty.intervalDays) }}</template>
             <ChevronDown class="size-4 transition-transform" :class="{ 'rotate-180': expandedRule === 'cycle' }" />
           </span>
         </button>
         <div v-if="expandedRule === 'cycle'" id="rule-cycle-panel" class="flex flex-col gap-3 px-4 pb-4">
           <p class="text-xs text-muted-foreground">
-            Days between open on-call duties — the red-bordered days in schedules. The first open
-            on-call day is {{ openDuty?.anchorDate ?? '—' }}.
+            {{ t('rules.cycle.help', { date: openDuty?.anchorDate ?? '—' }) }}
           </p>
           <form class="flex max-w-sm flex-col gap-3" novalidate @submit.prevent="onSubmitInterval">
             <div class="flex flex-col gap-1.5">
-              <Label for="open-duty-interval">Interval (days)</Label>
+              <Label for="open-duty-interval">{{ t('rules.cycle.intervalLabel') }}</Label>
               <Input
                 id="open-duty-interval"
                 v-model="intervalInput"
@@ -197,8 +199,8 @@ onMounted(loadSettings)
               />
             </div>
             <p v-if="intervalError" class="text-xs text-destructive" role="alert">{{ intervalError }}</p>
-            <p v-if="intervalSuccess" class="text-xs text-success" role="status">Interval updated.</p>
-            <Button class="self-start" type="submit" :disabled="loading || intervalSubmitting">Save interval</Button>
+            <p v-if="intervalSuccess" class="text-xs text-success" role="status">{{ t('rules.cycle.updated') }}</p>
+            <Button class="self-start" type="submit" :disabled="loading || intervalSubmitting">{{ t('rules.cycle.save') }}</Button>
           </form>
         </div>
       </li>
@@ -212,23 +214,22 @@ onMounted(loadSettings)
           :aria-expanded="expandedRule === 'slots'"
           @click="toggleRule('slots')"
         >
-          <span class="font-display font-semibold text-foreground">On-call slots</span>
+          <span class="font-display font-semibold text-foreground">{{ t('rules.slots.title') }}</span>
           <span class="inline-flex items-center gap-2 font-mono text-sm text-muted-foreground">
-            <span v-if="slotsError" class="text-destructive">Error</span>
+            <span v-if="slotsError" class="text-destructive">{{ t('rules.error') }}</span>
             <template v-else-if="dutySlots"
-              >Open {{ dutySlots.openDutySlots }} · Closed {{ dutySlots.closedDutySlots }}</template
+              >{{ t('rules.openClosedSummary', { open: dutySlots.openDutySlots, closed: dutySlots.closedDutySlots }) }}</template
             >
             <ChevronDown class="size-4 transition-transform" :class="{ 'rotate-180': expandedRule === 'slots' }" />
           </span>
         </button>
         <div v-if="expandedRule === 'slots'" id="rule-slots-panel" class="flex flex-col gap-3 px-4 pb-4">
           <p class="text-xs text-muted-foreground">
-            How many on-call doctors a single day holds. Open on-call days use their own count; all
-            other days (including the day after an open one) use the closed count.
+            {{ t('rules.slots.help') }}
           </p>
           <form class="flex max-w-sm flex-col gap-3" novalidate @submit.prevent="onSubmitSlots">
             <div class="flex flex-col gap-1.5">
-              <Label for="open-duty-slots">Open on-call days (1–7)</Label>
+              <Label for="open-duty-slots">{{ t('rules.openDaysLabel') }}</Label>
               <Input
                 id="open-duty-slots"
                 v-model="openSlotsInput"
@@ -240,7 +241,7 @@ onMounted(loadSettings)
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label for="closed-duty-slots">Closed on-call days (1–7)</Label>
+              <Label for="closed-duty-slots">{{ t('rules.closedDaysLabel') }}</Label>
               <Input
                 id="closed-duty-slots"
                 v-model="closedSlotsInput"
@@ -252,8 +253,8 @@ onMounted(loadSettings)
               />
             </div>
             <p v-if="slotsError" class="text-xs text-destructive" role="alert">{{ slotsError }}</p>
-            <p v-if="slotsSuccess" class="text-xs text-success" role="status">Slots updated.</p>
-            <Button class="self-start" type="submit" :disabled="loading || slotsSubmitting">Save slots</Button>
+            <p v-if="slotsSuccess" class="text-xs text-success" role="status">{{ t('rules.slots.updated') }}</p>
+            <Button class="self-start" type="submit" :disabled="loading || slotsSubmitting">{{ t('rules.slots.save') }}</Button>
           </form>
         </div>
       </li>
@@ -267,11 +268,11 @@ onMounted(loadSettings)
           :aria-expanded="expandedRule === 'minimums'"
           @click="toggleRule('minimums')"
         >
-          <span class="font-display font-semibold text-foreground">Minimum on-call doctors</span>
+          <span class="font-display font-semibold text-foreground">{{ t('rules.minimums.title') }}</span>
           <span class="inline-flex items-center gap-2 font-mono text-sm text-muted-foreground">
-            <span v-if="minimumsError" class="text-destructive">Error</span>
+            <span v-if="minimumsError" class="text-destructive">{{ t('rules.error') }}</span>
             <template v-else-if="dutyMinimums"
-              >Open {{ dutyMinimums.openDutyMinimum }} · Closed {{ dutyMinimums.closedDutyMinimum }}</template
+              >{{ t('rules.openClosedSummary', { open: dutyMinimums.openDutyMinimum, closed: dutyMinimums.closedDutyMinimum }) }}</template
             >
             <ChevronDown
               class="size-4 transition-transform"
@@ -281,14 +282,11 @@ onMounted(loadSettings)
         </button>
         <div v-if="expandedRule === 'minimums'" id="rule-minimums-panel" class="flex flex-col gap-3 px-4 pb-4">
           <p class="text-xs text-muted-foreground">
-            The fewest on-call doctors a day may hold. Open on-call days use their own minimum; all
-            other days (including the day after an open one) use the closed minimum. Each minimum
-            must not exceed its slot count. Any count from the minimum up to the slot count is
-            accepted; filling every slot is preferred.
+            {{ t('rules.minimums.help') }}
           </p>
           <form class="flex max-w-sm flex-col gap-3" novalidate @submit.prevent="onSubmitMinimums">
             <div class="flex flex-col gap-1.5">
-              <Label for="open-duty-minimum">Open on-call days (1–7)</Label>
+              <Label for="open-duty-minimum">{{ t('rules.openDaysLabel') }}</Label>
               <Input
                 id="open-duty-minimum"
                 v-model="openMinimumInput"
@@ -300,7 +298,7 @@ onMounted(loadSettings)
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label for="closed-duty-minimum">Closed on-call days (1–7)</Label>
+              <Label for="closed-duty-minimum">{{ t('rules.closedDaysLabel') }}</Label>
               <Input
                 id="closed-duty-minimum"
                 v-model="closedMinimumInput"
@@ -312,8 +310,8 @@ onMounted(loadSettings)
               />
             </div>
             <p v-if="minimumsError" class="text-xs text-destructive" role="alert">{{ minimumsError }}</p>
-            <p v-if="minimumsSuccess" class="text-xs text-success" role="status">Minimums updated.</p>
-            <Button class="self-start" type="submit" :disabled="loading || minimumsSubmitting">Save minimums</Button>
+            <p v-if="minimumsSuccess" class="text-xs text-success" role="status">{{ t('rules.minimums.updated') }}</p>
+            <Button class="self-start" type="submit" :disabled="loading || minimumsSubmitting">{{ t('rules.minimums.save') }}</Button>
           </form>
         </div>
       </li>

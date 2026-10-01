@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import type { DayInfo, Doctor, GenerateAssignment, PreviewResult } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import { monthLabel as formatMonth } from '@oncall/utils'
@@ -14,6 +15,7 @@ import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 const route = useRoute()
 const router = useRouter()
 const intlLocale = useIntlLocale()
+const { t } = useI18n()
 
 const result = ref<PreviewResult | null>(null)
 const doctors = ref<Doctor[]>([])
@@ -43,7 +45,7 @@ const month = computed(() => Number(route.query.month))
 const parsed = computed(() => createScheduleSchema.safeParse({ year: year.value, month: month.value }))
 const valid = computed(() => parsed.value.success)
 const monthLabel = computed(() =>
-  valid.value ? formatMonth(year.value, month.value, intlLocale.value) : 'Preview',
+  valid.value ? formatMonth(year.value, month.value, intlLocale.value) : t('schedulePreview.fallbackTitle'),
 )
 
 const doctorsById = computed(() => {
@@ -129,26 +131,26 @@ const status = computed<{ tone: StatusTone; title: string; detail: string } | nu
   if (!result.value) return null
   if (errorCount.value > 0) {
     const parts: string[] = []
-    if (emptyCount.value > 0) parts.push(`${emptyCount.value} day(s) with no doctor`)
+    if (emptyCount.value > 0) parts.push(t('schedulePreview.daysNoDoctor', { n: emptyCount.value }))
     if (belowMinimumCount.value > 0)
-      parts.push(`${belowMinimumCount.value} day(s) below their minimum`)
+      parts.push(t('schedulePreview.daysBelowMinimum', { n: belowMinimumCount.value }))
     return {
       tone: 'destructive',
       title: parts.join(' · '),
-      detail: 'Assign at least the minimum number of doctors to every day before generating.',
+      detail: t('schedulePreview.errorDetail'),
     }
   }
   if (warningCount.value > 0) {
     return {
       tone: 'warning',
-      title: `${warningCount.value} day(s) below their slot count`,
-      detail: 'Ready to generate — consider adding doctors where you can.',
+      title: t('schedulePreview.daysBelowSlotCount', { n: warningCount.value }),
+      detail: t('schedulePreview.warningDetail'),
     }
   }
   return {
     tone: 'success',
-    title: 'All days covered',
-    detail: `${totalAssignments.value} assignment(s) ready. No conflicts.`,
+    title: t('schedulePreview.allCovered'),
+    detail: t('schedulePreview.successDetail', { n: totalAssignments.value }),
   }
 })
 
@@ -183,7 +185,7 @@ async function load() {
     slotsByDate.value = m
   } catch (e) {
     if (!isCurrent()) return
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to preview'
+    errorMsg.value = e instanceof Error ? e.message : t('schedulePreview.previewFailed')
   } finally {
     if (isCurrent()) loading.value = false
   }
@@ -207,7 +209,7 @@ async function refreshEligibility() {
     result.value = { ...result.value, days: res.days }
   } catch (e) {
     if (seq !== eligSeq) return
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to refresh eligible doctors'
+    errorMsg.value = e instanceof Error ? e.message : t('schedulePreview.refreshFailed')
   }
 }
 
@@ -246,7 +248,7 @@ async function generate() {
     const detail = await scheduleService.generate(year.value, month.value, currentPlan())
     router.push(`/schedules/${detail.schedule.id}`)
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to generate'
+    errorMsg.value = e instanceof Error ? e.message : t('schedules.generateFailed')
   } finally {
     generating.value = false
   }
@@ -269,13 +271,13 @@ watch([year, month], load)
       <div>
         <h1 class="text-xl font-semibold text-foreground">{{ monthLabel }}</h1>
         <p class="mt-1 text-sm text-muted-foreground">
-          Review the proposed roster, adjust any day, then generate the schedule.
+          {{ t('schedulePreview.subtitle') }}
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <Button variant="outline" @click="router.push('/schedules')">Back</Button>
+        <Button variant="outline" @click="router.push('/schedules')">{{ t('schedulePreview.back') }}</Button>
         <Button :disabled="!result || errorCount > 0 || generating" @click="generate">
-          {{ generating ? 'Generating…' : 'Generate schedule' }}
+          {{ generating ? t('schedules.generating') : t('schedulePreview.generateSchedule') }}
         </Button>
       </div>
     </div>
@@ -292,12 +294,12 @@ watch([year, month], load)
       v-if="!valid"
       class="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-6"
     >
-      <p class="text-sm font-medium text-foreground">Invalid or missing month.</p>
+      <p class="text-sm font-medium text-foreground">{{ t('schedulePreview.invalidMonth') }}</p>
       <p class="text-sm text-muted-foreground">
-        Open this preview from the schedules list to choose a valid month.
+        {{ t('schedulePreview.invalidMonthHint') }}
       </p>
       <Button variant="outline" size="sm" @click="router.push('/schedules')">
-        Back to schedules
+        {{ t('schedulePreview.backToSchedules') }}
       </Button>
     </div>
 
@@ -330,25 +332,25 @@ watch([year, month], load)
           <div
             class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted-foreground"
           >
-            <span><span class="font-mono font-semibold text-foreground">{{ days.length }}</span> days</span>
-            <span><span class="font-mono font-semibold text-success">{{ fullCount }}</span> full</span>
-            <span><span class="font-mono font-semibold text-warning">{{ warningCount }}</span> partial</span>
-            <span><span class="font-mono font-semibold text-destructive">{{ errorCount }}</span> below minimum</span>
+            <span><span class="font-mono font-semibold text-foreground">{{ days.length }}</span> {{ t('schedulePreview.statDays') }}</span>
+            <span><span class="font-mono font-semibold text-success">{{ fullCount }}</span> {{ t('schedulePreview.statFull') }}</span>
+            <span><span class="font-mono font-semibold text-warning">{{ warningCount }}</span> {{ t('schedulePreview.statPartial') }}</span>
+            <span><span class="font-mono font-semibold text-destructive">{{ errorCount }}</span> {{ t('schedulePreview.statBelowMinimum') }}</span>
           </div>
           <div class="flex items-center gap-3 text-xs text-muted-foreground">
             <span class="inline-flex items-center gap-1.5">
               <span
                 class="inline-flex rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
-                >WE</span
+                >{{ t('dutyCalendar.weekendBadge') }}</span
               >
-              Weekend
+              {{ t('common.weekend') }}
             </span>
             <span class="inline-flex items-center gap-1.5">
               <span
                 class="inline-flex rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive"
-                >OPEN</span
+                >{{ t('dutyCalendar.openBadge') }}</span
               >
-              Open on-call
+              {{ t('schedulePreview.openOnCall') }}
             </span>
           </div>
         </div>

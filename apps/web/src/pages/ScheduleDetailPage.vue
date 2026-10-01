@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { CalendarDays } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import type {
   CreateDutyRequest,
   DayInfo,
@@ -26,6 +27,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const { confirm } = useConfirm()
 const intlLocale = useIntlLocale()
+const { t } = useI18n()
 const id = Number(route.params.id)
 
 const detail = ref<ScheduleDetail | null>(null)
@@ -76,7 +78,7 @@ async function load() {
   try {
     detail.value = await scheduleService.get(id)
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to load schedule'
+    errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.loadFailed')
   } finally {
     loading.value = false
   }
@@ -85,9 +87,9 @@ async function load() {
 async function publish() {
   if (
     !(await confirm({
-      title: 'Publish schedule',
-      message: 'Publish this schedule? Editing will be locked.',
-      confirmText: 'Publish',
+      title: t('scheduleDetail.publishTitle'),
+      message: t('scheduleDetail.publishMessage'),
+      confirmText: t('scheduleDetail.publish'),
       variant: 'primary',
     }))
   )
@@ -97,16 +99,16 @@ async function publish() {
     const updated = await scheduleService.publish(id)
     if (detail.value) detail.value.schedule = { ...detail.value.schedule, status: updated.status }
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to publish'
+    errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.publishFailed')
   }
 }
 
 async function unpublish() {
   if (
     !(await confirm({
-      title: 'Revert to draft',
-      message: 'Revert this schedule to draft? Editing will be re-enabled.',
-      confirmText: 'Revert',
+      title: t('scheduleDetail.revertToDraft'),
+      message: t('scheduleDetail.revertMessage'),
+      confirmText: t('scheduleDetail.revert'),
       variant: 'primary',
     }))
   )
@@ -116,16 +118,16 @@ async function unpublish() {
     const updated = await scheduleService.unpublish(id)
     if (detail.value) detail.value.schedule = { ...detail.value.schedule, status: updated.status }
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to revert'
+    errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.revertFailed')
   }
 }
 
 async function deleteSchedule() {
   if (
     !(await confirm({
-      title: 'Delete schedule',
-      message: 'Delete this schedule and all its duties?',
-      confirmText: 'Delete',
+      title: t('scheduleDetail.deleteSchedule'),
+      message: t('scheduleDetail.deleteMessage'),
+      confirmText: t('common.delete'),
     }))
   )
     return
@@ -134,7 +136,7 @@ async function deleteSchedule() {
     await scheduleService.remove(id)
     router.push('/schedules')
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to delete'
+    errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.deleteFailed')
   }
 }
 
@@ -148,9 +150,12 @@ async function onSelect(date: string, slotIndex: number, doctorId: number | null
     if (dutyId === null) return
     if (
       !(await confirm({
-        title: 'Remove duty',
-        message: `Remove ${existing?.firstName ?? ''} ${existing?.lastName ?? ''} from ${date}?`,
-        confirmText: 'Remove',
+        title: t('scheduleDetail.removeDutyTitle'),
+        message: t('scheduleDetail.removeDutyMessage', {
+          name: `${existing?.firstName ?? ''} ${existing?.lastName ?? ''}`,
+          date,
+        }),
+        confirmText: t('common.remove'),
       }))
     )
       return
@@ -158,7 +163,7 @@ async function onSelect(date: string, slotIndex: number, doctorId: number | null
     try {
       await scheduleService.removeDuty(dutyId)
     } catch (e) {
-      errorMsg.value = e instanceof Error ? e.message : 'Failed to remove'
+      errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.removeFailed')
     } finally {
       savingDates.value.delete(date)
       await load()
@@ -169,14 +174,14 @@ async function onSelect(date: string, slotIndex: number, doctorId: number | null
     if (existing && doctorId === existing.doctorId) return
     const r = reassignDutySchema.safeParse({ doctorId } satisfies ReassignDutyRequest)
     if (!r.success) {
-      errorMsg.value = r.error.issues[0]?.message ?? 'Invalid input'
+      errorMsg.value = r.error.issues[0]?.message ?? t('common.invalidInput')
       return
     }
     savingDates.value = new Set(savingDates.value).add(date)
     try {
       await scheduleService.reassignDuty(dutyId, r.data)
     } catch (e) {
-      errorMsg.value = e instanceof Error ? e.message : 'Failed to reassign'
+      errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.reassignFailed')
     } finally {
       savingDates.value.delete(date)
       await load()
@@ -185,14 +190,14 @@ async function onSelect(date: string, slotIndex: number, doctorId: number | null
   }
   const r = createDutySchema.safeParse({ date, doctorId } satisfies CreateDutyRequest)
   if (!r.success) {
-    errorMsg.value = r.error.issues[0]?.message ?? 'Invalid input'
+    errorMsg.value = r.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
   savingDates.value = new Set(savingDates.value).add(date)
   try {
     await scheduleService.addDuty(id, r.data)
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to add'
+    errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.addFailed')
   } finally {
     savingDates.value.delete(date)
     await load()
@@ -211,25 +216,25 @@ onMounted(async () => {
 
 <template>
   <div class="flex flex-col gap-4 animate-rise">
-    <p v-if="loading && !detail" class="text-sm text-muted-foreground">Loading…</p>
+    <p v-if="loading && !detail" class="text-sm text-muted-foreground">{{ t('common.loading') }}</p>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <template v-if="schedule">
       <PageHeader :icon="CalendarDays" :title="monthLabel(schedule.year, schedule.month, intlLocale)">
         <template #actions>
-          <Badge :variant="isPublished ? 'success' : 'neutral'" dot>{{ isPublished ? 'Published' : 'Draft' }}</Badge>
+          <Badge :variant="isPublished ? 'success' : 'neutral'" dot>{{ isPublished ? t('scheduleStatus.published') : t('scheduleStatus.draft') }}</Badge>
           <template v-if="auth.isAdmin">
-            <Button v-if="!isPublished" @click="publish">Publish</Button>
-            <Button v-else variant="outline" @click="unpublish">Revert to draft</Button>
+            <Button v-if="!isPublished" @click="publish">{{ t('scheduleDetail.publish') }}</Button>
+            <Button v-else variant="outline" @click="unpublish">{{ t('scheduleDetail.revertToDraft') }}</Button>
             <Button variant="destructive" :disabled="isPublished" @click="deleteSchedule">
-              Delete schedule
+              {{ t('scheduleDetail.deleteSchedule') }}
             </Button>
           </template>
         </template>
       </PageHeader>
 
       <p v-if="isPublished && auth.isAdmin" class="text-sm text-muted-foreground">
-        Schedule is published and locked. Revert to draft to edit duties.
+        {{ t('scheduleDetail.lockedNotice') }}
       </p>
 
       <DutyCalendar :year="schedule.year" :month="schedule.month" :days="days" :assignment-by-date="assignmentByDate"

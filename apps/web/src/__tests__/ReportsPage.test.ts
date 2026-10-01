@@ -19,6 +19,7 @@ vi.mock('@/lib/download', () => ({
 const push = vi.fn()
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
+import { setTestLocale } from './i18n'
 import ReportsPage from '../pages/ReportsPage.vue'
 
 function fullReport(overrides: Record<string, unknown> = {}) {
@@ -306,5 +307,41 @@ describe('ReportsPage', () => {
     await flushPromises()
     expect(monthly).toHaveBeenCalledTimes(1)
     expect(w.text()).toContain('Enter a year between 1970 and 2100')
+  })
+})
+
+describe('ReportsPage in Greek', () => {
+  it('renders labels, dates and weekdays in the active UI language', async () => {
+    setTestLocale('el')
+    monthly.mockResolvedValue(fullReport())
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(w.text()).toContain('Μηνιαία αναφορά εφημεριών και εξαγωγές')
+    expect(w.text()).toContain('Γιατί αυτός ο ιατρός')
+    expect(w.text()).toContain('Ακάλυπτη ημέρα')
+    expect(w.text()).toContain('Εξαγωγή CSV')
+    const generated = new Intl.DateTimeFormat('el-GR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'UTC',
+    }).format(new Date('2026-08-07T10:00:00.000Z'))
+    expect(w.text()).toContain(`Δημιουργήθηκε ${generated}`)
+    const saturday = new Intl.DateTimeFormat('el-GR', { weekday: 'short' }).format(new Date('2026-08-01T00:00:00Z'))
+    expect(w.find('tbody td').text()).toBe(`${saturday} 01`)
+  })
+
+  it('validates the year in the active UI language', async () => {
+    setTestLocale('el')
+    monthly.mockResolvedValue(fullReport())
+    const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await w.find('#r-year').setValue('1969')
+    const apply = w.findAll('button').find((b) => b.text().includes('Εφαρμογή'))!
+    await apply.trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('Εισαγάγετε έτος από 1970 έως 2100')
   })
 })
