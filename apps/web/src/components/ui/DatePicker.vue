@@ -3,8 +3,10 @@ import type { HTMLAttributes } from 'vue'
 import { computed, nextTick, ref } from 'vue'
 import { onClickOutside, useEventListener } from '@vueuse/core'
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { monthGrid, monthLabel as formatMonth, toIsoDate, toIsoMonth, WEEKDAYS } from '@oncall/utils'
 import { cn } from '@/lib/utils'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 
 const props = defineProps<{
   id?: string
@@ -16,6 +18,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
+const { t } = useI18n()
+const intlLocale = useIntlLocale()
 const today = new Date()
 
 const open = ref(false)
@@ -24,8 +28,10 @@ const panel = ref<HTMLElement | null>(null)
 const trigger = ref<HTMLButtonElement | null>(null)
 const view = ref({ year: today.getFullYear(), month0: today.getMonth() })
 
-const dayFormat = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-const dayLabelFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+const dayFormat = computed(() => new Intl.DateTimeFormat(intlLocale.value, { day: 'numeric', month: 'short', year: 'numeric' }))
+const dayLabelFormat = computed(
+  () => new Intl.DateTimeFormat(intlLocale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+)
 
 const navBtnClass =
   'flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40'
@@ -39,14 +45,14 @@ const selectedIso = computed(() =>
 const triggerLabel = computed(() => {
   if (!selectedIso.value) return ''
   const d = new Date(`${selectedIso.value}T00:00:00`)
-  return Number.isNaN(d.getTime()) ? selectedIso.value : dayFormat.format(d)
+  return Number.isNaN(d.getTime()) ? selectedIso.value : dayFormat.value.format(d)
 })
 
 const monthLabel = computed(() => formatMonth(view.value.year, view.value.month0 + 1))
 
 const cells = computed(() =>
   monthGrid(view.value.year, view.value.month0).map((c) =>
-    c && { ...c, label: dayLabelFormat.format(new Date(view.value.year, view.value.month0, c.day)) },
+    c && { ...c, label: dayLabelFormat.value.format(new Date(view.value.year, view.value.month0, c.day)) },
   ),
 )
 
@@ -123,12 +129,12 @@ useEventListener(
       @click="toggle"
     >
       <Calendar class="size-4 shrink-0 text-muted-foreground" />
-      <span class="truncate">{{ triggerLabel || props.placeholder || 'Select date' }}</span>
+      <span class="truncate">{{ triggerLabel || props.placeholder || t('datePicker.selectDate') }}</span>
     </button>
     <button
       v-if="selectedIso && !props.disabled"
       type="button"
-      aria-label="Clear date"
+      :aria-label="t('datePicker.clearDate')"
       class="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       @click="clear"
     >
@@ -145,18 +151,18 @@ useEventListener(
         v-if="open"
         ref="panel"
         role="dialog"
-        aria-label="Choose date"
+        :aria-label="t('datePicker.chooseDate')"
         tabindex="-1"
         :data-month="toIsoMonth(view.year, view.month0)"
         data-popover-layer
         class="glass-card glass-panel absolute left-0 top-[calc(100%+0.375rem)] z-50 w-80 rounded-xl p-3 focus-visible:outline-none focus-visible:shadow-none"
       >
         <div class="flex items-center justify-between pb-2">
-          <button type="button" aria-label="Previous month" :class="navBtnClass" @click="shiftMonth(-1)">
+          <button type="button" :aria-label="t('common.previousMonth')" :class="navBtnClass" @click="shiftMonth(-1)">
             <ChevronLeft class="size-4" />
           </button>
           <span class="text-sm font-medium text-foreground">{{ monthLabel }}</span>
-          <button type="button" aria-label="Next month" :class="navBtnClass" @click="shiftMonth(1)">
+          <button type="button" :aria-label="t('common.nextMonth')" :class="navBtnClass" @click="shiftMonth(1)">
             <ChevronRight class="size-4" />
           </button>
         </div>
@@ -203,7 +209,7 @@ useEventListener(
             class="rounded-full px-3 py-1 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             @click="view = { year: today.getFullYear(), month0: today.getMonth() }"
           >
-            Today
+            {{ t('datePicker.today') }}
           </button>
         </div>
       </div>

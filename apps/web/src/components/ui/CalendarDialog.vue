@@ -2,9 +2,11 @@
 import { computed, ref, useId, watch } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import { ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { monthGrid, monthLabel as formatMonth, toIsoMonth, WEEKDAYS } from '@oncall/utils'
 import { cn } from '@/lib/utils'
 import { useModal } from '@/composables/useModal'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 import Button from './Button.vue'
 
 const props = withDefaults(
@@ -16,15 +18,18 @@ const props = withDefaults(
     initialMonth?: string
     /** Days already excluded elsewhere; shown dimmed and not selectable. */
     reservedDays?: string[]
+    /** Confirm button label; defaults to the translated "Confirm". */
     confirmText?: string
   }>(),
-  { reservedDays: () => [], confirmText: 'Confirm' },
+  { reservedDays: () => [] },
 )
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'update:modelValue': [days: string[]]
 }>()
 
+const { t } = useI18n()
+const intlLocale = useIntlLocale()
 const today = new Date()
 
 const view = ref({ year: today.getFullYear(), month0: today.getMonth() })
@@ -34,11 +39,13 @@ const panel = ref<HTMLElement | null>(null)
 const titleId = useId()
 
 const monthLabel = computed(() => formatMonth(view.value.year, view.value.month0 + 1))
-const dayLabelFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+const dayLabelFormat = computed(
+  () => new Intl.DateTimeFormat(intlLocale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+)
 
 const cells = computed(() =>
   monthGrid(view.value.year, view.value.month0).map((c) =>
-    c && { ...c, label: dayLabelFormat.format(new Date(view.value.year, view.value.month0, c.day)) },
+    c && { ...c, label: dayLabelFormat.value.format(new Date(view.value.year, view.value.month0, c.day)) },
   ),
 )
 
@@ -116,13 +123,13 @@ useModal(() => props.open, panel)
         role="dialog"
         aria-modal="true"
         :aria-labelledby="title ? titleId : undefined"
-        :aria-label="title ? undefined : 'Pick days'"
+        :aria-label="title ? undefined : t('calendarDialog.pickDays')"
         tabindex="-1"
         class="animate-dialog-panel glass-card glass-panel relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl p-3 focus-visible:outline-none"
       >
         <button
           type="button"
-          aria-label="Close"
+          :aria-label="t('common.close')"
           class="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           @click="close"
         >
@@ -135,7 +142,7 @@ useModal(() => props.open, panel)
         <div class="flex items-center justify-between pb-2">
           <button
             type="button"
-            aria-label="Previous month"
+            :aria-label="t('common.previousMonth')"
             class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             @click="shiftMonth(-1)"
           >
@@ -144,7 +151,7 @@ useModal(() => props.open, panel)
           <span class="text-sm font-medium text-foreground">{{ monthLabel }}</span>
           <button
             type="button"
-            aria-label="Next month"
+            :aria-label="t('common.nextMonth')"
             class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             @click="shiftMonth(1)"
           >
@@ -171,7 +178,7 @@ useModal(() => props.open, panel)
               :aria-label="c.label"
               :aria-pressed="selected.has(c.iso)"
               :disabled="reserved.has(c.iso)"
-              :title="reserved.has(c.iso) ? 'Already excluded' : undefined"
+              :title="reserved.has(c.iso) ? t('calendarDialog.alreadyExcluded') : undefined"
               :class="cn(
                 'flex h-9 items-center justify-center rounded-lg font-mono text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
                 selected.has(c.iso)
@@ -190,11 +197,11 @@ useModal(() => props.open, panel)
           </template>
         </div>
 
-        <p class="mt-3 text-xs text-muted-foreground">{{ selected.size }} day(s) selected</p>
+        <p class="mt-3 text-xs text-muted-foreground">{{ t('calendarDialog.daysSelected', selected.size) }}</p>
 
         <div class="mt-4 flex justify-end gap-2">
-          <Button variant="outline" @click="close">Cancel</Button>
-          <Button :disabled="selected.size === 0" @click="confirmDays">{{ confirmText }}</Button>
+          <Button variant="outline" @click="close">{{ t('common.cancel') }}</Button>
+          <Button :disabled="selected.size === 0" @click="confirmDays">{{ confirmText ?? t('common.confirm') }}</Button>
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import DatePicker from '../components/ui/DatePicker.vue'
+import { setTestLocale } from './i18n'
 
 const today = new Date()
 const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
@@ -41,6 +42,17 @@ describe('DatePicker', () => {
     expect(cell.attributes('aria-label')).toBe('Monday, 7 September 2026')
     expect(cell.attributes('aria-pressed')).toBe('true')
     expect(w.find('[data-date="2026-09-08"]').attributes('aria-pressed')).toBe('false')
+  })
+
+  it('renders in Greek with Greek date formatting', async () => {
+    setTestLocale('el')
+    const w = mountPicker({ modelValue: '2026-09-07' })
+    expect(fieldBtn(w).text()).toContain('7 Σεπ 2026')
+    expect(w.find('button[aria-label="Εκκαθάριση ημερομηνίας"]').exists()).toBe(true)
+    await openPicker(w)
+    expect(w.find('[data-date="2026-09-07"]').attributes('aria-label')).toBe('Δευτέρα 7 Σεπτεμβρίου 2026')
+    expect(w.find('[role="dialog"]').attributes('aria-label')).toBe('Επιλογή ημερομηνίας')
+    expect(w.text()).toContain('Σήμερα')
   })
 
   it.each([

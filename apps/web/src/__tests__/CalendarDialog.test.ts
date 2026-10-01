@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import CalendarDialog from '../components/ui/CalendarDialog.vue'
 import { navigateToMonth } from './pick-days'
+import { setTestLocale } from './i18n'
 
 function day(iso: string): HTMLButtonElement {
   return document.body.querySelector(`button[data-date="${iso}"]`) as HTMLButtonElement
@@ -25,6 +26,20 @@ describe('CalendarDialog', () => {
     const wrapper = mount(CalendarDialog, { props: { open: true, modelValue: ['2026-09-07'] } })
     await flushPromises()
     expect(day('2026-09-07').getAttribute('aria-label')).toBe('Monday, 7 September 2026')
+    wrapper.unmount()
+  })
+
+  it('renders in Greek with Greek date labels and a pluralized selection count', async () => {
+    setTestLocale('el')
+    const wrapper = mount(CalendarDialog, { props: { open: true, modelValue: ['2026-09-07'] } })
+    await flushPromises()
+    expect(day('2026-09-07').getAttribute('aria-label')).toBe('Δευτέρα 7 Σεπτεμβρίου 2026')
+    expect(document.body.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Επιλογή ημερών')
+    expect(document.body.textContent).toContain('Επιλέχθηκε 1 ημέρα')
+    await clickDay('2026-09-08')
+    expect(document.body.textContent).toContain('Επιλέχθηκαν 2 ημέρες')
+    const labels = Array.from(document.body.querySelectorAll('button')).map((b) => b.textContent?.trim())
+    expect(labels).toEqual(expect.arrayContaining(['Ακύρωση', 'Επιβεβαίωση']))
     wrapper.unmount()
   })
 

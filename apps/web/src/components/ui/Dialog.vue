@@ -12,11 +12,13 @@ const openStack = moduleRef<symbol[]>([])
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { onClickOutside, useEventListener } from '@vueuse/core'
 import { X } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { useModal } from '@/composables/useModal'
 
 const props = defineProps<{ open: boolean; title?: string }>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 
+const { t } = useI18n()
 const panel = ref<HTMLElement | null>(null)
 const self = Symbol('dialog')
 const titleId = useId()
@@ -81,7 +83,7 @@ useModal(() => props.open, panel)
       >
         <button
           type="button"
-          aria-label="Close"
+          :aria-label="t('common.close')"
           class="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           @click="close"
         >

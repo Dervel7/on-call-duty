@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import { router } from './router'
+import { createAppI18n } from './lib/i18n'
 import { useAuthStore } from './stores/auth'
 import '@fontsource/plus-jakarta-sans/400.css'
 import '@fontsource/plus-jakarta-sans/500.css'
@@ -20,6 +21,7 @@ async function bootstrap(): Promise<void> {
   const app = createApp(App)
   const pinia = createPinia()
   app.use(pinia)
+  app.use(createAppI18n())
   await useAuthStore().refresh().catch(() => undefined)
   app.use(router)
   app.mount('#app')

@@ -3,6 +3,7 @@ import type { HTMLAttributes } from 'vue'
 import { computed, nextTick, ref } from 'vue'
 import { onClickOutside, useEventListener } from '@vueuse/core'
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 import { MONTHS, monthLabel, toIsoMonth } from '@oncall/utils'
 import { cn } from '@/lib/utils'
 
@@ -17,6 +18,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
+const { t } = useI18n()
 const today = new Date()
 
 const open = ref(false)
@@ -98,12 +100,12 @@ useEventListener(
       @click="toggle"
     >
       <Calendar class="size-4 shrink-0 text-muted-foreground" />
-      <span class="truncate">{{ triggerLabel || props.placeholder || 'Select month' }}</span>
+      <span class="truncate">{{ triggerLabel || props.placeholder || t('monthPicker.selectMonth') }}</span>
     </button>
     <button
       v-if="selectedMonth && !props.disabled"
       type="button"
-      aria-label="Clear month"
+      :aria-label="t('monthPicker.clearMonth')"
       class="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       @click="clear"
     >
@@ -120,7 +122,7 @@ useEventListener(
         v-if="open"
         ref="panel"
         role="dialog"
-        aria-label="Choose month"
+        :aria-label="t('monthPicker.chooseMonth')"
         tabindex="-1"
         :data-year="year"
         data-popover-layer
@@ -129,14 +131,14 @@ useEventListener(
         <div class="flex items-center justify-between pb-2">
           <button
             type="button"
-            aria-label="Previous year"
+            :aria-label="t('monthPicker.previousYear')"
             :class="navBtnClass"
             @click="year -= 1"
           >
             <ChevronLeft class="size-4" />
           </button>
           <span class="text-sm font-medium text-foreground">{{ year }}</span>
-          <button type="button" aria-label="Next year" :class="navBtnClass" @click="year += 1">
+          <button type="button" :aria-label="t('monthPicker.nextYear')" :class="navBtnClass" @click="year += 1">
             <ChevronRight class="size-4" />
           </button>
         </div>

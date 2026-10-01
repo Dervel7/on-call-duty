@@ -7,7 +7,7 @@ import App from '../App.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { AuthUser } from '@oncall/shared'
 
-const stub = { template: '<div>page</div>' }
+const stub = { template: `<div>{{ $t('common.close') }}</div>` }
 
 function darkUser(darkMode: boolean, language: AuthUser['language'] = 'en'): AuthUser {
   return {
@@ -35,8 +35,8 @@ function mountApp() {
     ],
   })
   router.push('/')
-  mount(App, { global: { plugins: [pinia, router] } })
-  return { auth: useAuthStore(), router }
+  const wrapper = mount(App, { global: { plugins: [pinia, router] } })
+  return { auth: useAuthStore(), router, wrapper }
 }
 
 afterEach(() => {
@@ -86,29 +86,32 @@ describe('app theme', () => {
 
 describe('app language', () => {
   it('follows the signed-in user language preference', async () => {
-    const { auth, router } = mountApp()
+    const { auth, router, wrapper } = mountApp()
     await router.isReady()
     auth.user = darkUser(false, 'el')
     await nextTick()
     expect(document.documentElement.lang).toBe('el')
+    expect(wrapper.text()).toBe('Κλείσιμο')
   })
 
   it('forces English on the public login route regardless of preference', async () => {
-    const { auth, router } = mountApp()
+    const { auth, router, wrapper } = mountApp()
     await router.isReady()
     await router.push('/login')
     auth.user = darkUser(false, 'el')
     await nextTick()
     expect(document.documentElement.lang).toBe('en')
+    expect(wrapper.text()).toBe('Close')
   })
 
   it('returns to English after sign-out', async () => {
-    const { auth, router } = mountApp()
+    const { auth, router, wrapper } = mountApp()
     await router.isReady()
     auth.user = darkUser(false, 'el')
     await nextTick()
     auth.user = null
     await nextTick()
     expect(document.documentElement.lang).toBe('en')
+    expect(wrapper.text()).toBe('Close')
   })
 })

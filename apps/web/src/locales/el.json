@@ -1,0 +1,27 @@
+{
+  "common": {
+    "close": "Κλείσιμο",
+    "cancel": "Ακύρωση",
+    "confirm": "Επιβεβαίωση",
+    "previousMonth": "Προηγούμενος μήνας",
+    "nextMonth": "Επόμενος μήνας"
+  },
+  "calendarDialog": {
+    "pickDays": "Επιλογή ημερών",
+    "alreadyExcluded": "Έχει ήδη εξαιρεθεί",
+    "daysSelected": "Επιλέχθηκε {n} ημέρα | Επιλέχθηκαν {n} ημέρες"
+  },
+  "datePicker": {
+    "selectDate": "Επιλέξτε ημερομηνία",
+    "clearDate": "Εκκαθάριση ημερομηνίας",
+    "chooseDate": "Επιλογή ημερομηνίας",
+    "today": "Σήμερα"
+  },
+  "monthPicker": {
+    "selectMonth": "Επιλέξτε μήνα",
+    "clearMonth": "Εκκαθάριση μήνα",
+    "chooseMonth": "Επιλογή μήνα",
+    "previousYear": "Προηγούμενο έτος",
+    "nextYear": "Επόμενο έτος"
+  }
+}

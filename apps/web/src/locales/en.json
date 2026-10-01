@@ -1,0 +1,27 @@
+{
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month"
+  },
+  "calendarDialog": {
+    "pickDays": "Pick days",
+    "alreadyExcluded": "Already excluded",
+    "daysSelected": "{n} day selected | {n} days selected"
+  },
+  "datePicker": {
+    "selectDate": "Select date",
+    "clearDate": "Clear date",
+    "chooseDate": "Choose date",
+    "today": "Today"
+  },
+  "monthPicker": {
+    "selectMonth": "Select month",
+    "clearMonth": "Clear month",
+    "chooseMonth": "Choose month",
+    "previousYear": "Previous year",
+    "nextYear": "Next year"
+  }
+}

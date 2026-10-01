@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const auth = useAuthStore()
+const { locale } = useI18n()
 
 // Public pages (login, locked) always render light; inside the app the theme
 // follows the signed-in user's stored preference.
@@ -26,6 +28,7 @@ watch(
   language,
   (lang) => {
     document.documentElement.lang = lang
+    locale.value = lang
   },
   { immediate: true },
 )
