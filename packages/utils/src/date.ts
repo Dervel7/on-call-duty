@@ -7,17 +7,35 @@ export function daysInMonth(year: number, month0: number): number {
   return new Date(year, month0 + 1, 0).getDate()
 }
 
-export const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-] as const
+// UTC dates + UTC formatting: the local time zone can never shift the day.
+function monthYearFormat(locale: string, month: 'long' | 'short' = 'long'): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(locale, { month, year: 'numeric', timeZone: 'UTC' })
+}
 
-/** Monday-first weekday headers. */
-export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
+/**
+ * The 12 month names in `locale`, January first ('short' gives 'Jan' … 'Dec').
+ * Taken from a month + year format so languages with a separate standalone
+ * form get it (Greek "Οκτώβριος", not the genitive "Οκτωβρίου" a bare month
+ * format returns).
+ */
+export function monthNames(locale: string, width: 'long' | 'short' = 'long'): string[] {
+  const format = monthYearFormat(locale, width)
+  return Array.from(
+    { length: 12 },
+    (_, i) => format.formatToParts(new Date(Date.UTC(2000, i, 1))).find((p) => p.type === 'month')?.value ?? '',
+  )
+}
 
-/** 'Month YYYY' for a 1-based month, e.g. monthLabel(2026, 10) → 'October 2026'. */
-export function monthLabel(year: number | string, month: number): string {
-  return `${MONTHS[month - 1]} ${year}`
+/** Monday-first short weekday headers in `locale`, e.g. 'Mon' … 'Sun'. */
+export function weekdayNames(locale: string): string[] {
+  const format = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' })
+  // 2024-01-01 was a Monday.
+  return Array.from({ length: 7 }, (_, i) => format.format(new Date(Date.UTC(2024, 0, 1 + i))))
+}
+
+/** Month and year for a 1-based month in `locale`, e.g. monthLabel(2026, 10, 'en-GB') → 'October 2026'. */
+export function monthLabel(year: number | string, month: number, locale: string): string {
+  return monthYearFormat(locale).format(new Date(Date.UTC(Number(year), month - 1, 1)))
 }
 
 export function toIsoMonth(year: number, month0: number): string {

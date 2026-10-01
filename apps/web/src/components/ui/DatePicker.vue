@@ -4,7 +4,7 @@ import { computed, nextTick, ref } from 'vue'
 import { onClickOutside, useEventListener } from '@vueuse/core'
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
-import { monthGrid, monthLabel as formatMonth, toIsoDate, toIsoMonth, WEEKDAYS } from '@oncall/utils'
+import { monthGrid, monthLabel as formatMonth, toIsoDate, toIsoMonth, weekdayNames } from '@oncall/utils'
 import { cn } from '@/lib/utils'
 import { useIntlLocale } from '@/composables/useIntlLocale'
 
@@ -48,7 +48,8 @@ const triggerLabel = computed(() => {
   return Number.isNaN(d.getTime()) ? selectedIso.value : dayFormat.value.format(d)
 })
 
-const monthLabel = computed(() => formatMonth(view.value.year, view.value.month0 + 1))
+const monthLabel = computed(() => formatMonth(view.value.year, view.value.month0 + 1, intlLocale.value))
+const weekdays = computed(() => weekdayNames(intlLocale.value))
 
 const cells = computed(() =>
   monthGrid(view.value.year, view.value.month0).map((c) =>
@@ -169,7 +170,7 @@ useEventListener(
 
         <div class="grid grid-cols-7">
           <span
-            v-for="w in WEEKDAYS"
+            v-for="w in weekdays"
             :key="w"
             class="py-1 text-center font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80"
           >

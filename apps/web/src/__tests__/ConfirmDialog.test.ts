@@ -3,6 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createMemoryHistory, createRouter, routerKey } from 'vue-router'
 import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
 import { useConfirm, useConfirmState } from '../composables/useConfirm'
+import { setTestLocale } from './i18n'
 
 const { request, settle } = useConfirmState()
 const { confirm } = useConfirm()
@@ -76,6 +77,16 @@ describe('ConfirmDialog', () => {
     expect(document.activeElement?.textContent).toBe('Cancel')
     settle(true)
     await expect(p).resolves.toBe(true)
+  })
+
+  it('renders the default labels in the active UI language', async () => {
+    setTestLocale('el')
+    mountHost()
+    const p = confirm({ title: 'T', message: 'm' })
+    await flushPromises()
+    expect(hostButtons().map((b) => b.textContent?.trim())).toEqual(['Ακύρωση', 'Επιβεβαίωση'])
+    settle(false)
+    await expect(p).resolves.toBe(false)
   })
 
   it('Confirm click resolves true and clears state', async () => {

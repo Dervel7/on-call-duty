@@ -18,3 +18,9 @@ export function createAppI18n(locale: Language = 'en') {
     messages: { en, el },
   })
 }
+
+/**
+ * The running app's instance (installed in main.ts). Modules outside
+ * components, such as lib/http.ts, translate through `i18n.global.t`.
+ */
+export const i18n = createAppI18n()

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { explainDutyReason } from '../lib/duty-reason'
+import { explainDutyReason as explainWith } from '../lib/duty-reason'
+import { createAppI18n } from '../lib/i18n'
+
+const { t } = createAppI18n('en').global
+const explainDutyReason = (reason: string): string => explainWith(reason, t)
 
 describe('explainDutyReason', () => {
   it('explains workload-driven picks', () => {

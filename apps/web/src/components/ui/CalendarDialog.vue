@@ -3,7 +3,7 @@ import { computed, ref, useId, watch } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import { ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
-import { monthGrid, monthLabel as formatMonth, toIsoMonth, WEEKDAYS } from '@oncall/utils'
+import { monthGrid, monthLabel as formatMonth, toIsoMonth, weekdayNames } from '@oncall/utils'
 import { cn } from '@/lib/utils'
 import { useModal } from '@/composables/useModal'
 import { useIntlLocale } from '@/composables/useIntlLocale'
@@ -38,7 +38,8 @@ const reserved = computed(() => new Set(props.reservedDays))
 const panel = ref<HTMLElement | null>(null)
 const titleId = useId()
 
-const monthLabel = computed(() => formatMonth(view.value.year, view.value.month0 + 1))
+const monthLabel = computed(() => formatMonth(view.value.year, view.value.month0 + 1, intlLocale.value))
+const weekdays = computed(() => weekdayNames(intlLocale.value))
 const dayLabelFormat = computed(
   () => new Intl.DateTimeFormat(intlLocale.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
 )
@@ -161,7 +162,7 @@ useModal(() => props.open, panel)
 
         <div class="grid grid-cols-7">
           <span
-            v-for="w in WEEKDAYS"
+            v-for="w in weekdays"
             :key="w"
             class="py-1 text-center font-mono text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80"
           >

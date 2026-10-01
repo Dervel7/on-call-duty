@@ -9,6 +9,7 @@ import {
   setLockedHandler,
   setRefreshHandler,
 } from '../lib/http'
+import { i18n } from '../lib/i18n'
 
 function envelope(data: unknown, ok = true) {
   return { success: ok, data }
@@ -29,6 +30,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  i18n.global.locale.value = 'en'
 })
 
 describe('http client', () => {
@@ -102,5 +104,12 @@ describe('http client', () => {
     setLockedHandler(locked)
     await expect(apiGet('/users')).rejects.toBeInstanceOf(ApiError)
     expect(locked).not.toHaveBeenCalled()
+  })
+
+  it('falls back to a message in the active UI language when the API sends none', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 502 })))
+    await expect(apiGet('/users')).rejects.toMatchObject({ status: 502, message: 'Request failed' })
+    i18n.global.locale.value = 'el'
+    await expect(apiGet('/users')).rejects.toMatchObject({ status: 502, message: 'Το αίτημα απέτυχε' })
   })
 })

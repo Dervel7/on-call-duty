@@ -1,4 +1,5 @@
 import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
+import { i18n } from './i18n'
 
 const BASE_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000'
@@ -75,8 +76,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   const json = await parseEnvelope(res)
   if (res.ok && json.success === true) return json.data as T
+  // The API sends SYSTEM_LOCKED_MESSAGE in English; compare against it as-is.
   if (res.status === 403 && json.error === SYSTEM_LOCKED_MESSAGE) lockedHandler?.()
-  throw new ApiError(json.error ?? 'Request failed', res.status)
+  throw new ApiError(json.error ?? i18n.global.t('http.requestFailed'), res.status)
 }
 
 export function apiGet<T>(path: string): Promise<T> {

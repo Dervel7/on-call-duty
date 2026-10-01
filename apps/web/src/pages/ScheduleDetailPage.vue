@@ -19,11 +19,13 @@ import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import Badge from '@/components/ui/Badge.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const { confirm } = useConfirm()
+const intlLocale = useIntlLocale()
 const id = Number(route.params.id)
 
 const detail = ref<ScheduleDetail | null>(null)
@@ -213,7 +215,7 @@ onMounted(async () => {
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <template v-if="schedule">
-      <PageHeader :icon="CalendarDays" :title="monthLabel(schedule.year, schedule.month)">
+      <PageHeader :icon="CalendarDays" :title="monthLabel(schedule.year, schedule.month, intlLocale)">
         <template #actions>
           <Badge :variant="isPublished ? 'success' : 'neutral'" dot>{{ isPublished ? 'Published' : 'Draft' }}</Badge>
           <template v-if="auth.isAdmin">

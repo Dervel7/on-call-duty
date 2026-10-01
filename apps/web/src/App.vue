@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const auth = useAuthStore()
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 
 // Public pages (login, locked) always render light; inside the app the theme
 // follows the signed-in user's stored preference.
@@ -22,6 +22,7 @@ watch(
 
 // Public pages (login, locked) always render in English — the user is not
 // known yet; inside the app the language follows the stored preference.
+// index.html carries the English lang/title until this first runs.
 const language = computed(() => (route.meta.public ? 'en' : (auth.user?.language ?? 'en')))
 
 watch(
@@ -29,6 +30,7 @@ watch(
   (lang) => {
     document.documentElement.lang = lang
     locale.value = lang
+    document.title = t('app.title')
   },
   { immediate: true },
 )

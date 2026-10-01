@@ -11,8 +11,9 @@ export interface ConfirmOptions {
 export interface ConfirmRequest {
   title: string
   message: string
-  confirmText: string
-  cancelText: string
+  /** Unset → ConfirmDialog shows the translated "Confirm" / "Cancel". */
+  confirmText?: string
+  cancelText?: string
   variant: 'destructive' | 'primary'
   resolve: (value: boolean) => void
 }
@@ -25,8 +26,8 @@ function confirm(options: ConfirmOptions): Promise<boolean> {
     request.value = {
       title: options.title,
       message: options.message,
-      confirmText: options.confirmText ?? 'Confirm',
-      cancelText: options.cancelText ?? 'Cancel',
+      confirmText: options.confirmText,
+      cancelText: options.cancelText,
       variant: options.variant ?? 'destructive',
       resolve,
     }

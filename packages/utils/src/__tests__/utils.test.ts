@@ -9,10 +9,12 @@ import {
   isWeekend,
   monthGrid,
   monthLabel,
+  monthNames,
   monthRange,
   nextMonthIso,
   required,
   toIsoMonth,
+  weekdayNames,
 } from '../index'
 
 afterEach(() => vi.useRealTimers())
@@ -100,9 +102,35 @@ describe('monthRange', () => {
 })
 
 describe('monthLabel', () => {
-  it('names a 1-based month', () => {
-    expect(monthLabel(2026, 1)).toBe('January 2026')
-    expect(monthLabel(2026, 12)).toBe('December 2026')
+  it('names a 1-based month in the given locale', () => {
+    expect(monthLabel(2026, 1, 'en-GB')).toBe('January 2026')
+    expect(monthLabel('2026', 12, 'en-GB')).toBe('December 2026')
+    expect(monthLabel(2026, 10, 'el-GR')).toBe('Οκτώβριος 2026')
+  })
+})
+
+describe('monthNames', () => {
+  it('lists the months January first', () => {
+    const en = monthNames('en-GB')
+    expect(en).toHaveLength(12)
+    expect([en[0], en[11]]).toEqual(['January', 'December'])
+  })
+
+  it('uses the standalone (nominative) Greek form, not the genitive', () => {
+    expect(monthNames('el-GR')[9]).toBe('Οκτώβριος')
+  })
+
+  it('keeps short Greek names distinct (June vs July)', () => {
+    const short = monthNames('el-GR', 'short')
+    expect(new Set(short).size).toBe(12)
+    expect([short[5], short[6]]).toEqual(['Ιουν', 'Ιουλ'])
+  })
+})
+
+describe('weekdayNames', () => {
+  it('lists short weekdays Monday first', () => {
+    expect(weekdayNames('en-GB')).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+    expect(weekdayNames('el-GR')[0]).toBe('Δευ')
   })
 })
 

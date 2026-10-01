@@ -3,8 +3,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { TriangleAlert } from 'lucide-vue-next'
 import type { AdminStats } from '@oncall/shared'
-import { MONTHS, monthLabel as formatMonth } from '@oncall/utils'
+import { monthLabel as formatMonth, monthNames } from '@oncall/utils'
 import { useLatestRequest } from '@/composables/useLatestRequest'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 import Avatar from '@/components/ui/Avatar.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -25,6 +26,7 @@ import * as statsService from '@/services/stats'
 import * as billingService from '@/services/billing'
 
 const router = useRouter()
+const intlLocale = useIntlLocale()
 
 const now = new Date()
 const year = ref(String(now.getFullYear()))
@@ -41,7 +43,8 @@ const paymentLabel = computed(() => {
   if (days === 0) return 'Payment deadline: due today'
   return `Payment deadline: ${days} ${days === 1 ? 'day' : 'days'} left`
 })
-const monthLabel = computed(() => formatMonth(year.value, Number(month.value)))
+const monthLabel = computed(() => formatMonth(year.value, Number(month.value), intlLocale.value))
+const months = computed(() => monthNames(intlLocale.value))
 
 const maxInSet = computed(() =>
   stats.value ? Math.max(1, ...stats.value.workload.map((w) => w.duties)) : 1,
@@ -112,7 +115,7 @@ onMounted(loadPaymentAlert)
       <div class="flex flex-col gap-1">
         <Label for="s-month">Month</Label>
         <Select id="s-month" v-model="month">
-          <option v-for="(m, i) in MONTHS" :key="m" :value="String(i + 1)">{{ m }}</option>
+          <option v-for="(m, i) in months" :key="i" :value="String(i + 1)">{{ m }}</option>
         </Select>
       </div>
       <Button variant="outline" @click="load">Apply</Button>

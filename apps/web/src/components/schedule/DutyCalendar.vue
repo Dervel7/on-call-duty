@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { DayInfo, Doctor } from '@oncall/shared'
-import { toIsoDate, WEEKDAYS } from '@oncall/utils'
+import { toIsoDate, weekdayNames } from '@oncall/utils'
 import Select from '@/components/ui/Select.vue'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 
 interface CalendarAssignment {
   doctorId: number
@@ -28,6 +29,8 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [date: string, slotIndex: number, doctorId: number | null] }>()
 
 const todayIso = toIsoDate(new Date())
+const intlLocale = useIntlLocale()
+const weekdays = computed(() => weekdayNames(intlLocale.value))
 
 const doctorsById = computed(() => {
   const m = new Map<number, Doctor>()
@@ -148,7 +151,7 @@ function cellBg(c: Cell): string {
     <div class="relative min-w-[760px] rounded-xl border border-border/60 bg-card/50 p-2 shadow-card backdrop-blur-sm">
       <div class="grid grid-cols-7 gap-1.5">
         <div
-          v-for="w in WEEKDAYS"
+          v-for="w in weekdays"
           :key="w"
           class="rounded-md bg-muted/50 px-2 py-1.5 text-center font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80"
         >

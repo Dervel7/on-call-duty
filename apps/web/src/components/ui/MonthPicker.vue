@@ -4,8 +4,9 @@ import { computed, nextTick, ref } from 'vue'
 import { onClickOutside, useEventListener } from '@vueuse/core'
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
-import { MONTHS, monthLabel, toIsoMonth } from '@oncall/utils'
+import { monthLabel, monthNames, toIsoMonth } from '@oncall/utils'
 import { cn } from '@/lib/utils'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 
 const props = defineProps<{
   id?: string
@@ -19,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const { t } = useI18n()
+const intlLocale = useIntlLocale()
 const today = new Date()
 
 const open = ref(false)
@@ -35,10 +37,11 @@ const selectedMonth = computed(() =>
 )
 
 const currentMonth = toIsoMonth(today.getFullYear(), today.getMonth())
+const shortMonths = computed(() => monthNames(intlLocale.value, 'short'))
 
 const triggerLabel = computed(() => {
   if (!selectedMonth.value) return ''
-  return monthLabel(Number(selectedMonth.value.slice(0, 4)), Number(selectedMonth.value.slice(5, 7)))
+  return monthLabel(Number(selectedMonth.value.slice(0, 4)), Number(selectedMonth.value.slice(5, 7)), intlLocale.value)
 })
 
 async function toggle() {
@@ -145,11 +148,11 @@ useEventListener(
 
         <div class="grid grid-cols-3 gap-1">
           <button
-            v-for="(m, i) in MONTHS"
-            :key="m"
+            v-for="(m, i) in shortMonths"
+            :key="i"
             type="button"
             :data-month="toIsoMonth(year, i)"
-            :aria-label="monthLabel(year, i + 1)"
+            :aria-label="monthLabel(year, i + 1, intlLocale)"
             :aria-pressed="toIsoMonth(year, i) === selectedMonth"
             :class="cn(
               'flex h-9 items-center justify-center rounded-lg font-mono text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
@@ -162,7 +165,7 @@ useEventListener(
             )"
             @click="pick(i)"
           >
-            {{ m.slice(0, 3) }}
+            {{ m }}
           </button>
         </div>
       </div>

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { CalendarHeart, Check } from 'lucide-vue-next'
-import { daysInMonth, isWeekend, toIsoDate, WEEKDAYS } from '@oncall/utils'
+import { daysInMonth, isWeekend, toIsoDate, weekdayNames } from '@oncall/utils'
 import * as holidayService from '@/services/holiday'
 import { useAuthStore } from '@/stores/auth'
 import { useConfirm } from '@/composables/useConfirm'
 import { useLatestRequest } from '@/composables/useLatestRequest'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 import Button from '@/components/ui/Button.vue'
 import Label from '@/components/ui/Label.vue'
 import MonthPicker from '@/components/ui/MonthPicker.vue'
@@ -14,6 +15,8 @@ import Spinner from '@/components/ui/Spinner.vue'
 
 const auth = useAuthStore()
 const { confirm } = useConfirm()
+const intlLocale = useIntlLocale()
+const weekdays = computed(() => weekdayNames(intlLocale.value))
 
 const month = ref(toIsoDate(new Date()).slice(0, 7))
 const loading = ref(false)
@@ -172,7 +175,7 @@ async function save() {
       <div class="rounded-xl border border-border/60 bg-card/50 p-2 shadow-card backdrop-blur-sm">
         <div class="grid grid-cols-7 gap-1.5">
           <div
-            v-for="w in WEEKDAYS"
+            v-for="w in weekdays"
             :key="w"
             class="rounded-md bg-muted/50 px-2 py-1.5 text-center font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80"
           >

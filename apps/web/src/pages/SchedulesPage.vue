@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
-import { MONTHS, monthLabel } from '@oncall/utils'
+import { monthLabel, monthNames } from '@oncall/utils'
 import { useAuthStore } from '@/stores/auth'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 import * as scheduleService from '@/services/schedule'
 import { ApiError } from '@/lib/http'
 import { CalendarDays, CalendarOff } from 'lucide-vue-next'
@@ -26,6 +27,8 @@ import TableRow from '@/components/ui/TableRow.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
+const intlLocale = useIntlLocale()
+const months = computed(() => monthNames(intlLocale.value))
 const createdFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
 function createdLabel(iso: string): string {
   return createdFormat.format(new Date(iso))
@@ -141,7 +144,7 @@ onMounted(load)
       </TableHeader>
       <TableBody>
         <TableRow v-for="s in records" :key="s.id">
-          <TableCell>{{ monthLabel(s.year, s.month) }}</TableCell>
+          <TableCell>{{ monthLabel(s.year, s.month, intlLocale) }}</TableCell>
           <TableCell>
             <Badge :variant="s.status === 'published' ? 'success' : 'neutral'" dot>
               {{ s.status === 'published' ? 'Published' : 'Draft' }}
@@ -166,7 +169,7 @@ onMounted(load)
         <div class="flex flex-col gap-1">
           <Label for="g-month">Month</Label>
           <Select id="g-month" v-model="gen.month">
-            <option v-for="(m, i) in MONTHS" :key="m" :value="String(i + 1)">{{ m }}</option>
+            <option v-for="(m, i) in months" :key="i" :value="String(i + 1)">{{ m }}</option>
           </Select>
         </div>
 

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { nextTick, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { TriangleAlert } from 'lucide-vue-next'
 import Dialog from './Dialog.vue'
 import Button from './Button.vue'
 import { useConfirmState } from '@/composables/useConfirm'
 
+const { t } = useI18n()
 const { request, settle } = useConfirmState()
 const footer = ref<HTMLElement | null>(null)
 
@@ -42,12 +44,12 @@ watch(
     </div>
     <template #footer>
       <div ref="footer" class="contents">
-        <Button variant="outline" @click="settle(false)">{{ request?.cancelText }}</Button>
+        <Button variant="outline" @click="settle(false)">{{ request?.cancelText ?? t('common.cancel') }}</Button>
         <Button
           :variant="request?.variant === 'primary' ? 'default' : 'destructive'"
           @click="settle(true)"
         >
-          {{ request?.confirmText }}
+          {{ request?.confirmText ?? t('common.confirm') }}
         </Button>
       </div>
     </template>

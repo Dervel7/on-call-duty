@@ -5,6 +5,7 @@ import { CalendarCheck2, CalendarOff } from 'lucide-vue-next'
 import type { ScheduleSummary } from '@oncall/shared'
 import { monthLabel } from '@oncall/utils'
 import * as scheduleService from '@/services/schedule'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 import Button from '@/components/ui/Button.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
@@ -17,6 +18,7 @@ import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 
 const router = useRouter()
+const intlLocale = useIntlLocale()
 
 const records = ref<ScheduleSummary[]>([])
 const loading = ref(false)
@@ -60,7 +62,7 @@ onMounted(load)
       </TableHeader>
       <TableBody>
         <TableRow v-for="s in records" :key="s.id">
-          <TableCell class="font-mono text-sm">{{ monthLabel(s.year, s.month) }}</TableCell>
+          <TableCell class="font-mono text-sm">{{ monthLabel(s.year, s.month, intlLocale) }}</TableCell>
           <TableCell class="text-right">
             <Button size="sm" variant="outline" @click="view(s.id)">View</Button>
           </TableCell>

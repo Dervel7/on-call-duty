@@ -92,6 +92,7 @@ describe('app language', () => {
     await nextTick()
     expect(document.documentElement.lang).toBe('el')
     expect(wrapper.text()).toBe('Κλείσιμο')
+    expect(document.title).toBe('Εφημερίες · Προγραμματισμός Νοσοκομείου')
   })
 
   it('forces English on the public login route regardless of preference', async () => {
@@ -113,5 +114,6 @@ describe('app language', () => {
     await nextTick()
     expect(document.documentElement.lang).toBe('en')
     expect(wrapper.text()).toBe('Close')
+    expect(document.title).toBe('On-Call Duty · Hospital Scheduling')
   })
 })

@@ -1,4 +1,7 @@
 {
+  "app": {
+    "title": "On-Call Duty · Hospital Scheduling"
+  },
   "common": {
     "close": "Close",
     "cancel": "Cancel",
@@ -23,5 +26,19 @@
     "chooseMonth": "Choose month",
     "previousYear": "Previous year",
     "nextYear": "Next year"
+  },
+  "http": {
+    "requestFailed": "Request failed"
+  },
+  "dutyReason": {
+    "plan": "Assigned manually",
+    "manualOverride": "Assigned manually by an administrator",
+    "workload": "Picked for fair workload — most room left under their monthly duty limit",
+    "weekendBalance": "Picked to balance weekends — furthest behind on their fair share of weekend duties",
+    "fridayBalance": "Picked to balance Fridays — furthest behind on their fair share of Friday duties",
+    "tieBreakFewerDuties": "tie-break: fewer duties so far",
+    "tieBreakFewerWeekendDuties": "tie-break: fewer weekend duties",
+    "tieBreakRosterOrder": "tie-break: roster order",
+    "dayFillGuarantee": "assigned to guarantee the day was covered, usual fairness caps were relaxed"
   }
 }

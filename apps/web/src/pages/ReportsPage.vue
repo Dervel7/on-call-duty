@@ -3,8 +3,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { BarChart3 } from 'lucide-vue-next'
 import type { Duty, MonthlyReport, ScheduleDetail } from '@oncall/shared'
-import { dutiesToCsv, MONTHS, monthLabel as formatMonth } from '@oncall/utils'
+import { dutiesToCsv, monthLabel as formatMonth, monthNames } from '@oncall/utils'
+import { useI18n } from 'vue-i18n'
 import { useLatestRequest } from '@/composables/useLatestRequest'
+import { useIntlLocale } from '@/composables/useIntlLocale'
 import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -29,6 +31,8 @@ import { downloadCsv } from '@/lib/download'
 import { explainDutyReason } from '@/lib/duty-reason'
 
 const router = useRouter()
+const { t } = useI18n()
+const intlLocale = useIntlLocale()
 const weekdayFmt = new Intl.DateTimeFormat('en', { weekday: 'short' })
 const dayFmt = new Intl.DateTimeFormat('en', { day: '2-digit' })
 
@@ -41,7 +45,10 @@ const calendar = ref<ScheduleDetail | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
 
-const monthLabel = computed(() => (report.value ? formatMonth(report.value.year, report.value.month) : ''))
+const monthLabel = computed(() =>
+  report.value ? formatMonth(report.value.year, report.value.month, intlLocale.value) : '',
+)
+const months = computed(() => monthNames(intlLocale.value))
 const isPublished = computed(() => report.value?.schedule?.status === 'published')
 
 interface DayRow {
@@ -184,7 +191,7 @@ onMounted(load)
       <div class="flex flex-col gap-1">
         <Label for="r-month">Month</Label>
         <Select id="r-month" v-model="month">
-          <option v-for="(m, i) in MONTHS" :key="m" :value="String(i + 1)">{{ m }}</option>
+          <option v-for="(m, i) in months" :key="i" :value="String(i + 1)">{{ m }}</option>
         </Select>
       </div>
       <Button variant="outline" @click="load">Apply</Button>
@@ -294,7 +301,7 @@ onMounted(load)
                       class="text-xs text-muted-foreground"
                       :title="d.reason"
                     >
-                      {{ explainDutyReason(d.reason) }}
+                      {{ explainDutyReason(d.reason, t) }}
                     </li>
                   </ul>
                 </TableCell>
