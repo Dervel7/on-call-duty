@@ -30,6 +30,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import ScheduleDetailPage from '../pages/ScheduleDetailPage.vue'
+import { ApiError } from '../lib/http'
 import { useAuthStore } from '../stores/auth'
 import { pickOption } from './pick-option'
 
@@ -163,5 +164,16 @@ describe('ScheduleDetailPage', () => {
     await flushPromises()
     expect(addDuty).toHaveBeenCalledWith(1, { date: '2026-09-01', doctorId: 5 })
     expect(get).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a failed duty edit error visible after the reload', async () => {
+    get.mockResolvedValue(detail('draft'))
+    addDuty.mockRejectedValue(new ApiError('Constraint violation: back-to-back duty', 409))
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await pickOption(wrapper.element, '[role="combobox"]', '5')
+    await flushPromises()
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[role="alert"]').text()).toContain('Constraint violation: back-to-back duty')
   })
 })

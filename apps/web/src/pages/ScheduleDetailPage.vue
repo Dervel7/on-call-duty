@@ -74,7 +74,8 @@ const days = computed<DayInfo[]>(() => detail.value?.days ?? [])
 
 async function load() {
   loading.value = true
-  errorMsg.value = ''
+  // errorMsg is not cleared here: duty actions reload after a failure and
+  // their error must stay visible. Each user action clears it up front.
   try {
     detail.value = await scheduleService.get(id)
   } catch (e) {
