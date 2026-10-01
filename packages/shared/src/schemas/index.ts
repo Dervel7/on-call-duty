@@ -40,5 +40,6 @@ export {
   updateDutySlotsSchema,
   DEFAULT_OPEN_DUTY_SLOTS,
   DEFAULT_CLOSED_DUTY_SLOTS,
+  updateDutyMinimumsSchema,
 } from './settings'
 export type { ActivityAction } from './audit'

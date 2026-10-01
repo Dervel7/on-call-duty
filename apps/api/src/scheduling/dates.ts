@@ -76,3 +76,18 @@ export function slotsForDate(
     ? slots.openDutySlots
     : slots.closedDutySlots
 }
+
+/**
+ * Hard minimum of on-call doctors a date must hold: the open-day minimum on
+ * open on-call days, the closed-day minimum on every other day. Any count
+ * from this minimum up to `slotsForDate` is accepted.
+ */
+export function minimumForDate(
+  date: string,
+  openDuty: { anchorDate: string; intervalDays: number },
+  minimums: { openDutyMinimum: number; closedDutyMinimum: number },
+): number {
+  return isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays)
+    ? minimums.openDutyMinimum
+    : minimums.closedDutyMinimum
+}

@@ -35,4 +35,20 @@ export const settingsController = {
       next(err)
     }
   },
+  async getDutyMinimums(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const dutyMinimums = await settingsService.getDutyMinimums()
+      res.status(200).json(ok({ dutyMinimums }))
+    } catch (err) {
+      next(err)
+    }
+  },
+  async updateDutyMinimums(req: Request, res: Response, next: NextFunction) {
+    try {
+      const dutyMinimums = await settingsService.setDutyMinimums(req.body, req.user!)
+      res.status(200).json(ok({ dutyMinimums }))
+    } catch (err) {
+      next(err)
+    }
+  },
 }

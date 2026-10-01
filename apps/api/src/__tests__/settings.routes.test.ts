@@ -6,11 +6,15 @@ const getOpenDutySettings = vi.fn()
 const setOpenDutyInterval = vi.fn()
 const getDutySlots = vi.fn()
 const setDutySlots = vi.fn()
+const getDutyMinimums = vi.fn()
+const setDutyMinimums = vi.fn()
 vi.mock('../services/settings.service', () => ({
   getOpenDutySettings: (...a: unknown[]) => getOpenDutySettings(...a),
   setOpenDutyInterval: (...a: unknown[]) => setOpenDutyInterval(...a),
   getDutySlots: (...a: unknown[]) => getDutySlots(...a),
   setDutySlots: (...a: unknown[]) => setDutySlots(...a),
+  getDutyMinimums: (...a: unknown[]) => getDutyMinimums(...a),
+  setDutyMinimums: (...a: unknown[]) => setDutyMinimums(...a),
 }))
 vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
 
@@ -35,6 +39,8 @@ beforeEach(() => {
   setOpenDutyInterval.mockReset()
   getDutySlots.mockReset()
   setDutySlots.mockReset()
+  getDutyMinimums.mockReset()
+  setDutyMinimums.mockReset()
 })
 
 describe('settings routes', () => {
@@ -152,5 +158,59 @@ describe('duty-slots settings routes', () => {
       .set('Authorization', `Bearer ${superadminToken()}`)
       .send({ openDutySlots: '3', closedDutySlots: '1' })
     expect(asString.status).toBe(200)
+  })
+})
+
+describe('duty-minimums settings routes', () => {
+  it('GET /settings/duty-minimums: 401 unauthenticated, 403 doctor, 200 admin with the minimums', async () => {
+    expect((await request(build()).get('/settings/duty-minimums')).status).toBe(401)
+
+    const forbidden = await request(build())
+      .get('/settings/duty-minimums')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+    expect(forbidden.status).toBe(403)
+
+    getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+    const res = await request(build())
+      .get('/settings/duty-minimums')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(res.status).toBe(200)
+    expect(res.body.data.dutyMinimums).toEqual({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+  })
+
+  it('PATCH rejects doctors (403) and out-of-range minimums (400) without touching the service', async () => {
+    const forbidden = await request(build())
+      .patch('/settings/duty-minimums')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+      .send({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+    expect(forbidden.status).toBe(403)
+
+    for (const body of [
+      { openDutyMinimum: 0, closedDutyMinimum: 1 },
+      { openDutyMinimum: 2, closedDutyMinimum: 8 },
+      { openDutyMinimum: 1.5, closedDutyMinimum: 1 },
+      { openDutyMinimum: 2 },
+    ]) {
+      const res = await request(build())
+        .patch('/settings/duty-minimums')
+        .set('Authorization', `Bearer ${adminToken()}`)
+        .send(body)
+      expect(res.status).toBe(400)
+    }
+    expect(setDutyMinimums).not.toHaveBeenCalled()
+  })
+
+  it('PATCH saves for administrators, echoing the updated minimums', async () => {
+    setDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+    const res = await request(build())
+      .patch('/settings/duty-minimums')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ openDutyMinimum: '2', closedDutyMinimum: '1' })
+    expect(res.status).toBe(200)
+    expect(res.body.data.dutyMinimums).toEqual({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+    expect(setDutyMinimums).toHaveBeenCalledWith(
+      { openDutyMinimum: 2, closedDutyMinimum: 1 },
+      expect.objectContaining({ id: 1, role: 'administrator' }),
+    )
   })
 })

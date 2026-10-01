@@ -76,6 +76,7 @@ function scheduleDetail(overrides: Record<string, unknown> = {}) {
       isWeekend: dow === 0 || dow === 6,
       dutyType: 'closed',
       slotsRequired: 2,
+      slotsMinimum: 1,
       eligibleDoctorIds: [5],
       availableDoctorIds: [5],
     }

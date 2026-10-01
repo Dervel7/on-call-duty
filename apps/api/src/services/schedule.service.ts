@@ -3,6 +3,7 @@ import type {
   CreateDutyRequest,
   DayInfo,
   Duty,
+  DutyMinimumSettings,
   DutySlotsSettings,
   GenerateAssignment,
   OpenDutySettings,
@@ -34,6 +35,7 @@ import {
   isOpenDutyDate,
   isWeekendISO,
   isoDate,
+  minimumForDate,
   nextDate,
   prevDate,
   requiresDoubleCoverage,
@@ -42,7 +44,7 @@ import {
 import type { DoctorSpec, GenerateResult, SchedulingContext } from '../scheduling/types'
 import { recordGeneration } from './usage.service'
 import { recordActivity } from './activity.service'
-import { getDutySlots, getOpenDutySettings } from './settings.service'
+import { getDutyMinimums, getDutySlots, getOpenDutySettings } from './settings.service'
 
 type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 
@@ -147,7 +149,11 @@ async function buildContext(
   clinicId: number,
 ): Promise<SchedulingContext> {
   const { first, last } = monthBounds(year, month)
-  const [openDuty, slots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const [openDuty, slots, minimums] = await Promise.all([
+    getOpenDutySettings(),
+    getDutySlots(),
+    getDutyMinimums(),
+  ])
 
   const dr = await query<{
     id: number
@@ -208,7 +214,7 @@ async function buildContext(
   )
   const priorDayDoctorIds = new Set(pres.rows.map((r) => r.doctor_id))
 
-  return { year, month, days, doctors, unavailability, priorDayDoctorIds, openDuty, slots }
+  return { year, month, days, doctors, unavailability, priorDayDoctorIds, openDuty, slots, minimums }
 }
 
 export interface EligibilityInput {
@@ -219,6 +225,8 @@ export interface EligibilityInput {
   openDuty: OpenDutySettings
   /** Per-day on-call capacity: open slots on open days, closed slots otherwise. */
   slots: DutySlotsSettings
+  /** Per-day hard minimum: open minimum on open days, closed minimum otherwise. */
+  minimums: DutyMinimumSettings
   dutiesByDate: Map<string, Set<number>>
   dutyCountByDoctor: Map<number, number>
   holidayByDoctor: Map<number, number>
@@ -266,6 +274,7 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
       isWeekend: day.isWeekend,
       dutyType: isOpen ? 'open' : 'closed',
       slotsRequired: slotsForDate(day.date, input.openDuty, input.slots),
+      slotsMinimum: minimumForDate(day.date, input.openDuty, input.minimums),
       eligibleDoctorIds: eligible,
       availableDoctorIds: available,
     })
@@ -349,6 +358,7 @@ export async function preview(
       days: ctx.days,
       openDuty,
       slots: ctx.slots,
+      minimums: ctx.minimums,
       ...maps,
     })
     const names = new Map(ctx.doctors.map((d) => [d.id, d]))
@@ -377,6 +387,7 @@ export async function preview(
     days: ctx.days,
     openDuty,
     slots: ctx.slots,
+    minimums: ctx.minimums,
     ...maps,
   })
   return { assignments: result.assignments, conflicts: result.conflicts, days }
@@ -508,19 +519,26 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
       `${empty.length} day(s) have no doctor: ${empty.join(', ')}; assign at least one per day`,
     )
 
-  // Strict rule: open on-call days and the day right after them always carry
-  // both doctors.
-  const criticalDates = new Set(
-    ctx.days.filter((d) => requiresDoubleCoverage(d.date, ctx.openDuty)).map((d) => d.date),
-  )
-  const short = [...criticalDates].filter(
-    (date) => (byDate.get(date)?.length ?? 0) < slotsForDate(date, ctx.openDuty, ctx.slots),
-  )
+  // Strict rule: every day holds at least its minimum (open minimum on open
+  // on-call days, closed minimum on all others, including the day after an
+  // open day).
+  const short = ctx.days
+    .map((d) => d.date)
+    .filter(
+      (date) =>
+        (byDate.get(date)?.length ?? 0) < minimumForDate(date, ctx.openDuty, ctx.minimums),
+    )
   if (short.length > 0)
     throw new HttpError(
       422,
-      `${short.length} open on-call coverage day(s) are not filled to their slot count: ${short.join(', ')}; every open on-call day and the day after it needs all its slots filled`,
+      `${short.length} day(s) are below their minimum on-call doctors: ${short.join(', ')}; every day needs at least its minimum`,
     )
+
+  // Open on-call days and the day right after them are critical: fairness
+  // caps never block them, mirroring the engine.
+  const criticalDates = new Set(
+    ctx.days.filter((d) => requiresDoubleCoverage(d.date, ctx.openDuty)).map((d) => d.date),
+  )
 
   // Same hard constraints the engine and validateAssignment enforce, so a
   // manual plan cannot persist an impossible schedule.
@@ -550,15 +568,16 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
         `Constraint violation: doctor ${a.doctorId} exceeds the limit of ${OPEN_DUTY_DUTY_CAP} duty on open on-call days`,
       )
     // Fairness caps never block a duty on a critical day, mirroring the
-    // engine, and they yield to the day-fill guarantee: an over-cap duty is
-    // accepted exactly when its day has no other doctor, because removing it
-    // would leave that day empty. Engine-relaxed days always end up with a
-    // single doctor, so this admits precisely the overflows the engine can
-    // produce — nothing looser.
-    const soleDoctorDay = (byDate.get(a.date)?.length ?? 0) <= 1
+    // engine, and they yield to the minimum-coverage guarantee: an over-cap
+    // duty is accepted exactly when its day holds no more than its minimum,
+    // because removing it would leave that day short. Engine-relaxed days
+    // never exceed their minimum, so this admits precisely the overflows the
+    // engine can produce — nothing looser.
+    const withinMinimum =
+      (byDate.get(a.date)?.length ?? 0) <= minimumForDate(a.date, ctx.openDuty, ctx.minimums)
     if (
       !criticalDates.has(a.date) &&
-      !soleDoctorDay &&
+      !withinMinimum &&
       info.isHoliday &&
       c.holiday > HOLIDAY_DUTY_CAP
     )
@@ -640,7 +659,11 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
   }
   if (!isAdmin) {
     // Calendar shape only — skip the eligibility work that gets blanked anyway.
-    const [openDuty, slots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+    const [openDuty, slots, minimums] = await Promise.all([
+      getOpenDutySettings(),
+      getDutySlots(),
+      getDutyMinimums(),
+    ])
     const total = daysInMonth(schedule.year, schedule.month)
     const days: DayInfo[] = []
     for (let d = 1; d <= total; d++) {
@@ -652,6 +675,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
           ? 'open'
           : 'closed',
         slotsRequired: slotsForDate(date, openDuty, slots),
+        slotsMinimum: minimumForDate(date, openDuty, minimums),
         eligibleDoctorIds: [],
         availableDoctorIds: [],
       })
@@ -682,6 +706,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     days: ctx.days,
     openDuty: ctx.openDuty,
     slots: ctx.slots,
+    minimums: ctx.minimums,
     dutiesByDate,
     dutyCountByDoctor,
     holidayByDoctor,
@@ -957,18 +982,25 @@ export async function reassignDuty(
 export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
   const duty = await getVisibleDuty(dutyId, actor)
   assertEditable(duty.schedule_status)
-  // Strict rule: an open on-call day and the day after it always keep both
-  // doctors. With the 2-per-day ceiling, deleting any duty on such a date
-  // would leave at most one doctor — the duty must be reassigned, not removed.
-  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
-  const required = slotsForDate(duty.duty_date, openDuty, dutySlots)
-  if (requiresDoubleCoverage(duty.duty_date, openDuty))
-    throw new HttpError(
-      409,
-      `Open on-call rule: ${duty.duty_date} (an open on-call day or the day after one) must keep ${required} doctors; reassign the duty instead of removing it`,
-    )
+  // Strict rule: an open on-call day and the day after it never drop below
+  // their minimum through a removal — such a duty must be reassigned instead.
+  // The count is read under the schedule lock so concurrent removals cannot
+  // both pass.
+  const [openDuty, minimums] = await Promise.all([getOpenDutySettings(), getDutyMinimums()])
+  const minimum = minimumForDate(duty.duty_date, openDuty, minimums)
   await withTransaction(async (client) => {
     await lockScheduleForEdit(client, duty.schedule_id)
+    if (requiresDoubleCoverage(duty.duty_date, openDuty)) {
+      const res = await client.query<{ n: number }>(
+        'SELECT COUNT(*)::int AS n FROM duties WHERE schedule_id = $1 AND duty_date = $2',
+        [duty.schedule_id, duty.duty_date],
+      )
+      if ((res.rows[0]?.n ?? 0) - 1 < minimum)
+        throw new HttpError(
+          409,
+          `Open on-call rule: ${duty.duty_date} (an open on-call day or the day after one) must keep at least ${minimum} doctors; reassign the duty instead of removing it`,
+        )
+    }
     await client.query('DELETE FROM duties WHERE id = $1', [dutyId])
     await recordActivity(client, {
       userId: actor.id,
@@ -984,10 +1016,10 @@ export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
 export async function publish(id: number, actor: Actor): Promise<ScheduleSummary> {
   const existing = await selectScheduleRow(id)
   assertScheduleVisible(existing, actor)
-  // Strict rule gate: every day needs a doctor, and open on-call days (plus
-  // the day after them) must be filled to their slot count. Settings are read
+  // Strict rule gate: every day must hold at least its minimum (open minimum
+  // on open on-call days, closed minimum on all others). Settings are read
   // outside the transaction.
-  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const [openDuty, minimums] = await Promise.all([getOpenDutySettings(), getDutyMinimums()])
   await withTransaction(async (client) => {
     const upd = await client.query(
       `UPDATE schedules SET status = 'published', updated_at = NOW()
@@ -1007,14 +1039,12 @@ export async function publish(id: number, actor: Actor): Promise<ScheduleSummary
     const short: string[] = []
     for (let d = 1; d <= total; d++) {
       const date = isoDate(existing.year, existing.month, d)
-      const required = slotsForDate(date, openDuty, dutySlots)
-      if (requiresDoubleCoverage(date, openDuty) && (byDate.get(date) ?? 0) < required)
-        short.push(date)
+      if ((byDate.get(date) ?? 0) < minimumForDate(date, openDuty, minimums)) short.push(date)
     }
     if (short.length > 0)
       throw new HttpError(
         409,
-        `Open on-call rule: ${short.length} day(s) are not filled to their slot count before publishing: ${short.join(', ')}`,
+        `Minimum on-call rule: ${short.length} day(s) are below their minimum on-call doctors before publishing: ${short.join(', ')}`,
       )
     await recordActivity(client, {
       userId: actor.id,

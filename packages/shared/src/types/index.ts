@@ -62,6 +62,8 @@ export type {
   UpdateOpenDutyRequest,
   DutySlotsSettings,
   UpdateDutySlotsRequest,
+  DutyMinimumSettings,
+  UpdateDutyMinimumsRequest,
 } from './settings'
 export * from './usage'
 export type {

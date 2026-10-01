@@ -1,5 +1,6 @@
 import {
   isOpenDutyDate,
+  minimumForDate,
   nextDate,
   prevDate,
   requiresDoubleCoverage,
@@ -80,32 +81,50 @@ export function generate(ctx: SchedulingContext): GenerateResult {
   const firstDayPrev = firstDay ? prevDate(firstDay.date) : ''
   const maxDaySlots = Math.max(ctx.slots.openDutySlots, ctx.slots.closedDutySlots)
 
-  // Strict rule: open on-call days and the day right after them always carry
-  // their full slot count. They are filled first — every slot before any
-  // regular day gets a single one — and fairness caps never block them. Only
-  // the hard constraints (availability, monthly cap, no back-to-back) can
-  // leave one short, which surfaces as a conflict.
+  // Strict rule: every day must reach its minimum (open minimum on open days,
+  // closed minimum on all others). Open on-call days and the day right after
+  // them (critical days) are filled first, and fairness caps never block
+  // them. Only the hard constraints (availability, monthly cap, open on-call
+  // cap, no back-to-back) can leave a day short, which surfaces as a
+  // conflict. Slots above the minimum, up to the day's slot count, are filled
+  // afterwards on a best-effort basis, so a doctor spent on an optional slot
+  // can never cost another day its minimum.
   const criticalDates = new Set(
     ctx.days.filter((d) => requiresDoubleCoverage(d.date, ctx.openDuty)).map((d) => d.date),
   )
   const criticalDays = ctx.days.filter((d) => criticalDates.has(d.date))
   const regularDays = ctx.days.filter((d) => !criticalDates.has(d.date))
-  for (const group of [criticalDays, regularDays]) {
+  const passes = [
+    { group: criticalDays, required: true },
+    { group: regularDays, required: true },
+    { group: criticalDays, required: false },
+    { group: regularDays, required: false },
+  ]
+  for (const { group, required } of passes) {
     for (let slot = 0; slot < maxDaySlots; slot++) {
       for (const day of group) {
         if ((state.byDate.get(day.date)?.size ?? 0) !== slot) continue
-        if (slot >= slotsForDate(day.date, ctx.openDuty, ctx.slots)) continue
-        fillDay(day, criticalDates.has(day.date))
+        const minimum = minimumForDate(day.date, ctx.openDuty, ctx.minimums)
+        // Required passes stop at the minimum. Optional passes start there and
+        // skip days already short of it — those are reported as conflicts.
+        const skip = required
+          ? slot >= minimum
+          : slot < minimum || slot >= slotsForDate(day.date, ctx.openDuty, ctx.slots)
+        if (skip) continue
+        fillDay(day, criticalDates.has(day.date), required)
       }
     }
   }
 
   return { assignments, conflicts }
 
-  /** Assigns the single best-scoring eligible doctor to `day`, or records why nobody could. */
-  function fillDay(day: DaySpec, critical: boolean): void {
+  /**
+   * Assigns the single best-scoring eligible doctor to `day`. When nobody
+   * qualifies, a `required` slot (below the day's minimum) is recorded as a
+   * conflict; an optional slot is simply left empty.
+   */
+  function fillDay(day: DaySpec, critical: boolean, required: boolean): void {
     const openDay = isOpenDutyDate(day.date, ctx.openDuty.anchorDate, ctx.openDuty.intervalDays)
-    const dayEmpty = (state.byDate.get(day.date)?.size ?? 0) === 0
 
     /** Constraint pass over the doctor pool; `relaxFairness` skips the
      * holiday cap (it yields to the day-fill rule). */
@@ -183,14 +202,14 @@ export function generate(ctx: SchedulingContext): GenerateResult {
 
     let { eligible, tally } = collect(false)
     let relaxedFill = false
-    // Strict rule — day-fill guarantee: every day carries at least one
-    // doctor, the same tier as the no-back-to-back rule. Before a regular
-    // day is left empty, the fairness caps above give way; the hard
-    // constraints (availability, monthly cap, open on-call cap, no
-    // back-to-back) never do. A day filled this way stays single-doctor:
-    // eligibility only shrinks as the run proceeds, so the later top-up
-    // pass can never add a second doctor to it.
-    if (eligible.length === 0 && dayEmpty && !critical) {
+    // Strict rule — minimum-coverage guarantee: every day reaches its
+    // minimum, the same tier as the no-back-to-back rule. Before a regular
+    // day is left below its minimum, the fairness caps above give way; the
+    // hard constraints (availability, monthly cap, open on-call cap, no
+    // back-to-back) never do. Optional slots never relax: eligibility only
+    // shrinks as the run proceeds, so a day that needed the relaxation never
+    // gains a doctor beyond its minimum.
+    if (eligible.length === 0 && required && !critical) {
       const retry = collect(true)
       eligible = retry.eligible
       tally = retry.tally
@@ -198,16 +217,17 @@ export function generate(ctx: SchedulingContext): GenerateResult {
     }
 
     if (eligible.length === 0) {
-      conflicts.push(
-        conflictFor(
-          day.date,
-          activeCount,
-          tally,
-          state.byDate.get(day.date)?.size ?? 0,
-          critical,
-          slotsForDate(day.date, ctx.openDuty, ctx.slots),
-        ),
-      )
+      if (required)
+        conflicts.push(
+          conflictFor(
+            day.date,
+            activeCount,
+            tally,
+            state.byDate.get(day.date)?.size ?? 0,
+            critical,
+            minimumForDate(day.date, ctx.openDuty, ctx.minimums),
+          ),
+        )
       return
     }
 

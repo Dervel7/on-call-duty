@@ -1,4 +1,4 @@
-import type { DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
+import type { DutyMinimumSettings, DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
 import { apiGet, apiPatch } from '@/lib/http'
 
 export async function getOpenDuty(): Promise<OpenDutySettings> {
@@ -27,4 +27,22 @@ export async function updateDutySlots(
     closedDutySlots,
   })
   return dutySlots
+}
+
+export async function getDutyMinimums(): Promise<DutyMinimumSettings> {
+  const { dutyMinimums } = await apiGet<{ dutyMinimums: DutyMinimumSettings }>(
+    '/settings/duty-minimums',
+  )
+  return dutyMinimums
+}
+
+export async function updateDutyMinimums(
+  openDutyMinimum: number,
+  closedDutyMinimum: number,
+): Promise<DutyMinimumSettings> {
+  const { dutyMinimums } = await apiPatch<{ dutyMinimums: DutyMinimumSettings }>(
+    '/settings/duty-minimums',
+    { openDutyMinimum, closedDutyMinimum },
+  )
+  return dutyMinimums
 }

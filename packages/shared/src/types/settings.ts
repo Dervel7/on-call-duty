@@ -39,3 +39,18 @@ export interface UpdateDutySlotsRequest {
   openDutySlots: number
   closedDutySlots: number
 }
+
+/**
+ * Hard minimum of on-call doctors per day type. A day is acceptable with any
+ * count from its minimum up to its slot count; the full slot count is the
+ * preferred outcome. Always 1 ≤ minimum ≤ the matching slot count.
+ */
+export interface DutyMinimumSettings {
+  openDutyMinimum: number
+  closedDutyMinimum: number
+}
+
+export interface UpdateDutyMinimumsRequest {
+  openDutyMinimum: number
+  closedDutyMinimum: number
+}

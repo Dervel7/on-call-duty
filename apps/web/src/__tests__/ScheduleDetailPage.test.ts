@@ -44,6 +44,7 @@ function daysFor(year: number, month: number) {
       isWeekend: dow === 0 || dow === 6,
       dutyType: 'closed' as const,
       slotsRequired: 2,
+      slotsMinimum: 1,
       eligibleDoctorIds: [5],
       availableDoctorIds: [5],
     }

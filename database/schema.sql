@@ -243,3 +243,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT FA
 -- 'open_duty_slots' / 'closed_duty_slots' — on-call doctors per open /
 -- closed on-call day (seeded 2 each, editable 1–7 by administrators via
 -- /settings/duty-slots; consumed by the engine, previews, and publishing).
+-- 'open_duty_minimum' / 'closed_duty_minimum' — minimum on-call doctors per
+-- open / closed on-call day (seeded 2 each, editable 1–7 via
+-- /settings/duty-minimums, never above the matching slot count; missing or
+-- corrupt rows fall back to the slot count).

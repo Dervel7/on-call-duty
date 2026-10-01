@@ -5,7 +5,7 @@ import type { DayInfo } from '@oncall/shared'
 import DutyCalendar from '../components/schedule/DutyCalendar.vue'
 
 function day(date: string, slotsRequired: number): DayInfo {
-  return { date, isWeekend: false, dutyType: 'closed', slotsRequired, eligibleDoctorIds: [], availableDoctorIds: [] }
+  return { date, isWeekend: false, dutyType: 'closed', slotsRequired, slotsMinimum: 1, eligibleDoctorIds: [], availableDoctorIds: [] }
 }
 
 const assigned = { doctorId: 5, firstName: 'Jane', lastName: 'Roe', reason: '' }

@@ -83,34 +83,25 @@ const countByDate = computed(() => {
   }
   return m
 })
-// Mirrors the server's validatePlan: open on-call days and the day right
-// after them must be filled to their slot count, every other day needs one
-// doctor. `days` covers the month in order, so the previous entry is the
-// previous date.
-const criticalDates = computed(
-  () =>
-    new Set(
-      days.value
-        .filter((d, i) => d.dutyType === 'open' || days.value[i - 1]?.dutyType === 'open')
-        .map((d) => d.date),
-    ),
-)
+// Mirrors the server's validatePlan: every day must hold at least its minimum
+// (`slotsMinimum`); a day between its minimum and its slot count is accepted
+// but flagged, and a day at its slot count is full.
 const emptyCount = computed(
   () => days.value.filter((d) => (countByDate.value.get(d.date) ?? 0) === 0).length,
 )
-const shortCriticalCount = computed(
+const belowMinimumCount = computed(
   () =>
     days.value.filter((d) => {
       const n = countByDate.value.get(d.date) ?? 0
-      return n > 0 && n < d.slotsRequired && criticalDates.value.has(d.date)
+      return n > 0 && n < d.slotsMinimum
     }).length,
 )
-const errorCount = computed(() => emptyCount.value + shortCriticalCount.value)
+const errorCount = computed(() => emptyCount.value + belowMinimumCount.value)
 const warningCount = computed(
   () =>
     days.value.filter((d) => {
       const n = countByDate.value.get(d.date) ?? 0
-      return n > 0 && n < d.slotsRequired && !criticalDates.value.has(d.date)
+      return n > 0 && n >= d.slotsMinimum && n < d.slotsRequired
     }).length,
 )
 const fullCount = computed(
@@ -137,13 +128,12 @@ const status = computed<{ tone: StatusTone; title: string; detail: string } | nu
   if (errorCount.value > 0) {
     const parts: string[] = []
     if (emptyCount.value > 0) parts.push(`${emptyCount.value} day(s) with no doctor`)
-    if (shortCriticalCount.value > 0)
-      parts.push(`${shortCriticalCount.value} open on-call day(s) below their slot count`)
+    if (belowMinimumCount.value > 0)
+      parts.push(`${belowMinimumCount.value} day(s) below their minimum`)
     return {
       tone: 'destructive',
       title: parts.join(' · '),
-      detail:
-        'Assign at least one doctor to every day and fill every slot on open on-call days and the day after them before generating.',
+      detail: 'Assign at least the minimum number of doctors to every day before generating.',
     }
   }
   if (warningCount.value > 0) {
@@ -341,7 +331,7 @@ watch([year, month], load)
             <span><span class="font-mono font-semibold text-foreground">{{ days.length }}</span> days</span>
             <span><span class="font-mono font-semibold text-success">{{ fullCount }}</span> full</span>
             <span><span class="font-mono font-semibold text-warning">{{ warningCount }}</span> partial</span>
-            <span><span class="font-mono font-semibold text-destructive">{{ errorCount }}</span> empty</span>
+            <span><span class="font-mono font-semibold text-destructive">{{ errorCount }}</span> below minimum</span>
           </div>
           <div class="flex items-center gap-3 text-xs text-muted-foreground">
             <span class="inline-flex items-center gap-1.5">

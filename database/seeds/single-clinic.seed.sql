@@ -176,5 +176,7 @@ ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
 -- installs the 2/2 defaults when the keys are absent.
 INSERT INTO app_meta (key, value) VALUES
   ('open_duty_slots', '2'),
-  ('closed_duty_slots', '2')
+  ('closed_duty_slots', '2'),
+  ('open_duty_minimum', '2'),
+  ('closed_duty_minimum', '2')
 ON CONFLICT (key) DO NOTHING;

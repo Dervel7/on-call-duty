@@ -30,7 +30,12 @@ vi.mock('vue-router', () => ({
 import SchedulePreviewPage from '../pages/SchedulePreviewPage.vue'
 import { pickOptionFrom } from './pick-option'
 
-function daysFor(year: number, month: number, openDates: Set<string> = new Set()) {
+function daysFor(
+  year: number,
+  month: number,
+  openDates: Set<string> = new Set(),
+  minimum: { open: number; closed: number } = { open: 1, closed: 1 },
+) {
   const total = new Date(year, month, 0).getDate()
   return Array.from({ length: total }, (_, i) => {
     const iso = `${year}-${String(month).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
@@ -40,6 +45,7 @@ function daysFor(year: number, month: number, openDates: Set<string> = new Set()
       isWeekend: dow === 0 || dow === 6,
       dutyType: openDates.has(iso) ? ('open' as const) : ('closed' as const),
       slotsRequired: 2,
+      slotsMinimum: openDates.has(iso) ? minimum.open : minimum.closed,
       eligibleDoctorIds: [5, 6],
       availableDoctorIds: [],
     }
@@ -120,32 +126,45 @@ describe('SchedulePreviewPage', () => {
     ])
   }
 
-  it('blocks Generate when an open day or the day after it is below its slot count', async () => {
+  it('blocks Generate when an open day is below its minimum', async () => {
     preview.mockResolvedValue({
-      assignments: oneDoctorPerDay(2026, 9, ['2026-09-10']),
+      assignments: oneDoctorPerDay(2026, 9),
       conflicts: [],
-      days: daysFor(2026, 9, new Set(['2026-09-10'])),
+      days: daysFor(2026, 9, new Set(['2026-09-10']), { open: 2, closed: 1 }),
     })
     const wrapper = mount(SchedulePreviewPage)
     await flushPromises()
     const button = wrapper.findAll('button').find((b) => b.text().includes('Generate'))!
     expect(button.attributes('disabled')).toBeDefined()
-    // The open day is full; only the day after it is short.
-    expect(wrapper.text()).toContain('1 open on-call day(s) below their slot count')
+    // Only the open day is short; the day after it uses the closed minimum.
+    expect(wrapper.text()).toContain('1 day(s) below their minimum')
     expect(wrapper.text()).not.toContain('Ready to generate')
   })
 
-  it('allows Generate with partial non-critical days once open days and the day after are full', async () => {
+  it('blocks Generate when a closed day is below its minimum', async () => {
     preview.mockResolvedValue({
       assignments: oneDoctorPerDay(2026, 9, ['2026-09-10', '2026-09-11']),
       conflicts: [],
-      days: daysFor(2026, 9, new Set(['2026-09-10'])),
+      days: daysFor(2026, 9, new Set(['2026-09-10']), { open: 1, closed: 2 }),
+    })
+    const wrapper = mount(SchedulePreviewPage)
+    await flushPromises()
+    const button = wrapper.findAll('button').find((b) => b.text().includes('Generate'))!
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('28 day(s) below their minimum')
+  })
+
+  it('allows Generate when every day meets its minimum but not its slot count', async () => {
+    preview.mockResolvedValue({
+      assignments: oneDoctorPerDay(2026, 9, ['2026-09-10']),
+      conflicts: [],
+      days: daysFor(2026, 9, new Set(['2026-09-10']), { open: 2, closed: 1 }),
     })
     const wrapper = mount(SchedulePreviewPage)
     await flushPromises()
     const button = wrapper.findAll('button').find((b) => b.text().includes('Generate'))!
     expect(button.attributes('disabled')).toBeUndefined()
-    expect(wrapper.text()).toContain('28 day(s) below their slot count')
+    expect(wrapper.text()).toContain('29 day(s) below their slot count')
     expect(wrapper.text()).toContain('Ready to generate')
   })
 

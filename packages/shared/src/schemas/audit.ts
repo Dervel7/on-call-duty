@@ -30,6 +30,7 @@ export const ACTIVITY_ACTIONS = [
   'billing.updated',
   'open_duty_settings.updated',
   'duty_slots_settings.updated',
+  'duty_minimums_settings.updated',
 ] as const
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]

@@ -21,6 +21,15 @@ export const updateDutySlotsSchema = z.object({
   closedDutySlots: z.coerce.number().int().min(1).max(7),
 })
 
+/**
+ * Minimum on-call doctors per day type (hard rule). Each value must not exceed
+ * the matching slot count; the server checks that against the stored slots.
+ */
+export const updateDutyMinimumsSchema = z.object({
+  openDutyMinimum: z.coerce.number().int().min(1).max(7),
+  closedDutyMinimum: z.coerce.number().int().min(1).max(7),
+})
+
 export const updateOpenDutySchema = z.object({
   intervalDays: z.coerce.number().int().min(1).max(365),
 })

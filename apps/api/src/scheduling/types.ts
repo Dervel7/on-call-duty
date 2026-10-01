@@ -1,4 +1,4 @@
-import type { DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
+import type { DutyMinimumSettings, DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
 
 export interface DoctorSpec {
   id: number
@@ -27,6 +27,8 @@ export interface SchedulingContext {
   openDuty: OpenDutySettings
   /** Per-day on-call capacity: open slots on open days, closed slots otherwise. */
   slots: DutySlotsSettings
+  /** Hard per-day minimum: open minimum on open days, closed minimum otherwise. */
+  minimums: DutyMinimumSettings
 }
 
 export interface CandidateScore {

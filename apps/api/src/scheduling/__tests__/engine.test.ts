@@ -11,8 +11,11 @@ function ctx(
     priorDayDoctorIds?: Set<number>
     openDuty?: { anchorDate: string; intervalDays: number }
     slots?: { openDutySlots: number; closedDutySlots: number }
+    minimums?: { openDutyMinimum: number; closedDutyMinimum: number }
   } = {},
 ): SchedulingContext {
+  // Default per-day capacity matches the seeded production default (2/2).
+  const slots = opts.slots ?? { openDutySlots: 2, closedDutySlots: 2 }
   return {
     year: 2026,
     month: 9,
@@ -21,8 +24,12 @@ function ctx(
     unavailability: opts.unavailability ?? new Map(),
     priorDayDoctorIds: opts.priorDayDoctorIds ?? new Set(),
     openDuty: opts.openDuty ?? { anchorDate: '2030-01-01', intervalDays: 7 },
-    // Default per-day capacity matches the seeded production default (2/2).
-    slots: opts.slots ?? { openDutySlots: 2, closedDutySlots: 2 },
+    slots,
+    // Unset minimums mean full coverage, like missing app_meta rows.
+    minimums: opts.minimums ?? {
+      openDutyMinimum: slots.openDutySlots,
+      closedDutyMinimum: slots.closedDutySlots,
+    },
   }
 }
 
@@ -354,5 +361,49 @@ describe('engine.generate', () => {
     expect(assignments.filter((a) => a.date === '2026-09-01')).toHaveLength(3)
     expect(assignments.filter((a) => a.date === '2026-09-02')).toHaveLength(1)
     expect(assignments.filter((a) => a.date === '2026-09-03')).toHaveLength(1)
+  })
+
+  it('minimum below slots: unfillable extra slots are left empty without a conflict', () => {
+    // Two doctors and no back-to-back: each works every other day, so the
+    // second slot can never be filled. Minimum 1 makes that acceptable.
+    const days = [day('2026-09-01'), day('2026-09-02'), day('2026-09-03'), day('2026-09-04')]
+    const { assignments, conflicts } = generate(
+      ctx(days, [dr(1), dr(2)], { minimums: { openDutyMinimum: 2, closedDutyMinimum: 1 } }),
+    )
+    expect(conflicts).toEqual([])
+    for (const { date } of days) {
+      expect(assignments.filter((a) => a.date === date)).toHaveLength(1)
+    }
+  })
+
+  it('minimum below slots: every day reaches its minimum before any extra slot is filled', () => {
+    // Anchor 09-01: the open day has 3 slots but a minimum of 1. Five doctors
+    // capped at one duty each must first give every day its one doctor; only
+    // the doctor left over tops up the open day.
+    const days = [day('2026-09-01'), day('2026-09-02'), day('2026-09-03'), day('2026-09-04')]
+    const { assignments, conflicts } = generate(
+      ctx(days, Array.from({ length: 5 }, (_, i) => dr(i + 1, 1)), {
+        openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
+        slots: { openDutySlots: 3, closedDutySlots: 1 },
+        minimums: { openDutyMinimum: 1, closedDutyMinimum: 1 },
+      }),
+    )
+    expect(conflicts).toEqual([])
+    expect(assignments.filter((a) => a.date === '2026-09-01')).toHaveLength(2)
+    for (const date of ['2026-09-02', '2026-09-03', '2026-09-04']) {
+      expect(assignments.filter((a) => a.date === date)).toHaveLength(1)
+    }
+  })
+
+  it('minimum 2 of 3: a day short of its minimum reports the minimum, not the slot count', () => {
+    const { conflicts } = generate(
+      ctx([day('2026-09-01')], [dr(1)], {
+        openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
+        slots: { openDutySlots: 3, closedDutySlots: 2 },
+        minimums: { openDutyMinimum: 2, closedDutyMinimum: 2 },
+      }),
+    )
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0]?.detail).toContain('only 1 of 2 doctors assigned')
   })
 })

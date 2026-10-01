@@ -3,7 +3,11 @@ import { settingsController } from '../controllers/settings.controller'
 import { authenticate } from '../middleware/authenticate'
 import { authorize } from '../middleware/authorize'
 import { validate } from '../middleware/validate'
-import { updateDutySlotsSchema, updateOpenDutySchema } from '../validators/settings'
+import {
+  updateDutyMinimumsSchema,
+  updateDutySlotsSchema,
+  updateOpenDutySchema,
+} from '../validators/settings'
 
 export const settingsRouter = Router()
 
@@ -27,4 +31,15 @@ settingsRouter.patch(
   authorize('administrator'),
   validate(updateDutySlotsSchema, 'body'),
   settingsController.updateDutySlots,
+)
+
+// Hard minimum of on-call doctors per day type (open vs closed days). Each
+// must stay within its slot count; the engine, plans, duty removal, and
+// publishing enforce it.
+settingsRouter.get('/duty-minimums', authorize('administrator'), settingsController.getDutyMinimums)
+settingsRouter.patch(
+  '/duty-minimums',
+  authorize('administrator'),
+  validate(updateDutyMinimumsSchema, 'body'),
+  settingsController.updateDutyMinimums,
 )

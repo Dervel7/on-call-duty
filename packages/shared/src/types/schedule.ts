@@ -48,6 +48,8 @@ export interface DayInfo {
   dutyType: DutyType
   /** On-call doctors the day holds: open slots on open days, closed slots otherwise. */
   slotsRequired: number
+  /** Hard minimum the day must hold: open minimum on open days, closed minimum otherwise. */
+  slotsMinimum: number
   eligibleDoctorIds: number[]
   availableDoctorIds: number[]
 }

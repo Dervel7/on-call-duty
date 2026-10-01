@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ScrollText } from 'lucide-vue-next'
-import type { DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
-import { updateDutySlotsSchema, updateOpenDutySchema } from '@oncall/shared'
+import type { DutyMinimumSettings, DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
+import { updateDutyMinimumsSchema, updateDutySlotsSchema, updateOpenDutySchema } from '@oncall/shared'
 import * as settingsService from '@/services/settings'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -26,6 +26,13 @@ const closedSlotsInput = ref('')
 const slotsError = ref('')
 const slotsSuccess = ref(false)
 const slotsSubmitting = ref(false)
+
+const dutyMinimums = ref<DutyMinimumSettings | null>(null)
+const openMinimumInput = ref('')
+const closedMinimumInput = ref('')
+const minimumsError = ref('')
+const minimumsSuccess = ref(false)
+const minimumsSubmitting = ref(false)
 const loading = ref(true)
 
 function errorText(r: PromiseSettledResult<unknown>): string {
@@ -35,10 +42,12 @@ function errorText(r: PromiseSettledResult<unknown>): string {
 async function loadSettings() {
   intervalError.value = ''
   slotsError.value = ''
+  minimumsError.value = ''
   loading.value = true
-  const [cycle, slots] = await Promise.allSettled([
+  const [cycle, slots, minimums] = await Promise.allSettled([
     settingsService.getOpenDuty(),
     settingsService.getDutySlots(),
+    settingsService.getDutyMinimums(),
   ])
   if (cycle.status === 'fulfilled') {
     openDuty.value = cycle.value
@@ -52,6 +61,13 @@ async function loadSettings() {
     closedSlotsInput.value = String(slots.value.closedDutySlots)
   } else {
     slotsError.value = errorText(slots)
+  }
+  if (minimums.status === 'fulfilled') {
+    dutyMinimums.value = minimums.value
+    openMinimumInput.value = String(minimums.value.openDutyMinimum)
+    closedMinimumInput.value = String(minimums.value.closedDutyMinimum)
+  } else {
+    minimumsError.value = errorText(minimums)
   }
   loading.value = false
 }
@@ -100,6 +116,33 @@ async function onSubmitSlots() {
     slotsError.value = e instanceof Error ? e.message : 'Could not save slots'
   } finally {
     slotsSubmitting.value = false
+  }
+}
+
+async function onSubmitMinimums() {
+  minimumsError.value = ''
+  minimumsSuccess.value = false
+  const parsed = updateDutyMinimumsSchema.safeParse({
+    openDutyMinimum: openMinimumInput.value,
+    closedDutyMinimum: closedMinimumInput.value,
+  })
+  if (!parsed.success) {
+    minimumsError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
+    return
+  }
+  minimumsSubmitting.value = true
+  try {
+    dutyMinimums.value = await settingsService.updateDutyMinimums(
+      parsed.data.openDutyMinimum,
+      parsed.data.closedDutyMinimum,
+    )
+    openMinimumInput.value = String(dutyMinimums.value.openDutyMinimum)
+    closedMinimumInput.value = String(dutyMinimums.value.closedDutyMinimum)
+    minimumsSuccess.value = true
+  } catch (e) {
+    minimumsError.value = e instanceof Error ? e.message : 'Could not save minimums'
+  } finally {
+    minimumsSubmitting.value = false
   }
 }
 
@@ -181,6 +224,49 @@ onMounted(loadSettings)
             <p v-if="slotsError" class="text-xs text-destructive" role="alert">{{ slotsError }}</p>
             <p v-if="slotsSuccess" class="text-xs text-success" role="status">Slots updated.</p>
             <Button class="mt-auto" type="submit" :disabled="loading || slotsSubmitting">Save slots</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card class="flex flex-col">
+        <CardHeader class="p-5 pb-2">
+          <CardTitle>Minimum on-call doctors</CardTitle>
+          <CardDescription class="text-xs">
+            The fewest on-call doctors a day may hold. Open on-call days use their own minimum; all
+            other days (including the day after an open one) use the closed minimum. Each minimum
+            must not exceed its slot count. Any count from the minimum up to the slot count is
+            accepted; filling every slot is preferred.
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="flex flex-1 flex-col p-5 pt-0">
+          <form class="flex flex-1 flex-col gap-3" novalidate @submit.prevent="onSubmitMinimums">
+            <div class="flex flex-col gap-1.5">
+              <Label for="open-duty-minimum">Open on-call days (1–7)</Label>
+              <Input
+                id="open-duty-minimum"
+                v-model="openMinimumInput"
+                type="number"
+                min="1"
+                max="7"
+                inputmode="numeric"
+                :disabled="loading"
+              />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="closed-duty-minimum">Closed on-call days (1–7)</Label>
+              <Input
+                id="closed-duty-minimum"
+                v-model="closedMinimumInput"
+                type="number"
+                min="1"
+                max="7"
+                inputmode="numeric"
+                :disabled="loading"
+              />
+            </div>
+            <p v-if="minimumsError" class="text-xs text-destructive" role="alert">{{ minimumsError }}</p>
+            <p v-if="minimumsSuccess" class="text-xs text-success" role="status">Minimums updated.</p>
+            <Button class="mt-auto" type="submit" :disabled="loading || minimumsSubmitting">Save minimums</Button>
           </form>
         </CardContent>
       </Card>
