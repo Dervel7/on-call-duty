@@ -553,7 +553,7 @@ describe('generate plan path', () => {
 
   it('422 when an open on-call day has fewer doctors than its minimum', async () => {
     // Anchor 2026-09-01: 09-01 is open and falls back to its full 2 slots;
-    // the day after uses the stored closed minimum of 1.
+    // the day after uses the stored post-open minimum of 1.
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
       if (sql.includes('FROM app_meta'))
@@ -561,6 +561,7 @@ describe('generate plan path', () => {
           rows: [
             { key: 'open_duty_anchor_date', value: '2026-09-01' },
             { key: 'open_duty_interval_days', value: '30' },
+            { key: 'post_open_duty_minimum', value: '1' },
             { key: 'closed_duty_minimum', value: '1' },
           ],
         }
@@ -867,12 +868,17 @@ describe('publish / unpublish', () => {
   it('publish 409 when an open on-call day is below its minimum', async () => {
     // Seeded defaults (anchor 2026-10-02, interval 8) make 10-02, 10-10,
     // 10-18 and 10-26 open; with no open minimum stored they need their full
-    // 2 slots. Closed days (stored minimum 1) are fine with one doctor.
+    // 2 slots. Post-open and closed days (stored minimum 1) are fine with one doctor.
     query
       .mockResolvedValueOnce({ rows: [scheduleRow({ year: 2026, month: 10 })] }) // select (draft)
       .mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> seeded defaults
       .mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> seeded defaults
-      .mockResolvedValueOnce({ rows: [{ key: 'closed_duty_minimum', value: '1' }] }) // app_meta: duty minimums
+      .mockResolvedValueOnce({
+        rows: [
+          { key: 'post_open_duty_minimum', value: '1' },
+          { key: 'closed_duty_minimum', value: '1' },
+        ],
+      }) // app_meta: duty minimums
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
       .mockResolvedValueOnce({
         rows: Array.from({ length: 31 }, (_, i) => ({ duty_date: `2026-10-${String(i + 1).padStart(2, '0')}`, n: 1 })),
@@ -1002,8 +1008,8 @@ describe('computeEligibility', () => {
   })
   const empty = () => ({
     openDuty: { anchorDate: '2026-10-02', intervalDays: 8 },
-    slots: { openDutySlots: 2, closedDutySlots: 2 },
-    minimums: { openDutyMinimum: 2, closedDutyMinimum: 2 },
+    slots: { openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 2 },
+    minimums: { openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 2 },
     dutiesByDate: new Map<string, Set<number>>(),
     dutyCountByDoctor: new Map<number, number>(),
     holidayByDoctor: new Map<number, number>(),
@@ -1060,18 +1066,19 @@ describe('computeEligibility', () => {
     ])
   })
 
-  it('slotsRequired/slotsMinimum: open days report the open counts, closed days the closed counts', () => {
+  it('slotsRequired/slotsMinimum: open, post-open, and closed days report their own counts', () => {
     const result = computeEligibility({
       doctors: [doctor(1)],
       unavailability: new Map(),
-      days: [day('2026-10-01'), day('2026-10-02')],
+      days: [day('2026-10-01'), day('2026-10-02'), day('2026-10-03')],
       ...empty(),
-      slots: { openDutySlots: 3, closedDutySlots: 1 },
-      minimums: { openDutyMinimum: 2, closedDutyMinimum: 1 },
+      slots: { openDutySlots: 3, postOpenDutySlots: 4, closedDutySlots: 1 },
+      minimums: { openDutyMinimum: 2, postOpenDutyMinimum: 3, closedDutyMinimum: 1 },
     })
     expect(result.map((d) => [d.date, d.slotsRequired, d.slotsMinimum])).toEqual([
       ['2026-10-01', 1, 1],
       ['2026-10-02', 3, 2],
+      ['2026-10-03', 4, 3],
     ])
   })
 

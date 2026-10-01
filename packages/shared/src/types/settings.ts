@@ -27,16 +27,18 @@ export interface UpdateBillingRequest {
 
 /**
  * On-call capacity per day type: how many doctors a single day holds. Open
- * days follow the cycle above; every other day (including the day right
- * after an open day) is closed.
+ * days follow the cycle above; the calendar day right after an open day is a
+ * post-open day; every other day is closed.
  */
 export interface DutySlotsSettings {
   openDutySlots: number
+  postOpenDutySlots: number
   closedDutySlots: number
 }
 
 export interface UpdateDutySlotsRequest {
   openDutySlots: number
+  postOpenDutySlots: number
   closedDutySlots: number
 }
 
@@ -47,10 +49,12 @@ export interface UpdateDutySlotsRequest {
  */
 export interface DutyMinimumSettings {
   openDutyMinimum: number
+  postOpenDutyMinimum: number
   closedDutyMinimum: number
 }
 
 export interface UpdateDutyMinimumsRequest {
   openDutyMinimum: number
+  postOpenDutyMinimum: number
   closedDutyMinimum: number
 }

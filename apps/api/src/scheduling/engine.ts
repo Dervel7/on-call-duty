@@ -79,10 +79,15 @@ export function generate(ctx: SchedulingContext): GenerateResult {
   const fBudget = fridayBudget(fridaySlots, activeCount)
   const firstDay = ctx.days[0]
   const firstDayPrev = firstDay ? prevDate(firstDay.date) : ''
-  const maxDaySlots = Math.max(ctx.slots.openDutySlots, ctx.slots.closedDutySlots)
+  const maxDaySlots = Math.max(
+    ctx.slots.openDutySlots,
+    ctx.slots.postOpenDutySlots,
+    ctx.slots.closedDutySlots,
+  )
 
   // Strict rule: every day must reach its minimum (open minimum on open days,
-  // closed minimum on all others). Open on-call days and the day right after
+  // post-open minimum on the day right after them, closed minimum on all
+  // others). Open on-call days and the day right after
   // them (critical days) are filled first, and fairness caps never block
   // them. Only the hard constraints (availability, monthly cap, open on-call
   // cap, no back-to-back) can leave a day short, which surfaces as a

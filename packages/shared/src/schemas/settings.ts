@@ -14,10 +14,12 @@ export const DEFAULT_OPEN_DUTY_INTERVAL_DAYS = 8
 
 /** Seeded defaults for the per-day on-call slot counts; fallback when missing/corrupt. */
 export const DEFAULT_OPEN_DUTY_SLOTS = 2
+export const DEFAULT_POST_OPEN_DUTY_SLOTS = 2
 export const DEFAULT_CLOSED_DUTY_SLOTS = 2
 
 export const updateDutySlotsSchema = z.object({
   openDutySlots: z.coerce.number().int().min(1).max(7),
+  postOpenDutySlots: z.coerce.number().int().min(1).max(7),
   closedDutySlots: z.coerce.number().int().min(1).max(7),
 })
 
@@ -27,6 +29,7 @@ export const updateDutySlotsSchema = z.object({
  */
 export const updateDutyMinimumsSchema = z.object({
   openDutyMinimum: z.coerce.number().int().min(1).max(7),
+  postOpenDutyMinimum: z.coerce.number().int().min(1).max(7),
   closedDutyMinimum: z.coerce.number().int().min(1).max(7),
 })
 

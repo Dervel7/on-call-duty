@@ -93,10 +93,11 @@ describe('settings.service', () => {
 })
 
 describe('settings.service duty slots', () => {
-  it('missing app_meta rows fall back to the seeded 2/2 defaults', async () => {
+  it('missing app_meta rows fall back to the seeded 2/2/2 defaults', async () => {
     query.mockResolvedValue({ rows: [] })
     await expect(getDutySlots()).resolves.toEqual({
       openDutySlots: 2,
+      postOpenDutySlots: 2,
       closedDutySlots: 2,
     })
   })
@@ -105,11 +106,13 @@ describe('settings.service duty slots', () => {
     query.mockResolvedValue({
       rows: [
         { key: 'open_duty_slots', value: '3' },
+        { key: 'post_open_duty_slots', value: '4' },
         { key: 'closed_duty_slots', value: '1' },
       ],
     })
     await expect(getDutySlots()).resolves.toEqual({
       openDutySlots: 3,
+      postOpenDutySlots: 4,
       closedDutySlots: 1,
     })
   })
@@ -118,21 +121,22 @@ describe('settings.service duty slots', () => {
     query.mockResolvedValue({
       rows: [
         { key: 'open_duty_slots', value: 'three' },
+        { key: 'post_open_duty_slots', value: '-1' },
         { key: 'closed_duty_slots', value: '0' },
       ],
     })
     await expect(getDutySlots()).resolves.toEqual({
       openDutySlots: 2,
+      postOpenDutySlots: 2,
       closedDutySlots: 2,
     })
   })
 
-  it('setDutySlots upserts both keys, audits duty_slots_settings.updated, returns fresh settings', async () => {
+  it('setDutySlots upserts all three keys, audits duty_slots_settings.updated, returns fresh settings', async () => {
     const appMeta = new Map<string, string>()
     query.mockImplementation(async (sql: string, params: unknown[] = []) => {
       if (sql.includes('INSERT INTO app_meta')) {
-        appMeta.set(String(params[0]), String(params[1]))
-        appMeta.set(String(params[2]), String(params[3]))
+        for (let i = 0; i < params.length; i += 2) appMeta.set(String(params[i]), String(params[i + 1]))
         return { rows: [] }
       }
       const rows: Array<{ key: string; value: string }> = []
@@ -144,12 +148,19 @@ describe('settings.service duty slots', () => {
     })
 
     const settings = await setDutySlots(
-      { openDutySlots: 3, closedDutySlots: 2 },
+      { openDutySlots: 3, postOpenDutySlots: 4, closedDutySlots: 2 },
       { id: 1, role: 'administrator' },
     )
-    expect(settings).toEqual({ openDutySlots: 3, closedDutySlots: 2 })
+    expect(settings).toEqual({ openDutySlots: 3, postOpenDutySlots: 4, closedDutySlots: 2 })
     const upsert = query.mock.calls.find((c) => String(c[0]).includes('ON CONFLICT'))
-    expect(upsert?.[1]).toEqual(['open_duty_slots', '3', 'closed_duty_slots', '2'])
+    expect(upsert?.[1]).toEqual([
+      'open_duty_slots',
+      '3',
+      'post_open_duty_slots',
+      '4',
+      'closed_duty_slots',
+      '2',
+    ])
     expect(logActivity).toHaveBeenCalledWith({
       userId: 1,
       action: 'duty_slots_settings.updated',
@@ -157,8 +168,10 @@ describe('settings.service duty slots', () => {
       entityId: null,
       detail: {
         previousOpenDutySlots: 2,
+        previousPostOpenDutySlots: 2,
         previousClosedDutySlots: 2,
         openDutySlots: 3,
+        postOpenDutySlots: 4,
         closedDutySlots: 2,
       },
     })
@@ -166,13 +179,12 @@ describe('settings.service duty slots', () => {
 })
 
 describe('settings.service duty minimums', () => {
-  /** Serves app_meta reads from the map and applies two-key upserts to it. */
+  /** Serves app_meta reads from the map and applies key/value-pair upserts to it. */
   function useAppMeta(initial: Record<string, string>): Map<string, string> {
     const appMeta = new Map(Object.entries(initial))
     query.mockImplementation(async (sql: string, params: unknown[] = []) => {
       if (sql.includes('INSERT INTO app_meta')) {
-        appMeta.set(String(params[0]), String(params[1]))
-        appMeta.set(String(params[2]), String(params[3]))
+        for (let i = 0; i < params.length; i += 2) appMeta.set(String(params[i]), String(params[i + 1]))
         return { rows: [] }
       }
       const rows: Array<{ key: string; value: string }> = []
@@ -186,29 +198,46 @@ describe('settings.service duty minimums', () => {
   }
 
   it('missing minimum rows fall back to the slot counts (full coverage)', async () => {
-    useAppMeta({ open_duty_slots: '4', closed_duty_slots: '3' })
-    await expect(getDutyMinimums()).resolves.toEqual({ openDutyMinimum: 4, closedDutyMinimum: 3 })
+    useAppMeta({ open_duty_slots: '4', post_open_duty_slots: '5', closed_duty_slots: '3' })
+    await expect(getDutyMinimums()).resolves.toEqual({
+      openDutyMinimum: 4,
+      postOpenDutyMinimum: 5,
+      closedDutyMinimum: 3,
+    })
   })
 
   it('a stored minimum above its slot count is clamped to the slot count', async () => {
     useAppMeta({
       open_duty_slots: '4',
+      post_open_duty_slots: '3',
       closed_duty_slots: '2',
       open_duty_minimum: '2',
+      post_open_duty_minimum: '6',
       closed_duty_minimum: '5',
     })
-    await expect(getDutyMinimums()).resolves.toEqual({ openDutyMinimum: 2, closedDutyMinimum: 2 })
+    await expect(getDutyMinimums()).resolves.toEqual({
+      openDutyMinimum: 2,
+      postOpenDutyMinimum: 3,
+      closedDutyMinimum: 2,
+    })
   })
 
-  it('setDutyMinimums upserts both keys, audits duty_minimums_settings.updated, returns fresh settings', async () => {
-    useAppMeta({ open_duty_slots: '4', closed_duty_slots: '2' })
+  it('setDutyMinimums upserts all three keys, audits duty_minimums_settings.updated, returns fresh settings', async () => {
+    useAppMeta({ open_duty_slots: '4', post_open_duty_slots: '3', closed_duty_slots: '2' })
     const settings = await setDutyMinimums(
-      { openDutyMinimum: 2, closedDutyMinimum: 1 },
+      { openDutyMinimum: 2, postOpenDutyMinimum: 3, closedDutyMinimum: 1 },
       { id: 1, role: 'administrator' },
     )
-    expect(settings).toEqual({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+    expect(settings).toEqual({ openDutyMinimum: 2, postOpenDutyMinimum: 3, closedDutyMinimum: 1 })
     const upsert = query.mock.calls.find((c) => String(c[0]).includes('ON CONFLICT'))
-    expect(upsert?.[1]).toEqual(['open_duty_minimum', '2', 'closed_duty_minimum', '1'])
+    expect(upsert?.[1]).toEqual([
+      'open_duty_minimum',
+      '2',
+      'post_open_duty_minimum',
+      '3',
+      'closed_duty_minimum',
+      '1',
+    ])
     expect(logActivity).toHaveBeenCalledWith({
       userId: 1,
       action: 'duty_minimums_settings.updated',
@@ -216,27 +245,40 @@ describe('settings.service duty minimums', () => {
       entityId: null,
       detail: {
         previousOpenDutyMinimum: 4,
+        previousPostOpenDutyMinimum: 3,
         previousClosedDutyMinimum: 2,
         openDutyMinimum: 2,
+        postOpenDutyMinimum: 3,
         closedDutyMinimum: 1,
       },
     })
   })
 
   it('setDutyMinimums 409 when a minimum exceeds its slot count, without saving', async () => {
-    useAppMeta({ open_duty_slots: '4', closed_duty_slots: '2' })
+    useAppMeta({ open_duty_slots: '4', post_open_duty_slots: '2', closed_duty_slots: '2' })
     await expect(
-      setDutyMinimums({ openDutyMinimum: 4, closedDutyMinimum: 3 }, { id: 1, role: 'administrator' }),
-    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('closed days have 2') })
+      setDutyMinimums(
+        { openDutyMinimum: 4, postOpenDutyMinimum: 3, closedDutyMinimum: 2 },
+        { id: 1, role: 'administrator' },
+      ),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('days after open have 2') })
     expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO app_meta'))).toBe(false)
     expect(logActivity).not.toHaveBeenCalled()
   })
 
   it('setDutySlots 409 when a slot count drops below a stored minimum, without saving', async () => {
-    useAppMeta({ open_duty_slots: '4', closed_duty_slots: '2', open_duty_minimum: '3' })
+    useAppMeta({
+      open_duty_slots: '4',
+      post_open_duty_slots: '3',
+      closed_duty_slots: '2',
+      post_open_duty_minimum: '3',
+    })
     await expect(
-      setDutySlots({ openDutySlots: 2, closedDutySlots: 1 }, { id: 1, role: 'administrator' }),
-    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('open minimum is 3') })
+      setDutySlots(
+        { openDutySlots: 4, postOpenDutySlots: 2, closedDutySlots: 2 },
+        { id: 1, role: 'administrator' },
+      ),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('day-after-open minimum is 3') })
     expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO app_meta'))).toBe(false)
   })
 })

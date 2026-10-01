@@ -40,8 +40,8 @@ async function mountRules() {
   const auth = useAuthStore()
   auth.user = adminAuth()
   getOpenDuty.mockResolvedValue({ anchorDate: '2026-10-02', intervalDays: 8 })
-  getDutySlots.mockResolvedValue({ openDutySlots: 4, closedDutySlots: 2 })
-  getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+  getDutySlots.mockResolvedValue({ openDutySlots: 4, postOpenDutySlots: 3, closedDutySlots: 2 })
+  getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 1 })
   const wrapper = mount(RulesPage, { global: { plugins: [pinia] } })
   await flushPromises()
   return wrapper
@@ -69,9 +69,9 @@ describe('RulesPage', () => {
     expect(wrapper.find('#rule-cycle-toggle').text()).toContain('On-call duty cycle')
     expect(wrapper.find('#rule-cycle-toggle').text()).toContain('Every 8 days')
     expect(wrapper.find('#rule-slots-toggle').text()).toContain('On-call slots')
-    expect(wrapper.find('#rule-slots-toggle').text()).toContain('Open 4 · Closed 2')
+    expect(wrapper.find('#rule-slots-toggle').text()).toContain('Open 4 · Day after 3 · Closed 2')
     expect(wrapper.find('#rule-minimums-toggle').text()).toContain('Minimum on-call doctors')
-    expect(wrapper.find('#rule-minimums-toggle').text()).toContain('Open 2 · Closed 1')
+    expect(wrapper.find('#rule-minimums-toggle').text()).toContain('Open 2 · Day after 2 · Closed 1')
     expect(wrapper.findAll('form')).toHaveLength(0)
   })
 
@@ -85,11 +85,13 @@ describe('RulesPage', () => {
     await expand(wrapper, 'slots')
     expect(wrapper.find('#open-duty-interval').exists()).toBe(false)
     expect((wrapper.find('#open-duty-slots').element as HTMLInputElement).value).toBe('4')
+    expect((wrapper.find('#post-open-duty-slots').element as HTMLInputElement).value).toBe('3')
     expect((wrapper.find('#closed-duty-slots').element as HTMLInputElement).value).toBe('2')
 
     await expand(wrapper, 'minimums')
     expect(wrapper.find('#open-duty-slots').exists()).toBe(false)
     expect((wrapper.find('#open-duty-minimum').element as HTMLInputElement).value).toBe('2')
+    expect((wrapper.find('#post-open-duty-minimum').element as HTMLInputElement).value).toBe('2')
     expect((wrapper.find('#closed-duty-minimum').element as HTMLInputElement).value).toBe('1')
 
     await expand(wrapper, 'minimums')
@@ -121,24 +123,26 @@ describe('RulesPage', () => {
   })
 
   it('saves new slot counts through the service and confirms', async () => {
-    updateDutySlots.mockResolvedValue({ openDutySlots: 3, closedDutySlots: 1 })
+    updateDutySlots.mockResolvedValue({ openDutySlots: 3, postOpenDutySlots: 4, closedDutySlots: 1 })
     const wrapper = await mountRules()
     await expand(wrapper, 'slots')
     await wrapper.find('#open-duty-slots').setValue('3')
+    await wrapper.find('#post-open-duty-slots').setValue('4')
     await wrapper.find('#closed-duty-slots').setValue('1')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-slots').exists())!
     await form.trigger('submit')
     await flushPromises()
-    expect(updateDutySlots).toHaveBeenCalledWith(3, 1)
+    expect(updateDutySlots).toHaveBeenCalledWith(3, 4, 1)
     expect(form.find('[role="status"]').text()).toContain('Slots updated.')
     expect((wrapper.find('#open-duty-slots').element as HTMLInputElement).value).toBe('3')
+    expect((wrapper.find('#post-open-duty-slots').element as HTMLInputElement).value).toBe('4')
     expect((wrapper.find('#closed-duty-slots').element as HTMLInputElement).value).toBe('1')
   })
 
   it('rejects out-of-range slot counts without calling the service', async () => {
     const wrapper = await mountRules()
     await expand(wrapper, 'slots')
-    await wrapper.find('#open-duty-slots').setValue('8')
+    await wrapper.find('#post-open-duty-slots').setValue('8')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-slots').exists())!
     await form.trigger('submit')
     await flushPromises()
@@ -147,17 +151,19 @@ describe('RulesPage', () => {
   })
 
   it('saves new minimums through the service and confirms', async () => {
-    updateDutyMinimums.mockResolvedValue({ openDutyMinimum: 3, closedDutyMinimum: 2 })
+    updateDutyMinimums.mockResolvedValue({ openDutyMinimum: 3, postOpenDutyMinimum: 1, closedDutyMinimum: 2 })
     const wrapper = await mountRules()
     await expand(wrapper, 'minimums')
     await wrapper.find('#open-duty-minimum').setValue('3')
+    await wrapper.find('#post-open-duty-minimum').setValue('1')
     await wrapper.find('#closed-duty-minimum').setValue('2')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-minimum').exists())!
     await form.trigger('submit')
     await flushPromises()
-    expect(updateDutyMinimums).toHaveBeenCalledWith(3, 2)
+    expect(updateDutyMinimums).toHaveBeenCalledWith(3, 1, 2)
     expect(form.find('[role="status"]').text()).toContain('Minimums updated.')
     expect((wrapper.find('#open-duty-minimum').element as HTMLInputElement).value).toBe('3')
+    expect((wrapper.find('#post-open-duty-minimum').element as HTMLInputElement).value).toBe('1')
     expect((wrapper.find('#closed-duty-minimum').element as HTMLInputElement).value).toBe('2')
   })
 
@@ -180,7 +186,7 @@ describe('RulesPage', () => {
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-minimum').exists())!
     await form.trigger('submit')
     await flushPromises()
-    expect(updateDutyMinimums).toHaveBeenCalledWith(5, 1)
+    expect(updateDutyMinimums).toHaveBeenCalledWith(5, 2, 1)
     expect(form.find('[role="alert"]').text()).toContain('cannot exceed the open slot count')
     expect(form.find('[role="status"]').exists()).toBe(false)
     expect(wrapper.findAll('[role="alert"]')).toHaveLength(1)
@@ -190,8 +196,8 @@ describe('RulesPage', () => {
     setActivePinia(createPinia())
     let resolveCycle!: (value: unknown) => void
     getOpenDuty.mockReturnValue(new Promise((resolve) => (resolveCycle = resolve)))
-    getDutySlots.mockResolvedValue({ openDutySlots: 2, closedDutySlots: 2 })
-    getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, closedDutyMinimum: 2 })
+    getDutySlots.mockResolvedValue({ openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 2 })
+    getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 2 })
     const wrapper = mount(RulesPage)
     await flushPromises()
     await expand(wrapper, 'cycle')
@@ -205,12 +211,12 @@ describe('RulesPage', () => {
 
   it('flags only the rule that failed to load and keeps the others populated', async () => {
     getOpenDuty.mockRejectedValue(new Error('cycle down'))
-    getDutySlots.mockResolvedValue({ openDutySlots: 3, closedDutySlots: 1 })
-    getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+    getDutySlots.mockResolvedValue({ openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 1 })
+    getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 1 })
     const wrapper = mount(RulesPage)
     await flushPromises()
     expect(wrapper.find('#rule-cycle-toggle').text()).toContain('Error')
-    expect(wrapper.find('#rule-slots-toggle').text()).toContain('Open 3 · Closed 1')
+    expect(wrapper.find('#rule-slots-toggle').text()).toContain('Open 3 · Day after 2 · Closed 1')
     await expand(wrapper, 'cycle')
     expect(wrapper.find('[role="alert"]').text()).toContain('cycle down')
     await expand(wrapper, 'slots')
@@ -228,9 +234,12 @@ describe('RulesPage in Greek', () => {
     expect(wrapper.text()).toContain('Κανόνες')
     expect(wrapper.find('#rule-cycle-toggle').text()).toContain('Κύκλος εφημεριών')
     expect(wrapper.find('#rule-cycle-toggle').text()).toContain('Κάθε 8 ημέρες')
-    expect(wrapper.find('#rule-slots-toggle').text()).toContain('Ανοιχτές 4 · Κλειστές 2')
+    expect(wrapper.find('#rule-slots-toggle').text()).toContain('Ανοιχτές 4 · Επόμενη 3 · Κλειστές 2')
     await expand(wrapper, 'slots')
     expect(wrapper.find('label[for="open-duty-slots"]').text()).toBe('Ημέρες ανοιχτής εφημερίας (1–7)')
+    expect(wrapper.find('label[for="post-open-duty-slots"]').text()).toBe(
+      'Επόμενη ημέρα ανοιχτής εφημερίας (1–7)',
+    )
     expect(wrapper.find('button[type="submit"]').text()).toBe('Αποθήκευση θέσεων')
   })
 })

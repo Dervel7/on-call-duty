@@ -29,6 +29,7 @@ const intervalSubmitting = ref(false)
 
 const dutySlots = ref<DutySlotsSettings | null>(null)
 const openSlotsInput = ref('')
+const postOpenSlotsInput = ref('')
 const closedSlotsInput = ref('')
 const slotsError = ref('')
 const slotsSuccess = ref(false)
@@ -36,6 +37,7 @@ const slotsSubmitting = ref(false)
 
 const dutyMinimums = ref<DutyMinimumSettings | null>(null)
 const openMinimumInput = ref('')
+const postOpenMinimumInput = ref('')
 const closedMinimumInput = ref('')
 const minimumsError = ref('')
 const minimumsSuccess = ref(false)
@@ -65,6 +67,7 @@ async function loadSettings() {
   if (slots.status === 'fulfilled') {
     dutySlots.value = slots.value
     openSlotsInput.value = String(slots.value.openDutySlots)
+    postOpenSlotsInput.value = String(slots.value.postOpenDutySlots)
     closedSlotsInput.value = String(slots.value.closedDutySlots)
   } else {
     slotsError.value = errorText(slots)
@@ -72,6 +75,7 @@ async function loadSettings() {
   if (minimums.status === 'fulfilled') {
     dutyMinimums.value = minimums.value
     openMinimumInput.value = String(minimums.value.openDutyMinimum)
+    postOpenMinimumInput.value = String(minimums.value.postOpenDutyMinimum)
     closedMinimumInput.value = String(minimums.value.closedDutyMinimum)
   } else {
     minimumsError.value = errorText(minimums)
@@ -104,6 +108,7 @@ async function onSubmitSlots() {
   slotsSuccess.value = false
   const parsed = updateDutySlotsSchema.safeParse({
     openDutySlots: openSlotsInput.value,
+    postOpenDutySlots: postOpenSlotsInput.value,
     closedDutySlots: closedSlotsInput.value,
   })
   if (!parsed.success) {
@@ -114,9 +119,11 @@ async function onSubmitSlots() {
   try {
     dutySlots.value = await settingsService.updateDutySlots(
       parsed.data.openDutySlots,
+      parsed.data.postOpenDutySlots,
       parsed.data.closedDutySlots,
     )
     openSlotsInput.value = String(dutySlots.value.openDutySlots)
+    postOpenSlotsInput.value = String(dutySlots.value.postOpenDutySlots)
     closedSlotsInput.value = String(dutySlots.value.closedDutySlots)
     slotsSuccess.value = true
   } catch (e) {
@@ -131,6 +138,7 @@ async function onSubmitMinimums() {
   minimumsSuccess.value = false
   const parsed = updateDutyMinimumsSchema.safeParse({
     openDutyMinimum: openMinimumInput.value,
+    postOpenDutyMinimum: postOpenMinimumInput.value,
     closedDutyMinimum: closedMinimumInput.value,
   })
   if (!parsed.success) {
@@ -141,9 +149,11 @@ async function onSubmitMinimums() {
   try {
     dutyMinimums.value = await settingsService.updateDutyMinimums(
       parsed.data.openDutyMinimum,
+      parsed.data.postOpenDutyMinimum,
       parsed.data.closedDutyMinimum,
     )
     openMinimumInput.value = String(dutyMinimums.value.openDutyMinimum)
+    postOpenMinimumInput.value = String(dutyMinimums.value.postOpenDutyMinimum)
     closedMinimumInput.value = String(dutyMinimums.value.closedDutyMinimum)
     minimumsSuccess.value = true
   } catch (e) {
@@ -218,7 +228,13 @@ onMounted(loadSettings)
           <span class="inline-flex items-center gap-2 font-mono text-sm text-muted-foreground">
             <span v-if="slotsError" class="text-destructive">{{ t('rules.error') }}</span>
             <template v-else-if="dutySlots"
-              >{{ t('rules.openClosedSummary', { open: dutySlots.openDutySlots, closed: dutySlots.closedDutySlots }) }}</template
+              >{{
+                t('rules.dayTypeSummary', {
+                  open: dutySlots.openDutySlots,
+                  postOpen: dutySlots.postOpenDutySlots,
+                  closed: dutySlots.closedDutySlots,
+                })
+              }}</template
             >
             <ChevronDown class="size-4 transition-transform" :class="{ 'rotate-180': expandedRule === 'slots' }" />
           </span>
@@ -233,6 +249,18 @@ onMounted(loadSettings)
               <Input
                 id="open-duty-slots"
                 v-model="openSlotsInput"
+                type="number"
+                min="1"
+                max="7"
+                inputmode="numeric"
+                :disabled="loading"
+              />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="post-open-duty-slots">{{ t('rules.postOpenDaysLabel') }}</Label>
+              <Input
+                id="post-open-duty-slots"
+                v-model="postOpenSlotsInput"
                 type="number"
                 min="1"
                 max="7"
@@ -272,7 +300,13 @@ onMounted(loadSettings)
           <span class="inline-flex items-center gap-2 font-mono text-sm text-muted-foreground">
             <span v-if="minimumsError" class="text-destructive">{{ t('rules.error') }}</span>
             <template v-else-if="dutyMinimums"
-              >{{ t('rules.openClosedSummary', { open: dutyMinimums.openDutyMinimum, closed: dutyMinimums.closedDutyMinimum }) }}</template
+              >{{
+                t('rules.dayTypeSummary', {
+                  open: dutyMinimums.openDutyMinimum,
+                  postOpen: dutyMinimums.postOpenDutyMinimum,
+                  closed: dutyMinimums.closedDutyMinimum,
+                })
+              }}</template
             >
             <ChevronDown
               class="size-4 transition-transform"
@@ -290,6 +324,18 @@ onMounted(loadSettings)
               <Input
                 id="open-duty-minimum"
                 v-model="openMinimumInput"
+                type="number"
+                min="1"
+                max="7"
+                inputmode="numeric"
+                :disabled="loading"
+              />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <Label for="post-open-duty-minimum">{{ t('rules.postOpenDaysLabel') }}</Label>
+              <Input
+                id="post-open-duty-minimum"
+                v-model="postOpenMinimumInput"
                 type="number"
                 min="1"
                 max="7"

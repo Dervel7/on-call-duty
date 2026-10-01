@@ -108,27 +108,28 @@ describe('duty-slots settings routes', () => {
       .set('Authorization', `Bearer ${doctorToken()}`)
     expect(forbidden.status).toBe(403)
 
-    getDutySlots.mockResolvedValue({ openDutySlots: 2, closedDutySlots: 2 })
+    getDutySlots.mockResolvedValue({ openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 2 })
     const res = await request(build())
       .get('/settings/duty-slots')
       .set('Authorization', `Bearer ${adminToken()}`)
     expect(res.status).toBe(200)
-    expect(res.body.data.dutySlots).toEqual({ openDutySlots: 2, closedDutySlots: 2 })
+    expect(res.body.data.dutySlots).toEqual({ openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 2 })
   })
 
   it('PATCH rejects doctors (403) and out-of-range counts (400) without touching the service', async () => {
     const forbidden = await request(build())
       .patch('/settings/duty-slots')
       .set('Authorization', `Bearer ${doctorToken()}`)
-      .send({ openDutySlots: 3, closedDutySlots: 2 })
+      .send({ openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 2 })
     expect(forbidden.status).toBe(403)
 
     for (const body of [
-      { openDutySlots: 0, closedDutySlots: 2 },
-      { openDutySlots: 8, closedDutySlots: 2 },
-      { openDutySlots: 1.5, closedDutySlots: 2 },
-      { openDutySlots: 2 },
-      { openDutySlots: 'abc', closedDutySlots: 2 },
+      { openDutySlots: 0, postOpenDutySlots: 2, closedDutySlots: 2 },
+      { openDutySlots: 8, postOpenDutySlots: 2, closedDutySlots: 2 },
+      { openDutySlots: 2, postOpenDutySlots: 8, closedDutySlots: 2 },
+      { openDutySlots: 1.5, postOpenDutySlots: 2, closedDutySlots: 2 },
+      { openDutySlots: 2, closedDutySlots: 2 },
+      { openDutySlots: 'abc', postOpenDutySlots: 2, closedDutySlots: 2 },
     ]) {
       const res = await request(build())
         .patch('/settings/duty-slots')
@@ -140,23 +141,23 @@ describe('duty-slots settings routes', () => {
   })
 
   it('PATCH saves for administrators, echoing the updated counts', async () => {
-    setDutySlots.mockResolvedValue({ openDutySlots: 3, closedDutySlots: 1 })
+    setDutySlots.mockResolvedValue({ openDutySlots: 3, postOpenDutySlots: 4, closedDutySlots: 1 })
 
     const res = await request(build())
       .patch('/settings/duty-slots')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ openDutySlots: 3, closedDutySlots: 1 })
+      .send({ openDutySlots: 3, postOpenDutySlots: 4, closedDutySlots: 1 })
     expect(res.status).toBe(200)
-    expect(res.body.data.dutySlots).toEqual({ openDutySlots: 3, closedDutySlots: 1 })
+    expect(res.body.data.dutySlots).toEqual({ openDutySlots: 3, postOpenDutySlots: 4, closedDutySlots: 1 })
     expect(setDutySlots).toHaveBeenCalledWith(
-      { openDutySlots: 3, closedDutySlots: 1 },
+      { openDutySlots: 3, postOpenDutySlots: 4, closedDutySlots: 1 },
       expect.objectContaining({ id: 1, role: 'administrator' }),
     )
 
     const asString = await request(build())
       .patch('/settings/duty-slots')
       .set('Authorization', `Bearer ${superadminToken()}`)
-      .send({ openDutySlots: '3', closedDutySlots: '1' })
+      .send({ openDutySlots: '3', postOpenDutySlots: '4', closedDutySlots: '1' })
     expect(asString.status).toBe(200)
   })
 })
@@ -170,26 +171,31 @@ describe('duty-minimums settings routes', () => {
       .set('Authorization', `Bearer ${doctorToken()}`)
     expect(forbidden.status).toBe(403)
 
-    getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+    getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 1 })
     const res = await request(build())
       .get('/settings/duty-minimums')
       .set('Authorization', `Bearer ${adminToken()}`)
     expect(res.status).toBe(200)
-    expect(res.body.data.dutyMinimums).toEqual({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+    expect(res.body.data.dutyMinimums).toEqual({
+      openDutyMinimum: 2,
+      postOpenDutyMinimum: 2,
+      closedDutyMinimum: 1,
+    })
   })
 
   it('PATCH rejects doctors (403) and out-of-range minimums (400) without touching the service', async () => {
     const forbidden = await request(build())
       .patch('/settings/duty-minimums')
       .set('Authorization', `Bearer ${doctorToken()}`)
-      .send({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+      .send({ openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 1 })
     expect(forbidden.status).toBe(403)
 
     for (const body of [
-      { openDutyMinimum: 0, closedDutyMinimum: 1 },
-      { openDutyMinimum: 2, closedDutyMinimum: 8 },
-      { openDutyMinimum: 1.5, closedDutyMinimum: 1 },
-      { openDutyMinimum: 2 },
+      { openDutyMinimum: 0, postOpenDutyMinimum: 2, closedDutyMinimum: 1 },
+      { openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 8 },
+      { openDutyMinimum: 2, postOpenDutyMinimum: 0, closedDutyMinimum: 1 },
+      { openDutyMinimum: 1.5, postOpenDutyMinimum: 2, closedDutyMinimum: 1 },
+      { openDutyMinimum: 2, closedDutyMinimum: 1 },
     ]) {
       const res = await request(build())
         .patch('/settings/duty-minimums')
@@ -201,15 +207,19 @@ describe('duty-minimums settings routes', () => {
   })
 
   it('PATCH saves for administrators, echoing the updated minimums', async () => {
-    setDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+    setDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, postOpenDutyMinimum: 3, closedDutyMinimum: 1 })
     const res = await request(build())
       .patch('/settings/duty-minimums')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ openDutyMinimum: '2', closedDutyMinimum: '1' })
+      .send({ openDutyMinimum: '2', postOpenDutyMinimum: '3', closedDutyMinimum: '1' })
     expect(res.status).toBe(200)
-    expect(res.body.data.dutyMinimums).toEqual({ openDutyMinimum: 2, closedDutyMinimum: 1 })
+    expect(res.body.data.dutyMinimums).toEqual({
+      openDutyMinimum: 2,
+      postOpenDutyMinimum: 3,
+      closedDutyMinimum: 1,
+    })
     expect(setDutyMinimums).toHaveBeenCalledWith(
-      { openDutyMinimum: 2, closedDutyMinimum: 1 },
+      { openDutyMinimum: 2, postOpenDutyMinimum: 3, closedDutyMinimum: 1 },
       expect.objectContaining({ id: 1, role: 'administrator' }),
     )
   })

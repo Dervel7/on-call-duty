@@ -12,6 +12,7 @@ import {
   DEFAULT_OPEN_DUTY_ANCHOR_DATE,
   DEFAULT_OPEN_DUTY_INTERVAL_DAYS,
   DEFAULT_OPEN_DUTY_SLOTS,
+  DEFAULT_POST_OPEN_DUTY_SLOTS,
   isoDateSchema,
 } from '@oncall/shared'
 import { query } from '../db/client'
@@ -23,8 +24,10 @@ type Actor = Pick<AuthUser, 'id' | 'role'>
 const INTERVAL_KEY = 'open_duty_interval_days'
 const ANCHOR_KEY = 'open_duty_anchor_date'
 const OPEN_SLOTS_KEY = 'open_duty_slots'
+const POST_OPEN_SLOTS_KEY = 'post_open_duty_slots'
 const CLOSED_SLOTS_KEY = 'closed_duty_slots'
 const OPEN_MINIMUM_KEY = 'open_duty_minimum'
+const POST_OPEN_MINIMUM_KEY = 'post_open_duty_minimum'
 const CLOSED_MINIMUM_KEY = 'closed_duty_minimum'
 
 /**
@@ -73,14 +76,17 @@ export async function setOpenDutyInterval(
  */
 export async function getDutySlots(): Promise<DutySlotsSettings> {
   const res = await query<{ key: string; value: string }>(
-    'SELECT key, value FROM app_meta WHERE key IN ($1, $2)',
-    [OPEN_SLOTS_KEY, CLOSED_SLOTS_KEY],
+    'SELECT key, value FROM app_meta WHERE key IN ($1, $2, $3)',
+    [OPEN_SLOTS_KEY, POST_OPEN_SLOTS_KEY, CLOSED_SLOTS_KEY],
   )
-  const open = Number.parseInt(res.rows.find((r) => r.key === OPEN_SLOTS_KEY)?.value ?? '', 10)
-  const closed = Number.parseInt(res.rows.find((r) => r.key === CLOSED_SLOTS_KEY)?.value ?? '', 10)
+  const parse = (key: string, fallback: number): number => {
+    const n = Number.parseInt(res.rows.find((r) => r.key === key)?.value ?? '', 10)
+    return Number.isInteger(n) && n >= 1 ? n : fallback
+  }
   return {
-    openDutySlots: Number.isInteger(open) && open >= 1 ? open : DEFAULT_OPEN_DUTY_SLOTS,
-    closedDutySlots: Number.isInteger(closed) && closed >= 1 ? closed : DEFAULT_CLOSED_DUTY_SLOTS,
+    openDutySlots: parse(OPEN_SLOTS_KEY, DEFAULT_OPEN_DUTY_SLOTS),
+    postOpenDutySlots: parse(POST_OPEN_SLOTS_KEY, DEFAULT_POST_OPEN_DUTY_SLOTS),
+    closedDutySlots: parse(CLOSED_SLOTS_KEY, DEFAULT_CLOSED_DUTY_SLOTS),
   }
 }
 
@@ -94,6 +100,8 @@ export async function setDutySlots(
   const blocked: string[] = []
   if (stored.open !== null && input.openDutySlots < stored.open)
     blocked.push(`open minimum is ${stored.open}`)
+  if (stored.postOpen !== null && input.postOpenDutySlots < stored.postOpen)
+    blocked.push(`day-after-open minimum is ${stored.postOpen}`)
   if (stored.closed !== null && input.closedDutySlots < stored.closed)
     blocked.push(`closed minimum is ${stored.closed}`)
   if (blocked.length > 0)
@@ -103,9 +111,16 @@ export async function setDutySlots(
     )
   const previous = await getDutySlots()
   await query(
-    `INSERT INTO app_meta (key, value) VALUES ($1, $2), ($3, $4)
+    `INSERT INTO app_meta (key, value) VALUES ($1, $2), ($3, $4), ($5, $6)
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-    [OPEN_SLOTS_KEY, String(input.openDutySlots), CLOSED_SLOTS_KEY, String(input.closedDutySlots)],
+    [
+      OPEN_SLOTS_KEY,
+      String(input.openDutySlots),
+      POST_OPEN_SLOTS_KEY,
+      String(input.postOpenDutySlots),
+      CLOSED_SLOTS_KEY,
+      String(input.closedDutySlots),
+    ],
   )
   await logActivity({
     userId: actor.id,
@@ -114,8 +129,10 @@ export async function setDutySlots(
     entityId: null,
     detail: {
       previousOpenDutySlots: previous.openDutySlots,
+      previousPostOpenDutySlots: previous.postOpenDutySlots,
       previousClosedDutySlots: previous.closedDutySlots,
       openDutySlots: input.openDutySlots,
+      postOpenDutySlots: input.postOpenDutySlots,
       closedDutySlots: input.closedDutySlots,
     },
   })
@@ -123,16 +140,24 @@ export async function setDutySlots(
 }
 
 /** Stored minimums; null where the row is missing or corrupt. */
-async function readStoredMinimums(): Promise<{ open: number | null; closed: number | null }> {
+async function readStoredMinimums(): Promise<{
+  open: number | null
+  postOpen: number | null
+  closed: number | null
+}> {
   const res = await query<{ key: string; value: string }>(
-    'SELECT key, value FROM app_meta WHERE key IN ($1, $2)',
-    [OPEN_MINIMUM_KEY, CLOSED_MINIMUM_KEY],
+    'SELECT key, value FROM app_meta WHERE key IN ($1, $2, $3)',
+    [OPEN_MINIMUM_KEY, POST_OPEN_MINIMUM_KEY, CLOSED_MINIMUM_KEY],
   )
   const parse = (key: string): number | null => {
     const n = Number.parseInt(res.rows.find((r) => r.key === key)?.value ?? '', 10)
     return Number.isInteger(n) && n >= 1 ? n : null
   }
-  return { open: parse(OPEN_MINIMUM_KEY), closed: parse(CLOSED_MINIMUM_KEY) }
+  return {
+    open: parse(OPEN_MINIMUM_KEY),
+    postOpen: parse(POST_OPEN_MINIMUM_KEY),
+    closed: parse(CLOSED_MINIMUM_KEY),
+  }
 }
 
 /**
@@ -144,6 +169,10 @@ export async function getDutyMinimums(): Promise<DutyMinimumSettings> {
   const [slots, stored] = await Promise.all([getDutySlots(), readStoredMinimums()])
   return {
     openDutyMinimum: Math.min(stored.open ?? slots.openDutySlots, slots.openDutySlots),
+    postOpenDutyMinimum: Math.min(
+      stored.postOpen ?? slots.postOpenDutySlots,
+      slots.postOpenDutySlots,
+    ),
     closedDutyMinimum: Math.min(stored.closed ?? slots.closedDutySlots, slots.closedDutySlots),
   }
 }
@@ -156,6 +185,8 @@ export async function setDutyMinimums(
   const blocked: string[] = []
   if (input.openDutyMinimum > slots.openDutySlots)
     blocked.push(`open days have ${slots.openDutySlots}`)
+  if (input.postOpenDutyMinimum > slots.postOpenDutySlots)
+    blocked.push(`days after open have ${slots.postOpenDutySlots}`)
   if (input.closedDutyMinimum > slots.closedDutySlots)
     blocked.push(`closed days have ${slots.closedDutySlots}`)
   if (blocked.length > 0)
@@ -164,11 +195,13 @@ export async function setDutyMinimums(
       `Minimum on-call doctors cannot exceed the on-call slots (${blocked.join(', ')}); raise the slots first`,
     )
   await query(
-    `INSERT INTO app_meta (key, value) VALUES ($1, $2), ($3, $4)
+    `INSERT INTO app_meta (key, value) VALUES ($1, $2), ($3, $4), ($5, $6)
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
     [
       OPEN_MINIMUM_KEY,
       String(input.openDutyMinimum),
+      POST_OPEN_MINIMUM_KEY,
+      String(input.postOpenDutyMinimum),
       CLOSED_MINIMUM_KEY,
       String(input.closedDutyMinimum),
     ],
@@ -180,8 +213,10 @@ export async function setDutyMinimums(
     entityId: null,
     detail: {
       previousOpenDutyMinimum: previous.openDutyMinimum,
+      previousPostOpenDutyMinimum: previous.postOpenDutyMinimum,
       previousClosedDutyMinimum: previous.closedDutyMinimum,
       openDutyMinimum: input.openDutyMinimum,
+      postOpenDutyMinimum: input.postOpenDutyMinimum,
       closedDutyMinimum: input.closedDutyMinimum,
     },
   })

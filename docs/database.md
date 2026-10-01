@@ -55,9 +55,11 @@ Known keys:
 | `open_duty_anchor_date` | `'YYYY-MM-DD'` | Open on-call cycle start: the first open on-call day (seeded `2026-10-02`). A date is an open on-call day when it is the anchor or a whole multiple of the interval after it; earlier dates are closed. Missing/corrupt rows fall back to the seeded default. |
 | `open_duty_interval_days` | integer as text | Days between open on-call days (seeded `8`). Administrators edit it via the Rules page (`PATCH /settings/open-duty`); every change is audited as `open_duty_settings.updated`. |
 | `open_duty_slots` | integer as text | On-call doctors per **open** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`, audited as `duty_slots_settings.updated`). Consumed by the engine, previews, duty edits, and publishing; missing/corrupt rows fall back to the default. |
-| `closed_duty_slots` | integer as text | On-call doctors per **closed** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`). The day after an open day is closed but still critical — it uses this count. |
+| `post_open_duty_slots` | integer as text | On-call doctors per **post-open** day — the calendar day right after an open on-call day that is not itself open (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`). It is critical (filled first) but not an open day for the one-open-duty cap; missing/corrupt rows fall back to the default. |
+| `closed_duty_slots` | integer as text | On-call doctors per **closed** on-call day — every day that is neither open nor post-open (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`). |
 | `open_duty_minimum` | integer as text | Minimum on-call doctors per **open** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`, audited as `duty_minimums_settings.updated`). Must not exceed `open_duty_slots` (409); missing/corrupt rows fall back to the slot count, and a stored value above the slot count is clamped to it on read. |
-| `closed_duty_minimum` | integer as text | Minimum on-call doctors per **closed** on-call day, including the day after an open day (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`). Must not exceed `closed_duty_slots`; same fallback and clamping. |
+| `post_open_duty_minimum` | integer as text | Minimum on-call doctors per **post-open** day (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`). Must not exceed `post_open_duty_slots`; same fallback and clamping. |
+| `closed_duty_minimum` | integer as text | Minimum on-call doctors per **closed** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`). Must not exceed `closed_duty_slots`; same fallback and clamping. |
 
 ### `clinics`
 
@@ -226,8 +228,8 @@ Constraints and indexes:
 Behavior:
 
 - A duty on `duty_date` spans 07:00 → next day 15:00 (overnight, hands off at next day's 15:00).
-- Each day's slot count comes from `app_meta` (`open_duty_slots` on open on-call days, `closed_duty_slots` otherwise; seeded 2/2); the unique index alone does not cap the count — the engine/service layer does.
-- Each day must hold at least its minimum (`open_duty_minimum` on open on-call days, `closed_duty_minimum` otherwise; seeded 2/2). Slots above the minimum are filled best effort. Deleting a duty on an open day or the day after one is refused only when it would drop that day below its minimum.
+- Each day's slot count comes from `app_meta` (`open_duty_slots` on open on-call days, `post_open_duty_slots` on the day right after one, `closed_duty_slots` otherwise; seeded 2/2/2); the unique index alone does not cap the count — the engine/service layer does.
+- Each day must hold at least its minimum (`open_duty_minimum` on open on-call days, `post_open_duty_minimum` on the day right after one, `closed_duty_minimum` otherwise; seeded 2/2/2). Slots above the minimum are filled best effort. Deleting a duty on an open day or the day after one is refused only when it would drop that day below its minimum.
 - Legacy `is_holiday` denormalized flag was dropped; holiday duties derive from the `holidays` table instead.
 
 ### `schedule_generation_log`

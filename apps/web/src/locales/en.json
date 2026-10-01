@@ -268,8 +268,9 @@
     "subtitle": "Every dynamic scheduling rule lives here. Changes apply to new previews and generations immediately and are recorded in the activity log.",
     "loadFailed": "Could not load rules",
     "error": "Error",
-    "openClosedSummary": "Open {open} · Closed {closed}",
+    "dayTypeSummary": "Open {open} · Day after {postOpen} · Closed {closed}",
     "openDaysLabel": "Open on-call days (1–7)",
+    "postOpenDaysLabel": "Day after open on-call (1–7)",
     "closedDaysLabel": "Closed on-call days (1–7)",
     "cycle": {
       "title": "On-call duty cycle",
@@ -282,14 +283,14 @@
     },
     "slots": {
       "title": "On-call slots",
-      "help": "How many on-call doctors a single day holds. Open on-call days use their own count; all other days (including the day after an open one) use the closed count.",
+      "help": "How many on-call doctors a single day holds. Open on-call days, the day after an open one, and all other (closed) days each use their own count.",
       "updated": "Slots updated.",
       "save": "Save slots",
       "saveFailed": "Could not save slots"
     },
     "minimums": {
       "title": "Minimum on-call doctors",
-      "help": "The fewest on-call doctors a day may hold. Open on-call days use their own minimum; all other days (including the day after an open one) use the closed minimum. Each minimum must not exceed its slot count. Any count from the minimum up to the slot count is accepted; filling every slot is preferred.",
+      "help": "The fewest on-call doctors a day may hold. Open on-call days, the day after an open one, and all other (closed) days each use their own minimum. Each minimum must not exceed its slot count. Any count from the minimum up to the slot count is accepted; filling every slot is preferred.",
       "updated": "Minimums updated.",
       "save": "Save minimums",
       "saveFailed": "Could not save minimums"

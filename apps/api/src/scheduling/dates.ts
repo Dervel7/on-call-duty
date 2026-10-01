@@ -63,31 +63,47 @@ export function requiresDoubleCoverage(
 }
 
 /**
- * How many on-call doctors a date holds: the open-day slot count on open
- * on-call days, the closed-day count on every other day (including the day
- * right after an open day — protected by critical fill order, but closed).
+ * The calendar day right after an open on-call day (and not itself open). It
+ * has its own slot count and minimum because the open-day duty hands over at
+ * 15:00 that day; it is not an open day for the one-open-duty cap.
+ */
+export function isPostOpenDutyDate(
+  date: string,
+  openDuty: { anchorDate: string; intervalDays: number },
+): boolean {
+  return (
+    !isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays) &&
+    isOpenDutyDate(prevDate(date), openDuty.anchorDate, openDuty.intervalDays)
+  )
+}
+
+/**
+ * How many on-call doctors a date holds: the open-day count on open on-call
+ * days, the post-open count on the day right after one, the closed count on
+ * every other day.
  */
 export function slotsForDate(
   date: string,
   openDuty: { anchorDate: string; intervalDays: number },
-  slots: { openDutySlots: number; closedDutySlots: number },
+  slots: { openDutySlots: number; postOpenDutySlots: number; closedDutySlots: number },
 ): number {
-  return isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays)
-    ? slots.openDutySlots
-    : slots.closedDutySlots
+  if (isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays)) return slots.openDutySlots
+  if (isPostOpenDutyDate(date, openDuty)) return slots.postOpenDutySlots
+  return slots.closedDutySlots
 }
 
 /**
- * Hard minimum of on-call doctors a date must hold: the open-day minimum on
- * open on-call days, the closed-day minimum on every other day. Any count
- * from this minimum up to `slotsForDate` is accepted.
+ * Hard minimum of on-call doctors a date must hold, chosen by the same day
+ * type as `slotsForDate`. Any count from this minimum up to `slotsForDate` is
+ * accepted.
  */
 export function minimumForDate(
   date: string,
   openDuty: { anchorDate: string; intervalDays: number },
-  minimums: { openDutyMinimum: number; closedDutyMinimum: number },
+  minimums: { openDutyMinimum: number; postOpenDutyMinimum: number; closedDutyMinimum: number },
 ): number {
-  return isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays)
-    ? minimums.openDutyMinimum
-    : minimums.closedDutyMinimum
+  if (isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays))
+    return minimums.openDutyMinimum
+  if (isPostOpenDutyDate(date, openDuty)) return minimums.postOpenDutyMinimum
+  return minimums.closedDutyMinimum
 }

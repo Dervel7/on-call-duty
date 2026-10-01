@@ -25,9 +25,9 @@ export interface SchedulingContext {
    priorDayDoctorIds: Set<number>
   /** Open on-call cycle; open days and the day after them are critical. */
   openDuty: OpenDutySettings
-  /** Per-day on-call capacity: open slots on open days, closed slots otherwise. */
+  /** Per-day on-call capacity: open, post-open (day after open), or closed slots. */
   slots: DutySlotsSettings
-  /** Hard per-day minimum: open minimum on open days, closed minimum otherwise. */
+  /** Hard per-day minimum, chosen by the same day type as `slots`. */
   minimums: DutyMinimumSettings
 }
 

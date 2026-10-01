@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isOpenDutyDate } from '../dates'
+import { isOpenDutyDate, isPostOpenDutyDate } from '../dates'
 
 const ANCHOR = '2026-10-02'
 
@@ -35,5 +35,24 @@ describe('isOpenDutyDate', () => {
   it('the interval is configuration, not a constant', () => {
     expect(isOpenDutyDate('2026-10-05', ANCHOR, 3)).toBe(true)
     expect(isOpenDutyDate('2026-10-04', ANCHOR, 3)).toBe(false)
+  })
+})
+
+describe('isPostOpenDutyDate', () => {
+  const cycle = { anchorDate: ANCHOR, intervalDays: 8 }
+
+  it('the day right after an open day is post-open, including across months', () => {
+    expect(isPostOpenDutyDate('2026-10-03', cycle)).toBe(true)
+    expect(isPostOpenDutyDate('2026-11-12', cycle)).toBe(true) // after the 2026-11-11 open day
+  })
+
+  it('open days, the day before the anchor, and regular days are not post-open', () => {
+    expect(isPostOpenDutyDate(ANCHOR, cycle)).toBe(false)
+    expect(isPostOpenDutyDate('2026-10-01', cycle)).toBe(false)
+    expect(isPostOpenDutyDate('2026-10-04', cycle)).toBe(false)
+  })
+
+  it('interval 1 makes every day open, so none is post-open', () => {
+    expect(isPostOpenDutyDate('2026-10-03', { anchorDate: ANCHOR, intervalDays: 1 })).toBe(false)
   })
 })

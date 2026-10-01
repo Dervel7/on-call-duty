@@ -41,6 +41,7 @@ export {
   DEFAULT_OPEN_DUTY_INTERVAL_DAYS,
   updateDutySlotsSchema,
   DEFAULT_OPEN_DUTY_SLOTS,
+  DEFAULT_POST_OPEN_DUTY_SLOTS,
   DEFAULT_CLOSED_DUTY_SLOTS,
   updateDutyMinimumsSchema,
 } from './settings'

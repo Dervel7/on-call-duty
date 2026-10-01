@@ -246,10 +246,11 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'
 -- A date is an open on-call day when it is the anchor or a whole interval
 -- after it; earlier dates are closed.
 -- Per-day on-call capacity (app_meta keys, no DDL):
--- 'open_duty_slots' / 'closed_duty_slots' — on-call doctors per open /
--- closed on-call day (seeded 2 each, editable 1–7 by administrators via
+-- 'open_duty_slots' / 'post_open_duty_slots' / 'closed_duty_slots' — on-call
+-- doctors per open on-call day / the day right after an open day / every
+-- other (closed) day (seeded 2 each, editable 1–7 by administrators via
 -- /settings/duty-slots; consumed by the engine, previews, and publishing).
--- 'open_duty_minimum' / 'closed_duty_minimum' — minimum on-call doctors per
--- open / closed on-call day (seeded 2 each, editable 1–7 via
--- /settings/duty-minimums, never above the matching slot count; missing or
--- corrupt rows fall back to the slot count).
+-- 'open_duty_minimum' / 'post_open_duty_minimum' / 'closed_duty_minimum' —
+-- minimum on-call doctors per the same day types (seeded 2 each, editable
+-- 1–7 via /settings/duty-minimums, never above the matching slot count;
+-- missing or corrupt rows fall back to the slot count).

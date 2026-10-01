@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { generate } from '../engine'
 import { dayOfWeekISO } from '../dates'
+import type { DutyMinimumSettings, DutySlotsSettings } from '@oncall/shared'
 import type { DaySpec, DoctorSpec, SchedulingContext } from '../types'
 
 function ctx(
@@ -10,12 +11,12 @@ function ctx(
     unavailability?: Map<number, Array<{ start: string; end: string }>>
     priorDayDoctorIds?: Set<number>
     openDuty?: { anchorDate: string; intervalDays: number }
-    slots?: { openDutySlots: number; closedDutySlots: number }
-    minimums?: { openDutyMinimum: number; closedDutyMinimum: number }
+    slots?: DutySlotsSettings
+    minimums?: DutyMinimumSettings
   } = {},
 ): SchedulingContext {
-  // Default per-day capacity matches the seeded production default (2/2).
-  const slots = opts.slots ?? { openDutySlots: 2, closedDutySlots: 2 }
+  // Default per-day capacity matches the seeded production default (2/2/2).
+  const slots = opts.slots ?? { openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 2 }
   return {
     year: 2026,
     month: 9,
@@ -28,6 +29,7 @@ function ctx(
     // Unset minimums mean full coverage, like missing app_meta rows.
     minimums: opts.minimums ?? {
       openDutyMinimum: slots.openDutySlots,
+      postOpenDutyMinimum: slots.postOpenDutySlots,
       closedDutyMinimum: slots.closedDutySlots,
     },
   }
@@ -326,7 +328,9 @@ describe('engine.generate', () => {
   it('closed slots 1: every day carries exactly one doctor and no top-up pass runs', () => {
     const days = [day('2026-09-01'), day('2026-09-03'), day('2026-09-05')]
     const { assignments, conflicts } = generate(
-      ctx(days, [dr(1), dr(2), dr(3)], { slots: { openDutySlots: 2, closedDutySlots: 1 } }),
+      ctx(days, [dr(1), dr(2), dr(3)], {
+        slots: { openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 1 },
+      }),
     )
     expect(conflicts).toEqual([])
     for (const { date } of days) {
@@ -339,7 +343,7 @@ describe('engine.generate', () => {
     const { assignments, conflicts } = generate(
       ctx([day('2026-09-01')], [dr(1), dr(2)], {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
-        slots: { openDutySlots: 3, closedDutySlots: 2 },
+        slots: { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 2 },
       }),
     )
     expect(assignments).toHaveLength(2)
@@ -347,20 +351,34 @@ describe('engine.generate', () => {
     expect(conflicts[0]?.detail).toContain('only 2 of 3 doctors assigned')
   })
 
-  it('mixed slots: an open day holds 3 while the critical day after it holds its closed count', () => {
-    // Anchor 09-01, interval 30: 09-01 is open (3 slots); 09-02 is critical
-    // but closed, so it holds the closed count (1); regular 09-03 holds 1.
+  it('mixed slots: open, post-open, and closed days each hold their own count', () => {
+    // Anchor 09-01, interval 30: 09-01 is open (3 slots); 09-02 is the day
+    // after it (post-open, 2 slots); regular 09-03 is closed (1 slot).
     const days = [day('2026-09-01'), day('2026-09-02'), day('2026-09-03')]
     const { assignments, conflicts } = generate(
       ctx(days, Array.from({ length: 6 }, (_, i) => dr(i + 1)), {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
-        slots: { openDutySlots: 3, closedDutySlots: 1 },
+        slots: { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 1 },
       }),
     )
     expect(conflicts).toEqual([])
     expect(assignments.filter((a) => a.date === '2026-09-01')).toHaveLength(3)
-    expect(assignments.filter((a) => a.date === '2026-09-02')).toHaveLength(1)
+    expect(assignments.filter((a) => a.date === '2026-09-02')).toHaveLength(2)
     expect(assignments.filter((a) => a.date === '2026-09-03')).toHaveLength(1)
+  })
+
+  it('post-open minimum: a short day after an open day reports its own minimum', () => {
+    // 09-02 follows the open 09-01; with 3 doctors and no back-to-back only
+    // one is left for 09-02, below its post-open minimum of 2.
+    const { conflicts } = generate(
+      ctx([day('2026-09-01'), day('2026-09-02')], [dr(1), dr(2), dr(3)], {
+        openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
+        slots: { openDutySlots: 2, postOpenDutySlots: 3, closedDutySlots: 1 },
+        minimums: { openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 1 },
+      }),
+    )
+    expect(conflicts.map((c) => c.date)).toEqual(['2026-09-02'])
+    expect(conflicts[0]?.detail).toContain('only 1 of 2 doctors assigned')
   })
 
   it('minimum below slots: unfillable extra slots are left empty without a conflict', () => {
@@ -368,7 +386,9 @@ describe('engine.generate', () => {
     // second slot can never be filled. Minimum 1 makes that acceptable.
     const days = [day('2026-09-01'), day('2026-09-02'), day('2026-09-03'), day('2026-09-04')]
     const { assignments, conflicts } = generate(
-      ctx(days, [dr(1), dr(2)], { minimums: { openDutyMinimum: 2, closedDutyMinimum: 1 } }),
+      ctx(days, [dr(1), dr(2)], {
+        minimums: { openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 1 },
+      }),
     )
     expect(conflicts).toEqual([])
     for (const { date } of days) {
@@ -384,8 +404,8 @@ describe('engine.generate', () => {
     const { assignments, conflicts } = generate(
       ctx(days, Array.from({ length: 5 }, (_, i) => dr(i + 1, 1)), {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
-        slots: { openDutySlots: 3, closedDutySlots: 1 },
-        minimums: { openDutyMinimum: 1, closedDutyMinimum: 1 },
+        slots: { openDutySlots: 3, postOpenDutySlots: 1, closedDutySlots: 1 },
+        minimums: { openDutyMinimum: 1, postOpenDutyMinimum: 1, closedDutyMinimum: 1 },
       }),
     )
     expect(conflicts).toEqual([])
@@ -399,8 +419,8 @@ describe('engine.generate', () => {
     const { conflicts } = generate(
       ctx([day('2026-09-01')], [dr(1)], {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
-        slots: { openDutySlots: 3, closedDutySlots: 2 },
-        minimums: { openDutyMinimum: 2, closedDutyMinimum: 2 },
+        slots: { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 2 },
+        minimums: { openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 2 },
       }),
     )
     expect(conflicts).toHaveLength(1)

@@ -20,10 +20,12 @@ export async function getDutySlots(): Promise<DutySlotsSettings> {
 
 export async function updateDutySlots(
   openDutySlots: number,
+  postOpenDutySlots: number,
   closedDutySlots: number,
 ): Promise<DutySlotsSettings> {
   const { dutySlots } = await apiPatch<{ dutySlots: DutySlotsSettings }>('/settings/duty-slots', {
     openDutySlots,
+    postOpenDutySlots,
     closedDutySlots,
   })
   return dutySlots
@@ -38,11 +40,12 @@ export async function getDutyMinimums(): Promise<DutyMinimumSettings> {
 
 export async function updateDutyMinimums(
   openDutyMinimum: number,
+  postOpenDutyMinimum: number,
   closedDutyMinimum: number,
 ): Promise<DutyMinimumSettings> {
   const { dutyMinimums } = await apiPatch<{ dutyMinimums: DutyMinimumSettings }>(
     '/settings/duty-minimums',
-    { openDutyMinimum, closedDutyMinimum },
+    { openDutyMinimum, postOpenDutyMinimum, closedDutyMinimum },
   )
   return dutyMinimums
 }

@@ -495,10 +495,11 @@ or opening another rule, closes it. The rules you can tune:</p>
   in days (1–365) and choose <span class="kbd">Save interval</span>. The first open on-call day is fixed —
   2&nbsp;October&nbsp;2026 — and every Nth day after it is open.</li>
   <li><strong>On-call slots</strong> — how many on-call doctors a single day holds, split into
-  <strong>Open on-call days</strong> and <strong>Closed on-call days</strong> (each 1–7; seeded at 2). Choose
-  <span class="kbd">Save slots</span> to apply.</li>
+  <strong>Open on-call days</strong>, <strong>Day after open on-call</strong>, and <strong>Closed on-call days</strong>
+  (each 1–7; seeded at 2). Choose <span class="kbd">Save slots</span> to apply.</li>
   <li><strong>Minimum on-call doctors</strong> — the fewest on-call doctors a day may hold, again split into
-  <strong>Open on-call days</strong> and <strong>Closed on-call days</strong> (each 1–7; seeded at 2). A minimum cannot be
+  <strong>Open on-call days</strong>, <strong>Day after open on-call</strong>, and <strong>Closed on-call days</strong>
+  (each 1–7; seeded at 2). A minimum cannot be
   higher than that day type's slot count, and a slot count cannot be lowered below its minimum — the page refuses
   either change. Choose <span class="kbd">Save minimums</span> to apply.</li>
 </ul>
@@ -527,7 +528,7 @@ log. Days already drawn keep their old shape until the schedule is regenerated. 
   <tr><td><strong>No back-to-back</strong></td><td>A doctor cannot be on duty the day immediately after a day they were already on duty. This is checked across month boundaries, so the last day of one month protects the first day of the next.</td></tr>
   <tr><td><strong>Availability</strong></td><td>A doctor is never assigned on a date covered by one of their exclusions.</td></tr>
   <tr><td><strong>Active only</strong></td><td>Disabled doctors are skipped entirely.</td></tr>
-  <tr><td><strong>Minimum coverage on open on-call days</strong></td><td>Every <em>open on-call day</em> and the day right after it always carries <strong>at least its minimum</strong> — the open-day minimum on the open day, the closed-day minimum on the day after (see §8.3). The engine fills these minimums first, before any other day, and weekend/holiday balancing never blocks them — only the other hard rules above can. Extra slots up to the slot count are filled afterwards when a doctor is free. A schedule cannot be generated (or published) with one of these days below its minimum, and a duty on one of these days can be removed only while the day keeps at least its minimum.</td></tr>
+  <tr><td><strong>Minimum coverage on open on-call days</strong></td><td>Every <em>open on-call day</em> and the day right after it always carries <strong>at least its minimum</strong> — the open-day minimum on the open day, the day-after-open minimum on the day after (see §8.3). The engine fills these minimums first, before any other day, and weekend/holiday balancing never blocks them — only the other hard rules above can. Extra slots up to the slot count are filled afterwards when a doctor is free. A schedule cannot be generated (or published) with one of these days below its minimum, and a duty on one of these days can be removed only while the day keeps at least its minimum.</td></tr>
   <tr><td><strong>One open on-call duty per doctor</strong></td><td>A doctor holds at most <strong>1 duty on open on-call days</strong> per monthly schedule. A second open-day duty is refused everywhere — automatic generation, manual plans, and single-duty edits — even when the open day would otherwise be short of a slot. The day <em>after</em> an open day is protected by the minimum-coverage rule but is not itself an open day, so it does not count.</td></tr>
   <tr><td><strong>Minimum doctors every day</strong></td><td>Every day of the month carries <strong>at least its minimum</strong> of on-call doctors (the closed-day minimum on ordinary days) — a strict rule, like no-back-to-back. Weekend/holiday balancing (the fairness caps) always yields before a day falls below its minimum. Only the hard rules above (availability, monthly cap, no back-to-back, the open-day limit) can leave a day short, and then the preview shows it as a conflict you must fix. A duty placed this way is marked in its Reason with <code>day-fill guarantee overrode fairness caps</code>. Slots above the minimum are filled only when balancing allows; an empty extra slot is not a conflict.</td></tr>
 </table>

@@ -24,27 +24,34 @@ multiple of the interval after it (`isOpenDutyDate` in
   editable by administrators via `PATCH /settings/open-duty`
 - `open_duty_slots` — on-call doctors per **open** on-call day (seeded `2`,
   editable 1–7 via `PATCH /settings/duty-slots`)
+- `post_open_duty_slots` — on-call doctors per **post-open** day, the
+  calendar day right after an open day (seeded `2`, editable 1–7 via
+  `PATCH /settings/duty-slots`)
 - `closed_duty_slots` — on-call doctors per **closed** on-call day (seeded
   `2`, editable 1–7 via `PATCH /settings/duty-slots`)
 - `open_duty_minimum` — minimum on-call doctors per **open** on-call day
   (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`; must be ≤
   `open_duty_slots`, missing/corrupt → the slot count, stored values above
   the slot count are clamped to it)
-- `closed_duty_minimum` — minimum on-call doctors per every other day,
-  including the day after an open day (seeded `2`, editable 1–7 via
-  `PATCH /settings/duty-minimums`; must be ≤ `closed_duty_slots`, same
-  fallback)
+- `post_open_duty_minimum` — minimum on-call doctors per post-open day
+  (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`; must be ≤
+  `post_open_duty_slots`, same fallback)
+- `closed_duty_minimum` — minimum on-call doctors per every other day
+  (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`; must be ≤
+  `closed_duty_slots`, same fallback)
 
 Example: open days have 4 slots and the open minimum is 2 → 2 or 3 doctors
 are acceptable, 4 is preferred, fewer than 2 is a hard violation.
 
 Days before the anchor are always closed. A date needs **critical fill**
 when it is an open day **or the calendar day right after one**
-(`requiresDoubleCoverage`) — the day after is protected because a duty hands
-over at 15:00 the next day, but it is **not** itself an open day and does not
-count toward the one-open-duty cap. Critical days must reach their type's
-**minimum** (open minimum on open days, closed minimum on the day after)
-first; their remaining slots are filled best effort.
+(`requiresDoubleCoverage`) — the day after (post-open day,
+`isPostOpenDutyDate`) is protected because a duty hands over at 15:00 the
+next day, but it is **not** itself an open day and does not count toward the
+one-open-duty cap. When the interval is 1 every day is open, so no day is
+post-open. Critical days must reach their type's **minimum** (open minimum on
+open days, post-open minimum on the day after) first; their remaining slots
+are filled best effort.
 
 ## 3. Hard rules (never broken — engine, manual plans, and single-duty edits)
 
@@ -53,7 +60,8 @@ Checked per candidate doctor, per day, in this order (`fillDay` in
 
 1. **One slot per doctor per day** — a doctor cannot hold two slots of a date.
 2. **Per-day slot count** — a date holds `open_duty_slots` doctors when it is
-   an open on-call day and `closed_duty_slots` otherwise (`slotsForDate`).
+   an open on-call day, `post_open_duty_slots` on the day right after one,
+   and `closed_duty_slots` otherwise (`slotsForDate`).
    One duty above the day's count is rejected (409).
 3. **Availability** — no assignment on a date covered by one of the doctor's
    unavailability ranges (disabled ranges are ignored).
@@ -68,14 +76,15 @@ Checked per candidate doctor, per day, in this order (`fillDay` in
    Checked across month boundaries via the previous month's last-day duties.
 7. **Minimum coverage on critical days** *(strict)* — an open on-call day and
    the day right after it always carry **at least their minimum** (open
-   minimum on the open day, closed minimum on the day after). Their minimum
+   minimum on the open day, post-open minimum on the day after). Their minimum
    slots are filled first (before any regular day), and fairness caps never
    block them — only rules 3–6 can leave a minimum slot unfilled, which
    surfaces as a conflict. Slots above the minimum are best effort.
 8. **Active doctors only** — disabled doctors are skipped entirely.
 9. **Every day reaches its minimum** *(strict)* — every date must hold at
-   least `open_duty_minimum` (open days) or `closed_duty_minimum` (all other
-   days) doctors. On regular days the fairness caps (§4) are relaxed for
+   least `open_duty_minimum` (open days), `post_open_duty_minimum` (the day
+   after an open day), or `closed_duty_minimum` (all other days) doctors. On
+   regular days the fairness caps (§4) are relaxed for
    slots below the minimum; the hard rules above never relax. A duty filled
    this way records a `reason` ending with
    `day-fill guarantee overrode fairness caps`. If even the relaxed pass finds
