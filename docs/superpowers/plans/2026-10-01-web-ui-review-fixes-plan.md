@@ -116,7 +116,7 @@ Severity: **High** = security exposure, or data loss/corruption, or users can't 
 
 ### M13 — Dialog accessibility: no dialog semantics, focus trap or focus restore [a11y]
 - **Where:** `apps/web/src/components/ui/Dialog.vue:33-41`, `apps/web/src/components/ui/CalendarDialog.vue:129-138` (has `role="dialog"` but no `aria-modal`, initial focus or trap).
-- **Fix:** Add `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` pointing to the title (`useId()`). Remember `document.activeElement` on open, focus the first focusable element on `nextTick`, trap Tab/Shift+Tab inside, and restore focus on close. Put this in one shared place for both components. Do it together with H5.
+- **Fix:** Add `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` pointing to the title (`useId()`). Remember `document.activeElement` on open, focus the first focusable element on `nextTick`, trap Tab/Shift+Tab inside, and restore focus on close. Put this in one shared place for both components. Do it together with H4.
 
 ### M14 — Dialog scroll lock isn't stack-safe and leaks on unmount [bug]
 - **Where:** `apps/web/src/components/ui/Dialog.vue:22-28`.
