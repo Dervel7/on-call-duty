@@ -3,7 +3,11 @@ import { settingsController } from '../controllers/settings.controller'
 import { authenticate } from '../middleware/authenticate'
 import { authorize } from '../middleware/authorize'
 import { validate } from '../middleware/validate'
-import { updateDutySlotsSchema, updateOpenDutySchema } from '../validators/settings'
+import {
+  dutySlotsQuerySchema,
+  updateDutySlotsSchema,
+  updateOpenDutySchema,
+} from '../validators/settings'
 
 export const settingsRouter = Router()
 
@@ -19,12 +23,19 @@ settingsRouter.patch(
   settingsController.updateOpenDuty,
 )
 
-// Per-day on-call capacity (open vs closed days): administrators tune both
-// counts; the engine, previews, duty edits, and publishing consume them.
-settingsRouter.get('/duty-slots', authorize('administrator'), settingsController.getDutySlots)
+// Per-clinic on-call capacity (open vs closed days): administrators tune their
+// own clinic's counts (superadmin names the clinic via ?clinicId= when there
+// are several); the engine, previews, duty edits, and publishing consume them.
+settingsRouter.get(
+  '/duty-slots',
+  authorize('administrator'),
+  validate(dutySlotsQuerySchema, 'query'),
+  settingsController.getDutySlots,
+)
 settingsRouter.patch(
   '/duty-slots',
   authorize('administrator'),
+  validate(dutySlotsQuerySchema, 'query'),
   validate(updateDutySlotsSchema, 'body'),
   settingsController.updateDutySlots,
 )

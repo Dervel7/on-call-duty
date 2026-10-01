@@ -26,13 +26,18 @@ export interface UpdateBillingRequest {
 }
 
 /**
- * On-call capacity per day type: how many doctors a single day holds. Open
- * days follow the cycle above; every other day (including the day right
- * after an open day) is closed.
+ * On-call capacity per day type: how many doctors a single day holds. Each
+ * clinic sets its own counts. Open days follow the cycle above; every other
+ * day (including the day right after an open day) is closed.
  */
 export interface DutySlotsSettings {
   openDutySlots: number
   closedDutySlots: number
+}
+
+/** A clinic's slot counts plus its active doctor count — the ceiling for both. */
+export interface ClinicDutySlots extends DutySlotsSettings {
+  activeDoctors: number
 }
 
 export interface UpdateDutySlotsRequest {

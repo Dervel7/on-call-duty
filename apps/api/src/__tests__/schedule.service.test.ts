@@ -13,6 +13,13 @@ vi.mock('../services/activity.service', () => ({
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
 
+// Per-clinic slot counts come from the clinics row; pin the seeded 2/2 so the
+// query sequences below only carry the cycle (app_meta) lookups.
+vi.mock('../services/settings.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/settings.service')>()),
+  getDutySlots: async () => ({ openDutySlots: 2, closedDutySlots: 2 }),
+}))
+
 import {
   addDuty,
   computeEligibility,
@@ -277,7 +284,6 @@ describe('schedule.service', () => {
     query.mockResolvedValueOnce({ rows: [scheduleRow()] })
     query.mockResolvedValueOnce({ rows: [{ n: 2 }] })
     query.mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> defaults
-    query.mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> defaults
     await expect(
       addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 }),
     ).rejects.toMatchObject({ status: 409 })
@@ -287,7 +293,6 @@ describe('schedule.service', () => {
     query.mockResolvedValueOnce({ rows: [scheduleRow()] })
     query.mockResolvedValueOnce({ rows: [{ n: 1 }] })
     query.mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> defaults
-    query.mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> defaults
     query.mockResolvedValueOnce({ rows: [{ max_monthly_duties: 7, is_active: true }] })
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
@@ -821,7 +826,6 @@ describe('publish / unpublish', () => {
     query
       .mockResolvedValueOnce({ rows: [scheduleRow()] }) // select (draft)
       .mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> seeded defaults
-      .mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> seeded defaults
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
       .mockResolvedValueOnce({
         rows: Array.from({ length: 29 }, (_, i) => ({ duty_date: `2026-09-${String(i + 1).padStart(2, '0')}`, n: 1 })),
@@ -838,7 +842,6 @@ describe('publish / unpublish', () => {
     query
       .mockResolvedValueOnce({ rows: [scheduleRow({ year: 2026, month: 10 })] }) // select (draft)
       .mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> seeded defaults
-      .mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> seeded defaults
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
       .mockResolvedValueOnce({
         rows: Array.from({ length: 31 }, (_, i) => ({ duty_date: `2026-10-${String(i + 1).padStart(2, '0')}`, n: 1 })),
@@ -853,7 +856,6 @@ describe('publish / unpublish', () => {
     query
       .mockResolvedValueOnce({ rows: [scheduleRow()] }) // select (draft)
       .mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> seeded defaults
-      .mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> seeded defaults
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
       .mockResolvedValueOnce({
         rows: Array.from({ length: 30 }, (_, i) => ({ duty_date: `2026-09-${String(i + 1).padStart(2, '0')}`, n: 1 })),
@@ -876,7 +878,6 @@ describe('publish / unpublish', () => {
     query.mockReset()
     query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] }) // select finds it
     query.mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> seeded defaults
-    query.mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> seeded defaults
     query.mockResolvedValueOnce({ rows: [] }) // UPDATE matches nothing (already published) -> 409
     await expect(publish(1, { id: 2, role: 'administrator', clinicId: 1 })).rejects.toMatchObject({
       status: 409,

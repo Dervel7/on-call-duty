@@ -239,7 +239,19 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT FA
 -- open on-call days (seeded 8, editable by administrators via /settings).
 -- A date is an open on-call day when it is the anchor or a whole interval
 -- after it; earlier dates are closed.
--- Per-day on-call capacity (app_meta keys, no DDL):
--- 'open_duty_slots' / 'closed_duty_slots' — on-call doctors per open /
--- closed on-call day (seeded 2 each, editable 1–7 by administrators via
--- /settings/duty-slots; consumed by the engine, previews, and publishing).
+
+-- Per-clinic on-call capacity: on-call doctors per open / closed on-call day.
+-- Each clinic sets its own counts (seeded 2 each) via /settings/duty-slots;
+-- the service caps both at the clinic's active doctor count. Consumed by
+-- the engine, previews, duty edits, and publishing.
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS open_duty_slots INTEGER NOT NULL DEFAULT 2
+  CHECK (open_duty_slots >= 1);
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS closed_duty_slots INTEGER NOT NULL DEFAULT 2
+  CHECK (closed_duty_slots >= 1);
+-- The counts used to be deployment-wide app_meta keys: copy any stored value
+-- to every clinic once, then drop the keys (no-op on later runs).
+UPDATE clinics SET open_duty_slots = m.value::int
+  FROM app_meta m WHERE m.key = 'open_duty_slots' AND m.value ~ '^[1-9][0-9]{0,3}$';
+UPDATE clinics SET closed_duty_slots = m.value::int
+  FROM app_meta m WHERE m.key = 'closed_duty_slots' AND m.value ~ '^[1-9][0-9]{0,3}$';
+DELETE FROM app_meta WHERE key IN ('open_duty_slots', 'closed_duty_slots');

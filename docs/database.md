@@ -54,8 +54,6 @@ Known keys:
 | `billing_paid_through` | `'YYYY-MM-DD'` | Billing lockdown: while `CURRENT_DATE > value`, non-superadmin access is refused (comparison runs in SQL against the database's `CURRENT_DATE`). A missing row means unlocked (`paidThrough` reported as `null`). Seeds insert it 30 days ahead with `ON CONFLICT DO NOTHING` — re-seeding never extends an existing deadline. |
 | `open_duty_anchor_date` | `'YYYY-MM-DD'` | Open on-call cycle start: the first open on-call day (seeded `2026-10-02`). A date is an open on-call day when it is the anchor or a whole multiple of the interval after it; earlier dates are closed. Missing/corrupt rows fall back to the seeded default. |
 | `open_duty_interval_days` | integer as text | Days between open on-call days (seeded `8`). Administrators edit it via the Rules page (`PATCH /settings/open-duty`); every change is audited as `open_duty_settings.updated`. |
-| `open_duty_slots` | integer as text | On-call doctors per **open** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`, audited as `duty_slots_settings.updated`). Consumed by the engine, previews, duty edits, and publishing; missing/corrupt rows fall back to the default. |
-| `closed_duty_slots` | integer as text | On-call doctors per **closed** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`). The day after an open day is closed but still critical — it uses this count. |
 
 ### `clinics`
 
@@ -66,10 +64,17 @@ Multi-clinic tenancy: one hospital per deployment, many clinics.
 | `id` | INTEGER | PK, GENERATED ALWAYS AS IDENTITY |
 | `name` | TEXT | NOT NULL, UNIQUE |
 | `is_active` | BOOLEAN | NOT NULL DEFAULT TRUE |
+| `open_duty_slots` | INTEGER | NOT NULL DEFAULT 2, CHECK (`open_duty_slots` >= 1) |
+| `closed_duty_slots` | INTEGER | NOT NULL DEFAULT 2, CHECK (`closed_duty_slots` >= 1) |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
 | `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
 
 Clinics are deactivated (`is_active = FALSE`), never deleted.
+
+Behavior:
+
+- `open_duty_slots` / `closed_duty_slots` — on-call doctors per **open** / **closed** on-call day for this clinic (default 2 each). Administrators edit their own clinic's counts from the Rules page (`PATCH /settings/duty-slots`; superadmin names the clinic via `?clinicId=`), audited as `duty_slots_settings.updated` with the clinic id. The service caps each count at the clinic's active doctor count (422 above it); the DB only enforces `>= 1`. The day after an open day is closed but still critical — it uses the closed count. Consumed by the engine, previews, duty edits, publishing, and admin stats.
+- Schema evolution: these columns replaced the former deployment-wide `app_meta` keys `open_duty_slots` / `closed_duty_slots`; `schema.sql` copies any stored value to every clinic once and then deletes the keys.
 
 ### `users`
 
@@ -222,7 +227,7 @@ Constraints and indexes:
 Behavior:
 
 - A duty on `duty_date` spans 07:00 → next day 15:00 (overnight, hands off at next day's 15:00).
-- Each day's slot count comes from `app_meta` (`open_duty_slots` on open on-call days, `closed_duty_slots` otherwise; seeded 2/2); the unique index alone does not cap the count — the engine/service layer does.
+- Each day's slot count comes from the schedule's clinic (`clinics.open_duty_slots` on open on-call days, `clinics.closed_duty_slots` otherwise; default 2/2); the unique index alone does not cap the count — the engine/service layer does.
 - Legacy `is_holiday` denormalized flag was dropped; holiday duties derive from the `holidays` table instead.
 
 ### `schedule_generation_log`

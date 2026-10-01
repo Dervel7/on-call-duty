@@ -34,7 +34,7 @@ async function mountRules() {
   const auth = useAuthStore()
   auth.user = adminAuth()
   getOpenDuty.mockResolvedValue({ anchorDate: '2026-10-02', intervalDays: 8 })
-  getDutySlots.mockResolvedValue({ openDutySlots: 2, closedDutySlots: 2 })
+  getDutySlots.mockResolvedValue({ openDutySlots: 2, closedDutySlots: 2, activeDoctors: 30 })
   const wrapper = mount(RulesPage, { global: { plugins: [pinia] } })
   await flushPromises()
   return wrapper
@@ -51,7 +51,8 @@ describe('RulesPage', () => {
   it('loads and shows both dynamic rules with their current values', async () => {
     const wrapper = await mountRules()
     expect(getOpenDuty).toHaveBeenCalled()
-    expect(getDutySlots).toHaveBeenCalled()
+    expect(getDutySlots).toHaveBeenCalledWith(1)
+    expect(wrapper.text()).toContain('Open on-call days (1–30)')
     expect(wrapper.text()).toContain('On-call duty cycle')
     expect(wrapper.text()).toContain('On-call slots')
     expect(wrapper.text()).toContain('2026-10-02')
@@ -82,35 +83,35 @@ describe('RulesPage', () => {
     expect(form.find('[role="alert"]').exists()).toBe(true)
   })
 
-  it('saves new slot counts through the service and confirms', async () => {
-    updateDutySlots.mockResolvedValue({ openDutySlots: 3, closedDutySlots: 1 })
+  it('saves slot counts above 7 when the clinic has enough doctors', async () => {
+    updateDutySlots.mockResolvedValue({ openDutySlots: 10, closedDutySlots: 8, activeDoctors: 30 })
     const wrapper = await mountRules()
-    await wrapper.find('#open-duty-slots').setValue('3')
-    await wrapper.find('#closed-duty-slots').setValue('1')
+    await wrapper.find('#open-duty-slots').setValue('10')
+    await wrapper.find('#closed-duty-slots').setValue('8')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-slots').exists())!
     await form.trigger('submit')
     await flushPromises()
-    expect(updateDutySlots).toHaveBeenCalledWith(3, 1)
+    expect(updateDutySlots).toHaveBeenCalledWith(10, 8, 1)
     expect(form.find('[role="status"]').text()).toContain('Slots updated.')
-    expect((wrapper.find('#open-duty-slots').element as HTMLInputElement).value).toBe('3')
-    expect((wrapper.find('#closed-duty-slots').element as HTMLInputElement).value).toBe('1')
+    expect((wrapper.find('#open-duty-slots').element as HTMLInputElement).value).toBe('10')
+    expect((wrapper.find('#closed-duty-slots').element as HTMLInputElement).value).toBe('8')
   })
 
-  it('rejects out-of-range slot counts without calling the service', async () => {
+  it('rejects slot counts above the clinic doctor count without calling the service', async () => {
     const wrapper = await mountRules()
-    await wrapper.find('#open-duty-slots').setValue('8')
+    await wrapper.find('#closed-duty-slots').setValue('31')
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-slots').exists())!
     await form.trigger('submit')
     await flushPromises()
     expect(updateDutySlots).not.toHaveBeenCalled()
-    expect(form.find('[role="alert"]').exists()).toBe(true)
+    expect(form.find('[role="alert"]').text()).toContain('30 active doctors')
   })
 
   it('disables inputs and buttons until settings have loaded', async () => {
     setActivePinia(createPinia())
     let resolveCycle!: (value: unknown) => void
     getOpenDuty.mockReturnValue(new Promise((resolve) => (resolveCycle = resolve)))
-    getDutySlots.mockResolvedValue({ openDutySlots: 2, closedDutySlots: 2 })
+    getDutySlots.mockResolvedValue({ openDutySlots: 2, closedDutySlots: 2, activeDoctors: 30 })
     const wrapper = mount(RulesPage)
     await flushPromises()
     expect((wrapper.find('#open-duty-interval').element as HTMLInputElement).disabled).toBe(true)
@@ -123,7 +124,7 @@ describe('RulesPage', () => {
 
   it('keeps the slots card populated when only the interval fails to load', async () => {
     getOpenDuty.mockRejectedValue(new Error('cycle down'))
-    getDutySlots.mockResolvedValue({ openDutySlots: 3, closedDutySlots: 1 })
+    getDutySlots.mockResolvedValue({ openDutySlots: 3, closedDutySlots: 1, activeDoctors: 30 })
     const wrapper = mount(RulesPage)
     await flushPromises()
     const intervalForm = wrapper.findAll('form').find((f) => f.find('#open-duty-interval').exists())!

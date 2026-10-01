@@ -11,6 +11,13 @@ vi.mock('../services/doctor.service', () => ({
   getByUserId: (...a: unknown[]) => getByUserId(...a),
 }))
 
+// Per-clinic slot counts come from the clinics row; pin the seeded 2/2 so the
+// query mocks below only cover the stats queries.
+vi.mock('../services/settings.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/settings.service')>()),
+  getDutySlots: async () => ({ openDutySlots: 2, closedDutySlots: 2 }),
+}))
+
 import { adminStats, meStats } from '../services/stats.service'
 import type { ClinicScope } from '../lib/scope'
 

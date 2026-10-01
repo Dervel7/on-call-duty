@@ -22,10 +22,11 @@ multiple of the interval after it (`isOpenDutyDate` in
 - `open_duty_anchor_date` — first open day (seeded `2026-10-02`), fixed
 - `open_duty_interval_days` — spacing between open days (seeded `8`),
   editable by administrators via `PATCH /settings/open-duty`
-- `open_duty_slots` — on-call doctors per **open** on-call day (seeded `2`,
-  editable 1–7 via `PATCH /settings/duty-slots`)
-- `closed_duty_slots` — on-call doctors per **closed** on-call day (seeded
-  `2`, editable 1–7 via `PATCH /settings/duty-slots`)
+- `clinics.open_duty_slots` — on-call doctors per **open** on-call day, per
+  clinic (default `2`, editable 1–N via `PATCH /settings/duty-slots`, where N
+  is the clinic's active doctor count)
+- `clinics.closed_duty_slots` — on-call doctors per **closed** on-call day,
+  per clinic (default `2`, editable 1–N the same way)
 
 Days before the anchor are always closed. A date needs **critical fill**
 when it is an open day **or the calendar day right after one**

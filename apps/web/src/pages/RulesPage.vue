@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ScrollText } from 'lucide-vue-next'
-import type { DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
+import type { ClinicDutySlots, OpenDutySettings } from '@oncall/shared'
 import { updateDutySlotsSchema, updateOpenDutySchema } from '@oncall/shared'
 import * as settingsService from '@/services/settings'
+import { useAuthStore } from '@/stores/auth'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -14,13 +15,18 @@ import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
+const auth = useAuthStore()
+const clinicId = () => auth.user?.clinicId ?? undefined
+
 const openDuty = ref<OpenDutySettings | null>(null)
 const intervalInput = ref('')
 const intervalError = ref('')
 const intervalSuccess = ref(false)
 const intervalSubmitting = ref(false)
 
-const dutySlots = ref<DutySlotsSettings | null>(null)
+const dutySlots = ref<ClinicDutySlots | null>(null)
+/** Ceiling for both slot counts: the clinic's active doctors. */
+const maxSlots = computed(() => dutySlots.value?.activeDoctors)
 const openSlotsInput = ref('')
 const closedSlotsInput = ref('')
 const slotsError = ref('')
@@ -38,7 +44,7 @@ async function loadSettings() {
   loading.value = true
   const [cycle, slots] = await Promise.allSettled([
     settingsService.getOpenDuty(),
-    settingsService.getDutySlots(),
+    settingsService.getDutySlots(clinicId()),
   ])
   if (cycle.status === 'fulfilled') {
     openDuty.value = cycle.value
@@ -87,11 +93,17 @@ async function onSubmitSlots() {
     slotsError.value = parsed.error.issues[0]?.message ?? 'Invalid input'
     return
   }
+  const max = maxSlots.value ?? 0
+  if (parsed.data.openDutySlots > max || parsed.data.closedDutySlots > max) {
+    slotsError.value = `On-call slots cannot exceed the clinic's ${max} active doctor${max === 1 ? '' : 's'}`
+    return
+  }
   slotsSubmitting.value = true
   try {
     dutySlots.value = await settingsService.updateDutySlots(
       parsed.data.openDutySlots,
       parsed.data.closedDutySlots,
+      clinicId(),
     )
     openSlotsInput.value = String(dutySlots.value.openDutySlots)
     closedSlotsInput.value = String(dutySlots.value.closedDutySlots)
@@ -148,32 +160,33 @@ onMounted(loadSettings)
         <CardHeader class="p-5 pb-2">
           <CardTitle>On-call slots</CardTitle>
           <CardDescription class="text-xs">
-            How many on-call doctors a single day holds. Open on-call days use their own count; all
-            other days (including the day after an open one) use the closed count.
+            How many on-call doctors a single day holds in this clinic. Open on-call days use their
+            own count; all other days (including the day after an open one) use the closed count.
+            Each count can go up to the clinic's active doctors.
           </CardDescription>
         </CardHeader>
         <CardContent class="flex flex-1 flex-col p-5 pt-0">
           <form class="flex flex-1 flex-col gap-3" novalidate @submit.prevent="onSubmitSlots">
             <div class="flex flex-col gap-1.5">
-              <Label for="open-duty-slots">Open on-call days (1–7)</Label>
+              <Label for="open-duty-slots">Open on-call days (1–{{ maxSlots ?? '—' }})</Label>
               <Input
                 id="open-duty-slots"
                 v-model="openSlotsInput"
                 type="number"
                 min="1"
-                max="7"
+                :max="maxSlots"
                 inputmode="numeric"
                 :disabled="loading"
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label for="closed-duty-slots">Closed on-call days (1–7)</Label>
+              <Label for="closed-duty-slots">Closed on-call days (1–{{ maxSlots ?? '—' }})</Label>
               <Input
                 id="closed-duty-slots"
                 v-model="closedSlotsInput"
                 type="number"
                 min="1"
-                max="7"
+                :max="maxSlots"
                 inputmode="numeric"
                 :disabled="loading"
               />

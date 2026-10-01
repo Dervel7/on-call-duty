@@ -83,7 +83,10 @@ export async function adminStats(year: number, month: number, scope: ClinicScope
     )
     for (const r of dres.rows) perDate.set(r.duty_date, r.n)
   }
-  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const [openDuty, dutySlots] = await Promise.all([
+    getOpenDutySettings(),
+    getDutySlots(scope.clinicId),
+  ])
   const required = (d: string) => slotsForDate(d, openDuty, dutySlots)
   const coverage: AdminCoverage = {
     daysInMonth: total,

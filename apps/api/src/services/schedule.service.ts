@@ -147,7 +147,7 @@ async function buildContext(
   clinicId: number,
 ): Promise<SchedulingContext> {
   const { first, last } = monthBounds(year, month)
-  const [openDuty, slots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const [openDuty, slots] = await Promise.all([getOpenDutySettings(), getDutySlots(clinicId)])
 
   const dr = await query<{
     id: number
@@ -640,7 +640,10 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
   }
   if (!isAdmin) {
     // Calendar shape only — skip the eligibility work that gets blanked anyway.
-    const [openDuty, slots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+    const [openDuty, slots] = await Promise.all([
+      getOpenDutySettings(),
+      getDutySlots(schedule.clinicId),
+    ])
     const total = daysInMonth(schedule.year, schedule.month)
     const days: DayInfo[] = []
     for (let d = 1; d <= total; d++) {
@@ -875,7 +878,10 @@ export async function addDuty(
     'SELECT COUNT(*)::int AS n FROM duties WHERE schedule_id = $1 AND duty_date = $2',
     [scheduleId, input.date],
   )
-  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const [openDuty, dutySlots] = await Promise.all([
+    getOpenDutySettings(),
+    getDutySlots(schedule.clinic_id),
+  ])
   const slots = slotsForDate(input.date, openDuty, dutySlots)
   if ((existing.rows[0]?.n ?? 0) >= slots)
     throw new HttpError(409, `All ${slots} on-call slots for this date are already filled`)
@@ -960,7 +966,10 @@ export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
   // Strict rule: an open on-call day and the day after it always keep both
   // doctors. With the 2-per-day ceiling, deleting any duty on such a date
   // would leave at most one doctor — the duty must be reassigned, not removed.
-  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const [openDuty, dutySlots] = await Promise.all([
+    getOpenDutySettings(),
+    getDutySlots(duty.schedule_clinic_id),
+  ])
   const required = slotsForDate(duty.duty_date, openDuty, dutySlots)
   if (requiresDoubleCoverage(duty.duty_date, openDuty))
     throw new HttpError(
@@ -987,7 +996,10 @@ export async function publish(id: number, actor: Actor): Promise<ScheduleSummary
   // Strict rule gate: every day needs a doctor, and open on-call days (plus
   // the day after them) must be filled to their slot count. Settings are read
   // outside the transaction.
-  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const [openDuty, dutySlots] = await Promise.all([
+    getOpenDutySettings(),
+    getDutySlots(existing.clinic_id),
+  ])
   await withTransaction(async (client) => {
     const upd = await client.query(
       `UPDATE schedules SET status = 'published', updated_at = NOW()

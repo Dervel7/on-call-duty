@@ -288,16 +288,16 @@ describe('open-duty settings schemas', () => {
 })
 
 describe('duty-slots settings schemas', () => {
-  it('updateDutySlotsSchema coerces numeric strings and accepts 1..7 integers', () => {
+  it('updateDutySlotsSchema coerces numeric strings and has no fixed upper bound', () => {
     expect(updateDutySlotsSchema.safeParse({ openDutySlots: 2, closedDutySlots: 2 }).success).toBe(true)
     expect(updateDutySlotsSchema.safeParse({ openDutySlots: '3', closedDutySlots: '1' }).success).toBe(true)
-    expect(updateDutySlotsSchema.safeParse({ openDutySlots: 7, closedDutySlots: 1 }).success).toBe(true)
+    // The ceiling is the clinic's active doctor count, enforced by the API.
+    expect(updateDutySlotsSchema.safeParse({ openDutySlots: 10, closedDutySlots: 30 }).success).toBe(true)
   })
 
-  it('updateDutySlotsSchema rejects zero, over-7, fractions, and missing fields', () => {
+  it('updateDutySlotsSchema rejects zero, fractions, and missing fields', () => {
     for (const body of [
       { openDutySlots: 0, closedDutySlots: 2 },
-      { openDutySlots: 2, closedDutySlots: 8 },
       { openDutySlots: 1.5, closedDutySlots: 2 },
       { openDutySlots: 'abc', closedDutySlots: 2 },
       { openDutySlots: 2 },

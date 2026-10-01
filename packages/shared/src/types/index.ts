@@ -61,6 +61,7 @@ export type {
   OpenDutySettings,
   UpdateOpenDutyRequest,
   DutySlotsSettings,
+  ClinicDutySlots,
   UpdateDutySlotsRequest,
 } from './settings'
 export * from './usage'

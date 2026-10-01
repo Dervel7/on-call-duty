@@ -4,12 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getOpenDutySettings = vi.fn()
 const setOpenDutyInterval = vi.fn()
-const getDutySlots = vi.fn()
+const getClinicDutySlots = vi.fn()
 const setDutySlots = vi.fn()
 vi.mock('../services/settings.service', () => ({
   getOpenDutySettings: (...a: unknown[]) => getOpenDutySettings(...a),
   setOpenDutyInterval: (...a: unknown[]) => setOpenDutyInterval(...a),
-  getDutySlots: (...a: unknown[]) => getDutySlots(...a),
+  getClinicDutySlots: (...a: unknown[]) => getClinicDutySlots(...a),
   setDutySlots: (...a: unknown[]) => setDutySlots(...a),
 }))
 vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
@@ -33,7 +33,7 @@ const doctorToken = () => signAccessToken({ sub: 10, role: 'doctor', clinicId: 1
 beforeEach(() => {
   getOpenDutySettings.mockReset()
   setOpenDutyInterval.mockReset()
-  getDutySlots.mockReset()
+  getClinicDutySlots.mockReset()
   setDutySlots.mockReset()
 })
 
@@ -94,7 +94,9 @@ describe('settings routes', () => {
 })
 
 describe('duty-slots settings routes', () => {
-  it('GET /settings/duty-slots: 401 unauthenticated, 403 doctor, 200 admin with the counts', async () => {
+  const slots = { openDutySlots: 2, closedDutySlots: 2, activeDoctors: 30 }
+
+  it('GET /settings/duty-slots: 401 unauthenticated, 403 doctor, 200 admin with own-clinic counts', async () => {
     expect((await request(build()).get('/settings/duty-slots')).status).toBe(401)
 
     const forbidden = await request(build())
@@ -102,15 +104,30 @@ describe('duty-slots settings routes', () => {
       .set('Authorization', `Bearer ${doctorToken()}`)
     expect(forbidden.status).toBe(403)
 
-    getDutySlots.mockResolvedValue({ openDutySlots: 2, closedDutySlots: 2 })
+    getClinicDutySlots.mockResolvedValue(slots)
     const res = await request(build())
       .get('/settings/duty-slots')
       .set('Authorization', `Bearer ${adminToken()}`)
     expect(res.status).toBe(200)
-    expect(res.body.data.dutySlots).toEqual({ openDutySlots: 2, closedDutySlots: 2 })
+    expect(res.body.data.dutySlots).toEqual(slots)
+    expect(getClinicDutySlots).toHaveBeenCalledWith(1)
   })
 
-  it('PATCH rejects doctors (403) and out-of-range counts (400) without touching the service', async () => {
+  it("an administrator cannot read or change another clinic's slots (403)", async () => {
+    const read = await request(build())
+      .get('/settings/duty-slots?clinicId=2')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(read.status).toBe(403)
+    const write = await request(build())
+      .patch('/settings/duty-slots?clinicId=2')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ openDutySlots: 3, closedDutySlots: 2 })
+    expect(write.status).toBe(403)
+    expect(getClinicDutySlots).not.toHaveBeenCalled()
+    expect(setDutySlots).not.toHaveBeenCalled()
+  })
+
+  it('PATCH rejects doctors (403) and malformed counts (400) without touching the service', async () => {
     const forbidden = await request(build())
       .patch('/settings/duty-slots')
       .set('Authorization', `Bearer ${doctorToken()}`)
@@ -119,7 +136,6 @@ describe('duty-slots settings routes', () => {
 
     for (const body of [
       { openDutySlots: 0, closedDutySlots: 2 },
-      { openDutySlots: 8, closedDutySlots: 2 },
       { openDutySlots: 1.5, closedDutySlots: 2 },
       { openDutySlots: 2 },
       { openDutySlots: 'abc', closedDutySlots: 2 },
@@ -133,24 +149,30 @@ describe('duty-slots settings routes', () => {
     expect(setDutySlots).not.toHaveBeenCalled()
   })
 
-  it('PATCH saves for administrators, echoing the updated counts', async () => {
-    setDutySlots.mockResolvedValue({ openDutySlots: 3, closedDutySlots: 1 })
+  it('PATCH saves own-clinic counts for administrators and the named clinic for superadmins', async () => {
+    setDutySlots.mockResolvedValue({ openDutySlots: 10, closedDutySlots: 8, activeDoctors: 30 })
 
     const res = await request(build())
       .patch('/settings/duty-slots')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ openDutySlots: 3, closedDutySlots: 1 })
+      .send({ openDutySlots: 10, closedDutySlots: 8 })
     expect(res.status).toBe(200)
-    expect(res.body.data.dutySlots).toEqual({ openDutySlots: 3, closedDutySlots: 1 })
+    expect(res.body.data.dutySlots).toEqual({ openDutySlots: 10, closedDutySlots: 8, activeDoctors: 30 })
     expect(setDutySlots).toHaveBeenCalledWith(
-      { openDutySlots: 3, closedDutySlots: 1 },
+      { openDutySlots: 10, closedDutySlots: 8 },
       expect.objectContaining({ id: 1, role: 'administrator' }),
+      1,
     )
 
     const asString = await request(build())
-      .patch('/settings/duty-slots')
+      .patch('/settings/duty-slots?clinicId=3')
       .set('Authorization', `Bearer ${superadminToken()}`)
       .send({ openDutySlots: '3', closedDutySlots: '1' })
     expect(asString.status).toBe(200)
+    expect(setDutySlots).toHaveBeenLastCalledWith(
+      { openDutySlots: 3, closedDutySlots: 1 },
+      expect.objectContaining({ id: 2, role: 'superadmin' }),
+      3,
+    )
   })
 })

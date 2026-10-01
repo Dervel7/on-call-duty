@@ -12,13 +12,17 @@ export const updateBillingSchema = z.object({
 export const DEFAULT_OPEN_DUTY_ANCHOR_DATE = '2026-10-02'
 export const DEFAULT_OPEN_DUTY_INTERVAL_DAYS = 8
 
-/** Seeded defaults for the per-day on-call slot counts; fallback when missing/corrupt. */
-export const DEFAULT_OPEN_DUTY_SLOTS = 2
-export const DEFAULT_CLOSED_DUTY_SLOTS = 2
-
+/**
+ * Per-day on-call slot counts. The ceiling is the clinic's active doctor
+ * count, which only the server knows, so it is enforced in the service.
+ */
 export const updateDutySlotsSchema = z.object({
-  openDutySlots: z.coerce.number().int().min(1).max(7),
-  closedDutySlots: z.coerce.number().int().min(1).max(7),
+  openDutySlots: z.coerce.number().int().min(1),
+  closedDutySlots: z.coerce.number().int().min(1),
+})
+
+export const dutySlotsQuerySchema = z.object({
+  clinicId: z.coerce.number().int().positive().optional(),
 })
 
 export const updateOpenDutySchema = z.object({

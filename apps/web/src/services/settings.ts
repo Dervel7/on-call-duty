@@ -1,4 +1,4 @@
-import type { DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
+import type { ClinicDutySlots, OpenDutySettings } from '@oncall/shared'
 import { apiGet, apiPatch } from '@/lib/http'
 
 export async function getOpenDuty(): Promise<OpenDutySettings> {
@@ -13,16 +13,21 @@ export async function updateOpenDutyInterval(intervalDays: number): Promise<Open
   return openDuty
 }
 
-export async function getDutySlots(): Promise<DutySlotsSettings> {
-  const { dutySlots } = await apiGet<{ dutySlots: DutySlotsSettings }>('/settings/duty-slots')
+function dutySlotsPath(clinicId?: number): string {
+  return clinicId === undefined ? '/settings/duty-slots' : `/settings/duty-slots?clinicId=${clinicId}`
+}
+
+export async function getDutySlots(clinicId?: number): Promise<ClinicDutySlots> {
+  const { dutySlots } = await apiGet<{ dutySlots: ClinicDutySlots }>(dutySlotsPath(clinicId))
   return dutySlots
 }
 
 export async function updateDutySlots(
   openDutySlots: number,
   closedDutySlots: number,
-): Promise<DutySlotsSettings> {
-  const { dutySlots } = await apiPatch<{ dutySlots: DutySlotsSettings }>('/settings/duty-slots', {
+  clinicId?: number,
+): Promise<ClinicDutySlots> {
+  const { dutySlots } = await apiPatch<{ dutySlots: ClinicDutySlots }>(dutySlotsPath(clinicId), {
     openDutySlots,
     closedDutySlots,
   })

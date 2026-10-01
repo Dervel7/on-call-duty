@@ -1,1 +1,6 @@
-export { updateBillingSchema, updateDutySlotsSchema, updateOpenDutySchema } from '@oncall/shared'
+export {
+  dutySlotsQuerySchema,
+  updateBillingSchema,
+  updateDutySlotsSchema,
+  updateOpenDutySchema,
+} from '@oncall/shared'
