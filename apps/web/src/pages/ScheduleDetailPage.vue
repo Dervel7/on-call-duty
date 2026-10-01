@@ -10,6 +10,7 @@ import type {
   ScheduleDetail,
 } from '@oncall/shared'
 import { createDutySchema, reassignDutySchema } from '@oncall/shared'
+import { monthLabel } from '@oncall/utils'
 import { useAuthStore } from '@/stores/auth'
 import * as scheduleService from '@/services/schedule'
 import * as doctorService from '@/services/doctor'
@@ -24,11 +25,6 @@ const router = useRouter()
 const auth = useAuthStore()
 const { confirm } = useConfirm()
 const id = Number(route.params.id)
-
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
 
 const detail = ref<ScheduleDetail | null>(null)
 const doctors = ref<Doctor[]>([])
@@ -69,7 +65,6 @@ const assignmentByDate = computed(() => {
   }
   return m
 })
-const conflictsByDate = computed(() => new Map<string, string>())
 const days = computed<DayInfo[]>(() => detail.value?.days ?? [])
 
 async function load() {
@@ -218,7 +213,7 @@ onMounted(async () => {
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
     <template v-if="schedule">
-      <PageHeader :icon="CalendarDays" :title="`${MONTHS[schedule.month - 1]} ${schedule.year}`">
+      <PageHeader :icon="CalendarDays" :title="monthLabel(schedule.year, schedule.month)">
         <template #actions>
           <Badge :variant="isPublished ? 'success' : 'neutral'" dot>{{ isPublished ? 'Published' : 'Draft' }}</Badge>
           <template v-if="auth.isAdmin">
@@ -236,7 +231,7 @@ onMounted(async () => {
       </p>
 
       <DutyCalendar :year="schedule.year" :month="schedule.month" :days="days" :assignment-by-date="assignmentByDate"
-        :conflicts-by-date="conflictsByDate" :doctors="doctors" :mode="mode" :saving-dates="savingDates" allow-clear
+        :doctors="doctors" :mode="mode" :saving-dates="savingDates" allow-clear
         show-fill-hints @select="onSelect" />
     </template>
   </div>

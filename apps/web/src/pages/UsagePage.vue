@@ -15,6 +15,7 @@ import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
 import Label from '@/components/ui/Label.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import Spinner from '@/components/ui/Spinner.vue'
 import Table from '@/components/ui/Table.vue'
@@ -125,9 +126,9 @@ onMounted(loadBilling)
       </CardHeader>
       <CardContent class="flex flex-col gap-3">
         <div class="flex items-center gap-2">
-          <p class="text-sm text-muted-foreground">
+          <p v-if="billing" class="text-sm text-muted-foreground">
             Paid through:
-            <span class="font-mono text-foreground">{{ billing?.paidThrough ?? 'Not set' }}</span>
+            <span class="font-mono text-foreground">{{ billing.paidThrough ?? 'Not set' }}</span>
           </p>
           <Badge v-if="billing" :variant="billing.locked ? 'destructive' : 'success'" dot>
             {{ billing.locked ? 'Locked' : 'Active' }}
@@ -161,7 +162,8 @@ onMounted(loadBilling)
         <CardTitle>Generation history</CardTitle>
       </CardHeader>
       <CardContent>
-        <Table>
+        <EmptyState v-if="!loading && !errorMsg && generations.length === 0" title="No generations yet." />
+        <Table v-else>
           <TableHeader>
             <TableRow>
               <TableHead>Generated at</TableHead>
@@ -171,7 +173,7 @@ onMounted(loadBilling)
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="(e, i) in generations" :key="i">
+            <TableRow v-for="e in generations" :key="`${e.generatedAt}-${e.year}-${e.month}`">
             <TableCell class="font-mono text-xs text-muted-foreground">{{ new Date(e.generatedAt).toLocaleString() }}</TableCell>
             <TableCell class="font-mono text-xs">{{ monthLabel(e) }}</TableCell>
               <TableCell>{{ e.doctorNames.join(', ') }}</TableCell>
@@ -187,7 +189,8 @@ onMounted(loadBilling)
         <CardTitle>Alerts</CardTitle>
       </CardHeader>
       <CardContent>
-        <Table>
+        <EmptyState v-if="!loading && !errorMsg && alerts.length === 0" title="No alerts." />
+        <Table v-else>
           <TableHeader>
             <TableRow>
               <TableHead>Created</TableHead>

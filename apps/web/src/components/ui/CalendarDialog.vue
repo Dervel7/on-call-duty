@@ -2,7 +2,7 @@
 import { computed, ref, useId, watch } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import { ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
-import { daysInMonth } from '@oncall/utils'
+import { monthGrid, monthLabel as formatMonth, toIsoMonth, WEEKDAYS } from '@oncall/utils'
 import { cn } from '@/lib/utils'
 import { useModal } from '@/composables/useModal'
 import Button from './Button.vue'
@@ -25,7 +25,6 @@ const emit = defineEmits<{
   'update:modelValue': [days: string[]]
 }>()
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
 const today = new Date()
 
 const view = ref({ year: today.getFullYear(), month0: today.getMonth() })
@@ -34,39 +33,14 @@ const reserved = computed(() => new Set(props.reservedDays))
 const panel = ref<HTMLElement | null>(null)
 const titleId = useId()
 
-const monthFormat = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' })
-const monthLabel = computed(() =>
-  monthFormat.format(new Date(view.value.year, view.value.month0, 1)),
+const monthLabel = computed(() => formatMonth(view.value.year, view.value.month0 + 1))
+const dayLabelFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
+const cells = computed(() =>
+  monthGrid(view.value.year, view.value.month0).map((c) =>
+    c && { ...c, label: dayLabelFormat.format(new Date(view.value.year, view.value.month0, c.day)) },
+  ),
 )
-
-interface Cell {
-  iso: string
-  day: number
-  weekend: boolean
-}
-
-const cells = computed<(Cell | null)[]>(() => {
-  const { year, month0 } = view.value
-  const lead = (new Date(year, month0, 1).getDay() + 6) % 7
-  const out: (Cell | null)[] = Array.from({ length: lead }, () => null)
-  for (let day = 1; day <= daysInMonth(year, month0); day++) {
-    out.push({
-      iso: toIso(year, month0, day),
-      day,
-      weekend: (lead + day - 1) % 7 >= 5,
-    })
-  }
-  while (out.length % 7 !== 0) out.push(null)
-  return out
-})
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0')
-}
-
-function toIso(year: number, month0: number, day: number): string {
-  return `${year}-${pad(month0 + 1)}-${pad(day)}`
-}
 
 function shiftMonth(delta: number) {
   const d = new Date(view.value.year, view.value.month0 + delta, 1)
@@ -138,7 +112,7 @@ useModal(() => props.open, panel)
       />
       <div
         ref="panel"
-        :data-month="`${view.year}-${pad(view.month0 + 1)}`"
+        :data-month="toIsoMonth(view.year, view.month0)"
         role="dialog"
         aria-modal="true"
         :aria-labelledby="title ? titleId : undefined"
@@ -194,6 +168,7 @@ useModal(() => props.open, panel)
               v-if="c"
               type="button"
               :data-date="c.iso"
+              :aria-label="c.label"
               :aria-pressed="selected.has(c.iso)"
               :disabled="reserved.has(c.iso)"
               :title="reserved.has(c.iso) ? 'Already excluded' : undefined"

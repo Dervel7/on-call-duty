@@ -2,7 +2,15 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { CalendarOff, ChevronDown, Pencil } from 'lucide-vue-next'
 import type { Doctor, Unavailability } from '@oncall/shared'
-import { eachDay, groupConsecutiveDays, monthRange, nextMonthIso } from '@oncall/utils'
+import {
+  coveredDays,
+  eachDay,
+  expandDays,
+  formatRange,
+  groupConsecutiveDays,
+  monthRange,
+  nextMonthIso,
+} from '@oncall/utils'
 import * as unavailabilityService from '@/services/unavailability'
 import * as doctorService from '@/services/doctor'
 import Button from '@/components/ui/Button.vue'
@@ -21,8 +29,8 @@ const records = ref<Unavailability[]>([])
 const doctors = ref<Doctor[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
-const saving = ref(false)
-const toggling = ref(false)
+/** Set while a dialog request (open/save/delete/toggle) runs; blocks re-entry. */
+const busy = ref(false)
 const { confirm } = useConfirm()
 
 const filterDoctorId = ref('')
@@ -61,20 +69,17 @@ const edit = ref<EditState>(emptyEdit())
 
 const selectedRanges = computed(() => groupConsecutiveDays(edit.value.days))
 
-function formatRange(r: { startDate: string; endDate: string }): string {
-  return r.startDate === r.endDate ? r.startDate : `${r.startDate} → ${r.endDate}`
-}
-
-/** One entry per excluded day, pointing at the record that covers it. */
-interface DayEntry {
-  iso: string
-  record: Unavailability
-}
+/** Other records' days plus the edited record's own days except the chip day. */
+const calendarReservedDays = computed(() => [
+  ...edit.value.reservedDays,
+  ...edit.value.originDays.filter((d) => d !== edit.value.chipDay),
+])
 
 interface DoctorGroup {
   doctorId: number
   name: string
-  days: DayEntry[]
+  /** One entry per excluded day, pointing at the record that covers it. */
+  days: Array<{ iso: string; record: Unavailability }>
 }
 
 const expandedDoctorId = ref<number | null>(null)
@@ -85,19 +90,18 @@ function toggleDoctor(doctorId: number): void {
 
 /** Groups the loaded records into one line per doctor with their excluded days. */
 const grouped = computed<DoctorGroup[]>(() => {
-  const byDoctor = new Map<number, DoctorGroup>()
+  const { from, to } = monthRange(filterMonth.value)
+  const byDoctor = new Map<number, { name: string; records: Unavailability[] }>()
   for (const r of records.value) {
-    let g = byDoctor.get(r.doctorId)
-    if (!g) {
-      g = { doctorId: r.doctorId, name: `${r.doctorFirstName} ${r.doctorLastName}`, days: [] }
-      byDoctor.set(r.doctorId, g)
-    }
-    for (const iso of eachDay(r.startDate, r.endDate)) {
-      if (!g.days.some((d) => d.iso === iso)) g.days.push({ iso, record: r })
-    }
+    const g = byDoctor.get(r.doctorId)
+    if (g) g.records.push(r)
+    else byDoctor.set(r.doctorId, { name: `${r.doctorFirstName} ${r.doctorLastName}`, records: [r] })
   }
-  for (const g of byDoctor.values()) g.days.sort((a, b) => a.iso.localeCompare(b.iso))
-  return [...byDoctor.values()]
+  return [...byDoctor].map(([doctorId, g]) => ({
+    doctorId,
+    name: g.name,
+    days: expandDays(g.records, from, to),
+  }))
 })
 
 const latest = useLatestRequest()
@@ -129,13 +133,7 @@ watch([filterDoctorId, filterMonth], () => {
 
 /** Days covered by the doctor's other records (the edited one excluded). */
 async function reservedDaysFor(doctorId: number, exceptId: number | null): Promise<string[]> {
-  const existing = await unavailabilityService.listAll({ doctorId })
-  const days: string[] = []
-  for (const r of existing) {
-    if (r.id === exceptId) continue
-    days.push(...eachDay(r.startDate, r.endDate))
-  }
-  return days
+  return coveredDays(await unavailabilityService.listAll({ doctorId }), exceptId)
 }
 
 function openCreate() {
@@ -144,12 +142,16 @@ function openCreate() {
 
 /** Opens the dialog scoped to one day: the chip's day, backed by its record. */
 async function openUpdate(iso: string, x: Unavailability) {
+  if (busy.value) return
+  busy.value = true
   let reservedDays: string[]
   try {
     reservedDays = await reservedDaysFor(x.doctorId, x.id)
   } catch {
     // The calendar just loses the dimmed hints; save() re-checks overlaps.
     reservedDays = []
+  } finally {
+    busy.value = false
   }
   edit.value = {
     open: true,
@@ -192,6 +194,7 @@ async function openCalendar() {
  * that still have to be entered.
  */
 async function save() {
+  if (busy.value) return
   const st = edit.value
   st.errorMsg = ''
   if (!st.doctorId) {
@@ -203,7 +206,7 @@ async function save() {
     return
   }
   const doctorId = Number(st.doctorId)
-  saving.value = true
+  busy.value = true
   let wrote = false
   let unsaved: { startDate: string; endDate: string }[] = []
   try {
@@ -249,7 +252,7 @@ async function save() {
         : message
     return
   } finally {
-    saving.value = false
+    busy.value = false
   }
   edit.value = emptyEdit()
   await load()
@@ -257,6 +260,7 @@ async function save() {
 
 /** Deletes the record currently open in the edit dialog. */
 async function removeCurrent() {
+  if (busy.value) return
   const x = records.value.find((r) => r.id === edit.value.id)
   if (!x) return
   if (
@@ -267,11 +271,14 @@ async function removeCurrent() {
     }))
   )
     return
+  busy.value = true
   try {
     await unavailabilityService.remove(x.id)
   } catch (e) {
     edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to delete availability'
     return
+  } finally {
+    busy.value = false
   }
   edit.value = emptyEdit()
   await load()
@@ -283,10 +290,11 @@ async function removeCurrent() {
  * the flag flipped, and its other days keep the previous flag in new records.
  */
 async function toggleDisabledCurrent() {
+  if (busy.value) return
   const x = records.value.find((r) => r.id === edit.value.id)
   if (!x) return
   const day = edit.value.chipDay ?? x.startDate
-  toggling.value = true
+  busy.value = true
   try {
     const others = eachDay(x.startDate, x.endDate).filter((d) => d !== day)
     if (others.length > 0) {
@@ -301,7 +309,7 @@ async function toggleDisabledCurrent() {
     edit.value.errorMsg = e instanceof Error ? e.message : 'Failed to update availability'
     return
   } finally {
-    toggling.value = false
+    busy.value = false
   }
   edit.value = emptyEdit()
   await load()
@@ -416,7 +424,7 @@ onMounted(async () => {
             v-if="edit.id !== null"
             type="button"
             variant="destructive"
-            :disabled="saving"
+            :disabled="busy"
             @click="removeCurrent"
           >
             Delete
@@ -425,12 +433,12 @@ onMounted(async () => {
             v-if="edit.id !== null"
             type="button"
             variant="secondary"
-            :disabled="saving || toggling"
+            :disabled="busy"
             @click="toggleDisabledCurrent"
           >
             {{ records.find((r) => r.id === edit.id)?.isDisabled ? 'Enable' : 'Disable' }}
           </Button>
-          <Button type="submit" class="ml-auto" :disabled="saving">Save</Button>
+          <Button type="submit" class="ml-auto" :disabled="busy">Save</Button>
         </div>
       </form>
       <CalendarDialog
@@ -439,7 +447,7 @@ onMounted(async () => {
         :initial-month="nextMonthIso()"
         title="Mark excluded days"
         confirm-text="Confirm days"
-        :reserved-days="edit.reservedDays"
+        :reserved-days="calendarReservedDays"
       />
     </Dialog>
   </div>

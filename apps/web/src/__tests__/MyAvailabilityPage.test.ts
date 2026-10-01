@@ -87,6 +87,20 @@ describe('MyAvailabilityPage', () => {
     wrapper.unmount()
   })
 
+  it('lists only the days inside the selected month for a record spanning months', async () => {
+    const nm = nextMonthIso()
+    const [y, m] = nm.split('-').map(Number) as [number, number]
+    const prevLast = new Date(Date.UTC(y, m - 1, 0)).toISOString().slice(0, 10)
+    listMine.mockResolvedValue([{ ...record, startDate: prevLast, endDate: `${nm}-02` }])
+    const wrapper = await mountPage()
+    const days = wrapper
+      .findAll('button')
+      .filter((b) => b.text().startsWith('20'))
+      .map((b) => b.text())
+    expect(days).toEqual([`${nm}-01`, `${nm}-02`])
+    wrapper.unmount()
+  })
+
   it('renders disabled exclusions struck-through with a hint', async () => {
     const nm = nextMonthIso()
     listMine.mockResolvedValue([

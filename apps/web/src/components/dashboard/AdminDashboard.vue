@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { TriangleAlert } from 'lucide-vue-next'
 import type { AdminStats } from '@oncall/shared'
+import { MONTHS, monthLabel as formatMonth } from '@oncall/utils'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import Avatar from '@/components/ui/Avatar.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -24,14 +25,10 @@ import * as statsService from '@/services/stats'
 import * as billingService from '@/services/billing'
 
 const router = useRouter()
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
 
 const now = new Date()
-const year = ref(String(now.getUTCFullYear()))
-const month = ref(String(now.getUTCMonth() + 1))
+const year = ref(String(now.getFullYear()))
+const month = ref(String(now.getMonth() + 1))
 
 const stats = ref<AdminStats | null>(null)
 const loading = ref(false)
@@ -44,7 +41,7 @@ const paymentLabel = computed(() => {
   if (days === 0) return 'Payment deadline: due today'
   return `Payment deadline: ${days} ${days === 1 ? 'day' : 'days'} left`
 })
-const monthLabel = computed(() => `${MONTHS[Number(month.value) - 1]} ${year.value}`)
+const monthLabel = computed(() => formatMonth(year.value, Number(month.value)))
 
 const maxInSet = computed(() =>
   stats.value ? Math.max(1, ...stats.value.workload.map((w) => w.duties)) : 1,

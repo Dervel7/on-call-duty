@@ -441,4 +441,76 @@ describe('UsersPage', () => {
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('weak')
     wrapper.unmount()
   })
+
+  it('ignores repeated saves while the edit request is in flight', async () => {
+    list.mockResolvedValue([doctorUser])
+    doctorList.mockResolvedValue([doctorProfile])
+    let resolveUpdate!: (v: unknown) => void
+    doctorUpdate.mockReturnValue(new Promise((r) => (resolveUpdate = r)))
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
+    await flushPromises()
+    const form = document.body.querySelector('#e-email')!.closest('form')!
+    form.dispatchEvent(new Event('submit'))
+    await flushPromises()
+    expect(bodyButton('Save')!.disabled).toBe(true)
+    form.dispatchEvent(new Event('submit'))
+    await flushPromises()
+    expect(doctorUpdate).toHaveBeenCalledTimes(1)
+    resolveUpdate({})
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  it('ignores repeated password resets while the request is in flight', async () => {
+    list.mockResolvedValue([doctorUser])
+    doctorList.mockResolvedValue([doctorProfile])
+    let resolveReset!: (v: unknown) => void
+    resetPassword.mockReturnValue(new Promise((r) => (resolveReset = r)))
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === 'Edit')!.trigger('click')
+    await flushPromises()
+    bodyButton('Reset Password')!.click()
+    await flushPromises()
+    setBodyValue('#r-password', 'newsecret')
+    await flushPromises()
+    const form = document.body.querySelector('#r-password')!.closest('form')!
+    form.dispatchEvent(new Event('submit'))
+    await flushPromises()
+    expect(bodyButton('Confirm')!.disabled).toBe(true)
+    form.dispatchEvent(new Event('submit'))
+    await flushPromises()
+    expect(resetPassword).toHaveBeenCalledTimes(1)
+    resolveReset(undefined)
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  it('disables row actions while a toggle runs and ignores a second toggle or delete', async () => {
+    list.mockResolvedValue([doctorUser])
+    doctorList.mockResolvedValue([doctorProfile])
+    let resolveUpdate!: (v: unknown) => void
+    update.mockReturnValue(new Promise((r) => (resolveUpdate = r)))
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const disable = wrapper.findAll('button').find((b) => b.text() === 'Disable')!
+    disable.element.click()
+    await flushPromises()
+    expect(disable.attributes('disabled')).toBeDefined()
+    const del = wrapper.findAll('button').find((b) => b.text() === 'Delete')!
+    expect(del.attributes('disabled')).toBeDefined()
+    // Handlers also refuse re-entry if invoked directly.
+    disable.element.disabled = false
+    del.element.disabled = false
+    disable.element.click()
+    del.element.click()
+    await flushPromises()
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(doctorRemove).not.toHaveBeenCalled()
+    resolveUpdate(doctorUser)
+    await flushPromises()
+    wrapper.unmount()
+  })
 })

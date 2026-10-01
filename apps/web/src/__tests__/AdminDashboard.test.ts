@@ -133,12 +133,12 @@ describe('AdminDashboard', () => {
     admin.mockResolvedValue(fullStats())
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    const otherMonth = String(((new Date().getUTCMonth() + 1) % 12) + 1)
+    const otherMonth = String(((new Date().getMonth() + 1) % 12) + 1)
     await pickOption(w.element, '#s-month', otherMonth)
     await flushPromises()
     expect(admin).toHaveBeenCalledTimes(2)
     expect(admin).toHaveBeenLastCalledWith({
-      year: new Date().getUTCFullYear(),
+      year: new Date().getFullYear(),
       month: Number(otherMonth),
     })
   })
@@ -147,7 +147,7 @@ describe('AdminDashboard', () => {
     admin.mockResolvedValue(fullStats())
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    const otherMonth = String(((new Date().getUTCMonth() + 1) % 12) + 1)
+    const otherMonth = String(((new Date().getMonth() + 1) % 12) + 1)
     await w.find('#s-year').setValue('')
     await pickOption(w.element, '#s-month', otherMonth)
     await flushPromises()
@@ -182,5 +182,22 @@ describe('AdminDashboard', () => {
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
     await flushPromises()
     expect(w.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('defaults to the local month just after local midnight on the 1st', async () => {
+    const tz = process.env.TZ
+    process.env.TZ = 'Pacific/Auckland'
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      // 00:30 on Oct 1 in Auckland is still Sep 30 in UTC.
+      vi.setSystemTime(new Date(2026, 9, 1, 0, 30))
+      admin.mockResolvedValue(fullStats())
+      mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+      await flushPromises()
+      expect(admin).toHaveBeenCalledWith({ year: 2026, month: 10 })
+    } finally {
+      vi.useRealTimers()
+      process.env.TZ = tz
+    }
   })
 })

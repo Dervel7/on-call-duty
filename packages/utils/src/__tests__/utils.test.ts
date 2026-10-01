@@ -1,12 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  coveredDays,
   daysInMonth,
   eachDay,
+  expandDays,
+  formatRange,
   groupConsecutiveDays,
   isWeekend,
+  monthGrid,
+  monthLabel,
   monthRange,
   nextMonthIso,
   required,
+  toIsoMonth,
 } from '../index'
 
 afterEach(() => vi.useRealTimers())
@@ -90,5 +96,78 @@ describe('monthRange', () => {
 
   it('returns empty bounds when no month is selected', () => {
     expect(monthRange('')).toEqual({})
+  })
+})
+
+describe('monthLabel', () => {
+  it('names a 1-based month', () => {
+    expect(monthLabel(2026, 1)).toBe('January 2026')
+    expect(monthLabel(2026, 12)).toBe('December 2026')
+  })
+})
+
+describe('toIsoMonth', () => {
+  it('zero-pads the 1-based month', () => {
+    expect(toIsoMonth(2026, 0)).toBe('2026-01')
+    expect(toIsoMonth(2026, 11)).toBe('2026-12')
+  })
+})
+
+describe('monthGrid', () => {
+  it('starts on Monday and pads to whole weeks', () => {
+    // June 2026 starts on a Monday and has 30 days: no lead, 5 trailing blanks.
+    const grid = monthGrid(2026, 5)
+    expect(grid).toHaveLength(35)
+    expect(grid[0]).toEqual({ iso: '2026-06-01', day: 1, weekend: false })
+    expect(grid[29]?.iso).toBe('2026-06-30')
+    expect(grid.slice(30)).toEqual([null, null, null, null, null])
+  })
+
+  it('leads with blanks before the first weekday and flags weekends', () => {
+    // February 2026 starts on a Sunday: six leading blanks.
+    const grid = monthGrid(2026, 1)
+    expect(grid.slice(0, 6)).toEqual([null, null, null, null, null, null])
+    expect(grid[6]).toEqual({ iso: '2026-02-01', day: 1, weekend: true })
+    expect(grid[7]?.weekend).toBe(false)
+    expect(grid.length % 7).toBe(0)
+  })
+})
+
+describe('formatRange', () => {
+  it('shows a single day alone and a span with an arrow', () => {
+    expect(formatRange({ startDate: '2026-09-07', endDate: '2026-09-07' })).toBe('2026-09-07')
+    expect(formatRange({ startDate: '2026-09-07', endDate: '2026-09-09' })).toBe(
+      '2026-09-07 → 2026-09-09',
+    )
+  })
+})
+
+describe('expandDays', () => {
+  const a = { id: 1, startDate: '2026-09-29', endDate: '2026-10-02' }
+  const b = { id: 2, startDate: '2026-09-28', endDate: '2026-09-30' }
+
+  it('clips to bounds, keeps the first covering record and sorts by day', () => {
+    expect(expandDays([a, b], '2026-09-30', '2026-10-01')).toEqual([
+      { iso: '2026-09-30', record: a },
+      { iso: '2026-10-01', record: a },
+    ])
+    expect(expandDays([a, b]).map((d) => [d.iso, d.record.id])).toEqual([
+      ['2026-09-28', 2],
+      ['2026-09-29', 1],
+      ['2026-09-30', 1],
+      ['2026-10-01', 1],
+      ['2026-10-02', 1],
+    ])
+  })
+})
+
+describe('coveredDays', () => {
+  it('lists days of every record except the excluded one', () => {
+    const records = [
+      { id: 1, startDate: '2026-09-01', endDate: '2026-09-02' },
+      { id: 2, startDate: '2026-09-05', endDate: '2026-09-05' },
+    ]
+    expect(coveredDays(records, 1)).toEqual(['2026-09-05'])
+    expect(coveredDays(records, null)).toEqual(['2026-09-01', '2026-09-02', '2026-09-05'])
   })
 })

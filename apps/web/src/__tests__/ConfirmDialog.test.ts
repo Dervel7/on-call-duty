@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { createMemoryHistory, createRouter, routerKey } from 'vue-router'
 import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
 import { useConfirm, useConfirmState } from '../composables/useConfirm'
 
@@ -17,8 +18,21 @@ function overlay(): HTMLElement | null {
 
 const wrappers: VueWrapper[] = []
 
-function mountHost(): VueWrapper {
-  const w = mount(ConfirmDialog, { attachTo: document.body })
+const router = createRouter({
+  history: createMemoryHistory(),
+  routes: [
+    { path: '/', component: { template: '<div />' } },
+    { path: '/other', component: { template: '<div />' } },
+  ],
+})
+
+// Installing a real router starts an initial navigation that would settle the
+// pending confirm; only the navigation tests use one.
+function mountHost(withRouter = false): VueWrapper {
+  const global = withRouter
+    ? { plugins: [router] }
+    : { provide: { [routerKey as symbol]: { afterEach: () => () => {} } } }
+  const w = mount(ConfirmDialog, { attachTo: document.body, global })
   wrappers.push(w)
   return w
 }
@@ -30,6 +44,27 @@ afterEach(() => {
 })
 
 describe('ConfirmDialog', () => {
+  it('navigating away resolves a pending confirm with false', async () => {
+    mountHost(true)
+    await router.push('/')
+    const p = confirm({ title: 'T', message: 'm' })
+    await flushPromises()
+    await router.push('/other')
+    await expect(p).resolves.toBe(false)
+    expect(request.value).toBeNull()
+  })
+
+  it('stops listening to navigation after unmount', async () => {
+    mountHost(true).unmount()
+    wrappers.length = 0
+    await router.push('/')
+    const p = confirm({ title: 'T', message: 'm' })
+    await router.push('/other')
+    expect(request.value).not.toBeNull()
+    settle(true)
+    await expect(p).resolves.toBe(true)
+  })
+
   it('renders title, message, and default labels; focuses Cancel when destructive', async () => {
     mountHost()
     const p = confirm({ title: 'Delete schedule', message: 'Delete this schedule and all its duties?' })

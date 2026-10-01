@@ -198,4 +198,24 @@ describe('UsagePage', () => {
     await flushPromises()
     expect(billingUpdate).toHaveBeenCalledWith('2025-06-15')
   })
+
+  it('shows empty states when there are no generations or alerts', async () => {
+    generations.mockResolvedValue([])
+    alerts.mockResolvedValue([])
+    billingState.mockResolvedValue({ paidThrough: '2026-12-31', locked: false })
+    const wrapper = mount(UsagePage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('No generations yet.')
+    expect(wrapper.text()).toContain('No alerts.')
+  })
+
+  it('does not claim Not set when billing failed to load and shows the error', async () => {
+    generations.mockResolvedValue([])
+    alerts.mockResolvedValue([])
+    billingState.mockRejectedValue(new Error('billing down'))
+    const wrapper = mount(UsagePage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Not set')
+    expect(wrapper.find('[role="alert"]').text()).toContain('billing down')
+  })
 })

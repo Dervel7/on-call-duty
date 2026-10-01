@@ -77,3 +77,17 @@ describe('AppHeader navigation', () => {
     expect(labels).toEqual(['Home', 'Profile'])
   })
 })
+
+describe('AppHeader accessibility', () => {
+  it('names both navs and the icon-only logout button', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.user = user('doctor')
+    auth.accessToken = 'token'
+    const wrapper = mount(AppHeader, { global: { plugins: [pinia] } })
+    await flushPromises()
+    expect(wrapper.findAll('nav').map((n) => n.attributes('aria-label'))).toEqual(['Main', 'Main (mobile)'])
+    expect(wrapper.find('button[aria-label="Logout"]').exists()).toBe(true)
+  })
+})

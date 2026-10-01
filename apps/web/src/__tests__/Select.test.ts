@@ -108,3 +108,42 @@ describe('Select keyboard focus', () => {
     expect(document.activeElement).toBe(trigger)
   })
 })
+
+describe('Select arrow keys with no active option', () => {
+  async function openUnselected(options: string) {
+    wrapper = mount(Select, { props: { modelValue: '' }, slots: { default: options }, attachTo: document.body })
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+    return document.body.querySelector<HTMLElement>('[data-popover-layer]')!
+  }
+
+  function activeText(panel: HTMLElement): string | undefined {
+    const id = panel.getAttribute('aria-activedescendant')
+    return id ? document.getElementById(id)?.textContent?.trim() : undefined
+  }
+
+  async function press(panel: HTMLElement, key: string) {
+    panel.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+    await flushPromises()
+  }
+
+  const abc = '<option value="a">Alpha</option><option value="b">Beta</option><option value="c">Gamma</option>'
+
+  it('ArrowUp activates the last option', async () => {
+    const panel = await openUnselected(abc)
+    await press(panel, 'ArrowUp')
+    expect(activeText(panel)).toBe('Gamma')
+  })
+
+  it('ArrowDown activates the first option', async () => {
+    const panel = await openUnselected(abc)
+    await press(panel, 'ArrowDown')
+    expect(activeText(panel)).toBe('Alpha')
+  })
+
+  it('leaves nothing active when every option is disabled', async () => {
+    const panel = await openUnselected('<option value="a" disabled>Alpha</option><option value="b" disabled>Beta</option>')
+    await press(panel, 'ArrowDown')
+    expect(activeText(panel)).toBeUndefined()
+  })
+})

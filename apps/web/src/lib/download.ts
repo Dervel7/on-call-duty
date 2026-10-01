@@ -1,5 +1,6 @@
 export function downloadCsv(filename: string, csv: string): void {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  // BOM so Excel detects UTF-8 (otherwise non-ASCII names render as mojibake).
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -7,5 +8,6 @@ export function downloadCsv(filename: string, csv: string): void {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  // Deferred: revoking synchronously can cancel the download in Safari/Firefox.
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }

@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { BarChart3 } from 'lucide-vue-next'
 import type { Duty, MonthlyReport, ScheduleDetail } from '@oncall/shared'
-import { dutiesToCsv } from '@oncall/utils'
+import { dutiesToCsv, MONTHS, monthLabel as formatMonth } from '@oncall/utils'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -29,10 +29,6 @@ import { downloadCsv } from '@/lib/download'
 import { explainDutyReason } from '@/lib/duty-reason'
 
 const router = useRouter()
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
 const weekdayFmt = new Intl.DateTimeFormat('en', { weekday: 'short' })
 const dayFmt = new Intl.DateTimeFormat('en', { day: '2-digit' })
 
@@ -45,7 +41,7 @@ const calendar = ref<ScheduleDetail | null>(null)
 const loading = ref(false)
 const errorMsg = ref('')
 
-const monthLabel = computed(() => (report.value ? `${MONTHS[report.value.month - 1]} ${report.value.year}` : ''))
+const monthLabel = computed(() => (report.value ? formatMonth(report.value.year, report.value.month) : ''))
 const isPublished = computed(() => report.value?.schedule?.status === 'published')
 
 interface DayRow {
@@ -353,7 +349,7 @@ onMounted(load)
         <div class="mb-3 flex items-center justify-between gap-3 border-b border-border/60 pb-2">
           <div>
             <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">Duty roster</p>
-            <p class="text-lg font-semibold">{{ MONTHS[report.month - 1] }} {{ report.year }}</p>
+            <p class="text-lg font-semibold">{{ monthLabel }}</p>
           </div>
           <Badge :variant="isPublished ? 'primary' : 'neutral'" dot>{{ isPublished ? 'Published' : 'Draft' }}</Badge>
         </div>

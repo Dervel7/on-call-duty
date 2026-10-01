@@ -3,7 +3,7 @@ import type { HTMLAttributes } from 'vue'
 import { computed, nextTick, ref } from 'vue'
 import { onClickOutside, useEventListener } from '@vueuse/core'
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
-import { daysInMonth } from '@oncall/utils'
+import { monthGrid, monthLabel as formatMonth, toIsoDate, toIsoMonth, WEEKDAYS } from '@oncall/utils'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<{
@@ -16,30 +16,21 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
-
 const today = new Date()
 
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
+const trigger = ref<HTMLButtonElement | null>(null)
 const view = ref({ year: today.getFullYear(), month0: today.getMonth() })
 
 const dayFormat = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-const monthFormat = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' })
+const dayLabelFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
 const navBtnClass =
   'flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40'
 
-function pad(n: number): string {
-  return String(n).padStart(2, '0')
-}
-
-function toIso(year: number, month0: number, day: number): string {
-  return `${year}-${pad(month0 + 1)}-${pad(day)}`
-}
-
-const todayIso = toIso(today.getFullYear(), today.getMonth(), today.getDate())
+const todayIso = toIsoDate(today)
 
 const selectedIso = computed(() =>
   props.modelValue && /^\d{4}-\d{2}-\d{2}$/.test(props.modelValue) ? props.modelValue : '',
@@ -51,28 +42,13 @@ const triggerLabel = computed(() => {
   return Number.isNaN(d.getTime()) ? selectedIso.value : dayFormat.format(d)
 })
 
-const monthLabel = computed(() => monthFormat.format(new Date(view.value.year, view.value.month0, 1)))
+const monthLabel = computed(() => formatMonth(view.value.year, view.value.month0 + 1))
 
-interface Cell {
-  iso: string
-  day: number
-  weekend: boolean
-}
-
-const cells = computed<(Cell | null)[]>(() => {
-  const { year, month0 } = view.value
-  const lead = (new Date(year, month0, 1).getDay() + 6) % 7
-  const out: (Cell | null)[] = Array.from({ length: lead }, () => null)
-  for (let day = 1; day <= daysInMonth(year, month0); day++) {
-    out.push({
-      iso: toIso(year, month0, day),
-      day,
-      weekend: (lead + day - 1) % 7 >= 5,
-    })
-  }
-  while (out.length % 7 !== 0) out.push(null)
-  return out
-})
+const cells = computed(() =>
+  monthGrid(view.value.year, view.value.month0).map((c) =>
+    c && { ...c, label: dayLabelFormat.format(new Date(view.value.year, view.value.month0, c.day)) },
+  ),
+)
 
 function syncView() {
   if (selectedIso.value) {
@@ -95,14 +71,19 @@ async function toggle() {
   panel.value?.focus()
 }
 
+function close() {
+  open.value = false
+  trigger.value?.focus()
+}
+
 function pick(iso: string) {
   emit('update:modelValue', iso)
-  open.value = false
+  close()
 }
 
 function clear() {
   emit('update:modelValue', '')
-  open.value = false
+  close()
 }
 
 function shiftMonth(delta: number) {
@@ -120,7 +101,7 @@ useEventListener(
   (e: KeyboardEvent) => {
     if (!open.value || e.key !== 'Escape') return
     e.stopPropagation()
-    open.value = false
+    close()
   },
   { capture: true },
 )
@@ -130,6 +111,7 @@ useEventListener(
   <div ref="root" :class="cn('relative w-full', props.class)">
     <button
       :id="props.id"
+      ref="trigger"
       type="button"
       :disabled="props.disabled"
       :aria-expanded="open"
@@ -165,7 +147,7 @@ useEventListener(
         role="dialog"
         aria-label="Choose date"
         tabindex="-1"
-        :data-month="`${view.year}-${pad(view.month0 + 1)}`"
+        :data-month="toIsoMonth(view.year, view.month0)"
         data-popover-layer
         class="glass-card glass-panel absolute left-0 top-[calc(100%+0.375rem)] z-50 w-80 rounded-xl p-3 focus-visible:outline-none focus-visible:shadow-none"
       >
@@ -195,6 +177,8 @@ useEventListener(
               v-if="c"
               type="button"
               :data-date="c.iso"
+              :aria-label="c.label"
+              :aria-pressed="c.iso === selectedIso"
               :aria-current="c.iso === todayIso ? 'date' : undefined"
               :class="cn(
                 'flex h-9 items-center justify-center rounded-lg font-mono text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',

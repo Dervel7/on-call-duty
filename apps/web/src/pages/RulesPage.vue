@@ -26,24 +26,34 @@ const closedSlotsInput = ref('')
 const slotsError = ref('')
 const slotsSuccess = ref(false)
 const slotsSubmitting = ref(false)
+const loading = ref(true)
+
+function errorText(r: PromiseSettledResult<unknown>): string {
+  return r.status === 'rejected' && r.reason instanceof Error ? r.reason.message : 'Could not load rules'
+}
 
 async function loadSettings() {
   intervalError.value = ''
   slotsError.value = ''
-  try {
-    const [cycle, slots] = await Promise.all([
-      settingsService.getOpenDuty(),
-      settingsService.getDutySlots(),
-    ])
-    openDuty.value = cycle
-    intervalInput.value = String(cycle.intervalDays)
-    dutySlots.value = slots
-    openSlotsInput.value = String(slots.openDutySlots)
-    closedSlotsInput.value = String(slots.closedDutySlots)
-  } catch (e) {
-    intervalError.value = e instanceof Error ? e.message : 'Could not load rules'
-    slotsError.value = intervalError.value
+  loading.value = true
+  const [cycle, slots] = await Promise.allSettled([
+    settingsService.getOpenDuty(),
+    settingsService.getDutySlots(),
+  ])
+  if (cycle.status === 'fulfilled') {
+    openDuty.value = cycle.value
+    intervalInput.value = String(cycle.value.intervalDays)
+  } else {
+    intervalError.value = errorText(cycle)
   }
+  if (slots.status === 'fulfilled') {
+    dutySlots.value = slots.value
+    openSlotsInput.value = String(slots.value.openDutySlots)
+    closedSlotsInput.value = String(slots.value.closedDutySlots)
+  } else {
+    slotsError.value = errorText(slots)
+  }
+  loading.value = false
 }
 
 async function onSubmitInterval() {
@@ -124,11 +134,12 @@ onMounted(loadSettings)
                 min="1"
                 max="365"
                 inputmode="numeric"
+                :disabled="loading"
               />
             </div>
             <p v-if="intervalError" class="text-xs text-destructive" role="alert">{{ intervalError }}</p>
             <p v-if="intervalSuccess" class="text-xs text-success" role="status">Interval updated.</p>
-            <Button class="mt-auto" type="submit" :disabled="intervalSubmitting">Save interval</Button>
+            <Button class="mt-auto" type="submit" :disabled="loading || intervalSubmitting">Save interval</Button>
           </form>
         </CardContent>
       </Card>
@@ -152,6 +163,7 @@ onMounted(loadSettings)
                 min="1"
                 max="7"
                 inputmode="numeric"
+                :disabled="loading"
               />
             </div>
             <div class="flex flex-col gap-1.5">
@@ -163,11 +175,12 @@ onMounted(loadSettings)
                 min="1"
                 max="7"
                 inputmode="numeric"
+                :disabled="loading"
               />
             </div>
             <p v-if="slotsError" class="text-xs text-destructive" role="alert">{{ slotsError }}</p>
             <p v-if="slotsSuccess" class="text-xs text-success" role="status">Slots updated.</p>
-            <Button class="mt-auto" type="submit" :disabled="slotsSubmitting">Save slots</Button>
+            <Button class="mt-auto" type="submit" :disabled="loading || slotsSubmitting">Save slots</Button>
           </form>
         </CardContent>
       </Card>

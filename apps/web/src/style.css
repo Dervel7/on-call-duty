@@ -534,6 +534,36 @@
 }
 
 @media print {
+  /* Print always uses the light palette, even when dark mode is active. */
+  .dark {
+    color-scheme: light;
+    --background: 210 40% 97%;
+    --background-tint: 210 50% 99%;
+    --foreground: 228 30% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 228 30% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 228 30% 12%;
+    --primary: 194 90% 32%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 262 74% 47%;
+    --accent-foreground: 0 0% 100%;
+    --secondary: 212 34% 92%;
+    --secondary-foreground: 228 30% 12%;
+    --muted: 212 30% 93%;
+    --muted-foreground: 221 15% 41%;
+    --info: 199 90% 36%;
+    --info-foreground: 0 0% 100%;
+    --success: 157 70% 29%;
+    --success-foreground: 0 0% 100%;
+    --warning: 30 92% 35%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 350 80% 44%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 28% 85%;
+    --input: 214 26% 79%;
+    --ring: 194 90% 34%;
+  }
   header,
   .no-print {
     display: none !important;

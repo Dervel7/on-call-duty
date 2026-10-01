@@ -3,6 +3,7 @@ import type { HTMLAttributes } from 'vue'
 import { computed, nextTick, ref } from 'vue'
 import { onClickOutside, useEventListener } from '@vueuse/core'
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
+import { MONTHS, monthLabel, toIsoMonth } from '@oncall/utils'
 import { cn } from '@/lib/utils'
 
 const props = defineProps<{
@@ -16,39 +17,26 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
 const today = new Date()
 
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
+const trigger = ref<HTMLButtonElement | null>(null)
 const year = ref(today.getFullYear())
-
-const monthFormat = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' })
 
 const navBtnClass =
   'flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40'
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0')
-}
-
-function toIsoMonth(month0: number): string {
-  return `${year.value}-${pad(month0 + 1)}`
-}
 
 const selectedMonth = computed(() =>
   props.modelValue && /^\d{4}-\d{2}$/.test(props.modelValue) ? props.modelValue : '',
 )
 
-const currentMonth = `${today.getFullYear()}-${pad(today.getMonth() + 1)}`
+const currentMonth = toIsoMonth(today.getFullYear(), today.getMonth())
 
 const triggerLabel = computed(() => {
   if (!selectedMonth.value) return ''
-  const y = Number(selectedMonth.value.slice(0, 4))
-  const m0 = Number(selectedMonth.value.slice(5, 7)) - 1
-  return monthFormat.format(new Date(y, m0, 1))
+  return monthLabel(Number(selectedMonth.value.slice(0, 4)), Number(selectedMonth.value.slice(5, 7)))
 })
 
 async function toggle() {
@@ -63,14 +51,19 @@ async function toggle() {
   panel.value?.focus()
 }
 
-function pick(month0: number) {
-  emit('update:modelValue', `${year.value}-${pad(month0 + 1)}`)
+function close() {
   open.value = false
+  trigger.value?.focus()
+}
+
+function pick(month0: number) {
+  emit('update:modelValue', toIsoMonth(year.value, month0))
+  close()
 }
 
 function clear() {
   emit('update:modelValue', '')
-  open.value = false
+  close()
 }
 
 onClickOutside(root, () => (open.value = false))
@@ -83,7 +76,7 @@ useEventListener(
   (e: KeyboardEvent) => {
     if (!open.value || e.key !== 'Escape') return
     e.stopPropagation()
-    open.value = false
+    close()
   },
   { capture: true },
 )
@@ -93,6 +86,7 @@ useEventListener(
   <div ref="root" :class="cn('relative w-full', props.class)">
     <button
       :id="props.id"
+      ref="trigger"
       type="button"
       :disabled="props.disabled"
       :aria-expanded="open"
@@ -152,19 +146,21 @@ useEventListener(
             v-for="(m, i) in MONTHS"
             :key="m"
             type="button"
-            :data-month="toIsoMonth(i)"
+            :data-month="toIsoMonth(year, i)"
+            :aria-label="monthLabel(year, i + 1)"
+            :aria-pressed="toIsoMonth(year, i) === selectedMonth"
             :class="cn(
               'flex h-9 items-center justify-center rounded-lg font-mono text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
-              toIsoMonth(i) === selectedMonth
+              toIsoMonth(year, i) === selectedMonth
                 ? 'bg-primary bg-brand-gradient font-semibold text-primary-foreground shadow-glow hover:opacity-90'
                 : 'text-foreground',
-              toIsoMonth(i) === currentMonth &&
-                toIsoMonth(i) !== selectedMonth &&
+              toIsoMonth(year, i) === currentMonth &&
+                toIsoMonth(year, i) !== selectedMonth &&
                 'font-semibold text-primary ring-1 ring-inset ring-ring/60',
             )"
             @click="pick(i)"
           >
-            {{ m }}
+            {{ m.slice(0, 3) }}
           </button>
         </div>
       </div>

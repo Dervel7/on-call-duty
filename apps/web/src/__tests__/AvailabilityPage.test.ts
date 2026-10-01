@@ -31,7 +31,7 @@ vi.mock('@/services/doctor', () => ({
 import AvailabilityPage from '../pages/AvailabilityPage.vue'
 import { useConfirmState } from '../composables/useConfirm'
 import { pickOption } from './pick-option'
-import { pickDays } from './pick-days'
+import { navigateToMonth, pickDays } from './pick-days'
 
 const { settle } = useConfirmState()
 
@@ -70,6 +70,8 @@ beforeEach(() => {
   split.mockReset()
   remove.mockReset()
   settle(false)
+  // The month filter defaults to next month: pin it to 2026-09, where the fixtures live.
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-08-15T12:00:00') })
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -92,6 +94,7 @@ async function openCreateDialog() {
 
 describe('AvailabilityPage', () => {
   it('renders one line per doctor and expands it into a button per excluded day', async () => {
+    vi.setSystemTime(new Date('2026-09-15T12:00:00'))
     doctorList.mockResolvedValue([])
     listAll.mockResolvedValue([
       { ...record, startDate: '2026-10-01', endDate: '2026-10-03' },
@@ -143,7 +146,7 @@ describe('AvailabilityPage', () => {
   })
 
   it('opens the day calendar on the next month', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-09-25T12:00:00') })
+    vi.setSystemTime(new Date('2026-09-25T12:00:00'))
     doctorList.mockResolvedValue([doctor])
     listAll.mockResolvedValue([])
     const wrapper = await openCreateDialog()
@@ -536,6 +539,81 @@ describe('AvailabilityPage', () => {
     expect(update).not.toHaveBeenCalled()
     expect(createForDoctor).not.toHaveBeenCalled()
     expect(bodyButton('Save')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('lists and counts only the days of the selected month', async () => {
+    doctorList.mockResolvedValue([])
+    listAll.mockResolvedValue([{ ...record, startDate: '2026-08-30', endDate: '2026-09-02' }])
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('2 day(s)')
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    const days = wrapper
+      .findAll('button')
+      .filter((b) => b.text().startsWith('2026-'))
+      .map((b) => b.text())
+    expect(days).toEqual(['2026-09-01', '2026-09-02'])
+    wrapper.unmount()
+  })
+
+  it("locks the record's other days in the edit calendar, leaving only the chip day selectable", async () => {
+    doctorList.mockResolvedValue([])
+    listAll.mockResolvedValue([record])
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === '2026-09-09')!.trigger('click')
+    await flushPromises()
+    bodyButton('Select days')!.click()
+    await flushPromises()
+    await navigateToMonth(document.body, '2026-09-09')
+    const day = (iso: string) =>
+      document.body.querySelector(`button[data-date="${iso}"]`) as HTMLButtonElement
+    expect(day('2026-09-08').disabled).toBe(true)
+    expect(day('2026-09-10').disabled).toBe(true)
+    expect(day('2026-09-09').disabled).toBe(false)
+    expect(day('2026-09-12').disabled).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('disables all dialog actions while a toggle runs and ignores re-entry', async () => {
+    doctorList.mockResolvedValue([])
+    listAll.mockResolvedValue([record])
+    let resolveSplit!: (v: unknown) => void
+    split.mockReturnValue(new Promise((r) => (resolveSplit = r)))
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === '2026-09-09')!.trigger('click')
+    await flushPromises()
+    bodyButton('Disable')!.click()
+    await flushPromises()
+    expect(bodyButton('Save')!.disabled).toBe(true)
+    expect(bodyButton('Delete')!.disabled).toBe(true)
+    expect(bodyButton('Disable')!.disabled).toBe(true)
+    document.body.querySelector('#e-doctor')!.closest('form')!.dispatchEvent(new Event('submit'))
+    await flushPromises()
+    expect(split).toHaveBeenCalledTimes(1)
+    expect(listAll).toHaveBeenCalledTimes(2) // initial load + openUpdate, no save
+    resolveSplit([])
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  it('ignores a second chip click while the first one is still opening', async () => {
+    doctorList.mockResolvedValue([])
+    listAll.mockResolvedValueOnce([record])
+    let resolveReserved!: (v: unknown) => void
+    listAll.mockReturnValueOnce(new Promise((r) => (resolveReserved = r)))
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === '2026-09-09')!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === '2026-09-10')!.trigger('click')
+    expect(listAll).toHaveBeenCalledTimes(2)
+    resolveReserved([])
+    await flushPromises()
     wrapper.unmount()
   })
 })

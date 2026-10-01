@@ -76,6 +76,36 @@ describe('SchedulesPage', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('boom')
   })
 
+  it('shows an empty state when there are no schedules', async () => {
+    list.mockResolvedValue([])
+    const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('No schedules yet.')
+  })
+
+  it('hides the empty state when listing fails', async () => {
+    list.mockRejectedValue(new Error('boom'))
+    const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('No schedules yet.')
+  })
+
+  it('shows createdAt as a local date, not the UTC date prefix', async () => {
+    const tz = process.env.TZ
+    process.env.TZ = 'Pacific/Auckland'
+    try {
+      // 2026-08-31T20:00Z is Sep 1 in Auckland.
+      list.mockResolvedValue([summary({ createdAt: '2026-08-31T20:00:00.000Z' })])
+      const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
+      await flushPromises()
+      const expected = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(2026, 8, 1))
+      expect(wrapper.text()).toContain(expected)
+      expect(wrapper.text()).not.toContain('2026-08-31')
+    } finally {
+      process.env.TZ = tz
+    }
+  })
+
   it('loads the list filtered by the current year by default', async () => {
     list.mockResolvedValue([summary()])
     const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })

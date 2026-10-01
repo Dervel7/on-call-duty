@@ -38,13 +38,16 @@ async function onSubmit() {
   submitting.value = true
   try {
     await auth.login(parsed.data.identifier, parsed.data.password)
-    const redirect = (route.query.redirect as string) || '/'
-    await router.push(redirect)
   } catch (e) {
     formError.value = e instanceof ApiError ? e.message : 'Login failed'
+    return
   } finally {
     submitting.value = false
   }
+  // Only same-origin paths; '//host' would be protocol-relative.
+  const redirect = route.query.redirect
+  const target = typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/'
+  await router.push(target)
 }
 </script>
 
@@ -149,11 +152,11 @@ async function onSubmit() {
           <form class="flex flex-col gap-4" novalidate @submit.prevent="onSubmit">
             <div class="flex flex-col gap-2">
               <Label for="identifier">Email or username</Label>
-              <Input id="identifier" v-model="identifier" type="text" />
+              <Input id="identifier" v-model="identifier" type="text" autocomplete="username" />
             </div>
             <div class="flex flex-col gap-2">
               <Label for="password">Password</Label>
-              <Input id="password" v-model="password" type="password" />
+              <Input id="password" v-model="password" type="password" autocomplete="current-password" />
             </div>
             <p v-if="passwordChanged && !formError" class="text-sm text-success" role="status">
               Password changed, please sign in again.

@@ -42,6 +42,10 @@ const users = ref<User[]>([])
 const doctors = ref<Doctor[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
+/** In-flight flags: edit dialog, reset dialog, and the row whose action runs. */
+const saving = ref(false)
+const resetting = ref(false)
+const busyUserId = ref<number | null>(null)
 const { confirm } = useConfirm()
 
 const doctorByUserId = computed(() => {
@@ -157,6 +161,16 @@ function openUpdate(u: User) {
 }
 
 async function save() {
+  if (saving.value) return
+  saving.value = true
+  try {
+    await persistEdit()
+  } finally {
+    saving.value = false
+  }
+}
+
+async function persistEdit() {
   errorMsg.value = ''
   if (edit.value.id === null) {
     const u = usernameSchema.safeParse(edit.value.username)
@@ -231,42 +245,54 @@ function openReset() {
 }
 
 async function savePassword() {
+  if (resetting.value) return
   const r = resetUserPasswordSchema.safeParse({ newPassword: reset.value.password })
   if (!r.success) {
     reset.value.errorMsg = r.error.issues[0]?.message ?? 'Invalid input'
     return
   }
+  resetting.value = true
   try {
     await userService.resetPassword(edit.value.id!, reset.value.password)
   } catch (e) {
     reset.value.errorMsg = e instanceof Error ? e.message : 'Failed to reset password'
     return
+  } finally {
+    resetting.value = false
   }
   reset.value = emptyReset()
 }
 
 async function toggleActive(u: User) {
+  if (busyUserId.value !== null) return
+  busyUserId.value = u.id
   try {
     await userService.update(u.id, { isActive: !u.isActive })
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to update user'
     return
+  } finally {
+    busyUserId.value = null
   }
   await load()
 }
 
 async function remove(u: User) {
+  if (busyUserId.value !== null) return
   const d = doctorByUserId.value.get(u.id)
   const message = d
     ? `Delete doctor ${u.email}? They will be permanently hidden from the list. Past duties in published schedules are kept. This cannot be undone.`
     : `Delete ${u.email}?`
   if (!(await confirm({ title: 'Delete user', message, confirmText: 'Delete' }))) return
+  busyUserId.value = u.id
   try {
     if (d) await doctorService.remove(d.id)
     else await userService.remove(u.id)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Failed to delete user'
     return
+  } finally {
+    busyUserId.value = null
   }
   await load()
 }
@@ -321,10 +347,12 @@ onMounted(load)
           <TableCell class="text-right">
             <div class="inline-flex gap-2">
               <Button size="sm" variant="outline" @click="openUpdate(u)">Edit</Button>
-              <Button size="sm" variant="outline" @click="toggleActive(u)">
+              <Button size="sm" variant="outline" :disabled="busyUserId === u.id" @click="toggleActive(u)">
                 {{ u.isActive ? 'Disable' : 'Enable' }}
               </Button>
-              <Button size="sm" variant="destructive" @click="remove(u)">Delete</Button>
+              <Button size="sm" variant="destructive" :disabled="busyUserId === u.id" @click="remove(u)">
+                Delete
+              </Button>
             </div>
           </TableCell>
         </TableRow>
@@ -366,8 +394,10 @@ onMounted(load)
         </p>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">
-          <Button v-if="edit.id !== null" type="button" variant="outline" @click="openReset">Reset Password</Button>
-          <Button type="submit">Save</Button>
+          <Button v-if="edit.id !== null" type="button" variant="outline" :disabled="saving" @click="openReset">
+            Reset Password
+          </Button>
+          <Button type="submit" :disabled="saving">Save</Button>
         </div>
       </form>
     </Dialog>
@@ -383,7 +413,7 @@ onMounted(load)
         </div>
         <p v-if="reset.errorMsg" class="text-sm text-destructive" role="alert">{{ reset.errorMsg }}</p>
         <div class="flex justify-end gap-2">
-          <Button type="submit">Confirm</Button>
+          <Button type="submit" :disabled="resetting">Confirm</Button>
         </div>
       </form>
     </Dialog>

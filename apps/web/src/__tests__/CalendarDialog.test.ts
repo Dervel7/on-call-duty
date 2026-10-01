@@ -21,6 +21,13 @@ function confirmButton(): HTMLButtonElement {
 }
 
 describe('CalendarDialog', () => {
+  it('labels day cells with the full date', async () => {
+    const wrapper = mount(CalendarDialog, { props: { open: true, modelValue: ['2026-09-07'] } })
+    await flushPromises()
+    expect(day('2026-09-07').getAttribute('aria-label')).toBe('Monday, 7 September 2026')
+    wrapper.unmount()
+  })
+
   it('toggles days and emits them sorted on confirm', async () => {
     const wrapper = mount(CalendarDialog, { props: { open: true, modelValue: [] } })
     await clickDay('2026-09-11')

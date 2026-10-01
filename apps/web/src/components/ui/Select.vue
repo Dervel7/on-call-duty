@@ -165,12 +165,15 @@ function choose(o: Option) {
 function move(delta: number) {
   const opts = flatOptions()
   if (!opts.length) return
-  let i = opts.findIndex((o) => o.value === activeValue.value)
+  const found = opts.findIndex((o) => o.value === activeValue.value)
+  let i = found === -1 ? (delta > 0 ? -1 : opts.length) : found
   for (let step = 0; step < opts.length; step++) {
     i = (i + delta + opts.length) % opts.length
-    if (!opts[i]!.disabled) break
+    if (!opts[i]!.disabled) {
+      activeValue.value = opts[i]!.value
+      return
+    }
   }
-  activeValue.value = opts[i]!.value
 }
 
 function firstEnabled(opts: Option[]): Option | undefined {

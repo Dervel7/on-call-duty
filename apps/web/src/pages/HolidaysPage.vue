@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { CalendarHeart, Check } from 'lucide-vue-next'
-import { daysInMonth, isWeekend, toIsoDate } from '@oncall/utils'
+import { daysInMonth, isWeekend, toIsoDate, WEEKDAYS } from '@oncall/utils'
 import * as holidayService from '@/services/holiday'
 import { useAuthStore } from '@/stores/auth'
 import { useConfirm } from '@/composables/useConfirm'
@@ -28,7 +28,6 @@ const year = computed(() => Number(month.value.slice(0, 4)))
 const month1 = computed(() => Number(month.value.slice(5, 7)))
 
 const todayIso = toIsoDate(new Date())
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 interface Cell {
   blank: boolean

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { DayInfo, Doctor } from '@oncall/shared'
+import { toIsoDate, WEEKDAYS } from '@oncall/utils'
 import Select from '@/components/ui/Select.vue'
 
 interface CalendarAssignment {
@@ -15,7 +16,7 @@ const props = defineProps<{
   month: number
   days: DayInfo[]
   assignmentByDate: Map<string, (CalendarAssignment | null)[]>
-  conflictsByDate: Map<string, string>
+  conflictsByDate?: Map<string, string>
   doctors: Doctor[]
   mode: 'editable' | 'readonly'
   savingDates?: Set<string>
@@ -26,8 +27,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ select: [date: string, slotIndex: number, doctorId: number | null] }>()
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const todayIso = new Date().toISOString().slice(0, 10)
+const todayIso = toIsoDate(new Date())
 
 const doctorsById = computed(() => {
   const m = new Map<number, Doctor>()
@@ -85,7 +85,7 @@ const cells = computed<Cell[]>(() => {
       isOpen: day.dutyType === 'open',
       required,
       slots,
-      conflict: props.conflictsByDate.get(day.date),
+      conflict: props.conflictsByDate?.get(day.date),
       options,
     })
   }

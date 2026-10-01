@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { TriangleAlert } from 'lucide-vue-next'
 import Dialog from './Dialog.vue'
 import Button from './Button.vue'
@@ -7,6 +8,12 @@ import { useConfirmState } from '@/composables/useConfirm'
 
 const { request, settle } = useConfirmState()
 const footer = ref<HTMLElement | null>(null)
+
+// A confirm opened on one page must not act on the next one.
+const removeAfterEach = useRouter().afterEach(() => {
+  if (request.value) settle(false)
+})
+onUnmounted(removeAfterEach)
 
 watch(
   () => request.value,

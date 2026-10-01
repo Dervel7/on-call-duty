@@ -2,7 +2,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { CalendarClock } from 'lucide-vue-next'
 import type { Unavailability } from '@oncall/shared'
-import { eachDay, groupConsecutiveDays, monthRange, nextMonthIso } from '@oncall/utils'
+import {
+  coveredDays,
+  eachDay,
+  expandDays,
+  formatRange,
+  groupConsecutiveDays,
+  monthRange,
+  nextMonthIso,
+} from '@oncall/utils'
 import * as unavailabilityService from '@/services/unavailability'
 import Button from '@/components/ui/Button.vue'
 import CalendarDialog from '@/components/ui/CalendarDialog.vue'
@@ -42,43 +50,18 @@ const edit = ref<EditState>(emptyEdit())
 
 const selectedRanges = computed(() => groupConsecutiveDays(edit.value.days))
 
-function formatRange(r: { startDate: string; endDate: string }): string {
-  return r.startDate === r.endDate ? r.startDate : `${r.startDate} → ${r.endDate}`
-}
-
-/** One entry per excluded day, pointing at the record that covers it. */
-interface DayEntry {
-  iso: string
-  record: Unavailability
-}
-
 /**
  * Days overlapping the selected month. /unavailability/me has no filters, so
  * the month is applied client side with the same overlap rule the API uses
  * (record end >= month start, record start <= month end).
  */
-const visibleDays = computed<DayEntry[]>(() => {
+const visibleDays = computed(() => {
   const { from, to } = monthRange(filterMonth.value)
-  const days: DayEntry[] = []
-  for (const r of records.value) {
-    if (from !== undefined && r.endDate < from) continue
-    if (to !== undefined && r.startDate > to) continue
-    for (const iso of eachDay(r.startDate, r.endDate)) {
-      if (!days.some((d) => d.iso === iso)) days.push({ iso, record: r })
-    }
-  }
-  return days.sort((a, b) => a.iso.localeCompare(b.iso))
+  return expandDays(records.value, from, to)
 })
 
 /** Days covered by other records of this doctor (the edited one excluded). */
-const reservedDays = computed(() => {
-  const days: string[] = []
-  for (const r of records.value) {
-    if (r.id === edit.value.id) continue
-    days.push(...eachDay(r.startDate, r.endDate))
-  }
-  return days
-})
+const reservedDays = computed(() => coveredDays(records.value, edit.value.id))
 
 async function load() {
   loading.value = true

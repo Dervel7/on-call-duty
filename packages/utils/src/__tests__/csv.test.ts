@@ -18,6 +18,16 @@ describe('escapeCsvField', () => {
     expect(escapeCsvField('line\nbreak')).toBe('"line\nbreak"')
     expect(escapeCsvField('carriage\rreturn')).toBe('"carriage\rreturn"')
   })
+
+  it('neutralises formula-leading fields with a quote prefix and quotes them', () => {
+    expect(escapeCsvField('=HYPERLINK("x")')).toBe('"\'=HYPERLINK(""x"")"')
+    expect(escapeCsvField('+1')).toBe('"\'+1"')
+    expect(escapeCsvField('-2')).toBe('"\'-2"')
+    expect(escapeCsvField('@SUM(A1)')).toBe('"\'@SUM(A1)"')
+    expect(escapeCsvField('\tx')).toBe('"\'\tx"')
+    expect(escapeCsvField('\rx')).toBe('"\'\rx"')
+    expect(escapeCsvField('a=b')).toBe('a=b')
+  })
 })
 
 describe('dutiesToCsv', () => {

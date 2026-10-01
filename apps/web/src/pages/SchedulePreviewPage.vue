@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { DayInfo, Doctor, GenerateAssignment, PreviewResult } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
+import { monthLabel as formatMonth } from '@oncall/utils'
 import * as scheduleService from '@/services/schedule'
 import * as doctorService from '@/services/doctor'
 import { useLatestRequest } from '@/composables/useLatestRequest'
@@ -11,11 +12,6 @@ import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 
 const route = useRoute()
 const router = useRouter()
-
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
 
 const result = ref<PreviewResult | null>(null)
 const doctors = ref<Doctor[]>([])
@@ -45,7 +41,7 @@ const month = computed(() => Number(route.query.month))
 const parsed = computed(() => createScheduleSchema.safeParse({ year: year.value, month: month.value }))
 const valid = computed(() => parsed.value.success)
 const monthLabel = computed(() =>
-  valid.value ? `${MONTHS[month.value - 1]} ${year.value}` : 'Preview',
+  valid.value ? formatMonth(year.value, month.value) : 'Preview',
 )
 
 const doctorsById = computed(() => {

@@ -87,6 +87,7 @@ function isActive(to: string): boolean {
 
       <nav
         v-if="auth.isAuthenticated"
+        aria-label="Main"
         class="hidden md:flex min-w-0 flex-1 items-center gap-0.5 lg:gap-1 overflow-x-auto no-scrollbar"
       >
         <RouterLink
@@ -111,8 +112,8 @@ function isActive(to: string): boolean {
             </span>
             <Badge variant="outline">{{ auth.user.role }}</Badge>
           </div>
-          <Button size="sm" variant="outline" @click="onLogout">
-            <LogOut class="h-4 w-4" />
+          <Button size="sm" variant="outline" aria-label="Logout" @click="onLogout">
+            <LogOut class="h-4 w-4" aria-hidden="true" />
             <span class="hidden sm:inline">Logout</span>
           </Button>
         </template>
@@ -120,6 +121,7 @@ function isActive(to: string): boolean {
     </div>
     <nav
       v-if="auth.isAuthenticated"
+      aria-label="Main (mobile)"
       class="md:hidden flex items-center gap-1 overflow-x-auto no-scrollbar border-t border-border/60 px-3 py-2"
     >
       <RouterLink

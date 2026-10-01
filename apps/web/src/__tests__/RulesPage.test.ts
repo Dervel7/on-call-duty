@@ -105,4 +105,31 @@ describe('RulesPage', () => {
     expect(updateDutySlots).not.toHaveBeenCalled()
     expect(form.find('[role="alert"]').exists()).toBe(true)
   })
+
+  it('disables inputs and buttons until settings have loaded', async () => {
+    setActivePinia(createPinia())
+    let resolveCycle!: (value: unknown) => void
+    getOpenDuty.mockReturnValue(new Promise((resolve) => (resolveCycle = resolve)))
+    getDutySlots.mockResolvedValue({ openDutySlots: 2, closedDutySlots: 2 })
+    const wrapper = mount(RulesPage)
+    await flushPromises()
+    expect((wrapper.find('#open-duty-interval').element as HTMLInputElement).disabled).toBe(true)
+    expect(wrapper.findAll('button').every((b) => (b.element as HTMLButtonElement).disabled)).toBe(true)
+    resolveCycle({ anchorDate: '2026-10-02', intervalDays: 8 })
+    await flushPromises()
+    expect((wrapper.find('#open-duty-interval').element as HTMLInputElement).disabled).toBe(false)
+    expect(wrapper.findAll('button').every((b) => !(b.element as HTMLButtonElement).disabled)).toBe(true)
+  })
+
+  it('keeps the slots card populated when only the interval fails to load', async () => {
+    getOpenDuty.mockRejectedValue(new Error('cycle down'))
+    getDutySlots.mockResolvedValue({ openDutySlots: 3, closedDutySlots: 1 })
+    const wrapper = mount(RulesPage)
+    await flushPromises()
+    const intervalForm = wrapper.findAll('form').find((f) => f.find('#open-duty-interval').exists())!
+    const slotsForm = wrapper.findAll('form').find((f) => f.find('#open-duty-slots').exists())!
+    expect(intervalForm.find('[role="alert"]').text()).toContain('cycle down')
+    expect(slotsForm.find('[role="alert"]').exists()).toBe(false)
+    expect((wrapper.find('#open-duty-slots').element as HTMLInputElement).value).toBe('3')
+  })
 })

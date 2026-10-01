@@ -3,13 +3,15 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
+import { MONTHS, monthLabel } from '@oncall/utils'
 import { useAuthStore } from '@/stores/auth'
 import * as scheduleService from '@/services/schedule'
 import { ApiError } from '@/lib/http'
-import { CalendarDays } from 'lucide-vue-next'
+import { CalendarDays, CalendarOff } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Dialog from '@/components/ui/Dialog.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
@@ -24,12 +26,9 @@ import TableRow from '@/components/ui/TableRow.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
-function monthLabel(year: number, month: number): string {
-  return `${MONTHS[month - 1]} ${year}`
+const createdFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
+function createdLabel(iso: string): string {
+  return createdFormat.format(new Date(iso))
 }
 
 const records = ref<ScheduleSummary[]>([])
@@ -148,13 +147,15 @@ onMounted(load)
               {{ s.status === 'published' ? 'Published' : 'Draft' }}
             </Badge>
           </TableCell>
-          <TableCell class="font-mono text-sm">{{ s.createdAt.slice(0, 10) }}</TableCell>
+          <TableCell class="font-mono text-sm">{{ createdLabel(s.createdAt) }}</TableCell>
           <TableCell class="text-right">
             <Button size="sm" variant="outline" @click="view(s.id)">View</Button>
           </TableCell>
         </TableRow>
       </TableBody>
     </Table>
+
+    <EmptyState v-if="!loading && !errorMsg && records.length === 0" :icon="CalendarOff" title="No schedules yet." />
 
     <Dialog v-model:open="gen.open" title="New schedule">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="runGenerate">

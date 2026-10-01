@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
 import LockedPage from '../pages/LockedPage.vue'
 
 function mountWithRouter(currentPath = '/locked') {
@@ -23,7 +24,7 @@ describe('LockedPage', () => {
   it('renders the lock heading and message', () => {
     const wrapper = mountWithRouter()
     expect(wrapper.text()).toContain('System locked')
-    expect(wrapper.text()).toContain('The system is locked. Contact your service provider.')
+    expect(wrapper.text()).toContain(SYSTEM_LOCKED_MESSAGE)
   })
 
   it('links to the login page for the superadmin', () => {

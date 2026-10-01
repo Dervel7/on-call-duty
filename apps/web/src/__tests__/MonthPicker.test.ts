@@ -28,6 +28,34 @@ async function openPicker(w: VueWrapper) {
 }
 
 describe('MonthPicker', () => {
+  it('labels month cells with month and year and marks the selected one pressed', async () => {
+    const w = mountPicker({ modelValue: '2026-08' })
+    await openPicker(w)
+    const cell = w.find('[data-month="2026-08"]')
+    expect(cell.attributes('aria-label')).toBe('August 2026')
+    expect(cell.attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-month="2026-09"]').attributes('aria-pressed')).toBe('false')
+  })
+
+  it.each([
+    ['picking a month', async (w: VueWrapper) => w.find('[data-month="2026-09"]').trigger('click')],
+    ['Escape', async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await nextTick()
+    }],
+  ])('returns focus to the trigger after %s', async (_, act) => {
+    const w = mountPicker({ modelValue: '2026-08' })
+    await openPicker(w)
+    await act(w)
+    expect(document.activeElement).toBe(fieldBtn(w).element)
+  })
+
+  it('returns focus to the trigger after clearing', async () => {
+    const w = mountPicker({ modelValue: '2026-08' })
+    await w.find('button[aria-label="Clear month"]').trigger('click')
+    expect(document.activeElement).toBe(fieldBtn(w).element)
+  })
+
   it('opens on the current year and marks the current month', async () => {
     const w = mountPicker()
     expect(w.text()).toContain('Select month')

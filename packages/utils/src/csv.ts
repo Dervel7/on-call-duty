@@ -6,8 +6,12 @@ export interface CsvDutyRow {
   reason: string
 }
 
-/** Escape one CSV field per RFC 4180: quote if it contains comma, quote, CR, or LF; double internal quotes. */
+/**
+ * Escape one CSV field per RFC 4180: quote if it contains comma, quote, CR, or LF; double internal quotes.
+ * Fields starting with = + - @ TAB or CR are prefixed with ' and quoted to block spreadsheet formula injection.
+ */
 export function escapeCsvField(value: string): string {
+  if (/^[=+\-@\t\r]/.test(value)) return `"'${value.replace(/"/g, '""')}"`
   if (/[",\r\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`
   return value
 }

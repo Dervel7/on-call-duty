@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { CalendarCheck2, CalendarOff } from 'lucide-vue-next'
 import type { ScheduleSummary } from '@oncall/shared'
+import { monthLabel } from '@oncall/utils'
 import * as scheduleService from '@/services/schedule'
 import Button from '@/components/ui/Button.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -16,18 +17,10 @@ import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 
 const router = useRouter()
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
 
 const records = ref<ScheduleSummary[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
-
-function monthLabel(year: number, month: number): string {
-  return `${MONTHS[month - 1]} ${year}`
-}
 
 async function load() {
   loading.value = true

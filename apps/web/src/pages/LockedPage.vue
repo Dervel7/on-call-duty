@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Lock } from 'lucide-vue-next'
+import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import CardDescription from '@/components/ui/CardDescription.vue'
@@ -19,7 +20,7 @@ import CardTitle from '@/components/ui/CardTitle.vue'
           <Lock class="size-6" />
         </div>
         <CardTitle>System locked</CardTitle>
-        <CardDescription>The system is locked. Contact your service provider.</CardDescription>
+        <CardDescription>{{ SYSTEM_LOCKED_MESSAGE }}</CardDescription>
       </CardHeader>
       <CardContent class="flex justify-center">
         <RouterLink class="text-sm font-medium text-primary underline-offset-4 hover:underline" to="/login">

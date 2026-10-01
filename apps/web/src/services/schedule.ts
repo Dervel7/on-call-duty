@@ -9,14 +9,7 @@ import type {
   ScheduleSummary,
 } from '@oncall/shared'
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/http'
-
-function toQuery(query?: ScheduleQuery): string {
-  if (!query) return ''
-  const parts: string[] = []
-  if (query.year !== undefined) parts.push(`year=${query.year}`)
-  if (query.month !== undefined) parts.push(`month=${query.month}`)
-  return parts.length > 0 ? `?${parts.join('&')}` : ''
-}
+import { toQuery } from './query'
 
 export async function list(query?: ScheduleQuery): Promise<ScheduleSummary[]> {
   const { schedules } = await apiGet<{ schedules: ScheduleSummary[] }>(`/schedules${toQuery(query)}`)
