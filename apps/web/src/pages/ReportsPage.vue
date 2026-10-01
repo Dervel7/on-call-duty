@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { BarChart3 } from 'lucide-vue-next'
 import type { Duty, MonthlyReport, ScheduleDetail } from '@oncall/shared'
 import { dutiesToCsv } from '@oncall/utils'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -118,7 +119,7 @@ function fmtGenerated(iso: string): string {
   }).format(new Date(iso))
 }
 
-let loadSeq = 0
+const latest = useLatestRequest()
 
 async function load() {
   const y = Number(year.value)
@@ -126,30 +127,30 @@ async function load() {
     errorMsg.value = 'Enter a year between 1970 and 2100'
     return
   }
-  const seq = ++loadSeq
+  const isCurrent = latest.start()
   loading.value = true
   errorMsg.value = ''
   calendar.value = null
   try {
     const res = await reportsService.monthly({ year: y, month: Number(month.value) })
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     report.value = res
     if (res.schedule) {
       try {
         const cal = await scheduleService.get(res.schedule.id)
-        if (seq !== loadSeq) return
+        if (!isCurrent()) return
         calendar.value = cal
       } catch {
-        if (seq !== loadSeq) return
+        if (!isCurrent()) return
         errorMsg.value = 'Failed to load the duty roster calendar'
       }
     }
   } catch (e) {
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     report.value = null
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load report'
   } finally {
-    if (seq === loadSeq) loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 

@@ -15,6 +15,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import Select from '@/components/ui/Select.vue'
 import Spinner from '@/components/ui/Spinner.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 
 const records = ref<Unavailability[]>([])
 const doctors = ref<Doctor[]>([])
@@ -99,10 +100,10 @@ const grouped = computed<DoctorGroup[]>(() => {
   return [...byDoctor.values()]
 })
 
-let loadSeq = 0
+const latest = useLatestRequest()
 
 async function load() {
-  const seq = ++loadSeq
+  const isCurrent = latest.start()
   loading.value = true
   errorMsg.value = ''
   try {
@@ -111,13 +112,13 @@ async function load() {
       ...monthRange(filterMonth.value),
     }
     const res = await unavailabilityService.listAll(query)
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     records.value = res
   } catch (e) {
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load availability'
   } finally {
-    if (seq === loadSeq) loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 

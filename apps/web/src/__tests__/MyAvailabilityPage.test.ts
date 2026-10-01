@@ -261,6 +261,52 @@ describe('MyAvailabilityPage', () => {
     wrapper.unmount()
   })
 
+  it('removes the record when none of its days stay marked and creates the new days', async () => {
+    const nm = nextMonthIso()
+    listMine.mockResolvedValue([
+      { ...record, startDate: `${nm}-10`, endDate: `${nm}-11`, isDisabled: true },
+    ])
+    remove.mockResolvedValue(undefined)
+    createMine.mockResolvedValue({})
+    const wrapper = await mountPage()
+    await wrapper.findAll('button').find((b) => b.text() === `${nm}-10`)!.trigger('click')
+    await flushPromises()
+
+    bodyButton('Select days')!.click()
+    await flushPromises()
+    await pickDays([`${nm}-10`, `${nm}-11`, `${nm}-20`])
+    bodyButton('Save')!.click()
+    await flushPromises()
+    expect(remove).toHaveBeenCalledWith(1)
+    expect(update).not.toHaveBeenCalled()
+    expect(split).not.toHaveBeenCalled()
+    expect(createMine).toHaveBeenCalledTimes(1)
+    expect(createMine).toHaveBeenCalledWith({ startDate: `${nm}-20`, endDate: `${nm}-20` })
+    wrapper.unmount()
+  })
+
+  it('keeps the record on its own days when adjacent days are added', async () => {
+    const nm = nextMonthIso()
+    listMine.mockResolvedValue([
+      { ...record, startDate: `${nm}-10`, endDate: `${nm}-11`, isDisabled: true },
+    ])
+    update.mockResolvedValue({})
+    createMine.mockResolvedValue({})
+    const wrapper = await mountPage()
+    await wrapper.findAll('button').find((b) => b.text() === `${nm}-10`)!.trigger('click')
+    await flushPromises()
+
+    bodyButton('Select days')!.click()
+    await flushPromises()
+    await pickDays([`${nm}-12`, `${nm}-13`])
+    bodyButton('Save')!.click()
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(1, { startDate: `${nm}-10`, endDate: `${nm}-11` })
+    expect(createMine).toHaveBeenCalledTimes(1)
+    expect(createMine).toHaveBeenCalledWith({ startDate: `${nm}-12`, endDate: `${nm}-13` })
+    wrapper.unmount()
+  })
+
   it('keeps the dialog open with an inline error when update fails', async () => {
     const nm = nextMonthIso()
     listMine.mockResolvedValue([{ ...record, startDate: `${nm}-07`, endDate: `${nm}-11` }])

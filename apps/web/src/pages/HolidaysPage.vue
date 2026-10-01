@@ -5,6 +5,7 @@ import { daysInMonth, isWeekend, toIsoDate } from '@oncall/utils'
 import * as holidayService from '@/services/holiday'
 import { useAuthStore } from '@/stores/auth'
 import { useConfirm } from '@/composables/useConfirm'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import Button from '@/components/ui/Button.vue'
 import Label from '@/components/ui/Label.vue'
 import MonthPicker from '@/components/ui/MonthPicker.vue'
@@ -80,23 +81,23 @@ function inMonth(ym: string) {
   return (iso: string) => iso.startsWith(`${ym}-`)
 }
 
-let loadSeq = 0
+const latest = useLatestRequest()
 
 async function load() {
-  const seq = ++loadSeq
+  const isCurrent = latest.start()
   const ym = month.value
   loading.value = true
   errorMsg.value = ''
   try {
     const holidays = await holidayService.listHolidays(Number(ym.slice(0, 4)), auth.user?.clinicId ?? undefined)
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     marked.value = new Set(holidays.map((h) => h.date).filter(inMonth(ym)))
     dirty.value = false
   } catch (e) {
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load holidays'
   } finally {
-    if (seq === loadSeq) loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 

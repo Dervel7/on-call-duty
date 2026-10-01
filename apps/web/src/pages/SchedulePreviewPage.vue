@@ -5,6 +5,7 @@ import type { DayInfo, Doctor, GenerateAssignment, PreviewResult } from '@oncall
 import { createScheduleSchema } from '@oncall/shared'
 import * as scheduleService from '@/services/schedule'
 import * as doctorService from '@/services/doctor'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import Button from '@/components/ui/Button.vue'
 import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 
@@ -163,7 +164,7 @@ const status = computed<{ tone: StatusTone; title: string; detail: string } | nu
   }
 })
 
-let loadSeq = 0
+const latest = useLatestRequest()
 let eligSeq = 0
 
 async function load() {
@@ -171,13 +172,13 @@ async function load() {
     errorMsg.value = ''
     return
   }
-  const seq = ++loadSeq
+  const isCurrent = latest.start()
   ++eligSeq
   loading.value = true
   errorMsg.value = ''
   try {
     const res = await scheduleService.preview(year.value, month.value)
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     result.value = res
     const m = new Map<string, (PreviewAssignment | null)[]>()
     for (const a of res?.assignments ?? []) {
@@ -193,10 +194,10 @@ async function load() {
     }
     slotsByDate.value = m
   } catch (e) {
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to preview'
   } finally {
-    if (seq === loadSeq) loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 function currentPlan(): GenerateAssignment[] {

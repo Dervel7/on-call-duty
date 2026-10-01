@@ -5,6 +5,7 @@ import { ACTIVITY_ACTIONS } from '@oncall/shared'
 import { History } from 'lucide-vue-next'
 import * as activityService from '@/services/activity'
 import * as userService from '@/services/user'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
 import Card from '@/components/ui/Card.vue'
@@ -42,10 +43,10 @@ const users = ref<User[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
 
-let loadSeq = 0
+const latest = useLatestRequest()
 
 async function load() {
-  const seq = ++loadSeq
+  const isCurrent = latest.start()
   loading.value = true
   errorMsg.value = ''
   try {
@@ -55,13 +56,13 @@ async function load() {
     if (filters.value.from) query.from = filters.value.from
     if (filters.value.to) query.to = filters.value.to
     const res = await activityService.getActivity(query)
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     data.value = res
   } catch (e) {
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load activity'
   } finally {
-    if (seq === loadSeq) loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 

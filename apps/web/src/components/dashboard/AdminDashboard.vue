@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { TriangleAlert } from 'lucide-vue-next'
 import type { AdminStats } from '@oncall/shared'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import Avatar from '@/components/ui/Avatar.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -56,21 +57,21 @@ const fairnessBadge = computed(() => {
     : { text: 'Imbalanced — review workload', class: 'bg-destructive/10 text-destructive' }
 })
 
-let loadSeq = 0
+const latest = useLatestRequest()
 
 async function load() {
-  const seq = ++loadSeq
+  const isCurrent = latest.start()
   loading.value = true
   errorMsg.value = ''
   try {
     const res = await statsService.admin({ year: Number(year.value), month: Number(month.value) })
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     stats.value = res
   } catch (e) {
-    if (seq !== loadSeq) return
+    if (!isCurrent()) return
     errorMsg.value = e instanceof Error ? e.message : 'Failed to load statistics'
   } finally {
-    if (seq === loadSeq) loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 
