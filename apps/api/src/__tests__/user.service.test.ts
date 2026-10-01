@@ -16,7 +16,16 @@ vi.mock('../services/activity.service', () => ({
 const { hash } = vi.hoisted(() => ({ hash: vi.fn(async () => 'HASH') }))
 vi.mock('bcrypt', () => ({ default: { hash } }))
 
-import { create, getById, list, remove, resetPassword, update, updateTheme } from '../services/user.service'
+import {
+  create,
+  getById,
+  list,
+  remove,
+  resetPassword,
+  update,
+  updateLanguage,
+  updateTheme,
+} from '../services/user.service'
 import type { ClinicScope } from '../lib/scope'
 
 function row(overrides: Partial<Record<string, unknown>> = {}) {
@@ -29,6 +38,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
     first_name: 'Jane',
     last_name: 'Roe',
     dark_mode: false,
+    language: 'en',
     clinic_id: 1,
     clinic_name: 'Radiology',
     created_at: new Date('2026-01-01'),
@@ -417,5 +427,17 @@ describe('user.service', () => {
   it('updateTheme throws 404 when the user does not exist', async () => {
     query.mockResolvedValue({ rows: [] })
     await expect(updateTheme(99, true)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('updateLanguage saves the language for that user and returns it', async () => {
+    query.mockResolvedValue({ rows: [row({ language: 'el' })] })
+    const user = await updateLanguage(1, 'el')
+    expect(user.language).toBe('el')
+    expect(query.mock.calls[0]?.[1]).toEqual(['el', 1])
+  })
+
+  it('updateLanguage throws 404 when the user does not exist', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await expect(updateLanguage(99, 'el')).rejects.toMatchObject({ status: 404 })
   })
 })

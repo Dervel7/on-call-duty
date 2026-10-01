@@ -5,6 +5,7 @@ import type { ClinicScope } from '../lib/scope'
 import type {
   AuthUser,
   CreateUserRequest,
+  Language,
   ResetUserPasswordRequest,
   Role,
   UpdateUserRequest,
@@ -25,6 +26,7 @@ interface UserRow {
   last_name: string
   is_active: boolean
   dark_mode: boolean
+  language: Language
   clinic_id: number | null
   clinic_name: string | null
   created_at: Date
@@ -32,7 +34,7 @@ interface UserRow {
 
 // INSERT/UPDATE RETURNING cannot join, so every read path goes through this.
 const COLUMNS = `u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
-  u.is_active, u.dark_mode, u.clinic_id, c.name AS clinic_name, u.created_at`
+  u.is_active, u.dark_mode, u.language, u.clinic_id, c.name AS clinic_name, u.created_at`
 const FROM_USERS = `users u LEFT JOIN clinics c ON c.id = u.clinic_id`
 
 function toUser(row: UserRow): User {
@@ -44,6 +46,7 @@ function toUser(row: UserRow): User {
     firstName: row.first_name,
     lastName: row.last_name,
     darkMode: row.dark_mode,
+    language: row.language,
     clinicId: row.clinic_id,
     clinicName: row.clinic_name,
     isActive: row.is_active,
@@ -382,8 +385,22 @@ export async function updateTheme(userId: number, darkMode: boolean): Promise<Us
   const res = await query<UserRow>(
     `UPDATE users u SET dark_mode = $1, updated_at = NOW() WHERE u.id = $2 AND u.is_deleted = FALSE
      RETURNING u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
-       u.is_active, u.dark_mode, u.clinic_id, NULL AS clinic_name, u.created_at`,
+       u.is_active, u.dark_mode, u.language, u.clinic_id, NULL AS clinic_name, u.created_at`,
     [darkMode, userId],
+  )
+  const row = oneRow(res.rows)
+  if (!row) throw new HttpError(404, 'User not found')
+  return toUser(row)
+}
+
+// Self-service UI preference: any authenticated user picks their own language.
+// Not part of admin update() — admins never touch another user's language.
+export async function updateLanguage(userId: number, language: Language): Promise<User> {
+  const res = await query<UserRow>(
+    `UPDATE users u SET language = $1, updated_at = NOW() WHERE u.id = $2 AND u.is_deleted = FALSE
+     RETURNING u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
+       u.is_active, u.dark_mode, u.language, u.clinic_id, NULL AS clinic_name, u.created_at`,
+    [language, userId],
   )
   const row = oneRow(res.rows)
   if (!row) throw new HttpError(404, 'User not found')

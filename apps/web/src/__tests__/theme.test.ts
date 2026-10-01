@@ -9,7 +9,7 @@ import type { AuthUser } from '@oncall/shared'
 
 const stub = { template: '<div>page</div>' }
 
-function darkUser(darkMode: boolean): AuthUser {
+function darkUser(darkMode: boolean, language: AuthUser['language'] = 'en'): AuthUser {
   return {
     id: 1,
     email: 'a@b.c',
@@ -18,6 +18,7 @@ function darkUser(darkMode: boolean): AuthUser {
     firstName: 'A',
     lastName: 'B',
     darkMode,
+    language,
     clinicId: 1,
     clinicName: 'Main Clinic',
   }
@@ -40,6 +41,7 @@ function mountApp() {
 
 afterEach(() => {
   document.documentElement.classList.remove('dark')
+  document.documentElement.lang = ''
 })
 
 describe('app theme', () => {
@@ -79,5 +81,34 @@ describe('app theme', () => {
     auth.user = null
     await nextTick()
     expect(document.documentElement.classList.contains('dark')).toBe(false)
+  })
+})
+
+describe('app language', () => {
+  it('follows the signed-in user language preference', async () => {
+    const { auth, router } = mountApp()
+    await router.isReady()
+    auth.user = darkUser(false, 'el')
+    await nextTick()
+    expect(document.documentElement.lang).toBe('el')
+  })
+
+  it('forces English on the public login route regardless of preference', async () => {
+    const { auth, router } = mountApp()
+    await router.isReady()
+    await router.push('/login')
+    auth.user = darkUser(false, 'el')
+    await nextTick()
+    expect(document.documentElement.lang).toBe('en')
+  })
+
+  it('returns to English after sign-out', async () => {
+    const { auth, router } = mountApp()
+    await router.isReady()
+    auth.user = darkUser(false, 'el')
+    await nextTick()
+    auth.user = null
+    await nextTick()
+    expect(document.documentElement.lang).toBe('en')
   })
 })

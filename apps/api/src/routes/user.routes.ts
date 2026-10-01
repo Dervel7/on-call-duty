@@ -7,6 +7,7 @@ import {
   createUserSchema,
   idParams,
   resetUserPasswordSchema,
+  updateLanguageSchema,
   updateThemeSchema,
   updateUserSchema,
   updateUsernameSchema,
@@ -22,6 +23,15 @@ userRouter.patch(
   authenticate,
   validate(updateThemeSchema, 'body'),
   userController.updateTheme,
+)
+
+// Self-service preference — same placement reason as /me/theme: every
+// authenticated role sets their own UI language.
+userRouter.patch(
+  '/me/language',
+  authenticate,
+  validate(updateLanguageSchema, 'body'),
+  userController.updateLanguage,
 )
 
 // Self-service identity: doctors rename their own login username from the

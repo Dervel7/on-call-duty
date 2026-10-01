@@ -31,6 +31,7 @@ function mountAsAdmin() {
     firstName: 'Jane',
     lastName: 'Roe',
     darkMode: false,
+    language: 'en',
     clinicId: 1,
     clinicName: 'Main Clinic',
   }

@@ -30,6 +30,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
     first_name: 'Jane',
     last_name: 'Roe',
     dark_mode: false,
+    language: 'en',
     clinic_id: 1,
     clinic_name: 'Radiology',
     created_at: new Date('2026-01-01'),
@@ -227,6 +228,35 @@ describe('PATCH /users/me/theme (self-service)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ darkMode: 'yes' })
     expect(res.status).toBe(400)
+  })
+})
+
+describe('PATCH /users/me/language (self-service)', () => {
+  it('lets any authenticated role set their own language', async () => {
+    query.mockResolvedValueOnce({ rows: [row({ language: 'el' })] })
+    const token = signAccessToken({ sub: 1, role: 'doctor', clinicId: 10 })
+    const res = await request(app)
+      .patch('/users/me/language')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ language: 'el' })
+    expect(res.status).toBe(200)
+    expect(res.body.data.user.language).toBe('el')
+    expect(query.mock.calls[0]?.[1]).toEqual(['el', 1])
+  })
+
+  it('returns 401 without auth', async () => {
+    const res = await request(app).patch('/users/me/language').send({ language: 'el' })
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 400 on an unsupported language', async () => {
+    const token = signAccessToken({ sub: 1, role: 'doctor', clinicId: 10 })
+    const res = await request(app)
+      .patch('/users/me/language')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ language: 'fr' })
+    expect(res.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
   })
 })
 

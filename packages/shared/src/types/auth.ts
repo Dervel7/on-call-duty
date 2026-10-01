@@ -1,4 +1,6 @@
 export type Role = 'superadmin' | 'manager' | 'administrator' | 'doctor'
+/** UI language: English or Greek. */
+export type Language = 'en' | 'el'
 
 export interface AuthUser {
   id: number
@@ -8,6 +10,7 @@ export interface AuthUser {
   firstName: string
   lastName: string
   darkMode: boolean
+  language: Language
   /** Clinic the user belongs to; null for manager/superadmin (hospital/vendor level). */
   clinicId: number | null
   clinicName: string | null
@@ -59,6 +62,9 @@ export interface UpdateUserRequest {
 }
 export interface UpdateThemeRequest {
   darkMode: boolean
+}
+export interface UpdateLanguageRequest {
+  language: Language
 }
 export interface UpdateUsernameRequest {
   username: string

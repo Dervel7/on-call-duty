@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS users (
   clinic_id     INTEGER REFERENCES clinics (id),
   is_active     BOOLEAN NOT NULL DEFAULT TRUE,
   dark_mode     BOOLEAN NOT NULL DEFAULT FALSE,
+  language      TEXT NOT NULL DEFAULT 'en' CHECK (language IN ('en', 'el')),
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (username ~ '^[A-Za-z0-9._-]{3,32}$')
@@ -231,6 +232,11 @@ CREATE INDEX IF NOT EXISTS idx_users_clinic ON users (clinic_id) WHERE is_delete
 -- Dark mode UI preference (per user, applied after sign-in; the login page
 -- always renders light). Evolution line covers pre-existing databases.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- UI language preference (per user, applied after sign-in; the login page
+-- always renders in English). Evolution line covers pre-existing databases.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'
+  CHECK (language IN ('en', 'el'));
 
 
 -- Open on-call cycle (app_meta keys, no DDL):

@@ -17,9 +17,11 @@ vi.mock('@/services/auth', () => ({
 }))
 
 const updateTheme = vi.fn()
+const updateLanguage = vi.fn()
 const updateUsername = vi.fn()
 vi.mock('@/services/user', () => ({
   updateTheme: (...a: unknown[]) => updateTheme(...a),
+  updateLanguage: (...a: unknown[]) => updateLanguage(...a),
   updateUsername: (...a: unknown[]) => updateUsername(...a),
 }))
 
@@ -27,6 +29,7 @@ const push = vi.fn()
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
 import { ApiError } from '@/lib/http'
+import { pickOption } from './pick-option'
 import ProfilePage from '../pages/ProfilePage.vue'
 
 beforeEach(() => {
@@ -35,6 +38,7 @@ beforeEach(() => {
   logout.mockReset()
   push.mockReset()
   updateTheme.mockReset()
+  updateLanguage.mockReset()
   updateUsername.mockReset()
 })
 afterEach(() => vi.restoreAllMocks())
@@ -52,6 +56,7 @@ describe('ProfilePage doctor self-view', () => {
       firstName: 'Jane',
       lastName: 'Roe',
       darkMode: false,
+      language: 'en',
       clinicId: 1,
       clinicName: 'Main Clinic',
     }
@@ -88,6 +93,7 @@ describe('ProfilePage change password', () => {
       firstName: 'Ada',
       lastName: 'Admin',
       darkMode: false,
+      language: 'en',
       clinicId: 1,
       clinicName: 'Main Clinic',
     }
@@ -119,6 +125,7 @@ describe('ProfilePage change password', () => {
       firstName: 'Ada',
       lastName: 'Admin',
       darkMode: false,
+      language: 'en',
       clinicId: 1,
       clinicName: 'Main Clinic',
     }
@@ -150,6 +157,7 @@ describe('ProfilePage dark mode', () => {
       lastName: 'Admin',
       clinicId: 1,
       darkMode: false,
+      language: 'en',
       clinicName: 'Main Clinic',
     }
     updateTheme.mockResolvedValue({ ...auth.user, darkMode: true })
@@ -180,6 +188,7 @@ describe('ProfilePage dark mode', () => {
       lastName: 'Admin',
       clinicId: 1,
       darkMode: false,
+      language: 'en',
       clinicName: 'Main Clinic',
     }
     updateTheme.mockRejectedValueOnce(new Error('net'))
@@ -195,6 +204,67 @@ describe('ProfilePage dark mode', () => {
   })
 })
 
+describe('ProfilePage language', () => {
+  const adminUser = () => ({
+    id: 2,
+    email: 'admin@h.com',
+    username: 'admin',
+    role: 'administrator' as const,
+    firstName: 'Ada',
+    lastName: 'Admin',
+    darkMode: false,
+    language: 'en' as const,
+    clinicId: 1,
+    clinicName: 'Main Clinic',
+  })
+
+  it('saves the picked language to the account and shows it as selected', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.user = adminUser()
+    updateLanguage.mockResolvedValue({ ...auth.user, language: 'el' })
+    const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
+    await flushPromises()
+    expect(wrapper.find('#language').text()).toContain('English')
+
+    await pickOption(wrapper.element, '#language', 'el')
+
+    expect(updateLanguage).toHaveBeenCalledWith('el')
+    expect(auth.user?.language).toBe('el')
+    expect(wrapper.find('#language').text()).toContain('Ελληνικά')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('does not call the API when the current language is picked again', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useAuthStore().user = adminUser()
+    const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
+    await flushPromises()
+
+    await pickOption(wrapper.element, '#language', 'en')
+
+    expect(updateLanguage).not.toHaveBeenCalled()
+  })
+
+  it('shows an error and keeps the old language when saving fails', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.user = adminUser()
+    updateLanguage.mockRejectedValueOnce(new Error('net'))
+    const wrapper = mount(ProfilePage, { global: { plugins: [pinia] } })
+    await flushPromises()
+
+    await pickOption(wrapper.element, '#language', 'el')
+
+    expect(auth.user?.language).toBe('en')
+    expect(wrapper.find('#language').text()).toContain('English')
+    expect(wrapper.find('[role="alert"]').text()).toContain('Could not save language preference')
+  })
+})
+
 describe('ProfilePage change username', () => {
   const doctorAuth = () => ({
     id: 10,
@@ -204,6 +274,7 @@ describe('ProfilePage change username', () => {
     firstName: 'Jane',
     lastName: 'Roe',
     darkMode: false,
+    language: 'en' as const,
     clinicId: 1,
     clinicName: 'Main Clinic',
   })
@@ -271,6 +342,7 @@ describe('ProfilePage change username', () => {
       firstName: 'Ada',
       lastName: 'Admin',
       darkMode: false,
+      language: 'en',
       clinicId: 1,
       clinicName: 'Main Clinic',
     }

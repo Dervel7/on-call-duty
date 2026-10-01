@@ -20,6 +20,7 @@ const user = (role: Role) => ({
   firstName: 'U',
   lastName: 'Ser',
   darkMode: false,
+  language: 'en' as const,
   clinicId: role === 'superadmin' ? null : 1,
   clinicName: 'Main Clinic',
 })

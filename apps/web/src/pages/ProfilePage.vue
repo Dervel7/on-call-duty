@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Doctor } from '@oncall/shared'
-import { changePasswordSchema, updateUsernameSchema } from '@oncall/shared'
+import { changePasswordSchema, languageSchema, updateUsernameSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
 import { useAuthStore } from '@/stores/auth'
 import * as doctorService from '@/services/doctor'
@@ -15,6 +15,7 @@ import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import Label from '@/components/ui/Label.vue'
 import Input from '@/components/ui/Input.vue'
+import Select from '@/components/ui/Select.vue'
 import Switch from '@/components/ui/Switch.vue'
 
 const currentPassword = ref('')
@@ -38,6 +39,8 @@ const doctorError = ref('')
 const isDoctor = computed(() => auth.user?.role === 'doctor')
 const darkMode = computed(() => auth.user?.darkMode ?? false)
 const themeError = ref('')
+const language = computed(() => auth.user?.language ?? 'en')
+const languageError = ref('')
 
 async function loadMyDoctor() {
   if (!isDoctor.value) return
@@ -55,6 +58,17 @@ async function onToggleDarkMode(value: boolean) {
     await auth.setDarkMode(value)
   } catch (e) {
     themeError.value = e instanceof ApiError ? e.message : 'Could not save theme preference'
+  }
+}
+
+async function onSelectLanguage(value: string | number) {
+  languageError.value = ''
+  const parsed = languageSchema.safeParse(value)
+  if (!parsed.success || parsed.data === language.value) return
+  try {
+    await auth.setLanguage(parsed.data)
+  } catch (e) {
+    languageError.value = e instanceof ApiError ? e.message : 'Could not save language preference'
   }
 }
 
@@ -176,6 +190,25 @@ async function onSubmitUsername() {
             <Switch id="dark-mode" :model-value="darkMode" @update:model-value="onToggleDarkMode" />
           </div>
           <p v-if="themeError" class="mt-3 text-xs text-destructive" role="alert">{{ themeError }}</p>
+        </CardContent>
+      </Card>
+
+      <Card class="flex flex-col">
+        <CardHeader class="p-5 pb-2">
+          <CardTitle>Language</CardTitle>
+          <CardDescription class="text-xs">
+            Language is saved to your account and applied after sign-in. The sign-in page always stays in English.
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="flex flex-1 flex-col p-5 pt-0">
+          <div class="flex flex-col gap-1.5">
+            <Label for="language">Language</Label>
+            <Select id="language" :model-value="language" @update:model-value="onSelectLanguage">
+              <option value="en">English</option>
+              <option value="el">Ελληνικά</option>
+            </Select>
+          </div>
+          <p v-if="languageError" class="mt-3 text-xs text-destructive" role="alert">{{ languageError }}</p>
         </CardContent>
       </Card>
 

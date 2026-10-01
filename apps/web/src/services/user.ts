@@ -1,4 +1,4 @@
-import type { CreateUserRequest, UpdateUserRequest, User } from '@oncall/shared'
+import type { CreateUserRequest, Language, UpdateUserRequest, User } from '@oncall/shared'
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/http'
 
 export async function list(): Promise<User[]> {
@@ -23,6 +23,10 @@ export async function resetPassword(id: number, newPassword: string): Promise<Us
 }
 export async function updateTheme(darkMode: boolean): Promise<User> {
   const { user } = await apiPatch<{ user: User }>('/users/me/theme', { darkMode })
+  return user
+}
+export async function updateLanguage(language: Language): Promise<User> {
+  const { user } = await apiPatch<{ user: User }>('/users/me/language', { language })
   return user
 }
 export async function updateUsername(username: string): Promise<User> {

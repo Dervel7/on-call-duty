@@ -43,6 +43,7 @@ function userRow(overrides: Partial<Record<string, unknown>> = {}) {
     last_name: 'Administrator',
     is_active: true,
     dark_mode: false,
+    language: 'en',
     clinic_id: 1,
     clinic_name: 'Radiology',
     clinic_is_active: true,

@@ -28,6 +28,7 @@ const adminAuth = () => ({
   firstName: 'Ada',
   lastName: 'Admin',
   darkMode: false,
+  language: 'en' as const,
   clinicId: 1,
   clinicName: 'Main Clinic',
 })

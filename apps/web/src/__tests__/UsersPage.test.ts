@@ -60,6 +60,7 @@ const doctorUser: User = {
   lastName: 'Roe',
   isActive: true,
   darkMode: false,
+  language: 'en',
   clinicId: 1,
   clinicName: 'Main Clinic',
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -75,6 +76,7 @@ const adminUser: User = {
   isActive: true,
   createdAt: '2026-01-02T00:00:00.000Z',
   darkMode: false,
+  language: 'en',
   clinicId: 1,
   clinicName: 'Main Clinic',
 }

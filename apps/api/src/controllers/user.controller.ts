@@ -64,6 +64,15 @@ export const userController = {
     }
   },
 
+  async updateLanguage(req: Request, res: Response, next: NextFunction) {
+    try {
+      const user = await userService.updateLanguage(req.user!.id, req.body.language)
+      res.status(200).json(ok({ user }))
+    } catch (err) {
+      next(err)
+    }
+  },
+
   async updateUsername(req: Request, res: Response, next: NextFunction) {
     try {
       const user = await userService.updateUsername(req.user!.id, req.body.username)

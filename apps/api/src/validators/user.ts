@@ -3,6 +3,7 @@ import { z } from 'zod'
 export {
   createUserSchema,
   resetUserPasswordSchema,
+  updateLanguageSchema,
   updateThemeSchema,
   updateUserSchema,
   updateUsernameSchema,

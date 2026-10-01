@@ -1,6 +1,7 @@
 export { isoDateSchema, passwordSchema } from './common'
 export {
   roleSchema,
+  languageSchema,
   usernameSchema,
   loginSchema,
   changePasswordSchema,
@@ -9,6 +10,7 @@ export {
   updateUserSchema,
   updateUsernameSchema,
   updateThemeSchema,
+  updateLanguageSchema,
 } from './auth'
 export { createDoctorSchema, updateDoctorSchema } from './doctor'
 export {

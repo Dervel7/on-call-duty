@@ -17,6 +17,7 @@ import {
   reportQuerySchema,
   updateClinicSchema,
   updateUserSchema,
+  updateLanguageSchema,
   updateThemeSchema,
   usernameSchema,
 } from '../index'
@@ -97,6 +98,13 @@ describe('auth schemas', () => {
     expect(updateThemeSchema.safeParse({ darkMode: false }).success).toBe(true)
     expect(updateThemeSchema.safeParse({ darkMode: 'yes' }).success).toBe(false)
     expect(updateThemeSchema.safeParse({}).success).toBe(false)
+  })
+
+  it('updateLanguageSchema accepts only English or Greek', () => {
+    expect(updateLanguageSchema.safeParse({ language: 'en' }).success).toBe(true)
+    expect(updateLanguageSchema.safeParse({ language: 'el' }).success).toBe(true)
+    expect(updateLanguageSchema.safeParse({ language: 'fr' }).success).toBe(false)
+    expect(updateLanguageSchema.safeParse({}).success).toBe(false)
   })
 })
 

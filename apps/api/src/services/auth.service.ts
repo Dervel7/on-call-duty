@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt'
 import { query } from '../db/client'
 import { HttpError } from '../lib/http-error'
 import { signAccessToken } from '../lib/jwt'
-import type { AuthUser, ChangePasswordRequest, LoginRequest, Role } from '@oncall/shared'
+import type { AuthUser, ChangePasswordRequest, Language, LoginRequest, Role } from '@oncall/shared'
 import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
 import * as billingService from './billing.service'
 import { logActivity } from './activity.service'
@@ -22,6 +22,7 @@ interface UserRow {
   last_name: string
   is_active: boolean
   dark_mode: boolean
+  language: Language
   clinic_id: number | null
   clinic_name: string | null
   clinic_is_active: boolean | null
@@ -37,13 +38,14 @@ function toAuthUser(row: UserRow): AuthUser {
     firstName: row.first_name,
     lastName: row.last_name,
     darkMode: row.dark_mode,
+    language: row.language,
     clinicId: row.clinic_id,
     clinicName: row.clinic_name,
   }
 }
 
 const USER_COLUMNS = `u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
-  u.is_active, u.dark_mode, u.clinic_id, c.name AS clinic_name, c.is_active AS clinic_is_active,
+  u.is_active, u.dark_mode, u.language, u.clinic_id, c.name AS clinic_name, c.is_active AS clinic_is_active,
   u.created_at`
 const FROM_USERS = `users u LEFT JOIN clinics c ON c.id = u.clinic_id`
 

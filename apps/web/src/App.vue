@@ -17,6 +17,18 @@ watch(
   },
   { immediate: true },
 )
+
+// Public pages (login, locked) always render in English — the user is not
+// known yet; inside the app the language follows the stored preference.
+const language = computed(() => (route.meta.public ? 'en' : (auth.user?.language ?? 'en')))
+
+watch(
+  language,
+  (lang) => {
+    document.documentElement.lang = lang
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

@@ -89,6 +89,7 @@ Every login account (superadmin, manager, administrator, doctor).
 | `clinic_id` | INTEGER | FK → `clinics(id)`, nullable |
 | `is_active` | BOOLEAN | NOT NULL DEFAULT TRUE |
 | `dark_mode` | BOOLEAN | NOT NULL DEFAULT FALSE |
+| `language` | TEXT | NOT NULL DEFAULT `'en'`; CHECK in (`en`, `el`) |
 | `is_deleted` | BOOLEAN | NOT NULL DEFAULT FALSE |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
 | `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
@@ -106,6 +107,7 @@ Behavior:
 - Soft delete: deleted accounts get `is_deleted = TRUE` (and always `is_active = FALSE`). The partial unique indexes free their email/username for reuse by a new account.
 - Upserts on this table must target the partial index: `ON CONFLICT (email) WHERE is_deleted = FALSE`.
 - `dark_mode` is a per-user UI preference applied after sign-in; irrelevant to the API beyond storage.
+- `language` is a per-user UI language preference (`en` English, `el` Greek) applied after sign-in; the sign-in page always renders in English. Irrelevant to the API beyond storage.
 
 ### `refresh_tokens`
 

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { AuthUser } from '@oncall/shared'
+import type { AuthUser, Language } from '@oncall/shared'
 import { setAccessToken, setLockedHandler, setRefreshHandler } from '@/lib/http'
 import * as authService from '@/services/auth'
 import * as userService from '@/services/user'
@@ -63,6 +63,12 @@ export const useAuthStore = defineStore('auth', () => {
     if (user.value) user.value = { ...user.value, darkMode: updated.darkMode }
   }
 
+  async function setLanguage(language: Language): Promise<void> {
+    const updated = await userService.updateLanguage(language)
+    // Keep the stored AuthUser shape; only the preference changes.
+    if (user.value) user.value = { ...user.value, language: updated.language }
+  }
+
   async function setUsername(username: string): Promise<void> {
     const updated = await userService.updateUsername(username)
     // Keep the stored AuthUser shape; only the username changes.
@@ -104,6 +110,7 @@ export const useAuthStore = defineStore('auth', () => {
     fetchMe,
     changePassword,
     setDarkMode,
+    setLanguage,
     setUsername,
   }
 })

@@ -1,6 +1,7 @@
 export type { ApiSuccess, ApiError, ApiResponse } from './envelope'
 export type {
   Role,
+  Language,
   AuthUser,
   User,
   LoginRequest,
@@ -12,6 +13,7 @@ export type {
   UpdateUserRequest,
   UpdateUsernameRequest,
   UpdateThemeRequest,
+  UpdateLanguageRequest,
 } from './auth'
 export type { Doctor, CreateDoctorRequest, UpdateDoctorRequest } from './doctor'
 export type {
