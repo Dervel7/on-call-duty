@@ -45,7 +45,10 @@ const paymentLabel = computed(() => {
   if (days === 0) return t('adminDashboard.paymentDueToday')
   return t('adminDashboard.paymentDaysLeft', { n: days }, days)
 })
-const monthLabel = computed(() => formatMonth(year.value, Number(month.value), intlLocale.value))
+// Name the month the shown stats belong to, not the (possibly unapplied) inputs.
+const monthLabel = computed(() =>
+  stats.value ? formatMonth(stats.value.year, stats.value.month, intlLocale.value) : '',
+)
 const months = computed(() => monthNames(intlLocale.value))
 
 const maxInSet = computed(() =>
@@ -71,6 +74,8 @@ async function load() {
     stats.value = res
   } catch (e) {
     if (!isCurrent()) return
+    // Do not leave the previous month's stats under the newly selected month.
+    stats.value = null
     errorMsg.value = e instanceof Error ? e.message : t('adminDashboard.loadFailed')
   } finally {
     if (isCurrent()) loading.value = false

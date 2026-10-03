@@ -131,6 +131,15 @@ describe('stats routes', () => {
     expect(adminStats.mock.calls[0]?.[2]).toEqual({ kind: 'clinic', clinicId: 1 })
   })
 
+  it('rejects a clinicId above Postgres INTEGER with 400 before any query', async () => {
+    adminStats.mockResolvedValue(emptyStats())
+    const res = await request(build())
+      .get('/stats/admin?clinicId=3000000000')
+      .set('Authorization', `Bearer ${managerToken()}`)
+    expect(res.status).toBe(400)
+    expect(adminStats).not.toHaveBeenCalled()
+  })
+
   it('me 200 for doctor; 404 for admin (no profile); 401 unauth', async () => {
     meStats.mockResolvedValue({
       doctor: { id: 10, firstName: 'Jane', lastName: 'Roe', maxMonthlyDuties: 7 },

@@ -120,4 +120,13 @@ describe('reports routes', () => {
       .set('Authorization', `Bearer ${adminToken()}`)
     expect(res.status).toBe(403)
   })
+
+  it('rejects a clinicId above Postgres INTEGER with 400 before any query', async () => {
+    monthlyReport.mockResolvedValue(emptyReport())
+    const res = await request(build())
+      .get('/reports/monthly?clinicId=3000000000')
+      .set('Authorization', `Bearer ${managerToken()}`)
+    expect(res.status).toBe(400)
+    expect(monthlyReport).not.toHaveBeenCalled()
+  })
 })

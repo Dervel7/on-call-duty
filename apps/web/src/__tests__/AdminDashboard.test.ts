@@ -201,6 +201,29 @@ describe('AdminDashboard', () => {
       process.env.TZ = tz
     }
   })
+
+  it('names the loaded month in the empty state, not an unapplied year', async () => {
+    admin.mockResolvedValue(
+      fullStats({ schedule: null, workload: [], fairness: { dutySpread: null, weekendSpread: null } }),
+    )
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await w.find('#s-year').setValue('2030')
+    expect(w.text()).toContain('No schedule for August 2026')
+    expect(w.text()).not.toContain('2030')
+  })
+
+  it('drops the previous month stats when a load fails', async () => {
+    admin.mockResolvedValueOnce(fullStats()).mockRejectedValueOnce(new Error('Network down'))
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(w.text()).toContain('31 / 31 days fully staffed')
+    await w.findAll('button').find((b) => b.text().includes('Apply'))!.trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('Network down')
+    expect(w.text()).not.toContain('31 / 31 days fully staffed')
+    expect(w.text()).not.toContain('Jane Roe')
+  })
 })
 
 describe('AdminDashboard in Greek', () => {
@@ -223,7 +246,8 @@ describe('AdminDashboard in Greek', () => {
     )
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    const month = new Intl.DateTimeFormat('el-GR', { month: 'long', year: 'numeric' }).format(new Date())
+    // The mocked stats are for August 2026.
+    const month = new Intl.DateTimeFormat('el-GR', { month: 'long', year: 'numeric' }).format(new Date(2026, 7, 1))
     expect(w.text()).toContain(`Δεν υπάρχει πρόγραμμα: ${month}`)
   })
 })
