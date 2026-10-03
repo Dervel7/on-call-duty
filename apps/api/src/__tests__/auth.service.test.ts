@@ -162,6 +162,11 @@ describe('auth.service', () => {
     expect(sql).toContain('is_deleted = FALSE')
   })
 
+  it('refresh throws 403 "Clinic is deactivated" for a deactivated clinic', async () => {
+    query.mockResolvedValue({ rows: [userRow({ clinic_is_active: false })] })
+    await expect(refresh('old')).rejects.toMatchObject({ status: 403, message: 'Clinic is deactivated' })
+  })
+
   it('logout revokes the token and logs the audit event', async () => {
     vi.mocked(tokenService.revokeRefreshToken).mockResolvedValue(7)
     await logout('t')
@@ -189,11 +194,11 @@ describe('auth.service', () => {
     )
   })
 
-  it('changePassword throws 401 on wrong current password', async () => {
+  it('changePassword throws 400 (not 401: the session is valid) on wrong current password', async () => {
     query.mockResolvedValue({ rows: [userRow()] })
     compare.mockResolvedValue(false)
     await expect(
       changePassword(1, { currentPassword: 'wrong', newPassword: 'newpass123' }),
-    ).rejects.toMatchObject({ status: 401 })
+    ).rejects.toMatchObject({ status: 400, message: 'Current password is incorrect' })
   })
 })

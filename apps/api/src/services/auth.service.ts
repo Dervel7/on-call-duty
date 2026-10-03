@@ -105,6 +105,8 @@ export async function refresh(
   const row = await findUserById(userId)
   if (!row) throw new HttpError(401, 'Invalid refresh token')
   if (!row.is_active) throw new HttpError(403, 'Account disabled')
+  // Same gate as login: deactivating a clinic must also end its live sessions.
+  if (row.clinic_is_active === false) throw new HttpError(403, 'Clinic is deactivated')
   if (row.role !== 'superadmin' && (await billingService.isLocked())) {
     throw new HttpError(403, SYSTEM_LOCKED_MESSAGE)
   }
@@ -131,7 +133,9 @@ export async function changePassword(
   const row = await findUserById(userId)
   if (!row) throw new HttpError(404, 'User not found')
   const ok = await bcrypt.compare(input.currentPassword, row.password_hash)
-  if (!ok) throw new HttpError(401, 'Current password is incorrect')
+  // 400, not 401: the session is valid. A 401 makes the web client refresh the
+  // session and resend the request, or sign the user out when refresh fails.
+  if (!ok) throw new HttpError(400, 'Current password is incorrect')
   const newHash = await bcrypt.hash(input.newPassword, 12)
   await query(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [
     newHash,
