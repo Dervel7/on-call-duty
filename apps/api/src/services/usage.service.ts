@@ -138,7 +138,7 @@ export async function generations(): Promise<GenerationEvent[]> {
      ORDER BY l.created_at DESC`,
   )
   const events: GenerationEvent[] = []
-  for (const b of batches.rows) {
+  for (const [index, b] of batches.rows.entries()) {
     const docs = await query<{ doctor_id: number; name: string }>(
       `SELECT DISTINCT l.doctor_id, u.first_name || ' ' || u.last_name AS name
        FROM schedule_generation_log l
@@ -147,13 +147,12 @@ export async function generations(): Promise<GenerationEvent[]> {
       [b.clinic_id, b.year, b.month, b.created_at],
     )
     const ids = docs.rows.map((r) => r.doctor_id)
-    const prev = batches.rows.find(
-      (o) =>
-        o.clinic_id === b.clinic_id &&
-        o.year === b.year &&
-        o.month === b.month &&
-        o.created_at < b.created_at,
-    )
+    // Rows are ordered newest first by the real timestamp, so the previous
+    // batch is the next matching row. Comparing the text timestamps would break
+    // across a DST change (the offset in the text differs).
+    const prev = batches.rows
+      .slice(index + 1)
+      .find((o) => o.clinic_id === b.clinic_id && o.year === b.year && o.month === b.month)
     let overlap: number | null = null
     if (prev) {
       const prevDocs = await query<{ doctor_id: number }>(
