@@ -4,7 +4,8 @@ import { logger } from '../logger'
 export const requestLogger = pinoHttp({
   logger,
   redact: {
-    paths: ['req.headers.authorization', 'req.headers.cookie'],
+    // The refresh token travels in Set-Cookie on login/refresh; never log it.
+    paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
     censor: '[redacted]',
   },
 })

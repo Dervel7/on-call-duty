@@ -27,11 +27,12 @@ export const app = express()
 // to reflect the real client instead of the proxy address.
 app.set('trust proxy', 1)
 
+// First, so requests rejected by later middleware (bad JSON, 413) are logged too.
+app.use(requestLogger)
 app.use(helmet())
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))
 app.use(cookieParser())
 app.use(express.json({ limit: '1mb' }))
-app.use(requestLogger)
 
 app.use('/health', healthRouter)
 app.use('/auth', authRouter)
