@@ -112,7 +112,9 @@ async function openCalendar() {
  * consecutive ranges. Creating stores one record per range. Editing keeps the
  * record only on its original days still marked: none kept deletes it, one
  * range updates it, several ranges split it atomically (split-off parts keep
- * its disabled flag). Newly marked days always become new records.
+ * its disabled flag). Newly marked days always become new records. When the
+ * edited record no longer exists (deleted elsewhere, or by an earlier attempt
+ * of this save that failed later), every marked day is new.
  */
 async function save() {
   const st = edit.value
@@ -127,25 +129,20 @@ async function save() {
     // the calendar was opened; the API would 409 on overlaps otherwise.
     await refreshRecords()
     const reserved = new Set(reservedDays.value)
-    const ranges = groupConsecutiveDays(st.days.filter((d) => !reserved.has(d)))
-    if (st.id !== null) {
-      if (ranges.length === 0) {
-        // Every marked day is already covered by another record.
-        await unavailabilityService.remove(st.id)
-      } else {
-        const original = records.value.find((r) => r.id === st.id)
-        const originDays = new Set(original ? eachDay(original.startDate, original.endDate) : [])
-        const kept = st.days.filter((d) => !reserved.has(d) && originDays.has(d))
-        const keptRanges = groupConsecutiveDays(kept)
-        if (keptRanges.length === 0) await unavailabilityService.remove(st.id)
-        else if (keptRanges.length === 1) await unavailabilityService.update(st.id, keptRanges[0]!)
-        else await unavailabilityService.split(st.id, { segments: keptRanges })
-        const added = st.days.filter((d) => !reserved.has(d) && !originDays.has(d))
-        for (const range of groupConsecutiveDays(added)) {
-          await unavailabilityService.createMine(range)
-        }
+    const original = records.value.find((r) => r.id === st.id)
+    if (original) {
+      const originDays = new Set(eachDay(original.startDate, original.endDate))
+      const kept = st.days.filter((d) => !reserved.has(d) && originDays.has(d))
+      const keptRanges = groupConsecutiveDays(kept)
+      if (keptRanges.length === 0) await unavailabilityService.remove(original.id)
+      else if (keptRanges.length === 1) await unavailabilityService.update(original.id, keptRanges[0]!)
+      else await unavailabilityService.split(original.id, { segments: keptRanges })
+      const added = st.days.filter((d) => !reserved.has(d) && !originDays.has(d))
+      for (const range of groupConsecutiveDays(added)) {
+        await unavailabilityService.createMine(range)
       }
     } else {
+      const ranges = groupConsecutiveDays(st.days.filter((d) => !reserved.has(d)))
       for (const range of ranges) await unavailabilityService.createMine(range)
     }
   } catch (e) {

@@ -315,3 +315,23 @@ describe('unavailability routes', () => {
     expect(inverted.status).toBe(400)
   })
 })
+
+describe('unavailability ids above Postgres INTEGER are 400, not 500', () => {
+  it.each([
+    ['/unavailability?doctorId=3000000000'],
+    ['/unavailability?clinicId=3000000000'],
+  ])('GET %s', async (path) => {
+    const res = await request(build()).get(path).set('Authorization', `Bearer ${superadminToken()}`)
+    expect(res.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
+
+  it('POST /unavailability with a body doctorId above INTEGER', async () => {
+    const res = await request(build())
+      .post('/unavailability')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ doctorId: 3000000000, startDate: '2026-09-20', endDate: '2026-09-21' })
+    expect(res.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
+})

@@ -1,8 +1,8 @@
 import { z } from 'zod'
-import { isoDateSchema } from './common'
+import { isoDateSchema, queryIdSchema } from './common'
 
 const adminFields = z.object({
-  doctorId: z.number().int().positive(),
+  doctorId: z.number().int().positive().max(2_147_483_647),
   startDate: isoDateSchema,
   endDate: isoDateSchema,
 })
@@ -45,8 +45,8 @@ export const splitUnavailabilitySchema = z.object({
 })
 
 export const unavailabilityQuerySchema = z.object({
-  doctorId: z.coerce.number().int().positive().optional(),
-  clinicId: z.coerce.number().int().positive().optional(),
+  doctorId: queryIdSchema.optional(),
+  clinicId: queryIdSchema.optional(),
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),
 })

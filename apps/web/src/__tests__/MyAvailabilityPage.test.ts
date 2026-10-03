@@ -300,6 +300,37 @@ describe('MyAvailabilityPage', () => {
     wrapper.unmount()
   })
 
+  it('retrying a save whose create failed after the record was removed creates the day', async () => {
+    const nm = nextMonthIso()
+    let removed = false
+    listMine.mockImplementation(async () =>
+      removed ? [] : [{ ...record, startDate: `${nm}-10`, endDate: `${nm}-11` }],
+    )
+    remove.mockImplementation(async () => {
+      if (removed) throw new Error('Unavailability record not found')
+      removed = true
+    })
+    createMine.mockRejectedValueOnce(new Error('network down')).mockResolvedValue({})
+    const wrapper = await mountPage()
+    await wrapper.findAll('button').find((b) => b.text() === `${nm}-10`)!.trigger('click')
+    await flushPromises()
+
+    bodyButton('Select days')!.click()
+    await flushPromises()
+    await pickDays([`${nm}-10`, `${nm}-11`, `${nm}-20`])
+    bodyButton('Save')!.click()
+    await flushPromises()
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('network down')
+
+    bodyButton('Save')!.click()
+    await flushPromises()
+    expect(remove).toHaveBeenCalledTimes(1)
+    expect(createMine).toHaveBeenCalledTimes(2)
+    expect(createMine).toHaveBeenLastCalledWith({ startDate: `${nm}-20`, endDate: `${nm}-20` })
+    expect(bodyButton('Save')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('keeps the record on its own days when adjacent days are added', async () => {
     const nm = nextMonthIso()
     listMine.mockResolvedValue([
