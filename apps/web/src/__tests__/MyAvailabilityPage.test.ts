@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextMonthIso } from '@oncall/utils'
 
@@ -355,9 +355,9 @@ describe('MyAvailabilityPage', () => {
     await wrapper.find('#f-month').trigger('click')
     await flushPromises()
     if (target.getFullYear() !== ny) {
-      await wrapper.find('[aria-label="Next year"]').trigger('click')
+      await new DOMWrapper(document.body).find('[aria-label="Next year"]').trigger('click')
     }
-    await wrapper.find(`[data-month="${targetMonth}"]`).trigger('click')
+    await new DOMWrapper(document.body).find(`[data-month="${targetMonth}"]`).trigger('click')
     await flushPromises()
     expect(listMine).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).not.toContain(`${nm}-07`)

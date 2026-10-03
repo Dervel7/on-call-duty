@@ -66,6 +66,25 @@ function syncView() {
   }
 }
 
+function positionPanel() {
+  const btn = trigger.value
+  const p = panel.value
+  if (!btn || !p) return
+  const r = btn.getBoundingClientRect()
+  const gap = 6
+  const margin = 8
+  const left = Math.min(r.left, window.innerWidth - p.offsetWidth - margin)
+  p.style.left = `${Math.max(margin, left)}px`
+  p.style.top = ''
+  p.style.bottom = ''
+  // Flip above the trigger when the calendar does not fit below.
+  if (r.bottom + gap + p.offsetHeight > window.innerHeight - margin && r.top > window.innerHeight - r.bottom) {
+    p.style.bottom = `${window.innerHeight - r.top + gap}px`
+  } else {
+    p.style.top = `${r.bottom + gap}px`
+  }
+}
+
 async function toggle() {
   if (props.disabled) return
   if (open.value) {
@@ -75,6 +94,7 @@ async function toggle() {
   syncView()
   open.value = true
   await nextTick()
+  positionPanel()
   panel.value?.focus()
 }
 
@@ -98,7 +118,19 @@ function shiftMonth(delta: number) {
   view.value = { year: d.getFullYear(), month0: d.getMonth() }
 }
 
-onClickOutside(root, () => (open.value = false))
+// The panel is teleported to body, so it counts as "outside" root.
+onClickOutside(root, () => (open.value = false), { ignore: [panel] })
+
+// Teleported panel is fixed-positioned; a scroll outside it would misplace it.
+useEventListener(
+  window,
+  'scroll',
+  (e: Event) => {
+    if (!open.value || panel.value?.contains(e.target as Node)) return
+    open.value = false
+  },
+  { capture: true, passive: true },
+)
 
 // Capture phase + stopPropagation: Escape closes only this popover, not an
 // enclosing Dialog (Dialog listens on window, bubble phase).
@@ -142,6 +174,7 @@ useEventListener(
       <X class="size-3.5" />
     </button>
 
+    <Teleport to="body">
     <Transition
       enter-active-class="transition duration-150 ease-out"
       enter-from-class="opacity-0 -translate-y-1"
@@ -156,7 +189,7 @@ useEventListener(
         tabindex="-1"
         :data-month="toIsoMonth(view.year, view.month0)"
         data-popover-layer
-        class="glass-card glass-panel absolute left-0 top-[calc(100%+0.375rem)] z-50 w-80 rounded-xl p-3 focus-visible:outline-none focus-visible:shadow-none"
+        class="glass-card glass-panel fixed z-50 w-80 rounded-xl p-3 focus-visible:outline-none focus-visible:shadow-none"
       >
         <div class="flex items-center justify-between pb-2">
           <button type="button" :aria-label="t('common.previousMonth')" :class="navBtnClass" @click="shiftMonth(-1)">
@@ -215,5 +248,6 @@ useEventListener(
         </div>
       </div>
     </Transition>
+    </Teleport>
   </div>
 </template>

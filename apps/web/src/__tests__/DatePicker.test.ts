@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { DOMWrapper, mount, type VueWrapper } from '@vue/test-utils'
 import DatePicker from '../components/ui/DatePicker.vue'
 import { setTestLocale } from './i18n'
 
@@ -12,6 +12,9 @@ function monthOf(offset: number): string {
   d.setMonth(d.getMonth() + offset)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
+
+// The panel is teleported to body, so it is queried outside the component wrapper.
+const body = () => new DOMWrapper(document.body)
 
 let wrapper: VueWrapper | undefined
 
@@ -38,10 +41,10 @@ describe('DatePicker', () => {
   it('labels day cells with the full date and marks the selected one pressed', async () => {
     const w = mountPicker({ modelValue: '2026-09-07' })
     await openPicker(w)
-    const cell = w.find('[data-date="2026-09-07"]')
+    const cell = body().find('[data-date="2026-09-07"]')
     expect(cell.attributes('aria-label')).toBe('Monday, 7 September 2026')
     expect(cell.attributes('aria-pressed')).toBe('true')
-    expect(w.find('[data-date="2026-09-08"]').attributes('aria-pressed')).toBe('false')
+    expect(body().find('[data-date="2026-09-08"]').attributes('aria-pressed')).toBe('false')
   })
 
   it('renders in Greek with Greek date formatting', async () => {
@@ -50,13 +53,13 @@ describe('DatePicker', () => {
     expect(fieldBtn(w).text()).toContain('7 Σεπ 2026')
     expect(w.find('button[aria-label="Εκκαθάριση ημερομηνίας"]').exists()).toBe(true)
     await openPicker(w)
-    expect(w.find('[data-date="2026-09-07"]').attributes('aria-label')).toBe('Δευτέρα 7 Σεπτεμβρίου 2026')
-    expect(w.find('[role="dialog"]').attributes('aria-label')).toBe('Επιλογή ημερομηνίας')
-    expect(w.text()).toContain('Σήμερα')
+    expect(body().find('[data-date="2026-09-07"]').attributes('aria-label')).toBe('Δευτέρα 7 Σεπτεμβρίου 2026')
+    expect(body().find('[role="dialog"]').attributes('aria-label')).toBe('Επιλογή ημερομηνίας')
+    expect(body().text()).toContain('Σήμερα')
   })
 
   it.each([
-    ['picking a day', async (w: VueWrapper) => w.find('[data-date="2026-09-08"]').trigger('click')],
+    ['picking a day', async () => body().find('[data-date="2026-09-08"]').trigger('click')],
     ['Escape', async () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
       await nextTick()
@@ -64,7 +67,7 @@ describe('DatePicker', () => {
   ])('returns focus to the trigger after %s', async (_, act) => {
     const w = mountPicker({ modelValue: '2026-09-07' })
     await openPicker(w)
-    await act(w)
+    await act()
     expect(document.activeElement).toBe(fieldBtn(w).element)
   })
 
@@ -78,15 +81,15 @@ describe('DatePicker', () => {
     const w = mountPicker()
     expect(w.text()).toContain('Select date')
     await openPicker(w)
-    expect(w.find('[role="dialog"]').exists()).toBe(true)
-    expect(w.find('[data-month]').attributes('data-month')).toBe(monthOf(0))
-    expect(w.find('[aria-current="date"]').attributes('data-date')).toBe(todayIso)
+    expect(body().find('[role="dialog"]').exists()).toBe(true)
+    expect(body().find('[data-month]').attributes('data-month')).toBe(monthOf(0))
+    expect(body().find('[aria-current="date"]').attributes('data-date')).toBe(todayIso)
   })
 
   it('emits the picked ISO date and closes', async () => {
     const w = mountPicker({ placeholder: 'Pick a date' })
     await openPicker(w)
-    await w.find(`[data-date="${todayIso}"]`).trigger('click')
+    await body().find(`[data-date="${todayIso}"]`).trigger('click')
     expect(w.emitted('update:modelValue')).toEqual([[todayIso]])
     expect(fieldBtn(w).attributes('aria-expanded')).toBe('false')
   })
@@ -95,27 +98,27 @@ describe('DatePicker', () => {
     const w = mountPicker({ modelValue: '2026-08-15' })
     expect(fieldBtn(w).text()).toContain('15 Aug 2026')
     await openPicker(w)
-    expect(w.find('[data-month]').attributes('data-month')).toBe('2026-08')
-    await w.find('[data-date="2026-08-20"]').trigger('click')
+    expect(body().find('[data-month]').attributes('data-month')).toBe('2026-08')
+    await body().find('[data-date="2026-08-20"]').trigger('click')
     expect(w.emitted('update:modelValue')).toEqual([['2026-08-20']])
   })
 
   it('navigates between months', async () => {
     const w = mountPicker()
     await openPicker(w)
-    await w.find('[aria-label="Next month"]').trigger('click')
-    expect(w.find('[data-month]').attributes('data-month')).toBe(monthOf(1))
-    await w.find('[aria-label="Previous month"]').trigger('click')
-    await w.find('[aria-label="Previous month"]').trigger('click')
-    expect(w.find('[data-month]').attributes('data-month')).toBe(monthOf(-1))
+    await body().find('[aria-label="Next month"]').trigger('click')
+    expect(body().find('[data-month]').attributes('data-month')).toBe(monthOf(1))
+    await body().find('[aria-label="Previous month"]').trigger('click')
+    await body().find('[aria-label="Previous month"]').trigger('click')
+    expect(body().find('[data-month]').attributes('data-month')).toBe(monthOf(-1))
   })
 
   it('jumps to today from the footer shortcut', async () => {
     const w = mountPicker()
     await openPicker(w)
-    await w.find('[aria-label="Next month"]').trigger('click')
-    await w.find('[role="dialog"] button:not([data-date]):not([aria-label])').trigger('click')
-    expect(w.find('[data-month]').attributes('data-month')).toBe(monthOf(0))
+    await body().find('[aria-label="Next month"]').trigger('click')
+    await body().find('[role="dialog"] button:not([data-date]):not([aria-label])').trigger('click')
+    expect(body().find('[data-month]').attributes('data-month')).toBe(monthOf(0))
   })
 
   it('clears the value', async () => {

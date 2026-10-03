@@ -33,6 +33,8 @@ interface RunState {
   total: Map<number, number>
   weekend: Map<number, number>
   friday: Map<number, number>
+  /** Duties per doctor per day of week (index 0=Sun … 6=Sat). */
+  weekday: Map<number, number[]>
   holiday: Map<number, number>
   openDays: Map<number, number>
   byDate: Map<string, Set<number>>
@@ -55,6 +57,7 @@ export function generate(ctx: SchedulingContext): GenerateResult {
     total: new Map(),
     weekend: new Map(),
     friday: new Map(),
+    weekday: new Map(),
     holiday: new Map(),
     openDays: new Map(),
     byDate: new Map(),
@@ -63,6 +66,7 @@ export function generate(ctx: SchedulingContext): GenerateResult {
     state.total.set(d.id, 0)
     state.weekend.set(d.id, 0)
     state.friday.set(d.id, 0)
+    state.weekday.set(d.id, [0, 0, 0, 0, 0, 0, 0])
     state.holiday.set(d.id, 0)
     state.openDays.set(d.id, 0)
   }
@@ -199,6 +203,7 @@ export function generate(ctx: SchedulingContext): GenerateResult {
             state.friday.get(doctor.id) ?? 0,
             wBudget,
             fBudget,
+            state.weekday.get(doctor.id)?.[day.dayOfWeek] ?? 0,
           ),
         })
       }
@@ -251,9 +256,11 @@ export function generate(ctx: SchedulingContext): GenerateResult {
       doctorFirstName: winner.doctor.firstName,
       doctorLastName: winner.doctor.lastName,
       isWeekend: day.isWeekend,
-      reason: `score ${winner.score.score} (workload +${winner.score.workload}, weekend +${winner.score.weekend}, friday +${winner.score.friday})${describeTiebreak(winner, eligible, state.total, state.weekend)}${relaxedFill ? '; day-fill guarantee overrode fairness caps' : ''}`,
+      reason: `score ${winner.score.score} (workload +${winner.score.workload}, weekend +${winner.score.weekend}, friday +${winner.score.friday}, first fri/sat/sun +${winner.score.friSatSun})${describeTiebreak(winner, eligible, state.total, state.weekend)}${relaxedFill ? '; day-fill guarantee overrode fairness caps' : ''}`,
     })
     state.total.set(winner.doctor.id, (state.total.get(winner.doctor.id) ?? 0) + 1)
+    const perWeekday = state.weekday.get(winner.doctor.id)
+    if (perWeekday) perWeekday[day.dayOfWeek] = (perWeekday[day.dayOfWeek] ?? 0) + 1
     state.byDate.set(day.date, (state.byDate.get(day.date) ?? new Set()).add(winner.doctor.id))
     if (day.isWeekend)
       state.weekend.set(winner.doctor.id, (state.weekend.get(winner.doctor.id) ?? 0) + 1)

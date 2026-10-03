@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const listAll = vi.fn()
@@ -400,9 +400,9 @@ describe('AvailabilityPage', () => {
     await wrapper.find('#f-month').trigger('click')
     await flushPromises()
     if (target.getFullYear() !== next.getFullYear()) {
-      await wrapper.find('[aria-label="Next year"]').trigger('click')
+      await new DOMWrapper(document.body).find('[aria-label="Next year"]').trigger('click')
     }
-    await wrapper.find(`[data-month="${targetMonth}"]`).trigger('click')
+    await new DOMWrapper(document.body).find(`[data-month="${targetMonth}"]`).trigger('click')
     await flushPromises()
     // Filters apply on change — there is no Apply button.
     const targetLastDay = String(

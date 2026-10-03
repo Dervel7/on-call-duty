@@ -3,12 +3,12 @@ import { flushPromises } from '@vue/test-utils'
 /**
  * Drives the DatePicker UI the way a user would: opens the picker behind
  * `selector`, navigates to the target month, and clicks the day `iso`.
- * `scope` is the element containing the picker — `document.body` for pickers
- * teleported inside a Dialog, or the mounted page root otherwise.
+ * `scope` is the element containing the picker trigger.
  */
 export async function pickDate(scope: ParentNode, selector: string, iso: string) {
   const btn = scope.querySelector(selector) as HTMLElement
-  const rootEl = btn.parentElement as HTMLElement
+  // The panel is teleported to body.
+  const rootEl = document.body
   btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
   await flushPromises()
   const [year, month] = iso.split('-').map(Number) as [number, number]

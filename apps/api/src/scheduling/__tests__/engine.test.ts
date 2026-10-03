@@ -60,7 +60,7 @@ describe('engine.generate', () => {
       expect(new Set(picked).size).toBe(2) // distinct
     }
     expect(assignments[0]?.reason).toMatch(
-      /^score \d+ \(workload \+\d+, weekend \+\d+, friday \+\d+\)/,
+      /^score \d+ \(workload \+\d+, weekend \+\d+, friday \+\d+, first fri\/sat\/sun \+\d+\)/,
     )
   })
 

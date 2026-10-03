@@ -36,6 +36,7 @@ export interface CandidateScore {
   workload: number
   weekend: number
   friday: number
+  friSatSun: number
 }
 
 export interface AssignmentPlan {

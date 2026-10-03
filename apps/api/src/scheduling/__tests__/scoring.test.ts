@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  W_FRI_SAT_SUN,
   W_FRIDAY,
   W_WEEKEND,
   W_WORKLOAD,
@@ -30,27 +31,38 @@ describe('scoring', () => {
   })
 
   it('workload term favors doctors with more remaining slots', () => {
-    const s0 = scoreCandidate(doctor(1, 7), weekday('2026-09-01'), 0, 0, 0, 0, 0)
-    const s6 = scoreCandidate(doctor(1, 7), weekday('2026-09-01'), 6, 0, 0, 0, 0)
+    const s0 = scoreCandidate(doctor(1, 7), weekday('2026-09-01'), 0, 0, 0, 0, 0, 0)
+    const s6 = scoreCandidate(doctor(1, 7), weekday('2026-09-01'), 6, 0, 0, 0, 0, 0)
     expect(s0.workload).toBe(7 * W_WORKLOAD)
     expect(s6.workload).toBe(1 * W_WORKLOAD)
     expect(s0.score - s6.score).toBe(6 * W_WORKLOAD)
   })
 
   it('weekend term only applies on weekend days and clamps at 0', () => {
-    const onWeekend = scoreCandidate(doctor(1, 7), weekend('2026-09-05'), 0, 2, 0, 3, 0)
-    const overServed = scoreCandidate(doctor(1, 7), weekend('2026-09-05'), 0, 5, 0, 3, 0)
+    const onWeekend = scoreCandidate(doctor(1, 7), weekend('2026-09-05'), 0, 2, 0, 3, 0, 0)
+    const overServed = scoreCandidate(doctor(1, 7), weekend('2026-09-05'), 0, 5, 0, 3, 0, 0)
     expect(onWeekend.weekend).toBe((3 - 2) * W_WEEKEND)
     expect(overServed.weekend).toBe(0)
-    expect(scoreCandidate(doctor(1, 7), weekday('2026-09-01'), 0, 0, 0, 3, 0).weekend).toBe(0)
+    expect(scoreCandidate(doctor(1, 7), weekday('2026-09-01'), 0, 0, 0, 3, 0, 0).weekend).toBe(0)
   })
 
   it('friday term only applies on Fridays (dayOfWeek 5) and clamps at 0', () => {
-    expect(scoreCandidate(doctor(1, 7), friday('2026-09-04'), 0, 0, 0, 0, 2).friday).toBe(
+    expect(scoreCandidate(doctor(1, 7), friday('2026-09-04'), 0, 0, 0, 0, 2, 0).friday).toBe(
       2 * W_FRIDAY,
     )
-    expect(scoreCandidate(doctor(1, 7), weekday('2026-09-03'), 0, 0, 0, 0, 2).friday).toBe(0)
-    const overServed = scoreCandidate(doctor(1, 7), friday('2026-09-04'), 0, 0, 3, 0, 2)
+    expect(scoreCandidate(doctor(1, 7), weekday('2026-09-03'), 0, 0, 0, 0, 2, 0).friday).toBe(0)
+    const overServed = scoreCandidate(doctor(1, 7), friday('2026-09-04'), 0, 0, 3, 0, 2, 0)
     expect(overServed.friday).toBe(0)
+  })
+
+  it('fri/sat/sun term rewards a doctor with no duty yet on that weekday', () => {
+    const d = doctor(1, 7)
+    const fri = friday('2026-09-04')
+    const sat = weekend('2026-09-05')
+    expect(scoreCandidate(d, fri, 0, 0, 0, 0, 0, 0).friSatSun).toBe(W_FRI_SAT_SUN)
+    expect(scoreCandidate(d, sat, 0, 0, 0, 0, 0, 0).friSatSun).toBe(W_FRI_SAT_SUN)
+    expect(scoreCandidate(d, fri, 0, 0, 0, 0, 0, 1).friSatSun).toBe(0)
+    expect(scoreCandidate(d, sat, 0, 0, 0, 0, 0, 1).friSatSun).toBe(0)
+    expect(scoreCandidate(d, weekday('2026-09-01'), 0, 0, 0, 0, 0, 0).friSatSun).toBe(0)
   })
 })

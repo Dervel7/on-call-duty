@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { DOMWrapper, mount, type VueWrapper } from '@vue/test-utils'
 import MonthPicker from '../components/ui/MonthPicker.vue'
 
 const today = new Date()
 const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+
+// The panel is teleported to body, so it is queried outside the component wrapper.
+const body = () => new DOMWrapper(document.body)
 
 let wrapper: VueWrapper | undefined
 
@@ -31,14 +34,14 @@ describe('MonthPicker', () => {
   it('labels month cells with month and year and marks the selected one pressed', async () => {
     const w = mountPicker({ modelValue: '2026-08' })
     await openPicker(w)
-    const cell = w.find('[data-month="2026-08"]')
+    const cell = body().find('[data-month="2026-08"]')
     expect(cell.attributes('aria-label')).toBe('August 2026')
     expect(cell.attributes('aria-pressed')).toBe('true')
-    expect(w.find('[data-month="2026-09"]').attributes('aria-pressed')).toBe('false')
+    expect(body().find('[data-month="2026-09"]').attributes('aria-pressed')).toBe('false')
   })
 
   it.each([
-    ['picking a month', async (w: VueWrapper) => w.find('[data-month="2026-09"]').trigger('click')],
+    ['picking a month', async () => body().find('[data-month="2026-09"]').trigger('click')],
     ['Escape', async () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
       await nextTick()
@@ -46,7 +49,7 @@ describe('MonthPicker', () => {
   ])('returns focus to the trigger after %s', async (_, act) => {
     const w = mountPicker({ modelValue: '2026-08' })
     await openPicker(w)
-    await act(w)
+    await act()
     expect(document.activeElement).toBe(fieldBtn(w).element)
   })
 
@@ -60,16 +63,16 @@ describe('MonthPicker', () => {
     const w = mountPicker()
     expect(w.text()).toContain('Select month')
     await openPicker(w)
-    expect(w.find('[role="dialog"]').exists()).toBe(true)
-    expect(w.find('[data-year]').attributes('data-year')).toBe(String(today.getFullYear()))
-    expect(w.findAll('[data-month]')).toHaveLength(12)
-    expect(w.find(`[data-month="${currentMonth}"]`).exists()).toBe(true)
+    expect(body().find('[role="dialog"]').exists()).toBe(true)
+    expect(body().find('[data-year]').attributes('data-year')).toBe(String(today.getFullYear()))
+    expect(body().findAll('[data-month]')).toHaveLength(12)
+    expect(body().find(`[data-month="${currentMonth}"]`).exists()).toBe(true)
   })
 
   it('emits the picked month and closes', async () => {
     const w = mountPicker({ placeholder: 'Any month' })
     await openPicker(w)
-    await w.find(`[data-month="${today.getFullYear()}-03"]`).trigger('click')
+    await body().find(`[data-month="${today.getFullYear()}-03"]`).trigger('click')
     expect(w.emitted('update:modelValue')).toEqual([[`${today.getFullYear()}-03`]])
     expect(fieldBtn(w).attributes('aria-expanded')).toBe('false')
   })
@@ -78,19 +81,19 @@ describe('MonthPicker', () => {
     const w = mountPicker({ modelValue: '2026-08' })
     expect(fieldBtn(w).text()).toContain('August 2026')
     await openPicker(w)
-    expect(w.find('[data-year]').attributes('data-year')).toBe('2026')
-    await w.find('[data-month="2026-07"]').trigger('click')
+    expect(body().find('[data-year]').attributes('data-year')).toBe('2026')
+    await body().find('[data-month="2026-07"]').trigger('click')
     expect(w.emitted('update:modelValue')).toEqual([['2026-07']])
   })
 
   it('navigates between years', async () => {
     const w = mountPicker({ modelValue: '2026-08' })
     await openPicker(w)
-    await w.find('[aria-label="Next year"]').trigger('click')
-    expect(w.find('[data-year]').attributes('data-year')).toBe('2027')
-    await w.find('[aria-label="Previous year"]').trigger('click')
-    await w.find('[aria-label="Previous year"]').trigger('click')
-    expect(w.find('[data-year]').attributes('data-year')).toBe('2025')
+    await body().find('[aria-label="Next year"]').trigger('click')
+    expect(body().find('[data-year]').attributes('data-year')).toBe('2027')
+    await body().find('[aria-label="Previous year"]').trigger('click')
+    await body().find('[aria-label="Previous year"]').trigger('click')
+    expect(body().find('[data-year]').attributes('data-year')).toBe('2025')
   })
 
   it('clears the value', async () => {
