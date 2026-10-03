@@ -118,6 +118,26 @@ describe('UsagePage', () => {
     expect(generations).toHaveBeenCalledTimes(1)
   })
 
+  it('ignores a second Resolve click while the first is in flight (no false "already resolved")', async () => {
+    let finishFirst!: (a: OperatorAlert) => void
+    let failSecond: ((e: Error) => void) | undefined
+    resolveAlert.mockImplementationOnce(() => new Promise((r) => (finishFirst = r)))
+    resolveAlert.mockImplementationOnce(() => new Promise((_, reject) => (failSecond = reject)))
+    const wrapper = await mountPage()
+    const openBtn = wrapper
+      .findAll('button')
+      .filter((b) => b.text() === 'Resolve')
+      .find((b) => !(b.element as HTMLButtonElement).disabled)
+    await openBtn!.trigger('click')
+    await openBtn!.trigger('click')
+    finishFirst({ ...alertsFixture[1]!, resolvedAt: '2026-08-05T07:00:00.000Z' })
+    await flushPromises()
+    failSecond?.(new Error('Alert already resolved'))
+    await flushPromises()
+    expect(resolveAlert).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
   it('shows an error message when loading fails', async () => {
     generations.mockRejectedValue(new Error('nope'))
     alerts.mockResolvedValue([])

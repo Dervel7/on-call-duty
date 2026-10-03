@@ -41,6 +41,9 @@ const { t } = useI18n()
 const intlLocale = useIntlLocale()
 
 const openAlerts = computed(() => alerts.value.filter((a) => a.resolvedAt === null).length)
+// Resolve buttons stay disabled until the list is reloaded, so a double click cannot send a
+// second request whose 409 would show "already resolved" after a successful resolve.
+const resolving = ref(false)
 
 async function load() {
   loading.value = true
@@ -60,13 +63,16 @@ async function load() {
 }
 
 async function resolve(a: OperatorAlert) {
+  if (resolving.value) return
+  resolving.value = true
   try {
     await usageService.resolveAlert(a.id)
+    await load()
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : t('usage.resolveFailed')
-    return
+  } finally {
+    resolving.value = false
   }
-  await load()
 }
 
 async function loadBilling() {
@@ -215,7 +221,7 @@ onMounted(loadBilling)
               <TableCell>{{ JSON.stringify(a.detail) }}</TableCell>
               <TableCell><Badge :variant="a.resolvedAt ? 'neutral' : 'warning'">{{ a.resolvedAt ? t('usage.resolved') : t('usage.open') }}</Badge></TableCell>
               <TableCell class="text-right">
-                <Button size="sm" variant="outline" :disabled="a.resolvedAt !== null" @click="resolve(a)">
+                <Button size="sm" variant="outline" :disabled="a.resolvedAt !== null || resolving" @click="resolve(a)">
                   {{ t('usage.resolve') }}
                 </Button>
               </TableCell>
