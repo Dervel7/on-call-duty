@@ -838,6 +838,30 @@ describe('generate plan path', () => {
     ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('back-to-back') })
   })
 
+  it('409 when a plan collides with the next month first-day duty', async () => {
+    query.mockImplementation(async (text: unknown, params?: unknown[]) => {
+      const sql = String(text)
+      if (sql.includes('FROM app_meta')) return { rows: [{ key: 'closed_duty_minimum', value: '1' }] }
+      if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
+      if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
+      if (sql.includes('FROM unavailability')) return { rows: [] }
+      if (sql.includes('du.duty_date = $1 AND s.clinic_id') && params?.[0] === '2026-10-01')
+        return { rows: [{ doctor_id: 1 }] }
+      return { rows: [] }
+    })
+
+    const assignments = [
+      ...Array.from({ length: 29 }, (_, i) => ({
+        date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+        doctorId: (i % 10) + 2,
+      })),
+      { date: '2026-09-30', doctorId: 1 },
+    ]
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, assignments),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('back-to-back') })
+  })
+
   it('treats an empty assignments array as the engine path (not plan path)', async () => {
     mockContext()
     const detail = await generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, [])

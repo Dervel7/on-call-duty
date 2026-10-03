@@ -10,6 +10,7 @@ function ctx(
   opts: {
     unavailability?: Map<number, Array<{ start: string; end: string }>>
     priorDayDoctorIds?: Set<number>
+    nextDayDoctorIds?: Set<number>
     openDuty?: { anchorDate: string; intervalDays: number }
     slots?: DutySlotsSettings
     minimums?: DutyMinimumSettings
@@ -24,6 +25,7 @@ function ctx(
     doctors,
     unavailability: opts.unavailability ?? new Map(),
     priorDayDoctorIds: opts.priorDayDoctorIds ?? new Set(),
+    nextDayDoctorIds: opts.nextDayDoctorIds ?? new Set(),
     openDuty: opts.openDuty ?? { anchorDate: '2030-01-01', intervalDays: 7 },
     slots,
     // Unset minimums mean full coverage, like missing app_meta rows.
@@ -124,6 +126,15 @@ describe('engine.generate', () => {
     const day1 = assignments.filter((a) => a.date === '2026-09-01').map((a) => a.doctorId)
     expect(day1).not.toContain(1)
     expect(day1).not.toContain(2)
+  })
+
+  it('respects cross-month next-day duty via nextDayDoctorIds', () => {
+    const days = [day('2026-09-29'), day('2026-09-30')]
+    const next = new Set([1, 2])
+    const { assignments } = generate(ctx(days, [dr(1), dr(2), dr(3), dr(4)], { nextDayDoctorIds: next }))
+    const lastDay = assignments.filter((a) => a.date === '2026-09-30').map((a) => a.doctorId)
+    expect(lastDay).not.toContain(1)
+    expect(lastDay).not.toContain(2)
   })
 
   it('spreads Saturday duties across distinct doctors (soft weekend balance)', () => {

@@ -116,7 +116,10 @@ describe('SchedulePreviewPage', () => {
     const sent = generate.mock.calls[0]![2] as Array<{ date: string; doctorId: number }>
     expect(sent.length).toBe(days.length)
     expect(sent.every((a) => a.doctorId === 5)).toBe(true)
-  })
+    // 30 sequential select picks: the default 5 s timeout is too tight when
+    // the api and web suites run in parallel, and a timed-out run leaves its
+    // popovers open, breaking the next test.
+  }, 20_000)
 
   function oneDoctorPerDay(year: number, month: number, doubled: string[] = []) {
     return daysFor(year, month).flatMap((d) => [

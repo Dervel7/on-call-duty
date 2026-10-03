@@ -206,15 +206,29 @@ async function buildContext(
    }
 
   // Adjacency seeds read duties through the schedule's clinic (§2.6.1).
-  const firstDayPrev = prevDate(first)
-  const pres = await query<{ doctor_id: number }>(
-    `SELECT du.doctor_id FROM duties du JOIN schedules s ON s.id = du.schedule_id
-     WHERE du.duty_date = $1 AND s.clinic_id = $2`,
-    [firstDayPrev, clinicId],
-  )
-  const priorDayDoctorIds = new Set(pres.rows.map((r) => r.doctor_id))
+  const adjacentDoctorIds = async (date: string): Promise<Set<number>> => {
+    const res = await query<{ doctor_id: number }>(
+      `SELECT du.doctor_id FROM duties du JOIN schedules s ON s.id = du.schedule_id
+       WHERE du.duty_date = $1 AND s.clinic_id = $2`,
+      [date, clinicId],
+    )
+    return new Set(res.rows.map((r) => r.doctor_id))
+  }
+  const priorDayDoctorIds = await adjacentDoctorIds(prevDate(first))
+  const nextDayDoctorIds = await adjacentDoctorIds(nextDate(last))
 
-  return { year, month, days, doctors, unavailability, priorDayDoctorIds, openDuty, slots, minimums }
+  return {
+    year,
+    month,
+    days,
+    doctors,
+    unavailability,
+    priorDayDoctorIds,
+    nextDayDoctorIds,
+    openDuty,
+    slots,
+    minimums,
+  }
 }
 
 export interface EligibilityInput {
@@ -285,23 +299,14 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
 /**
  * Seed the adjacency map with duties from the days just outside the month so
  * day-1 / last-day eligibility respects back-to-back across month boundaries.
- * Reads go through the clinic-scoped duty join (§2.6.1).
+ * Both sets come from `buildContext` (clinic-scoped, §2.6.1).
  */
-async function seedAdjacentDuties(
-  dutiesByDate: Map<string, Set<number>>,
-  ctx: SchedulingContext,
-  clinicId: number,
-): Promise<void> {
+function seedAdjacentDuties(dutiesByDate: Map<string, Set<number>>, ctx: SchedulingContext): void {
   const first = ctx.days[0]?.date
   const last = ctx.days.at(-1)?.date
   if (!first || !last) return
   dutiesByDate.set(prevDate(first), new Set(ctx.priorDayDoctorIds))
-  const res = await query<{ doctor_id: number }>(
-    `SELECT du.doctor_id FROM duties du JOIN schedules s ON s.id = du.schedule_id
-     WHERE du.duty_date = $1 AND s.clinic_id = $2`,
-    [nextDate(last), clinicId],
-  )
-  dutiesByDate.set(nextDate(last), new Set(res.rows.map((r) => r.doctor_id)))
+  dutiesByDate.set(nextDate(last), new Set(ctx.nextDayDoctorIds))
 }
 
 function holidayDatesOf(days: { date: string; isHoliday: boolean }[]): Set<string> {
@@ -351,7 +356,7 @@ export async function preview(
     // eligibility must answer against their plan, not the engine's. Nothing
     // is persisted; assignments/conflicts are echoed/blanked for shape only.
     const maps = buildDutyMaps(plan, holidayDatesOf(ctx.days), openDatesOf(ctx.days, openDuty))
-    await seedAdjacentDuties(maps.dutiesByDate, ctx, scope.clinicId)
+    seedAdjacentDuties(maps.dutiesByDate, ctx)
     const days = computeEligibility({
       doctors: ctx.doctors,
       unavailability: ctx.unavailability,
@@ -380,7 +385,7 @@ export async function preview(
   }
   const result = runEngine(ctx)
   const maps = buildDutyMaps(result.assignments, holidayDatesOf(ctx.days), openDatesOf(ctx.days, openDuty))
-  await seedAdjacentDuties(maps.dutiesByDate, ctx, scope.clinicId)
+  seedAdjacentDuties(maps.dutiesByDate, ctx)
   const days = computeEligibility({
     doctors: ctx.doctors,
     unavailability: ctx.unavailability,
@@ -545,6 +550,8 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
   const doctorsById = new Map(ctx.doctors.map((d) => [d.id, d]))
   const firstDate = ctx.days[0]?.date ?? ''
   const beforeFirst = firstDate ? prevDate(firstDate) : ''
+  const lastDate = ctx.days.at(-1)?.date ?? ''
+  const afterLast = lastDate ? nextDate(lastDate) : ''
   const counts = new Map<number, { total: number; holiday: number; open: number }>()
   for (const a of assignments) {
     const info = dayInfo.get(a.date)!
@@ -589,7 +596,9 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
     const onDutyYesterday =
       byDate.get(prev)?.some((x) => x.doctorId === a.doctorId) ??
       (prev === beforeFirst && ctx.priorDayDoctorIds.has(a.doctorId))
-    if (onDutyYesterday)
+    // Next month's day 1 may already be scheduled (month boundary).
+    const onDutyTomorrow = nextDate(a.date) === afterLast && ctx.nextDayDoctorIds.has(a.doctorId)
+    if (onDutyYesterday || onDutyTomorrow)
       throw new HttpError(
         409,
         `Constraint violation: doctor ${a.doctorId} would be on duty back-to-back on ${a.date}`,
@@ -699,7 +708,7 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     if (openDates.has(d.dutyDate))
       openByDoctor.set(d.doctorId, (openByDoctor.get(d.doctorId) ?? 0) + 1)
   }
-  await seedAdjacentDuties(dutiesByDate, ctx, schedule.clinicId)
+  seedAdjacentDuties(dutiesByDate, ctx)
   const days = computeEligibility({
     doctors: ctx.doctors,
     unavailability: ctx.unavailability,

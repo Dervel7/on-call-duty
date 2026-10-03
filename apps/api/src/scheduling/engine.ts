@@ -83,6 +83,8 @@ export function generate(ctx: SchedulingContext): GenerateResult {
   const fBudget = fridayBudget(fridaySlots, activeCount)
   const firstDay = ctx.days[0]
   const firstDayPrev = firstDay ? prevDate(firstDay.date) : ''
+  const lastDay = ctx.days.at(-1)
+  const lastDayNext = lastDay ? nextDate(lastDay.date) : ''
   const maxDaySlots = Math.max(
     ctx.slots.openDutySlots,
     ctx.slots.postOpenDutySlots,
@@ -188,7 +190,11 @@ export function generate(ctx: SchedulingContext): GenerateResult {
             : state.byDate.get(prev)?.has(doctor.id) ?? false
         // Later slot passes must also look at the next day: it may already
         // hold an earlier-pass duty, and the pair would be back-to-back.
-        const onDutyTomorrow = state.byDate.get(nextDate(day.date))?.has(doctor.id) ?? false
+        const next = nextDate(day.date)
+        const onDutyTomorrow =
+          next === lastDayNext
+            ? ctx.nextDayDoctorIds.has(doctor.id)
+            : state.byDate.get(next)?.has(doctor.id) ?? false
         if (!notConsecutive(onDutyYesterday || onDutyTomorrow).ok) {
           tally['back-to-back']++
           continue
