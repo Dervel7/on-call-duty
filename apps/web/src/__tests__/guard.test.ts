@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import type { RouteLocationNormalized } from 'vue-router'
 import { resolveGuard, type GuardAuth } from '../router/guard'
 import { router } from '../router'
+import { useAuthStore } from '../stores/auth'
 
 function to(fullPath: string, meta: Partial<RouteLocationNormalized['meta']> = {}): RouteLocationNormalized {
   return {
@@ -59,5 +61,16 @@ describe('resolveGuard', () => {
     const route = to(resolved.fullPath, resolved.meta)
     expect(resolveGuard(route, authed('administrator'))).toEqual({ name: 'home' })
     expect(resolveGuard(route, authed('doctor'))).toBe(true)
+  })
+})
+
+describe('router', () => {
+  it('sends an unknown path to home instead of rendering a blank page', async () => {
+    setActivePinia(createPinia())
+    const auth = useAuthStore()
+    auth.accessToken = 'token'
+    auth.user = { role: 'doctor' } as typeof auth.user
+    await router.push('/no-such-page')
+    expect(router.currentRoute.value.name).toBe('home')
   })
 })

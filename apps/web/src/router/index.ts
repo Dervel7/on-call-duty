@@ -103,6 +103,8 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  // Unknown paths (typos, stale bookmarks) would otherwise render an empty page.
+  { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
 export const router = createRouter({

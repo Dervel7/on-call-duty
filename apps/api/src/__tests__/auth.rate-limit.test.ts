@@ -95,6 +95,7 @@ describe('auth rate limits', () => {
     expect(statuses[10]).toBe(429)
   })
 
+  // 601 sequential requests: well over the default 5 s when api + web tests run in parallel.
   it('lets a shared hospital address refresh far more often than it may log in', async () => {
     // Every signed-in user behind the NAT refreshes once per access-token lifetime
     // and once per page load; a 429 here signs them out.
@@ -106,5 +107,5 @@ describe('auth rate limits', () => {
     }
     expect(statuses.slice(0, 600).every((s) => s === 401)).toBe(true)
     expect(statuses[600]).toBe(429)
-  })
+  }, 20_000)
 })
