@@ -3,13 +3,18 @@ import { z } from 'zod'
 /**
  * ISO calendar date (YYYY-MM-DD) that must also be a real day: the regex
  * alone accepts 2026-02-30, which would blow up in date math and Postgres.
+ * Year 0000 is rejected too: Postgres has no year 0.
  */
 export const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date (YYYY-MM-DD)')
   .refine((s) => {
     const d = new Date(`${s}T00:00:00Z`)
-    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
+    return (
+      !Number.isNaN(d.getTime()) &&
+      d.getUTCFullYear() >= 1 &&
+      d.toISOString().slice(0, 10) === s
+    )
   }, 'Invalid calendar date')
 
 /**

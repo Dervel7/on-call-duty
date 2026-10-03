@@ -29,6 +29,8 @@ describe('date and password primitives', () => {
     expect(isoDateSchema.safeParse('2026-02-30').success).toBe(false)
     expect(isoDateSchema.safeParse('2026-13-01').success).toBe(false)
     expect(isoDateSchema.safeParse('2026-9-7').success).toBe(false)
+    expect(isoDateSchema.safeParse('0000-01-01').success).toBe(false) // Postgres has no year 0
+    expect(isoDateSchema.safeParse('0001-01-01').success).toBe(true)
   })
 
 

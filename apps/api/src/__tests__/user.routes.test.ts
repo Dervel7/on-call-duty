@@ -346,3 +346,31 @@ describe('PATCH /users/me/username (self-service)', () => {
     expect(res.status).toBe(400)
   })
 })
+
+describe('ids above Postgres INTEGER are 400, not 500', () => {
+  const token = () => signAccessToken({ sub: 9, role: 'superadmin', clinicId: null })
+
+  it.each([
+    ['GET', '/users/3000000000'],
+    ['GET', '/users?clinicId=3000000000'],
+    ['GET', '/doctors/3000000000'],
+    ['GET', '/doctors?clinicId=3000000000'],
+    ['PATCH', '/clinics/3000000000'],
+  ])('%s %s', async (method, path) => {
+    installDb()
+    const req = method === 'GET' ? request(app).get(path) : request(app).patch(path).send({ name: 'X' })
+    const res = await req.set('Authorization', `Bearer ${token()}`)
+    expect(res.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
+
+  it('rejects a body clinicId above INTEGER on PATCH /users/:id', async () => {
+    installDb()
+    const res = await request(app)
+      .patch('/users/1')
+      .set('Authorization', `Bearer ${token()}`)
+      .send({ clinicId: 3_000_000_000 })
+    expect(res.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
+})

@@ -30,7 +30,7 @@ export const createUserSchema = z.object({
   role: roleSchema,
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  clinicId: z.number().int().positive().optional(),
+  clinicId: z.number().int().positive().max(2_147_483_647).optional(),
 })
 
 export const updateUserSchema = z.object({
@@ -40,7 +40,7 @@ export const updateUserSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
-  clinicId: z.number().int().positive().optional(),
+  clinicId: z.number().int().positive().max(2_147_483_647).optional(),
 })
 
 export const updateThemeSchema = z.object({

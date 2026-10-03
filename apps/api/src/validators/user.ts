@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { queryIdSchema } from '@oncall/shared'
 
 export {
   createUserSchema,
@@ -9,8 +10,8 @@ export {
   updateUsernameSchema,
 } from '@oncall/shared'
 
-export const idParams = z.object({ id: z.coerce.number().int().positive() })
+export const idParams = z.object({ id: queryIdSchema })
 
 export const userQuerySchema = z.object({
-  clinicId: z.coerce.number().int().positive().optional(),
+  clinicId: queryIdSchema.optional(),
 })
