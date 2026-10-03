@@ -41,12 +41,14 @@ const testRouter = createRouter({
   routes: [
     { path: '/login', name: 'login', component: { template: '<div />' } },
     { path: '/doctors', name: 'doctors', component: { template: '<div />' } },
+    { path: '/locked', name: 'locked', component: { template: '<div />' } },
   ],
 })
 vi.mock('@/router', () => ({ router: testRouter }))
 
 import { useAuthStore } from '../stores/auth'
-import { apiGet, setAccessToken } from '../lib/http'
+import { apiGet, apiPost, setAccessToken } from '../lib/http'
+import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
 import { logout as logoutService, refresh as refreshService } from '@/services/auth'
 
 beforeEach(() => setActivePinia(createPinia()))
@@ -137,6 +139,26 @@ describe('auth store', () => {
       await auth.refresh()
       await flushPromises()
       expect(testRouter.currentRoute.value.name).toBe('doctors')
+    })
+
+    it('a 401 followed by a refresh rejected by the system lock ends on the locked route', async () => {
+      const auth = useAuthStore()
+      await auth.login('a@b.com', 'secret1')
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) =>
+          url.endsWith('/auth/refresh')
+            ? new Response(JSON.stringify({ success: false, error: SYSTEM_LOCKED_MESSAGE }), { status: 403 })
+            : new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), { status: 401 }),
+        ),
+      )
+      // Go through the real http module so its locked handler fires, as in the app.
+      vi.mocked(refreshService).mockImplementationOnce(() => apiPost('/auth/refresh'))
+      await expect(apiGet('/doctors')).rejects.toThrow()
+      await vi.waitFor(() => expect(testRouter.currentRoute.value.name).toBe('locked'))
+      await flushPromises()
+      expect(testRouter.currentRoute.value.name).toBe('locked')
+      expect(auth.isAuthenticated).toBe(false)
     })
   })
 })

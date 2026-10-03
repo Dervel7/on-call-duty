@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { AuthUser, Language } from '@oncall/shared'
-import { setAccessToken, setLockedHandler, setRefreshHandler } from '@/lib/http'
+import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
+import { ApiError, setAccessToken, setLockedHandler, setRefreshHandler } from '@/lib/http'
 import * as authService from '@/services/auth'
 import * as userService from '@/services/user'
 
@@ -28,12 +29,16 @@ export const useAuthStore = defineStore('auth', () => {
     setAccessToken(null)
   }
 
+  async function renewSession(): Promise<string> {
+    const data = await authService.refresh()
+    user.value = data.user
+    accessToken.value = data.accessToken
+    return data.accessToken
+  }
+
   async function refresh(): Promise<string | null> {
     try {
-      const data = await authService.refresh()
-      user.value = data.user
-      accessToken.value = data.accessToken
-      return data.accessToken
+      return await renewSession()
     } catch {
       clearSession()
       return null
@@ -78,17 +83,23 @@ export const useAuthStore = defineStore('auth', () => {
   // A refresh that fails mid-request means the session is gone: send the user to sign in.
   // The bootstrap refresh in main.ts calls refresh() directly and must not redirect.
   setRefreshHandler(async () => {
-    const token = await refresh()
-    if (token === null) {
-      import('@/router')
-        .then(({ router }) => {
-          const current = router.currentRoute.value
-          if (current.name === 'login') return
-          return router.push({ name: 'login', query: { redirect: current.fullPath } })
-        })
-        .catch(() => {})
+    try {
+      return await renewSession()
+    } catch (e) {
+      clearSession()
+      // A locked system already sent the user to the locked page; going to login would override it.
+      const locked = e instanceof ApiError && e.status === 403 && e.message === SYSTEM_LOCKED_MESSAGE
+      if (!locked) {
+        import('@/router')
+          .then(({ router }) => {
+            const current = router.currentRoute.value
+            if (current.name === 'login') return
+            return router.push({ name: 'login', query: { redirect: current.fullPath } })
+          })
+          .catch(() => {})
+      }
+      return null
     }
-    return token
   })
 
   setLockedHandler(() => {

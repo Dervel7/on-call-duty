@@ -22,7 +22,14 @@ authRouter.post(
   }),
   authController.login,
 )
-authRouter.post('/refresh', rateLimit({ windowMs: FIFTEEN_MINUTES_MS, limit: 60 }), authController.refresh)
+authRouter.post(
+  '/refresh',
+  // Per IP. Every signed-in user behind a hospital NAT refreshes once per
+  // access-token lifetime and on every page load, so this sits well above the
+  // login limit; refresh tokens are unguessable, the cap only stops flooding.
+  rateLimit({ windowMs: FIFTEEN_MINUTES_MS, limit: 600 }),
+  authController.refresh,
+)
 authRouter.post('/logout', authController.logout)
 authRouter.get('/me', authenticate, authController.me)
 authRouter.post(

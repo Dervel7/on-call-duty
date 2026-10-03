@@ -94,4 +94,17 @@ describe('auth rate limits', () => {
     expect(statuses.slice(0, 10).every((s) => s === 400)).toBe(true)
     expect(statuses[10]).toBe(429)
   })
+
+  it('lets a shared hospital address refresh far more often than it may log in', async () => {
+    // Every signed-in user behind the NAT refreshes once per access-token lifetime
+    // and once per page load; a 429 here signs them out.
+    const app = buildApp()
+    const statuses: number[] = []
+    for (let i = 0; i < 601; i++) {
+      const res = await request(app).post('/auth/refresh')
+      statuses.push(res.status)
+    }
+    expect(statuses.slice(0, 600).every((s) => s === 401)).toBe(true)
+    expect(statuses[600]).toBe(429)
+  })
 })
