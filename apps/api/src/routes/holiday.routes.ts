@@ -3,7 +3,11 @@ import { holidayController } from '../controllers/holiday.controller'
 import { authenticate } from '../middleware/authenticate'
 import { authorize } from '../middleware/authorize'
 import { validate } from '../middleware/validate'
-import { holidayQuerySchema, setMonthHolidaysSchema } from '../validators/holiday'
+import {
+  holidayClinicQuerySchema,
+  holidayQuerySchema,
+  setMonthHolidaysSchema,
+} from '../validators/holiday'
 
 export const holidayRouter = Router()
 
@@ -17,6 +21,7 @@ holidayRouter.get(
 holidayRouter.put(
   '/month',
   authorize('administrator'),
+  validate(holidayClinicQuerySchema, 'query'),
   validate(setMonthHolidaysSchema, 'body'),
   holidayController.setMonth,
 )

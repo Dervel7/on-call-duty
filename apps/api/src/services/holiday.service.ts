@@ -1,5 +1,6 @@
 import type { AuthUser, Holiday, SetMonthHolidaysRequest } from '@oncall/shared'
 import { query, withTransaction } from '../db/client'
+import { HttpError } from '../lib/http-error'
 import type { ClinicScope } from '../lib/scope'
 import { recordActivity } from './activity.service'
 
@@ -40,6 +41,10 @@ export async function setMonth(
   scope: ClinicScope,
 ): Promise<Holiday[]> {
   return withTransaction(async (client) => {
+    // A superadmin names the clinic freely; an unknown id would otherwise
+    // surface as a foreign-key 500 on the INSERT.
+    const clinic = await client.query('SELECT id FROM clinics WHERE id = $1', [scope.clinicId])
+    if (clinic.rows.length === 0) throw new HttpError(404, 'Clinic not found')
     await client.query(
       `DELETE FROM holidays
        WHERE clinic_id = $1 AND date_trunc('month', holiday_date) = MAKE_DATE($2, $3, 1)`,

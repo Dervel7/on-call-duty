@@ -90,6 +90,7 @@ describe('holiday routes', () => {
 
 
   it('admin replaces a month (200): DELETE + INSERT inside the transaction, audited', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // clinic exists
     query.mockResolvedValueOnce({ rows: [] }) // DELETE
     query.mockResolvedValueOnce({ rows: [] }) // INSERT
     query.mockResolvedValue({ rows: [{ id: 7, clinic_id: 1, holiday_date: '2026-03-25' }] })
@@ -128,6 +129,7 @@ describe('holiday routes', () => {
 
   it('superadmin PUT defaults to the sole clinic', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // sole-clinic scope lookup
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // clinic exists
     query.mockResolvedValueOnce({ rows: [] }) // DELETE
     query.mockResolvedValueOnce({ rows: [] }) // INSERT
     query.mockResolvedValue({ rows: [{ id: 7, clinic_id: 1, holiday_date: '2026-03-25' }] })
@@ -141,5 +143,40 @@ describe('holiday routes', () => {
       expect.stringContaining('DELETE FROM holidays'),
       [1, 2026, 3],
     )
+  })
+
+  it('PUT parses ?clinicId= as a number: admin naming its own clinic is 200', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // clinic exists
+    query.mockResolvedValue({ rows: [] })
+    const res = await request(build())
+      .put('/holidays/month?clinicId=1')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ year: 2026, month: 3, dates: [] })
+    expect(res.status).toBe(200)
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM holidays'),
+      [1, 2026, 3],
+    )
+  })
+
+  it('PUT with a non-numeric ?clinicId= is 400 before any SQL', async () => {
+    const res = await request(build())
+      .put('/holidays/month?clinicId=abc')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+      .send({ year: 2026, month: 3, dates: [] })
+    expect(res.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
+
+  it('superadmin PUT for an unknown clinic is 404 and writes nothing', async () => {
+    query.mockResolvedValueOnce({ rows: [] }) // clinic lookup
+    const res = await request(build())
+      .put('/holidays/month?clinicId=999')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+      .send({ year: 2026, month: 3, dates: ['2026-03-25'] })
+    expect(res.status).toBe(404)
+    expect(res.body.error).toBe('Clinic not found')
+    expect(query).toHaveBeenCalledTimes(1)
+    expect(recordActivity).not.toHaveBeenCalled()
   })
 })
