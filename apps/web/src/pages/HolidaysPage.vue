@@ -165,7 +165,7 @@ async function save() {
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex flex-col gap-1">
         <Label for="f-month">{{ t('common.month') }}</Label>
-        <MonthPicker id="f-month" :model-value="month" :disabled="saving" class="w-44" @update:model-value="changeMonth" />
+        <MonthPicker id="f-month" :model-value="month" :disabled="saving" required class="w-44" @update:model-value="changeMonth" />
       </div>
     </div>
 

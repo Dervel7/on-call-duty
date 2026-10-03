@@ -14,6 +14,8 @@ const props = defineProps<{
   modelValue?: string
   placeholder?: string
   disabled?: boolean
+  /** A month must stay selected (no "any month" state): hides the clear button. */
+  required?: boolean
   class?: HTMLAttributes['class']
 }>()
 
@@ -138,7 +140,7 @@ useEventListener(
       <span class="truncate">{{ triggerLabel || props.placeholder || t('monthPicker.selectMonth') }}</span>
     </button>
     <button
-      v-if="selectedMonth && !props.disabled"
+      v-if="selectedMonth && !props.disabled && !props.required"
       type="button"
       :aria-label="t('monthPicker.clearMonth')"
       class="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"

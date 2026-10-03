@@ -74,6 +74,25 @@ describe('Select popover direction', () => {
     expect(panel!.style.bottom).toBe('')
     expect(panel!.style.maxHeight).toBe('648px')
   })
+
+  it('keeps a narrow trigger near the right edge inside the viewport', async () => {
+    // Sunday column of DutyCalendar on a 1024px screen: 176px panel from x=900 would end at 1076.
+    vi.stubGlobal('innerWidth', 1024)
+    stubGeometry({ top: 100, bottom: 136, left: 900, width: 100 }, 300, 800)
+    const { panel } = await openPanel()
+
+    // 1024 - 176 - 16 margin.
+    expect(panel!.style.left).toBe('832px')
+    expect(panel!.style.width).toBe('176px')
+  })
+
+  it('anchors the panel at the trigger when it fits horizontally', async () => {
+    vi.stubGlobal('innerWidth', 1024)
+    stubGeometry({ top: 100, bottom: 136, left: 100, width: 120 }, 300, 800)
+    const { panel } = await openPanel()
+
+    expect(panel!.style.left).toBe('100px')
+  })
 })
 
 describe('Select keyboard focus', () => {

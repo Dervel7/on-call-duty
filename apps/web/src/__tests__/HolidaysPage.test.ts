@@ -161,6 +161,15 @@ describe('HolidaysPage review fixes', () => {
     expect(other.attributes('aria-pressed')).toBe('false')
     expect(other.attributes('aria-label')).toContain('not a holiday')
   })
+
+  it('offers no clear button on the month picker (the page always needs a month)', async () => {
+    // Clearing used to request /holidays?year=NaN → 400 "Expected number, received nan" and an empty grid.
+    listHolidays.mockResolvedValue([])
+    const wrapper = mountAsAdmin()
+    await flushPromises()
+    expect(wrapper.find('button[aria-label="Clear month"]').exists()).toBe(false)
+    expect(listHolidays).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('HolidaysPage in Greek', () => {

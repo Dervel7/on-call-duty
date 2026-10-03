@@ -59,6 +59,12 @@ describe('MonthPicker', () => {
     expect(document.activeElement).toBe(fieldBtn(w).element)
   })
 
+  it('hides the clear button when a month is required', () => {
+    const w = mountPicker({ modelValue: '2026-08', required: true })
+    expect(w.find('button[aria-label="Clear month"]').exists()).toBe(false)
+    expect(fieldBtn(w).text()).toContain('August 2026')
+  })
+
   it('opens on the current year and marks the current month', async () => {
     const w = mountPicker()
     expect(w.text()).toContain('Select month')

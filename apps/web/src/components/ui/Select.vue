@@ -118,8 +118,11 @@ function positionPanel() {
   const margin = 16
   const spaceBelow = window.innerHeight - r.bottom - margin
   const spaceAbove = r.top - margin
-  p.style.left = `${r.left}px`
-  p.style.width = `${Math.max(r.width, 176)}px`
+  const width = Math.max(r.width, 176)
+  // Keep the panel inside the viewport: a narrow trigger near the right edge
+  // (e.g. the Sunday column of DutyCalendar) would push it off-screen.
+  p.style.left = `${Math.max(margin, Math.min(r.left, window.innerWidth - width - margin))}px`
+  p.style.width = `${width}px`
   // Clear the previous open's constraints so scrollHeight measures the full
   // content height before the direction is decided.
   p.style.maxHeight = ''
