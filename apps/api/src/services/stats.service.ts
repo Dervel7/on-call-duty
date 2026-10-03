@@ -133,25 +133,29 @@ export async function adminStats(year: number, month: number, scope: ClinicScope
     })
   }
   if (scheduleRow) {
-    const inactiveRes = await query<{
+    // Doctors with duties in this schedule who are outside the active pool:
+    // deactivated accounts and doctors since moved to another clinic. The
+    // schedule is already clinic-scoped, so no doctor clinic filter here.
+    const assignedRes = await query<{
       id: number
       first_name: string
       last_name: string
       max_monthly_duties: number
+      is_active: boolean
     }>(
-      `SELECT DISTINCT d.id, u.first_name, u.last_name, d.max_monthly_duties
+      `SELECT DISTINCT d.id, u.first_name, u.last_name, d.max_monthly_duties, u.is_active
        FROM doctors d JOIN users u ON u.id = d.user_id
        JOIN duties du ON du.doctor_id = d.id
-       WHERE u.is_active = FALSE AND du.schedule_id = $1 AND d.clinic_id = $2`,
-      [scheduleRow.id, scope.clinicId],
+       WHERE du.schedule_id = $1`,
+      [scheduleRow.id],
     )
-    for (const r of inactiveRes.rows) {
+    for (const r of assignedRes.rows) {
       if (!byId.has(r.id))
         byId.set(r.id, {
           doctorId: r.id,
           firstName: r.first_name,
           lastName: r.last_name,
-          isActive: false,
+          isActive: r.is_active,
           maxMonthly: r.max_monthly_duties,
           duties: 0,
           weekday: 0,

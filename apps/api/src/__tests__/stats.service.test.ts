@@ -61,7 +61,7 @@ describe('stats.service — adminStats', () => {
         return { rows: [{ id: 5, first_name: 'Jane', last_name: 'Roe', max_monthly_duties: 7 }] }
       if (sql.includes('GROUP BY doctor_id'))
         return { rows: [{ doctor_id: 5, total: 29, weekend: 8 }] }
-      if (sql.includes('u.is_active = FALSE')) return { rows: [] }
+      if (sql.includes('JOIN duties du ON du.doctor_id = d.id')) return { rows: [] }
       return { rows: [] }
     })
     const stats = await adminStats(2026, 9, scope)
@@ -96,8 +96,8 @@ describe('stats.service — adminStats', () => {
         return { rows: [{ id: 5, first_name: 'Jane', last_name: 'Roe', max_monthly_duties: 7 }] }
       if (sql.includes('GROUP BY doctor_id'))
         return { rows: [{ doctor_id: 6, total: 1, weekend: 0 }] }
-      if (sql.includes('u.is_active = FALSE'))
-        return { rows: [{ id: 6, first_name: 'Old', last_name: 'Doc', max_monthly_duties: 7 }] }
+      if (sql.includes('JOIN duties du ON du.doctor_id = d.id'))
+        return { rows: [{ id: 6, first_name: 'Old', last_name: 'Doc', max_monthly_duties: 7, is_active: false }] }
       return { rows: [] }
     })
     const stats = await adminStats(2026, 9, scope)
@@ -140,7 +140,7 @@ describe('stats.service — adminStats', () => {
             { doctor_id: 2, total: 7, weekend: 1 },
           ],
         }
-      if (sql.includes('u.is_active = FALSE')) return { rows: [] }
+      if (sql.includes('JOIN duties du ON du.doctor_id = d.id')) return { rows: [] }
       return { rows: [] }
     })
     const stats = await adminStats(2026, 9, scope)

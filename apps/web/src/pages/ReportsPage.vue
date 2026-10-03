@@ -33,12 +33,14 @@ import { explainDutyReason } from '@/lib/duty-reason'
 const router = useRouter()
 const { t } = useI18n()
 const intlLocale = useIntlLocale()
-const weekdayFmt = computed(() => new Intl.DateTimeFormat(intlLocale.value, { weekday: 'short' }))
-const dayFmt = computed(() => new Intl.DateTimeFormat(intlLocale.value, { day: '2-digit' }))
+// Roster days are UTC midnights: format them in UTC so a browser west of UTC
+// does not show the previous day.
+const weekdayFmt = computed(() => new Intl.DateTimeFormat(intlLocale.value, { weekday: 'short', timeZone: 'UTC' }))
+const dayFmt = computed(() => new Intl.DateTimeFormat(intlLocale.value, { day: '2-digit', timeZone: 'UTC' }))
 
 const now = new Date()
-const year = ref(String(now.getUTCFullYear()))
-const month = ref(String(now.getUTCMonth() + 1))
+const year = ref(String(now.getFullYear()))
+const month = ref(String(now.getMonth() + 1))
 
 const report = ref<MonthlyReport | null>(null)
 const calendar = ref<ScheduleDetail | null>(null)

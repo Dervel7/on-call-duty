@@ -58,6 +58,27 @@ describe('explainDutyReason', () => {
     expect(explainDutyReason('plan')).toBe('Assigned manually')
   })
 
+  it('explains reasons in the current engine format (with the first fri/sat/sun term)', () => {
+    expect(
+      explainDutyReason(
+        'score 34 (workload +21, weekend +8, friday +0, first fri/sat/sun +5); tie-break: lower id',
+      ),
+    ).toBe('Picked for fair workload — most room left under their monthly duty limit; tie-break: roster order')
+    expect(explainDutyReason('score 17 (workload +3, weekend +12, friday +0, first fri/sat/sun +5)')).toBe(
+      'Picked to balance weekends — furthest behind on their fair share of weekend duties',
+    )
+    expect(explainDutyReason('score 8 (workload +3, weekend +0, friday +0, first fri/sat/sun +5)')).toBe(
+      'Picked to spread Fridays and weekends — no duty yet on this weekday this month',
+    )
+    expect(
+      explainDutyReason(
+        'score 6 (workload +6, weekend +0, friday +0, first fri/sat/sun +0); day-fill guarantee overrode fairness caps',
+      ),
+    ).toBe(
+      'Picked for fair workload — most room left under their monthly duty limit; assigned to guarantee the day was covered, usual fairness caps were relaxed',
+    )
+  })
+
   it('passes unknown reasons through unchanged', () => {
     expect(explainDutyReason('engine')).toBe('engine')
     expect(explainDutyReason('custom note from a draft plan')).toBe('custom note from a draft plan')

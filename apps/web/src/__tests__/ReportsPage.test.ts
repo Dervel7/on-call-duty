@@ -147,12 +147,12 @@ describe('ReportsPage', () => {
     monthly.mockResolvedValue(fullReport())
     const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    const otherMonth = String(((new Date().getUTCMonth() + 1) % 12) + 1)
+    const otherMonth = String(((new Date().getMonth() + 1) % 12) + 1)
     await pickOption(w.element, '#r-month', otherMonth)
     await flushPromises()
     expect(monthly).toHaveBeenCalledTimes(2)
     expect(monthly).toHaveBeenLastCalledWith({
-      year: new Date().getUTCFullYear(),
+      year: new Date().getFullYear(),
       month: Number(otherMonth),
     })
   })
@@ -161,11 +161,42 @@ describe('ReportsPage', () => {
     monthly.mockResolvedValue(fullReport())
     const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    const otherMonth = String(((new Date().getUTCMonth() + 1) % 12) + 1)
+    const otherMonth = String(((new Date().getMonth() + 1) % 12) + 1)
     await w.find('#r-year').setValue('')
     await pickOption(w.element, '#r-month', otherMonth)
     await flushPromises()
     expect(monthly).toHaveBeenCalledTimes(1)
+  })
+
+  it('defaults to the local month just after local midnight on the 1st', async () => {
+    const tz = process.env.TZ
+    process.env.TZ = 'Pacific/Auckland'
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      // 00:30 on Oct 1 in Auckland is still Sep 30 in UTC.
+      vi.setSystemTime(new Date(2026, 9, 1, 0, 30))
+      monthly.mockResolvedValue(fullReport())
+      mount(ReportsPage, { global: { plugins: [createPinia()] } })
+      await flushPromises()
+      expect(monthly).toHaveBeenCalledWith({ year: 2026, month: 10 })
+    } finally {
+      vi.useRealTimers()
+      process.env.TZ = tz
+    }
+  })
+
+  it('shows roster days on their own date in a time zone west of UTC', async () => {
+    const tz = process.env.TZ
+    process.env.TZ = 'America/New_York'
+    try {
+      monthly.mockResolvedValue(fullReport())
+      const w = mount(ReportsPage, { global: { plugins: [createPinia()] } })
+      await flushPromises()
+      // 2026-08-01 is a Saturday; local formatting in New York gave "Fri 31".
+      expect(w.find('tbody td').text()).toBe('Sat 01')
+    } finally {
+      process.env.TZ = tz
+    }
   })
 
   it('Export CSV triggers downloadCsv with the expected filename', async () => {

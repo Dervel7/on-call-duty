@@ -130,6 +130,7 @@
     "workload": "Picked for fair workload — most room left under their monthly duty limit",
     "weekendBalance": "Picked to balance weekends — furthest behind on their fair share of weekend duties",
     "fridayBalance": "Picked to balance Fridays — furthest behind on their fair share of Friday duties",
+    "firstFriSatSun": "Picked to spread Fridays and weekends — no duty yet on this weekday this month",
     "tieBreakFewerDuties": "tie-break: fewer duties so far",
     "tieBreakFewerWeekendDuties": "tie-break: fewer weekend duties",
     "tieBreakRosterOrder": "tie-break: roster order",
