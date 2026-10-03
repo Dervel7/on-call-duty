@@ -140,6 +140,7 @@ describe('DELETE /users/:id (admin)', () => {
   it('returns 204 on success, 404 when missing or cross-clinic (I24)', async () => {
     const token = signAccessToken({ sub: 2, role: 'administrator', clinicId: 1 })
     query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [] }) // draft-duty check (doctor account)
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
     const ok = await request(app).delete('/users/1').set('Authorization', `Bearer ${token}`)
     expect(ok.status).toBe(204)

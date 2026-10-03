@@ -194,6 +194,11 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
     if (existing.role === 'superadmin' || input.role === 'superadmin') {
       throw new HttpError(403, 'Only a superadmin can manage superadmin accounts')
     }
+    // Mirrors create(): promoting to a hospital role would lift the account
+    // out of its clinic scope (an administrator could make itself a manager).
+    if (actor.role === 'administrator' && input.role === 'manager') {
+      throw new HttpError(403, 'Administrators can only manage clinic accounts')
+    }
     if (actor.role === 'manager' && existing.role !== 'administrator') {
       throw new HttpError(403, 'Managers can only manage administrator accounts')
     }
@@ -245,7 +250,11 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
   // Keep users_clinic_role_check satisfiable: hospital roles carry no clinic;
   // clinic roles need one (payload clinicId or the row's existing clinic).
   const targetRole = input.role ?? existing.role
-  if ((targetRole === 'manager' || targetRole === 'superadmin') && input.clinicId === undefined) {
+  const hospitalRole = targetRole === 'manager' || targetRole === 'superadmin'
+  if (hospitalRole && input.clinicId !== undefined) {
+    throw new HttpError(400, 'This role cannot belong to a clinic')
+  }
+  if (hospitalRole) {
     params.push(null)
     sets.push(`clinic_id = $${params.length}`)
   } else if (
@@ -333,6 +342,18 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   }
   // Soft delete: keeps doctor/duty/audit references intact (schema Phase 12).
   await withTransaction(async (client) => {
+    // Same guard as DELETE /doctors/:id: a draft must not keep a deleted doctor.
+    if (existing.role === 'doctor') {
+      const draft = await client.query(
+        `SELECT 1 FROM duties du JOIN schedules s ON s.id = du.schedule_id
+         JOIN doctors d ON d.id = du.doctor_id
+         WHERE d.user_id = $1 AND s.status = 'draft' LIMIT 1`,
+        [id],
+      )
+      if (draft.rows.length > 0) {
+        throw new HttpError(409, 'Doctor has duties in a draft schedule')
+      }
+    }
     const res = await client.query(
       'UPDATE users SET is_deleted = TRUE, is_active = FALSE, updated_at = NOW() WHERE id = $1 AND is_deleted = FALSE RETURNING id',
       [id],
@@ -383,9 +404,11 @@ export async function resetPassword(id: number, input: ResetUserPasswordRequest,
 // Not part of admin update() — admins never touch another user's dark mode.
 export async function updateTheme(userId: number, darkMode: boolean): Promise<User> {
   const res = await query<UserRow>(
-    `UPDATE users u SET dark_mode = $1, updated_at = NOW() WHERE u.id = $2 AND u.is_deleted = FALSE
-     RETURNING u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
-       u.is_active, u.dark_mode, u.language, u.clinic_id, NULL AS clinic_name, u.created_at`,
+    `WITH updated AS (
+       UPDATE users u SET dark_mode = $1, updated_at = NOW() WHERE u.id = $2 AND u.is_deleted = FALSE
+       RETURNING u.*
+     )
+     SELECT ${COLUMNS} FROM updated u LEFT JOIN clinics c ON c.id = u.clinic_id`,
     [darkMode, userId],
   )
   const row = oneRow(res.rows)
@@ -397,9 +420,11 @@ export async function updateTheme(userId: number, darkMode: boolean): Promise<Us
 // Not part of admin update() — admins never touch another user's language.
 export async function updateLanguage(userId: number, language: Language): Promise<User> {
   const res = await query<UserRow>(
-    `UPDATE users u SET language = $1, updated_at = NOW() WHERE u.id = $2 AND u.is_deleted = FALSE
-     RETURNING u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
-       u.is_active, u.dark_mode, u.language, u.clinic_id, NULL AS clinic_name, u.created_at`,
+    `WITH updated AS (
+       UPDATE users u SET language = $1, updated_at = NOW() WHERE u.id = $2 AND u.is_deleted = FALSE
+       RETURNING u.*
+     )
+     SELECT ${COLUMNS} FROM updated u LEFT JOIN clinics c ON c.id = u.clinic_id`,
     [language, userId],
   )
   const row = oneRow(res.rows)

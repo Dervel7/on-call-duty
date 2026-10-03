@@ -307,6 +307,29 @@ describe('user.service', () => {
     })
   })
 
+  it('update rejects an administrator promoting an account to manager with 403', async () => {
+    query.mockResolvedValueOnce({ rows: [row({ role: 'administrator' })] })
+    await expect(update(1, { role: 'manager' }, adminActor)).rejects.toMatchObject({
+      status: 403,
+      message: 'Administrators can only manage clinic accounts',
+    })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))).toBe(false)
+  })
+
+  it('update rejects a clinic for a hospital-level role with 400 (no constraint 500)', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [row({ role: 'manager', clinic_id: null, clinic_name: null })] })
+      .mockResolvedValueOnce({ rows: [{ is_active: true }] }) // clinic check
+    await expect(update(1, { clinicId: 1 }, superadminActor)).rejects.toMatchObject({ status: 400 })
+    query.mockReset()
+    query
+      .mockResolvedValueOnce({ rows: [row({ role: 'administrator' })] })
+    await expect(update(1, { role: 'manager', clinicId: 1 }, superadminActor)).rejects.toMatchObject({
+      status: 400,
+    })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))).toBe(false)
+  })
+
   it('update allows a superadmin actor to manage superadmin accounts', async () => {
     query
       .mockResolvedValueOnce({ rows: [row({ role: 'superadmin', clinic_id: null })] })
@@ -351,9 +374,10 @@ describe('user.service', () => {
 
   it('remove soft-deletes the user and records the audit row in-transaction', async () => {
     query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [] }) // draft-duty check (doctor account)
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
     await remove(1, adminActor)
-    const upd = query.mock.calls[1]?.[0] as string
+    const upd = query.mock.calls[2]?.[0] as string
     expect(upd).toContain('UPDATE users')
     expect(upd).toContain('is_deleted = TRUE')
     expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM users'))).toBe(false)
@@ -366,6 +390,24 @@ describe('user.service', () => {
   it('remove throws 404 when nothing deleted', async () => {
     query.mockResolvedValue({ rows: [] })
     await expect(remove(99, adminActor)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('remove rejects a doctor account with duties in a draft schedule (409), like DELETE /doctors/:id', async () => {
+    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] }) // draft duty exists
+    await expect(remove(1, adminActor)).rejects.toMatchObject({
+      status: 409,
+      message: 'Doctor has duties in a draft schedule',
+    })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('is_deleted = TRUE'))).toBe(false)
+    expect(recordActivity).not.toHaveBeenCalled()
+  })
+
+  it('remove skips the draft-duty check for non-doctor accounts', async () => {
+    query.mockResolvedValueOnce({ rows: [row({ role: 'administrator' })] })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
+    await remove(1, adminActor)
+    expect(query.mock.calls.some((c) => String(c[0]).includes('FROM duties'))).toBe(false)
   })
 
   it('resetPassword hashes with bcrypt 12, updates password_hash and revokes sessions', async () => {
@@ -422,6 +464,18 @@ describe('user.service', () => {
     expect(sql).toContain('UPDATE users u SET dark_mode = $1')
     expect(sql).toContain('RETURNING')
     expect(query.mock.calls[0]?.[1]).toEqual([true, 1])
+  })
+
+  it('updateTheme and updateLanguage return the clinic name of the account', async () => {
+    query.mockResolvedValue({ rows: [row()] })
+    const themed = await updateTheme(1, true)
+    expect(themed.clinicName).toBe('Radiology')
+    const languaged = await updateLanguage(1, 'el')
+    expect(languaged.clinicName).toBe('Radiology')
+    for (const call of query.mock.calls) {
+      expect(String(call[0])).toContain('LEFT JOIN clinics c')
+      expect(String(call[0])).not.toContain('NULL AS clinic_name')
+    }
   })
 
   it('updateTheme throws 404 when the user does not exist', async () => {
