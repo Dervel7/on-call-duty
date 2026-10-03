@@ -179,4 +179,17 @@ describe('holiday routes', () => {
     expect(query).toHaveBeenCalledTimes(1)
     expect(recordActivity).not.toHaveBeenCalled()
   })
+
+  it('clinicId above INTEGER is 400 before any SQL (GET and PUT)', async () => {
+    const get = await request(build())
+      .get('/holidays?year=2026&clinicId=3000000000')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+    expect(get.status).toBe(400)
+    const put = await request(build())
+      .put('/holidays/month?clinicId=3000000000')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+      .send({ year: 2026, month: 3, dates: [] })
+    expect(put.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
 })
