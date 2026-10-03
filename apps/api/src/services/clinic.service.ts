@@ -1,5 +1,6 @@
+import type { PoolClient } from 'pg'
 import type { Clinic, CreateClinicRequest, UpdateClinicRequest } from '@oncall/shared'
-import { query } from '../db/client'
+import { query, withTransaction } from '../db/client'
 import { HttpError } from '../lib/http-error'
 
 interface ClinicRow {
@@ -42,8 +43,15 @@ export async function getById(id: number): Promise<Clinic> {
   return toClinic(row)
 }
 
-async function nameTaken(name: string, excludeId?: number): Promise<boolean> {
-  const res = await query<{ id: number }>(
+// The UNIQUE constraint on clinics.name is case-sensitive, so concurrent
+// "Cardiology"/"cardiology" writes would both pass the check below. Every
+// name check + write takes this transaction-scoped lock to serialize them.
+async function lockClinicNames(client: PoolClient): Promise<void> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtext('clinics.name'))`)
+}
+
+async function nameTaken(client: PoolClient, name: string, excludeId?: number): Promise<boolean> {
+  const res = await client.query<{ id: number }>(
     `SELECT id FROM clinics WHERE LOWER(name) = LOWER($1) AND id <> COALESCE($2, 0)`,
     [name, excludeId ?? null],
   )
@@ -51,27 +59,37 @@ async function nameTaken(name: string, excludeId?: number): Promise<boolean> {
 }
 
 export async function create(input: CreateClinicRequest): Promise<Clinic> {
-  if (await nameTaken(input.name)) throw new HttpError(409, 'Clinic name already exists')
-  const res = await query<{ id: number }>(`INSERT INTO clinics (name) VALUES ($1) RETURNING id`, [
-    input.name,
-  ])
-  const created = res.rows[0]
-  if (!created) throw new HttpError(500, 'Clinic creation failed')
-  return getById(created.id)
+  const id = await withTransaction(async (client) => {
+    await lockClinicNames(client)
+    if (await nameTaken(client, input.name)) throw new HttpError(409, 'Clinic name already exists')
+    const res = await client.query<{ id: number }>(
+      `INSERT INTO clinics (name) VALUES ($1) RETURNING id`,
+      [input.name],
+    )
+    const created = res.rows[0]
+    if (!created) throw new HttpError(500, 'Clinic creation failed')
+    return created.id
+  })
+  return getById(id)
 }
 
 export async function update(id: number, input: UpdateClinicRequest): Promise<Clinic> {
   await getById(id) // 404 on unknown clinic
-  if (input.name !== undefined && (await nameTaken(input.name, id))) {
-    throw new HttpError(409, 'Clinic name already exists')
-  }
-  await query(
-    `UPDATE clinics SET
-       name       = COALESCE($2, name),
-       is_active  = COALESCE($3, is_active),
-       updated_at = NOW()
-     WHERE id = $1`,
-    [id, input.name ?? null, input.isActive ?? null],
-  )
+  await withTransaction(async (client) => {
+    if (input.name !== undefined) {
+      await lockClinicNames(client)
+      if (await nameTaken(client, input.name, id)) {
+        throw new HttpError(409, 'Clinic name already exists')
+      }
+    }
+    await client.query(
+      `UPDATE clinics SET
+         name       = COALESCE($2, name),
+         is_active  = COALESCE($3, is_active),
+         updated_at = NOW()
+       WHERE id = $1`,
+      [id, input.name ?? null, input.isActive ?? null],
+    )
+  })
   return getById(id)
 }
