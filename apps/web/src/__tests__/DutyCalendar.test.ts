@@ -49,6 +49,28 @@ describe('DutyCalendar', () => {
     expect(w.text()).not.toContain('No doctor')
   })
 
+  it('shows every duty of a day holding more duties than its current slot count', () => {
+    // Slots lowered from 2 to 1 after the schedule was generated: both duties
+    // still exist and must stay visible.
+    const w = mount(DutyCalendar, {
+      props: {
+        year: 2026,
+        month: 9,
+        days: [day('2026-09-01', 1)],
+        assignmentByDate: new Map([
+          [
+            '2026-09-01',
+            [assigned, { doctorId: 6, firstName: 'John', lastName: 'Doe', reason: '' }],
+          ],
+        ]),
+        doctors: [],
+        mode: 'readonly',
+      },
+    })
+    expect(w.text()).toContain('Roe J.')
+    expect(w.text()).toContain('Doe J.')
+  })
+
   it('highlights the local today just after local midnight', () => {
     const tz = process.env.TZ
     process.env.TZ = 'Pacific/Auckland'

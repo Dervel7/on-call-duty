@@ -334,3 +334,45 @@ describe('clinic scoping on schedule routes', () => {
     )
   })
 })
+
+describe('ids above Postgres INTEGER', () => {
+  const superadminToken = () => signAccessToken({ sub: 2, role: 'superadmin', clinicId: null })
+  const TOO_BIG = 3_000_000_000
+
+  it('rejects ?clinicId= above INTEGER with 400 on list, preview and generate', async () => {
+    const app = build()
+    const auth = `Bearer ${superadminToken()}`
+    const responses = [
+      await request(app).get(`/schedules?clinicId=${TOO_BIG}`).set('Authorization', auth),
+      await request(app)
+        .post(`/schedules/preview?clinicId=${TOO_BIG}`)
+        .set('Authorization', auth)
+        .send({ year: 2026, month: 9 }),
+      await request(app)
+        .post(`/schedules?clinicId=${TOO_BIG}`)
+        .set('Authorization', auth)
+        .send({ year: 2026, month: 9 }),
+    ]
+    expect(responses.map((r) => r.status)).toEqual([400, 400, 400])
+    expect(query).not.toHaveBeenCalled()
+    expect(list).not.toHaveBeenCalled()
+    expect(preview).not.toHaveBeenCalled()
+    expect(generate).not.toHaveBeenCalled()
+  })
+
+  it('rejects a body doctorId above INTEGER with 400 on add and reassign', async () => {
+    const app = build()
+    const auth = `Bearer ${adminToken()}`
+    const add = await request(app)
+      .post('/schedules/1/duties')
+      .set('Authorization', auth)
+      .send({ date: '2026-09-05', doctorId: TOO_BIG })
+    const reassign = await request(app)
+      .patch('/duties/1')
+      .set('Authorization', auth)
+      .send({ doctorId: TOO_BIG })
+    expect([add.status, reassign.status]).toEqual([400, 400])
+    expect(addDuty).not.toHaveBeenCalled()
+    expect(reassignDuty).not.toHaveBeenCalled()
+  })
+})

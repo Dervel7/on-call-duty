@@ -365,6 +365,57 @@ describe('schedule.service', () => {
     expect(d.id).toBe(21)
     expect(query.mock.calls.some((c) => String(c[0]).includes('EXTRACT(ISODOW'))).toBe(false)
   })
+
+  it('addDuty on a regular Saturday counts duties on marked weekday holidays toward the holiday cap', async () => {
+    // Anchor 2026-09-05, interval 14: 09-05 / 09-19 are open, 09-06 / 09-20
+    // critical, so Saturday 09-12 is a regular holiday day. Doctor 5 already
+    // holds Saturday 09-26 and the marked Wednesday 09-16: two holiday
+    // duties, so a third on 09-12 must hit the cap of 2.
+    const doctorDuties = [
+      { date: '2026-09-26', isWeekend: true },
+      { date: '2026-09-16', isWeekend: false },
+    ]
+    query.mockImplementation(async (text: unknown, params: unknown[] = []) => {
+      const sql = String(text)
+      if (sql.includes('FOR UPDATE')) return { rows: [{ status: 'draft' }] }
+      if (sql.includes('FROM schedules') && sql.includes('WHERE s.id =')) {
+        return { rows: [scheduleRow()] }
+      }
+      if (sql.includes('FROM app_meta'))
+        return {
+          rows: [
+            { key: 'open_duty_anchor_date', value: '2026-09-05' },
+            { key: 'open_duty_interval_days', value: '14' },
+          ],
+        }
+      if (sql.includes('FROM holidays')) return { rows: [{ holiday_date: '2026-09-16' }] }
+      if (sql.includes('ANY($4::text[])')) {
+        const marked = params[3] as string[]
+        const n = doctorDuties.filter((d) => d.isWeekend || marked.includes(d.date)).length
+        return { rows: [{ n }] }
+      }
+      if (sql.includes('FROM duties WHERE schedule_id = $1 AND duty_date =')) {
+        return { rows: [{ n: 0 }] }
+      }
+      if (sql.includes('FROM doctors d JOIN users') && sql.includes('WHERE d.id = $1')) {
+        return { rows: [{ max_monthly_duties: 7, is_active: true }] }
+      }
+      if (sql.includes('FROM unavailability WHERE doctor_id')) return { rows: [] }
+      if (sql.includes('FROM duties WHERE schedule_id = $1 AND doctor_id')) {
+        return { rows: [{ n: doctorDuties.length }] }
+      }
+      if (sql.includes('du.duty_date IN')) return { rows: [] }
+      if (sql.includes('INSERT INTO duties')) return { rows: [{ id: 22 }] }
+      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
+        return { rows: [dutyRow({ id: 22, duty_date: '2026-09-12' })] }
+      }
+      return { rows: [] }
+    })
+    await expect(
+      addDuty(1, { date: '2026-09-12', doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 }),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('holiday cap') })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO duties'))).toBe(false)
+  })
   it('reassignDuty runs validateAssignment and updates the row', async () => {
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)

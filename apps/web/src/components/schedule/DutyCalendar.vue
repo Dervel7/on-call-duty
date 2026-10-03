@@ -77,7 +77,10 @@ const cells = computed<Cell[]>(() => {
   for (const day of props.days) {
     const required = day.slotsRequired
     const slotsArr = props.assignmentByDate.get(day.date) ?? []
-    const slots: (CalendarAssignment | null)[] = Array.from({ length: required }, (_, i) => slotsArr[i] ?? null)
+    // Duties beyond the current slot count (slots lowered after the schedule
+    // was made) still exist, so they get a slot too instead of being hidden.
+    const slotCount = Math.max(required, slotsArr.length)
+    const slots: (CalendarAssignment | null)[] = Array.from({ length: slotCount }, (_, i) => slotsArr[i] ?? null)
     const poolIds = props.pool === 'available' ? day.availableDoctorIds : day.eligibleDoctorIds
     const options = slots.map((_, i) => slotOptions(poolIds, slots, i))
     const js = new Date(`${day.date}T00:00:00`)

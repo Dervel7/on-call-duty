@@ -838,16 +838,15 @@ async function validateAssignment(
   // (availability, monthly cap, duplicates, open-day limit) still apply.
   if (!requiresDoubleCoverage(date, openDuty)) {
     // Holiday cap: weekends always count; marked clinic holidays add more.
-    let marked: string[] = []
-    if (!isWeekendISO(date)) {
-      const { first, last } = monthBounds(year, month)
-      const mh = await query<{ holiday_date: string }>(
-        `SELECT holiday_date::text AS holiday_date FROM holidays
-         WHERE clinic_id = $1 AND holiday_date >= $2 AND holiday_date <= $3`,
-        [clinicId, first, last],
-      )
-      marked = mh.rows.map((r) => r.holiday_date)
-    }
+    // The marked dates are needed on weekend dates too, to count the
+    // doctor's existing duties on marked weekdays.
+    const { first, last } = monthBounds(year, month)
+    const mh = await query<{ holiday_date: string }>(
+      `SELECT holiday_date::text AS holiday_date FROM holidays
+       WHERE clinic_id = $1 AND holiday_date >= $2 AND holiday_date <= $3`,
+      [clinicId, first, last],
+    )
+    const marked = mh.rows.map((r) => r.holiday_date)
     if (isWeekendISO(date) || marked.includes(date)) {
       const holRes = await query<{ n: number }>(
         `SELECT COUNT(*)::int AS n FROM duties
