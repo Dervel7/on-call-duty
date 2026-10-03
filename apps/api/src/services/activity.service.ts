@@ -84,8 +84,10 @@ export async function list(filters: ActivityQuery, scope: ClinicScope): Promise<
   const limit = filters.limit ?? 50
   const where: string[] = []
   const params: unknown[] = []
-  where.push(`a.clinic_id = $${params.length + 1}`)
+  // Auth events (login, logout, password change) and global settings changes
+  // are recorded without a clinic; show them in the clinic of the user who acted.
   params.push(scope.clinicId)
+  where.push(`(a.clinic_id = $1 OR (a.clinic_id IS NULL AND u.clinic_id = $1))`)
   if (filters.action !== undefined) {
     params.push(filters.action)
     where.push(`a.action = $${params.length}`)
@@ -105,7 +107,7 @@ export async function list(filters: ActivityQuery, scope: ClinicScope): Promise<
   const whereSql = where.length > 0 ? ` WHERE ${where.join(' AND ')}` : ''
 
   const count = await query<{ n: number }>(
-    `SELECT COUNT(*)::int AS n FROM activity_log a${whereSql}`,
+    `SELECT COUNT(*)::int AS n FROM activity_log a LEFT JOIN users u ON u.id = a.user_id${whereSql}`,
     params,
   )
   const total = count.rows[0]?.n ?? 0

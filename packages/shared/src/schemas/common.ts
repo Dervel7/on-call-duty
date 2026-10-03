@@ -12,6 +12,12 @@ export const isoDateSchema = z
     return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
   }, 'Invalid calendar date')
 
+/**
+ * Database id taken from a query string or route param. Ids are Postgres
+ * INTEGER: a larger value makes Postgres throw (500), so reject it as bad input.
+ */
+export const queryIdSchema = z.coerce.number().int().positive().max(2_147_483_647)
+
 /** bcrypt silently ignores password bytes past 72; reject those up front. */
 export const passwordSchema = z
   .string()

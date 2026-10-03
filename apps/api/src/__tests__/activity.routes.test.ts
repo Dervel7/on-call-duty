@@ -110,4 +110,14 @@ describe('activity routes', () => {
       .set('Authorization', `Bearer ${superadminToken()}`)
     expect(res.status).toBe(400)
   })
+
+  it('rejects ids beyond Postgres INTEGER and pages beyond safe integers with 400', async () => {
+    for (const qs of ['userId=3000000000', 'clinicId=3000000000', 'page=1e300']) {
+      const res = await request(build())
+        .get(`/activity?${qs}`)
+        .set('Authorization', `Bearer ${superadminToken()}`)
+      expect(res.status, qs).toBe(400)
+    }
+    expect(list).not.toHaveBeenCalled()
+  })
 })

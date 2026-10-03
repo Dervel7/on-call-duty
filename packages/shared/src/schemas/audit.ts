@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateSchema } from './common'
+import { isoDateSchema, queryIdSchema } from './common'
 
 export const ACTIVITY_ACTIONS = [
   'auth.login',
@@ -37,10 +37,11 @@ export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]
 
 export const activityQuerySchema = z.object({
   action: z.enum(ACTIVITY_ACTIONS).optional(),
-  userId: z.coerce.number().int().positive().optional(),
-  clinicId: z.coerce.number().int().positive().optional(),
+  userId: queryIdSchema.optional(),
+  clinicId: queryIdSchema.optional(),
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),
-  page: z.coerce.number().int().min(1).default(1),
+  // safe(): a huge page would turn into an OFFSET Postgres cannot parse (500).
+  page: z.coerce.number().int().min(1).safe().default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 })

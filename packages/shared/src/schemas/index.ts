@@ -1,4 +1,4 @@
-export { isoDateSchema, passwordSchema } from './common'
+export { isoDateSchema, passwordSchema, queryIdSchema } from './common'
 export {
   roleSchema,
   languageSchema,
