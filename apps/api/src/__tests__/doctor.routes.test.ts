@@ -164,6 +164,34 @@ describe('doctor routes', () => {
     expect(res.status).toBe(400)
   })
 
+  it('create rejects whitespace-only names (400) and stores padded names trimmed', async () => {
+    const body = { email: 'new@h.com', username: 'newdr', password: 'secret1', firstName: 'Jane', lastName: 'Roe' }
+    const blank = await request(build())
+      .post('/doctors')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ ...body, firstName: '   ' })
+    expect(blank.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+
+    installDb()
+    const padded = await request(build())
+      .post('/doctors')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ ...body, firstName: 'Jane ', lastName: ' Roe' })
+    expect(padded.status).toBe(201)
+    const insertUser = query.mock.calls.find((c) => String(c[0]).includes('INSERT INTO users'))
+    expect(insertUser?.[1]?.slice(3, 5)).toEqual(['Jane', 'Roe'])
+  })
+
+  it('PATCH rejects a whitespace-only name (400)', async () => {
+    const res = await request(build())
+      .patch('/doctors/1')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ lastName: '  ' })
+    expect(res.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
+
   it('admin DELETE /doctors/:id soft-deletes (204, rows kept)', async () => {
     query.mockResolvedValueOnce({ rows: [row()] })
     query.mockResolvedValueOnce({ rows: [] }) // draft-duty check

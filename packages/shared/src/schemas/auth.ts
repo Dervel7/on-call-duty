@@ -6,6 +6,10 @@ export const languageSchema = z.enum(['en', 'el'])
 
 export const usernameSchema = z.string().regex(/^[A-Za-z0-9._-]{3,32}$/, 'Invalid username')
 
+// Trimmed so a whitespace-only name (invisible in every list) or a trailing
+// space from a mobile keyboard is not stored.
+export const personNameSchema = z.string().trim().min(1)
+
 export const loginSchema = z.object({
   identifier: z.string().min(1),
   password: passwordSchema,
@@ -28,8 +32,8 @@ export const createUserSchema = z.object({
   username: usernameSchema,
   password: passwordSchema,
   role: roleSchema,
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
+  firstName: personNameSchema,
+  lastName: personNameSchema,
   clinicId: z.number().int().positive().max(2_147_483_647).optional(),
 })
 
@@ -37,8 +41,8 @@ export const updateUserSchema = z.object({
   email: z.string().email().optional(),
   username: usernameSchema.optional(),
   role: roleSchema.optional(),
-  firstName: z.string().min(1).optional(),
-  lastName: z.string().min(1).optional(),
+  firstName: personNameSchema.optional(),
+  lastName: personNameSchema.optional(),
   isActive: z.boolean().optional(),
   clinicId: z.number().int().positive().max(2_147_483_647).optional(),
 })

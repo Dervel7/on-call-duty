@@ -517,6 +517,31 @@ describe('UsersPage', () => {
     await flushPromises()
     wrapper.unmount()
   })
+
+  it('keeps the newest list when an older reload answers last', async () => {
+    const disabled: User = { ...doctorUser, isActive: false }
+    let resolveStale!: (v: User[]) => void
+    list
+      .mockResolvedValueOnce([doctorUser]) // mount
+      .mockReturnValueOnce(new Promise((r) => (resolveStale = r))) // reload after the first toggle (slow)
+      .mockResolvedValueOnce([disabled]) // reload after the second toggle (fast)
+    doctorList.mockResolvedValue([doctorProfile])
+    update.mockResolvedValue(doctorUser)
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const buttonLabels = () => wrapper.findAll('button').map((b) => b.text())
+    await wrapper.findAll('button').find((b) => b.text() === 'Disable')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === 'Disable')!.trigger('click')
+    await flushPromises()
+    expect(buttonLabels()).toContain('Enable')
+    // The slow reload predates the second toggle: it must not bring the doctor back to active.
+    resolveStale([doctorUser])
+    await flushPromises()
+    expect(buttonLabels()).toContain('Enable')
+    expect(buttonLabels()).not.toContain('Disable')
+    wrapper.unmount()
+  })
 })
 
 describe('UsersPage in Greek', () => {

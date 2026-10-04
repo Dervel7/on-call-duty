@@ -34,6 +34,7 @@ import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 
 // Every account created through this form starts with the same initial
 // password; the user must change it on first login.
@@ -129,15 +130,23 @@ const emptyReset = (): ResetState => ({
 })
 const reset = ref<ResetState>(emptyReset())
 
+const latest = useLatestRequest()
+
 async function load() {
+  // Every write reloads the list; a slower, older response must not replace a newer one.
+  const isCurrent = latest.start()
   loading.value = true
   errorMsg.value = ''
   try {
-    ;[users.value, doctors.value] = await Promise.all([userService.list(), doctorService.list()])
+    const [loadedUsers, loadedDoctors] = await Promise.all([userService.list(), doctorService.list()])
+    if (!isCurrent()) return
+    users.value = loadedUsers
+    doctors.value = loadedDoctors
   } catch (e) {
+    if (!isCurrent()) return
     errorMsg.value = e instanceof Error ? e.message : t('users.loadFailed')
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 
