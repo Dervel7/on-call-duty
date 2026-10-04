@@ -281,13 +281,12 @@ rows show — in that column.</p>
   <li>Set <strong>Max monthly duties</strong> (between 1 and 7; the default is 7) — the maximum number of on-call
       duties this doctor can be assigned in any month.</li>
   <li>Choose <span class="kbd">Save</span>. The account is created as a <em>doctor</em> with the initial password
-      <code>changeme123</code>. The username is generated automatically — the first three letters of the first name
-      followed by the first three letters of the last name (Maria Papadopoulos → <code>marpap</code>) — and is shown
-      in the dialog and in the users list.</li>
+      <code>changeme123</code>. Type the <strong>Username</strong> yourself — it must be written in English
+      (Latin letters, digits, and <code>. _ -</code>, 3–32 characters) and is shown in the users list.</li>
 </ol>
 <figure>
   <img src="screenshots/06-users-new-dialog.png" alt="New user dialog" />
-  <figcaption><b>Figure 4.2</b> — Creating a doctor. Set the <b>Max monthly duties</b> cap — the key setting the scheduling engine honours. The username is generated from the doctor's name.</figcaption>
+  <figcaption><b>Figure 4.2</b> — Creating a doctor. Set the <b>Max monthly duties</b> cap — the key setting the scheduling engine honours. Type a username in English.</figcaption>
 </figure>
 <div class="note info"><span class="t">Info</span>Creating a doctor creates their login account (role <em>doctor</em>) and profile in one step — the doctor can sign in straight away and record their own availability.</div>
 
@@ -617,7 +616,7 @@ regenerate.</p>
   <tr><th style="width:46mm">Field</th><th>Rules</th></tr>
   <tr><td>Password (any)</td><td>At least 6 characters. New password must differ from the current one.</td></tr>
   <tr><td>Email (any)</td><td>Must be a valid email address; unique per account.</td></tr>
-  <tr><td>Username</td><td>3–32 characters: letters, numbers, and <code>. _ -</code>. Unique per account; new doctor accounts get one generated from the doctor's name.</td></tr>
+  <tr><td>Username</td><td>3–32 characters in English: letters, numbers, and <code>. _ -</code>. Unique per account.</td></tr>
   <tr><td>Max monthly duties</td><td>Whole number from 1 to 7 (default 7).</td></tr>
   <tr><td>Exclusion dates</td><td>Format YYYY-MM-DD; end date on or after start date; inclusive whole days.</td></tr>
   <tr><td>Exclusion type</td><td>One of Vacation, Sick, Conference, Other.</td></tr>

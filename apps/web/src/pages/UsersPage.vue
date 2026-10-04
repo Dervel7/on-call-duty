@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type {
   CreateDoctorRequest,
@@ -75,8 +75,6 @@ interface EditState {
   role: Role
   maxMonthlyDuties: string
   errorMsg: string
-  // True once the admin typed in the username field; stops auto-generation.
-  usernameEdited: boolean
 }
 
 const emptyEdit = (): EditState => ({
@@ -90,31 +88,8 @@ const emptyEdit = (): EditState => ({
   role: 'doctor',
   maxMonthlyDuties: '7',
   errorMsg: '',
-  usernameEdited: false,
 })
 const edit = ref<EditState>(emptyEdit())
-
-// Username convention for new doctor accounts: first 3 letters of the first
-// name followed by the first 3 letters of the last name, lowercased. Accents
-// are stripped and any character usernameSchema rejects is dropped.
-function generatedUsername(): string {
-  return (edit.value.firstName.slice(0, 3) + edit.value.lastName.slice(0, 3))
-    .normalize('NFD')
-    .replace(/[^A-Za-z0-9._-]/g, '')
-    .toLowerCase()
-}
-
-watch(
-  () => [edit.value.firstName, edit.value.lastName],
-  () => {
-    if (edit.value.id === null && !edit.value.usernameEdited) edit.value.username = generatedUsername()
-  },
-)
-
-function onUsernameInput(value: string | number) {
-  edit.value.username = String(value)
-  if (edit.value.id === null) edit.value.usernameEdited = true
-}
 
 interface ResetState {
   open: boolean
@@ -158,7 +133,6 @@ function openUpdate(u: User) {
     role: u.role,
     maxMonthlyDuties: d ? String(d.maxMonthlyDuties) : '7',
     errorMsg: '',
-    usernameEdited: false,
   }
 }
 
@@ -369,12 +343,7 @@ onMounted(load)
         </div>
         <div class="flex flex-col gap-1">
           <Label for="e-username">{{ t('users.username') }}</Label>
-          <Input
-            id="e-username"
-            :model-value="edit.username"
-            autocomplete="username"
-            @update:model-value="onUsernameInput"
-          />
+          <Input id="e-username" v-model="edit.username" autocomplete="username" />
           <p v-if="edit.id === null" class="text-xs text-muted-foreground">
             {{ t('users.usernameHint') }}
           </p>

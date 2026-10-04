@@ -160,7 +160,7 @@ describe('UsersPage', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
   })
 
-  it('creates a doctor with an auto-generated username and no role field', async () => {
+  it('creates a doctor with the typed username and no role field', async () => {
     list.mockResolvedValue([])
     const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
@@ -174,7 +174,9 @@ describe('UsersPage', () => {
     setBodyValue('#e-last', 'Smith')
     setBodyValue('#e-max', '4')
     await flushPromises()
-    expect((document.body.querySelector('#e-username') as HTMLInputElement).value).toBe('alsmi')
+    expect((document.body.querySelector('#e-username') as HTMLInputElement).value).toBe('')
+    setBodyValue('#e-username', 'alsmi')
+    await flushPromises()
     bodyButton('Save')!.click()
     await flushPromises()
     expect(doctorCreate).toHaveBeenCalledWith(
@@ -189,37 +191,7 @@ describe('UsersPage', () => {
     wrapper.unmount()
   })
 
-  it('shows a validation error when the generated username is too short', async () => {
-    list.mockResolvedValue([])
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
-    await flushPromises()
-    await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
-    await flushPromises()
-    setBodyValue('#e-email', 'dr@h.com')
-    setBodyValue('#e-first', 'A')
-    setBodyValue('#e-last', 'B')
-    await flushPromises()
-    bodyButton('Save')!.click()
-    await flushPromises()
-    expect(doctorCreate).not.toHaveBeenCalled()
-    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('Username must be 3–32 characters')
-    wrapper.unmount()
-  })
-
-  it('strips accents and disallowed characters from the generated username', async () => {
-    list.mockResolvedValue([])
-    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
-    await flushPromises()
-    await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
-    await flushPromises()
-    setBodyValue('#e-first', 'Zoë')
-    setBodyValue('#e-last', "O'Brien")
-    await flushPromises()
-    expect((document.body.querySelector('#e-username') as HTMLInputElement).value).toBe('zoeob')
-    wrapper.unmount()
-  })
-
-  it('lets the admin override the username and stops regenerating it afterwards', async () => {
+  it('requires a username on create', async () => {
     list.mockResolvedValue([])
     const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
@@ -229,13 +201,10 @@ describe('UsersPage', () => {
     setBodyValue('#e-first', 'Maria')
     setBodyValue('#e-last', 'Papadopoulou')
     await flushPromises()
-    setBodyValue('#e-username', 'mpapadopoulou')
-    setBodyValue('#e-first', 'Marina')
-    await flushPromises()
-    expect((document.body.querySelector('#e-username') as HTMLInputElement).value).toBe('mpapadopoulou')
     bodyButton('Save')!.click()
     await flushPromises()
-    expect(doctorCreate).toHaveBeenCalledWith(expect.objectContaining({ username: 'mpapadopoulou' }))
+    expect(doctorCreate).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('Username must be')
     wrapper.unmount()
   })
 
@@ -284,6 +253,7 @@ describe('UsersPage', () => {
     setBodyValue('#e-email', 'ops@h.com')
     setBodyValue('#e-first', 'Ada')
     setBodyValue('#e-last', 'Ops')
+    setBodyValue('#e-username', 'adaops')
     await flushPromises()
     bodyButton('Save')!.click()
     await flushPromises()
@@ -320,6 +290,7 @@ describe('UsersPage', () => {
     setBodyValue('#e-email', 'not-an-email')
     setBodyValue('#e-first', 'Ada')
     setBodyValue('#e-last', 'Ops')
+    setBodyValue('#e-username', 'adaops')
     await flushPromises()
     bodyButton('Save')!.click()
     await flushPromises()
