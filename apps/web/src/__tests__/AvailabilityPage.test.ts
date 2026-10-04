@@ -253,6 +253,24 @@ describe('AvailabilityPage', () => {
     wrapper.unmount()
   })
 
+  it('lets the admin confirm an empty selection after unmarking the chip day', async () => {
+    doctorList.mockResolvedValue([])
+    listAll.mockResolvedValue([record])
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === '2026-09-09')!.trigger('click')
+    await flushPromises()
+    bodyButton('Select days')!.click()
+    await flushPromises()
+    // A real click on the chip day unmarks it; the calendar then has no selection.
+    ;(document.body.querySelector('button[data-date="2026-09-09"]') as HTMLButtonElement).click()
+    await flushPromises()
+    // Without this the only way to remove a single day of a record was marking another one.
+    expect(bodyButton('Confirm days')!.disabled).toBe(false)
+    wrapper.unmount()
+  })
+
   it('unmarking the chip day splits the record around the removed day in one request', async () => {
     doctorList.mockResolvedValue([])
     listAll.mockResolvedValue([record])

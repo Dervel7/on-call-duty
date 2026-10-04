@@ -463,6 +463,7 @@ onMounted(async () => {
         :title="t('availability.calendarTitle')"
         :confirm-text="t('availability.confirmDays')"
         :reserved-days="calendarReservedDays"
+        :allow-empty="edit.id !== null"
       />
     </Dialog>
   </div>

@@ -18,6 +18,8 @@ const props = withDefaults(
     initialMonth?: string
     /** Days already excluded elsewhere; shown dimmed and not selectable. */
     reservedDays?: string[]
+    /** Lets Confirm accept an empty selection (editing a record: unmarking its last day removes it). */
+    allowEmpty?: boolean
     /** Confirm button label; defaults to the translated "Confirm". */
     confirmText?: string
   }>(),
@@ -202,7 +204,7 @@ useModal(() => props.open, panel)
 
         <div class="mt-4 flex justify-end gap-2">
           <Button variant="outline" @click="close">{{ t('common.cancel') }}</Button>
-          <Button :disabled="selected.size === 0" @click="confirmDays">{{ confirmText ?? t('common.confirm') }}</Button>
+          <Button :disabled="selected.size === 0 && !allowEmpty" @click="confirmDays">{{ confirmText ?? t('common.confirm') }}</Button>
         </div>
       </div>
     </div>

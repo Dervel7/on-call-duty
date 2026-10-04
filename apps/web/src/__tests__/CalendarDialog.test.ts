@@ -66,6 +66,18 @@ describe('CalendarDialog', () => {
     wrapper.unmount()
   })
 
+  it('confirms an empty selection when allowEmpty is set', async () => {
+    const wrapper = mount(CalendarDialog, {
+      props: { open: true, modelValue: ['2026-09-09'], allowEmpty: true },
+    })
+    await clickDay('2026-09-09')
+    expect(confirmButton().disabled).toBe(false)
+    confirmButton().click()
+    await flushPromises()
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([[]])
+    wrapper.unmount()
+  })
+
   it('opens on initialMonth when no day is preselected', async () => {
     const wrapper = mount(CalendarDialog, {
       props: { open: true, modelValue: [], initialMonth: '2026-10' },
