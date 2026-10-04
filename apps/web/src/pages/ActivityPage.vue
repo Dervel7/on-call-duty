@@ -50,7 +50,7 @@ const errorMsg = ref('')
 
 const latest = useLatestRequest()
 
-async function load() {
+async function load(filtersChanged = false) {
   const isCurrent = latest.start()
   loading.value = true
   errorMsg.value = ''
@@ -65,6 +65,10 @@ async function load() {
     data.value = res
   } catch (e) {
     if (!isCurrent()) return
+    // Rows of other filters must not sit under the new ones, and a failed page
+    // change leaves the counter on the page that is still shown.
+    if (filtersChanged) data.value = null
+    page.value = data.value?.page ?? 1
     errorMsg.value = e instanceof Error ? e.message : t('activity.loadFailed')
   } finally {
     if (isCurrent()) loading.value = false
@@ -75,7 +79,7 @@ watch(
   filters,
   () => {
     page.value = 1
-    void load()
+    void load(true)
   },
   { deep: true },
 )

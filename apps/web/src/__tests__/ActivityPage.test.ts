@@ -112,6 +112,33 @@ describe('ActivityPage', () => {
     await flushPromises()
     expect(wrapper.find('[role="alert"]').text()).toContain('nope')
   })
+
+  it('a failed next-page load keeps the page counter on the rows still shown', async () => {
+    getActivity
+      .mockResolvedValueOnce(page({ items: [], total: 120, page: 1, limit: 50 }))
+      .mockRejectedValueOnce(new Error('nope'))
+      .mockResolvedValueOnce(page({ items: [], total: 120, page: 2, limit: 50 }))
+    const wrapper = mount(ActivityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === 'Next')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').text()).toContain('nope')
+    // Retrying must ask for page 2 again, not skip to page 3.
+    await wrapper.findAll('button').find((b) => b.text() === 'Next')!.trigger('click')
+    await flushPromises()
+    expect(getActivity).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, limit: 50 }))
+  })
+
+  it('a failed filter change does not leave the previous filter rows on screen', async () => {
+    getActivity.mockResolvedValueOnce(page()).mockRejectedValueOnce(new Error('nope'))
+    const wrapper = mount(ActivityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('availability.created')
+    await pickOption(wrapper.element, '#f-action', 'auth.login')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').text()).toContain('nope')
+    expect(wrapper.text()).not.toContain('Jane Roe')
+  })
 })
 
 describe('ActivityPage in Greek', () => {
