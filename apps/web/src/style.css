@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* `dark:` utilities follow the `dark` class App.vue toggles on <html>, not the OS color scheme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
  * On-Call Duty — "Aurora Command" design language.
  * A futuristic mission-control surface: a deep canvas with drifting aurora

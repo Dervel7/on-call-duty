@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory, START_LOCATION, type RouteRecordRaw } from 'vue-router'
 import type { Role } from '@oncall/shared'
 import { useAuthStore } from '@/stores/auth'
 import { resolveGuard } from './guard'
@@ -113,3 +113,19 @@ export const router = createRouter({
 })
 
 router.beforeEach((to) => resolveGuard(to, useAuthStore()))
+
+// Chromium, Firefox and Safari messages for a failed dynamic import, and Vite's
+// CSS preload failure.
+const CHUNK_LOAD_ERROR = /dynamically imported module|Importing a module script failed|Unable to preload CSS/
+
+// A redeploy removes the previous build's page chunks, so a tab opened before
+// it cannot load a page it has not visited yet and the navigation fails
+// silently. Load the target URL from the server to pick up the new build. Not
+// on the first navigation: it already runs on a freshly loaded index.html, so
+// a reload could loop.
+router.onError((error: unknown, to, from) => {
+  if (from === START_LOCATION) return
+  if (error instanceof Error && CHUNK_LOAD_ERROR.test(error.message)) {
+    window.location.assign(to.fullPath)
+  }
+})

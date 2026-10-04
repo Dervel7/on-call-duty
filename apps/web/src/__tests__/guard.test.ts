@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { RouteLocationNormalized } from 'vue-router'
 import { resolveGuard, type GuardAuth } from '../router/guard'
@@ -72,5 +72,39 @@ describe('router', () => {
     auth.user = { role: 'doctor' } as typeof auth.user
     await router.push('/no-such-page')
     expect(router.currentRoute.value.name).toBe('home')
+  })
+
+  describe('page chunk that no longer exists (opened before a redeploy)', () => {
+    const assign = vi.fn()
+
+    afterEach(() => {
+      router.removeRoute('stale-chunk')
+      vi.unstubAllGlobals()
+      assign.mockReset()
+    })
+
+    function addFailingRoute(error: Error) {
+      router.addRoute({
+        path: '/stale-chunk',
+        name: 'stale-chunk',
+        component: () => Promise.reject(error),
+        meta: { public: true },
+      })
+      vi.stubGlobal('location', { ...window.location, assign })
+    }
+
+    it('loads the target URL from the server so the new build is picked up', async () => {
+      await router.push('/')
+      addFailingRoute(new TypeError('Failed to fetch dynamically imported module: /assets/Old-abc123.js'))
+      await router.push('/stale-chunk').catch(() => undefined)
+      expect(assign).toHaveBeenCalledWith('/stale-chunk')
+    })
+
+    it('leaves other navigation errors alone', async () => {
+      await router.push('/')
+      addFailingRoute(new Error('boom'))
+      await router.push('/stale-chunk').catch(() => undefined)
+      expect(assign).not.toHaveBeenCalled()
+    })
   })
 })

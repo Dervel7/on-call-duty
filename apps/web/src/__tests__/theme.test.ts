@@ -6,6 +6,9 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import App from '../App.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { AuthUser } from '@oncall/shared'
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { compile } from 'tailwindcss'
 
 const stub = { template: `<div>{{ $t('common.close') }}</div>` }
 
@@ -115,5 +118,22 @@ describe('app language', () => {
     expect(document.documentElement.lang).toBe('en')
     expect(wrapper.text()).toBe('Close')
     expect(document.title).toBe('On-Call Duty · Hospital Scheduling')
+  })
+})
+
+describe('dark: utilities', () => {
+  // App.vue switches the theme with the `dark` class on <html>. Tailwind's
+  // default `dark:` variant follows the OS color scheme instead, so Avatar's
+  // dark:text-*-300 initials showed on the light theme for OS dark-mode users.
+  it('follow the dark class, not the OS color scheme', async () => {
+    const require = createRequire(import.meta.url)
+    const styleCss = readFileSync(require.resolve('../style.css'), 'utf8')
+    const tailwindCss = readFileSync(require.resolve('tailwindcss/index.css'), 'utf8')
+    const compiler = await compile(styleCss, {
+      loadStylesheet: async () => ({ path: 'tailwindcss/index.css', base: '', content: tailwindCss }),
+    })
+    const css = compiler.build(['dark:text-violet-300'])
+    expect(css.includes('.dark\\:text-violet-300:where(.dark, .dark *) {'), 'class-based dark: rule').toBe(true)
+    expect(css.includes('prefers-color-scheme'), 'OS color-scheme media query').toBe(false)
   })
 })
