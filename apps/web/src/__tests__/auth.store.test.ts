@@ -160,5 +160,17 @@ describe('auth store', () => {
       expect(testRouter.currentRoute.value.name).toBe('locked')
       expect(auth.isAuthenticated).toBe(false)
     })
+
+    it('a bootstrap refresh rejected by the system lock has reached the locked route when it resolves', async () => {
+      const auth = useAuthStore()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(JSON.stringify({ success: false, error: SYSTEM_LOCKED_MESSAGE }), { status: 403 })),
+      )
+      vi.mocked(refreshService).mockImplementationOnce(() => apiPost('/auth/refresh'))
+      await expect(auth.refresh()).resolves.toBeNull()
+      // main.ts installs the router right after this; a pending redirect would lose to its initial navigation.
+      expect(testRouter.currentRoute.value.name).toBe('locked')
+    })
   })
 })

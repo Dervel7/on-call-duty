@@ -153,3 +153,20 @@ describe('billing lockdown', () => {
     expect(res.body.success).toBe(true)
   })
 })
+
+describe('POST /auth/refresh cookie', () => {
+  it('clears the cookie when the refresh token is rejected', async () => {
+    query.mockResolvedValue({ rows: [] })
+    const res = await request(buildApp()).post('/auth/refresh').set('Cookie', 'refresh_token=t')
+    expect(res.status).toBe(401)
+    expect(res.headers['set-cookie']?.[0] ?? '').toMatch(/^refresh_token=;.*Expires=Thu, 01 Jan 1970/)
+  })
+
+  it('keeps the cookie when the server fails (the session may still be valid)', async () => {
+    // Once: the file's beforeEach returns the mock, which vitest then calls as a teardown.
+    query.mockRejectedValueOnce(new Error('connection terminated'))
+    const res = await request(buildApp()).post('/auth/refresh').set('Cookie', 'refresh_token=t')
+    expect(res.status).toBe(500)
+    expect(res.headers['set-cookie']).toBeUndefined()
+  })
+})

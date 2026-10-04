@@ -15,6 +15,8 @@ export const useAuthStore = defineStore('auth', () => {
     () => user.value?.role === 'administrator' || user.value?.role === 'superadmin',
   )
   const isSuperadmin = computed(() => user.value?.role === 'superadmin')
+  // The locked handler's redirect; the bootstrap refresh waits for it (see refresh()).
+  let lockedNavigation: Promise<unknown> = Promise.resolve()
 
   async function login(identifier: string, password: string): Promise<void> {
     const data = await authService.login(identifier, password)
@@ -41,6 +43,9 @@ export const useAuthStore = defineStore('auth', () => {
       return await renewSession()
     } catch {
       clearSession()
+      // On page load main.ts installs the router right after this returns, and the router's
+      // initial navigation would override the locked handler's redirect: let it finish first.
+      await lockedNavigation
       return null
     }
   }
@@ -104,7 +109,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   setLockedHandler(() => {
     clearSession()
-    import('@/router')
+    lockedNavigation = import('@/router')
       .then(({ router }) => router.push({ name: 'locked' }))
       .catch(() => {})
   })

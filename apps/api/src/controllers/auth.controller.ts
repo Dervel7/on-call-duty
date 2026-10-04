@@ -47,8 +47,9 @@ export const authController = {
       setRefreshCookie(res, refreshToken)
       res.status(200).json(ok({ user, accessToken }))
     } catch (err) {
-      // A dead cookie must not linger: clear it so clients stop replaying it.
-      clearRefreshCookie(res)
+      // A rejected token (401/403) must not linger: clear it so clients stop replaying it.
+      // A server failure says nothing about the token, so keep the session for the next try.
+      if (err instanceof HttpError) clearRefreshCookie(res)
       next(err)
     }
   },
