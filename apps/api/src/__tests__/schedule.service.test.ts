@@ -13,6 +13,17 @@ vi.mock('../services/activity.service', () => ({
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
 
+// Per-clinic slot counts and minimums come from the clinics row; pin the
+// seeded 2/2/2 slots (tests override the minimums) so the query sequences
+// below only carry the cycle (app_meta) lookups.
+const SEEDED_MINIMUMS = { openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 2 }
+const getDutyMinimums = vi.fn()
+vi.mock('../services/settings.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/settings.service')>()),
+  getDutySlots: async () => ({ openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 2 }),
+  getDutyMinimums: (...a: unknown[]) => getDutyMinimums(...a),
+}))
+
 import {
   addDuty,
   computeEligibility,
@@ -66,6 +77,8 @@ beforeEach(() => {
   query.mockReset()
   logActivity.mockReset()
   recordActivity.mockReset()
+  getDutyMinimums.mockReset()
+  getDutyMinimums.mockResolvedValue(SEEDED_MINIMUMS)
 })
 
 describe('schedule.service', () => {
@@ -277,7 +290,6 @@ describe('schedule.service', () => {
     query.mockResolvedValueOnce({ rows: [scheduleRow()] })
     query.mockResolvedValueOnce({ rows: [{ n: 2 }] })
     query.mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> defaults
-    query.mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> defaults
     await expect(
       addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 }),
     ).rejects.toMatchObject({ status: 409 })
@@ -287,7 +299,6 @@ describe('schedule.service', () => {
     query.mockResolvedValueOnce({ rows: [scheduleRow()] })
     query.mockResolvedValueOnce({ rows: [{ n: 1 }] })
     query.mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> defaults
-    query.mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> defaults
     query.mockResolvedValueOnce({ rows: [{ max_monthly_duties: 7, is_active: true }] })
     query.mockResolvedValueOnce({ rows: [] })
     query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
@@ -479,9 +490,9 @@ describe('schedule.service', () => {
   })
 
   it('removeDuty allows an open on-call day to keep a count at or above its minimum', async () => {
+    getDutyMinimums.mockResolvedValue({ ...SEEDED_MINIMUMS, openDutyMinimum: 1 })
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
-      if (sql.includes('FROM app_meta')) return { rows: [{ key: 'open_duty_minimum', value: '1' }] }
       if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
         return { rows: [dutyRow({ duty_date: '2026-10-02' })] }
       }
@@ -509,9 +520,9 @@ describe('generate plan path', () => {
   // Closed days need one doctor (stored closed minimum 1); open days fall
   // back to their full slot count.
   function mockContext() {
+    getDutyMinimums.mockResolvedValue({ ...SEEDED_MINIMUMS, closedDutyMinimum: 1 })
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
-      if (sql.includes('FROM app_meta')) return { rows: [{ key: 'closed_duty_minimum', value: '1' }] }
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
       if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
       if (sql.includes('FROM unavailability')) return { rows: [] }
@@ -552,8 +563,9 @@ describe('generate plan path', () => {
   })
 
   it('422 when an open on-call day has fewer doctors than its minimum', async () => {
-    // Anchor 2026-09-01: 09-01 is open and falls back to its full 2 slots;
-    // the day after uses the stored post-open minimum of 1.
+    // Anchor 2026-09-01: 09-01 is open and keeps its minimum of 2; the day
+    // after uses a post-open minimum of 1.
+    getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, postOpenDutyMinimum: 1, closedDutyMinimum: 1 })
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
       if (sql.includes('FROM app_meta'))
@@ -561,8 +573,6 @@ describe('generate plan path', () => {
           rows: [
             { key: 'open_duty_anchor_date', value: '2026-09-01' },
             { key: 'open_duty_interval_days', value: '30' },
-            { key: 'post_open_duty_minimum', value: '1' },
-            { key: 'closed_duty_minimum', value: '1' },
           ],
         }
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
@@ -597,6 +607,7 @@ describe('generate plan path', () => {
       last_name: `D${i + 1}`,
       is_active: true,
     }))
+    getDutyMinimums.mockResolvedValue({ ...SEEDED_MINIMUMS, closedDutyMinimum: 1 })
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
       if (sql.includes('FROM app_meta'))
@@ -604,7 +615,6 @@ describe('generate plan path', () => {
           rows: [
             { key: 'open_duty_anchor_date', value: '2026-09-05' },
             { key: 'open_duty_interval_days', value: '7' },
-            { key: 'closed_duty_minimum', value: '1' },
           ],
         }
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
@@ -698,6 +708,7 @@ describe('generate plan path', () => {
       last_name: `D${i + 1}`,
       is_active: true,
     }))
+    getDutyMinimums.mockResolvedValue({ ...SEEDED_MINIMUMS, closedDutyMinimum: 1 })
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
       if (sql.includes('FROM app_meta'))
@@ -705,7 +716,6 @@ describe('generate plan path', () => {
           rows: [
             { key: 'open_duty_anchor_date', value: '2026-09-05' },
             { key: 'open_duty_interval_days', value: '7' },
-            { key: 'closed_duty_minimum', value: '1' },
           ],
         }
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
@@ -816,9 +826,9 @@ describe('generate plan path', () => {
   })
 
   it('409 when a plan collides with the prior month last-day duty', async () => {
+    getDutyMinimums.mockResolvedValue({ ...SEEDED_MINIMUMS, closedDutyMinimum: 1 })
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
-      if (sql.includes('FROM app_meta')) return { rows: [{ key: 'closed_duty_minimum', value: '1' }] }
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
       if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
       if (sql.includes('FROM unavailability')) return { rows: [] }
@@ -853,8 +863,6 @@ describe('publish / unpublish', () => {
     query
       .mockResolvedValueOnce({ rows: [scheduleRow()] }) // select (draft)
       .mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> seeded defaults
-      .mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> seeded defaults
-      .mockResolvedValueOnce({ rows: [] }) // app_meta: duty minimums -> slot counts
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
       .mockResolvedValueOnce({
         rows: Array.from({ length: 29 }, (_, i) => ({ duty_date: `2026-09-${String(i + 1).padStart(2, '0')}`, n: 1 })),
@@ -867,18 +875,12 @@ describe('publish / unpublish', () => {
   })
   it('publish 409 when an open on-call day is below its minimum', async () => {
     // Seeded defaults (anchor 2026-10-02, interval 8) make 10-02, 10-10,
-    // 10-18 and 10-26 open; with no open minimum stored they need their full
-    // 2 slots. Post-open and closed days (stored minimum 1) are fine with one doctor.
+    // 10-18 and 10-26 open; they keep the seeded open minimum of 2.
+    // Post-open and closed days (minimum 1) are fine with one doctor.
+    getDutyMinimums.mockResolvedValue({ openDutyMinimum: 2, postOpenDutyMinimum: 1, closedDutyMinimum: 1 })
     query
       .mockResolvedValueOnce({ rows: [scheduleRow({ year: 2026, month: 10 })] }) // select (draft)
       .mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> seeded defaults
-      .mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> seeded defaults
-      .mockResolvedValueOnce({
-        rows: [
-          { key: 'post_open_duty_minimum', value: '1' },
-          { key: 'closed_duty_minimum', value: '1' },
-        ],
-      }) // app_meta: duty minimums
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
       .mockResolvedValueOnce({
         rows: Array.from({ length: 31 }, (_, i) => ({ duty_date: `2026-10-${String(i + 1).padStart(2, '0')}`, n: 1 })),
@@ -890,11 +892,10 @@ describe('publish / unpublish', () => {
     expect(recordActivity).not.toHaveBeenCalled()
   })
   it('publish flips draft->published when every day meets its minimum (below the slot count); 404 missing; 409 already published', async () => {
+    getDutyMinimums.mockResolvedValue({ ...SEEDED_MINIMUMS, closedDutyMinimum: 1 })
     query
       .mockResolvedValueOnce({ rows: [scheduleRow()] }) // select (draft)
       .mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> seeded defaults
-      .mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> seeded defaults
-      .mockResolvedValueOnce({ rows: [{ key: 'closed_duty_minimum', value: '1' }] }) // app_meta: duty minimums
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
       .mockResolvedValueOnce({
         rows: Array.from({ length: 30 }, (_, i) => ({ duty_date: `2026-09-${String(i + 1).padStart(2, '0')}`, n: 1 })),
@@ -917,8 +918,6 @@ describe('publish / unpublish', () => {
     query.mockReset()
     query.mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] }) // select finds it
     query.mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> seeded defaults
-    query.mockResolvedValueOnce({ rows: [] }) // app_meta: duty slots -> seeded defaults
-    query.mockResolvedValueOnce({ rows: [] }) // app_meta: duty minimums -> slot counts
     query.mockResolvedValueOnce({ rows: [] }) // UPDATE matches nothing (already published) -> 409
     await expect(publish(1, { id: 2, role: 'administrator', clinicId: 1 })).rejects.toMatchObject({
       status: 409,

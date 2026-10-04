@@ -54,12 +54,6 @@ Known keys:
 | `billing_paid_through` | `'YYYY-MM-DD'` | Billing lockdown: while `CURRENT_DATE > value`, non-superadmin access is refused (comparison runs in SQL against the database's `CURRENT_DATE`). A missing row means unlocked (`paidThrough` reported as `null`). Seeds insert it 30 days ahead with `ON CONFLICT DO NOTHING` — re-seeding never extends an existing deadline. |
 | `open_duty_anchor_date` | `'YYYY-MM-DD'` | Open on-call cycle start: the first open on-call day (seeded `2026-10-02`). A date is an open on-call day when it is the anchor or a whole multiple of the interval after it; earlier dates are closed. Missing/corrupt rows fall back to the seeded default. |
 | `open_duty_interval_days` | integer as text | Days between open on-call days (seeded `8`). Administrators edit it via the Rules page (`PATCH /settings/open-duty`); every change is audited as `open_duty_settings.updated`. |
-| `open_duty_slots` | integer as text | On-call doctors per **open** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`, audited as `duty_slots_settings.updated`). Consumed by the engine, previews, duty edits, and publishing; missing/corrupt rows fall back to the default. |
-| `post_open_duty_slots` | integer as text | On-call doctors per **post-open** day — the calendar day right after an open on-call day that is not itself open (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`). It is critical (filled first) but not an open day for the one-open-duty cap; missing/corrupt rows fall back to the default. |
-| `closed_duty_slots` | integer as text | On-call doctors per **closed** on-call day — every day that is neither open nor post-open (seeded `2`, editable 1–7 via `PATCH /settings/duty-slots`). |
-| `open_duty_minimum` | integer as text | Minimum on-call doctors per **open** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`, audited as `duty_minimums_settings.updated`). Must not exceed `open_duty_slots` (409); missing/corrupt rows fall back to the slot count, and a stored value above the slot count is clamped to it on read. |
-| `post_open_duty_minimum` | integer as text | Minimum on-call doctors per **post-open** day (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`). Must not exceed `post_open_duty_slots`; same fallback and clamping. |
-| `closed_duty_minimum` | integer as text | Minimum on-call doctors per **closed** on-call day (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`). Must not exceed `closed_duty_slots`; same fallback and clamping. |
 
 ### `clinics`
 
@@ -70,10 +64,22 @@ Multi-clinic tenancy: one hospital per deployment, many clinics.
 | `id` | INTEGER | PK, GENERATED ALWAYS AS IDENTITY |
 | `name` | TEXT | NOT NULL, UNIQUE |
 | `is_active` | BOOLEAN | NOT NULL DEFAULT TRUE |
+| `open_duty_slots` | INTEGER | NOT NULL DEFAULT 2, CHECK (`open_duty_slots` >= 1) |
+| `post_open_duty_slots` | INTEGER | NOT NULL DEFAULT 2, CHECK (`post_open_duty_slots` >= 1) |
+| `closed_duty_slots` | INTEGER | NOT NULL DEFAULT 2, CHECK (`closed_duty_slots` >= 1) |
+| `open_duty_minimum` | INTEGER | NOT NULL DEFAULT 2, CHECK (`open_duty_minimum` >= 1) |
+| `post_open_duty_minimum` | INTEGER | NOT NULL DEFAULT 2, CHECK (`post_open_duty_minimum` >= 1) |
+| `closed_duty_minimum` | INTEGER | NOT NULL DEFAULT 2, CHECK (`closed_duty_minimum` >= 1) |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
 | `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
 
 Clinics are deactivated (`is_active = FALSE`), never deleted.
+
+Behavior:
+
+- `open_duty_slots` / `post_open_duty_slots` / `closed_duty_slots` — on-call doctors per **open** on-call day / **post-open** day (the calendar day right after an open on-call day that is not itself open) / **closed** day (every other day) for this clinic (default 2 each). Administrators edit their own clinic's counts from the Rules page (`PATCH /settings/duty-slots`; superadmin names the clinic via `?clinicId=`), audited as `duty_slots_settings.updated` with the clinic id. The service caps each count at the clinic's active doctor count (422 above it) and refuses a count below its matching minimum (409); the DB only enforces `>= 1`. The post-open day is critical (filled first) but not an open day for the one-open-duty cap. Consumed by the engine, previews, duty edits, publishing, and admin stats.
+- `open_duty_minimum` / `post_open_duty_minimum` / `closed_duty_minimum` — minimum on-call doctors per the same day types for this clinic (default 2 each). Edited via `PATCH /settings/duty-minimums` (same clinic scoping), audited as `duty_minimums_settings.updated` with the clinic id. Must not exceed the matching slot count (409); a stored value above it is clamped to it on read. Enforced by the engine, plans, duty removal, and publishing.
+- Schema evolution: these columns replaced the former deployment-wide `app_meta` keys `open_duty_slots` / `post_open_duty_slots` / `closed_duty_slots` / `open_duty_minimum` / `post_open_duty_minimum` / `closed_duty_minimum`; `schema.sql` copies any stored value to every clinic once (minimums clamped to the copied slot counts) and then deletes the keys.
 
 ### `users`
 
@@ -228,8 +234,8 @@ Constraints and indexes:
 Behavior:
 
 - A duty on `duty_date` spans 07:00 → next day 15:00 (overnight, hands off at next day's 15:00).
-- Each day's slot count comes from `app_meta` (`open_duty_slots` on open on-call days, `post_open_duty_slots` on the day right after one, `closed_duty_slots` otherwise; seeded 2/2/2); the unique index alone does not cap the count — the engine/service layer does.
-- Each day must hold at least its minimum (`open_duty_minimum` on open on-call days, `post_open_duty_minimum` on the day right after one, `closed_duty_minimum` otherwise; seeded 2/2/2). Slots above the minimum are filled best effort. Deleting a duty on an open day or the day after one is refused only when it would drop that day below its minimum.
+- Each day's slot count comes from the schedule's clinic (`clinics.open_duty_slots` on open on-call days, `clinics.post_open_duty_slots` on the day right after one, `clinics.closed_duty_slots` otherwise; default 2/2/2); the unique index alone does not cap the count — the engine/service layer does.
+- Each day must hold at least its clinic's minimum (`clinics.open_duty_minimum` on open on-call days, `clinics.post_open_duty_minimum` on the day right after one, `clinics.closed_duty_minimum` otherwise; default 2/2/2). Slots above the minimum are filled best effort. Deleting a duty on an open day or the day after one is refused only when it would drop that day below its minimum.
 - Legacy `is_holiday` denormalized flag was dropped; holiday duties derive from the `holidays` table instead.
 
 ### `schedule_generation_log`

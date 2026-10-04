@@ -1,4 +1,4 @@
-import type { DutyMinimumSettings, DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
+import type { ClinicDutySlots, DutyMinimumSettings, OpenDutySettings } from '@oncall/shared'
 import { apiGet, apiPatch } from '@/lib/http'
 
 export async function getOpenDuty(): Promise<OpenDutySettings> {
@@ -13,8 +13,12 @@ export async function updateOpenDutyInterval(intervalDays: number): Promise<Open
   return openDuty
 }
 
-export async function getDutySlots(): Promise<DutySlotsSettings> {
-  const { dutySlots } = await apiGet<{ dutySlots: DutySlotsSettings }>('/settings/duty-slots')
+function dutySlotsPath(clinicId?: number): string {
+  return clinicId === undefined ? '/settings/duty-slots' : `/settings/duty-slots?clinicId=${clinicId}`
+}
+
+export async function getDutySlots(clinicId?: number): Promise<ClinicDutySlots> {
+  const { dutySlots } = await apiGet<{ dutySlots: ClinicDutySlots }>(dutySlotsPath(clinicId))
   return dutySlots
 }
 
@@ -22,8 +26,9 @@ export async function updateDutySlots(
   openDutySlots: number,
   postOpenDutySlots: number,
   closedDutySlots: number,
-): Promise<DutySlotsSettings> {
-  const { dutySlots } = await apiPatch<{ dutySlots: DutySlotsSettings }>('/settings/duty-slots', {
+  clinicId?: number,
+): Promise<ClinicDutySlots> {
+  const { dutySlots } = await apiPatch<{ dutySlots: ClinicDutySlots }>(dutySlotsPath(clinicId), {
     openDutySlots,
     postOpenDutySlots,
     closedDutySlots,
@@ -31,9 +36,15 @@ export async function updateDutySlots(
   return dutySlots
 }
 
-export async function getDutyMinimums(): Promise<DutyMinimumSettings> {
+function dutyMinimumsPath(clinicId?: number): string {
+  return clinicId === undefined
+    ? '/settings/duty-minimums'
+    : `/settings/duty-minimums?clinicId=${clinicId}`
+}
+
+export async function getDutyMinimums(clinicId?: number): Promise<DutyMinimumSettings> {
   const { dutyMinimums } = await apiGet<{ dutyMinimums: DutyMinimumSettings }>(
-    '/settings/duty-minimums',
+    dutyMinimumsPath(clinicId),
   )
   return dutyMinimums
 }
@@ -42,9 +53,10 @@ export async function updateDutyMinimums(
   openDutyMinimum: number,
   postOpenDutyMinimum: number,
   closedDutyMinimum: number,
+  clinicId?: number,
 ): Promise<DutyMinimumSettings> {
   const { dutyMinimums } = await apiPatch<{ dutyMinimums: DutyMinimumSettings }>(
-    '/settings/duty-minimums',
+    dutyMinimumsPath(clinicId),
     { openDutyMinimum, postOpenDutyMinimum, closedDutyMinimum },
   )
   return dutyMinimums

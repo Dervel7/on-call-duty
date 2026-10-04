@@ -151,8 +151,8 @@ async function buildContext(
   const { first, last } = monthBounds(year, month)
   const [openDuty, slots, minimums] = await Promise.all([
     getOpenDutySettings(),
-    getDutySlots(),
-    getDutyMinimums(),
+    getDutySlots(clinicId),
+    getDutyMinimums(clinicId),
   ])
 
   const dr = await query<{
@@ -661,8 +661,8 @@ export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail
     // Calendar shape only — skip the eligibility work that gets blanked anyway.
     const [openDuty, slots, minimums] = await Promise.all([
       getOpenDutySettings(),
-      getDutySlots(),
-      getDutyMinimums(),
+      getDutySlots(schedule.clinicId),
+      getDutyMinimums(schedule.clinicId),
     ])
     const total = daysInMonth(schedule.year, schedule.month)
     const days: DayInfo[] = []
@@ -900,7 +900,10 @@ export async function addDuty(
     'SELECT COUNT(*)::int AS n FROM duties WHERE schedule_id = $1 AND duty_date = $2',
     [scheduleId, input.date],
   )
-  const [openDuty, dutySlots] = await Promise.all([getOpenDutySettings(), getDutySlots()])
+  const [openDuty, dutySlots] = await Promise.all([
+    getOpenDutySettings(),
+    getDutySlots(schedule.clinic_id),
+  ])
   const slots = slotsForDate(input.date, openDuty, dutySlots)
   if ((existing.rows[0]?.n ?? 0) >= slots)
     throw new HttpError(409, `All ${slots} on-call slots for this date are already filled`)
@@ -986,7 +989,10 @@ export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
   // their minimum through a removal — such a duty must be reassigned instead.
   // The count is read under the schedule lock so concurrent removals cannot
   // both pass.
-  const [openDuty, minimums] = await Promise.all([getOpenDutySettings(), getDutyMinimums()])
+  const [openDuty, minimums] = await Promise.all([
+    getOpenDutySettings(),
+    getDutyMinimums(duty.schedule_clinic_id),
+  ])
   const minimum = minimumForDate(duty.duty_date, openDuty, minimums)
   await withTransaction(async (client) => {
     await lockScheduleForEdit(client, duty.schedule_id)
@@ -1019,7 +1025,10 @@ export async function publish(id: number, actor: Actor): Promise<ScheduleSummary
   // Strict rule gate: every day must hold at least its minimum (open minimum
   // on open on-call days, closed minimum on all others). Settings are read
   // outside the transaction.
-  const [openDuty, minimums] = await Promise.all([getOpenDutySettings(), getDutyMinimums()])
+  const [openDuty, minimums] = await Promise.all([
+    getOpenDutySettings(),
+    getDutyMinimums(existing.clinic_id),
+  ])
   await withTransaction(async (client) => {
     const upd = await client.query(
       `UPDATE schedules SET status = 'published', updated_at = NOW()

@@ -170,15 +170,3 @@ INSERT INTO app_meta (key, value) VALUES
   ('open_duty_anchor_date', '2026-10-02'),
   ('open_duty_interval_days', '8')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
-
--- Per-day on-call capacity (open, day after open, closed), editable by
--- administrators from the Rules page. DO NOTHING keeps any tuned value; the
--- seed only installs the 2/2/2 defaults when the keys are absent.
-INSERT INTO app_meta (key, value) VALUES
-  ('open_duty_slots', '2'),
-  ('post_open_duty_slots', '2'),
-  ('closed_duty_slots', '2'),
-  ('open_duty_minimum', '2'),
-  ('post_open_duty_minimum', '2'),
-  ('closed_duty_minimum', '2')
-ON CONFLICT (key) DO NOTHING;

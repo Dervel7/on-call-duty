@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
 import { ok } from '../lib/envelope'
+import { resolveClinicScope } from '../lib/scope'
 import * as settingsService from '../services/settings.service'
 
 export const settingsController = {
@@ -19,9 +20,11 @@ export const settingsController = {
       next(err)
     }
   },
-  async getDutySlots(_req: Request, res: Response, next: NextFunction) {
+  async getDutySlots(req: Request, res: Response, next: NextFunction) {
     try {
-      const dutySlots = await settingsService.getDutySlots()
+      const { clinicId } = req.query as { clinicId?: number }
+      const scope = await resolveClinicScope(req.user!, clinicId)
+      const dutySlots = await settingsService.getClinicDutySlots(scope.clinicId)
       res.status(200).json(ok({ dutySlots }))
     } catch (err) {
       next(err)
@@ -29,15 +32,19 @@ export const settingsController = {
   },
   async updateDutySlots(req: Request, res: Response, next: NextFunction) {
     try {
-      const dutySlots = await settingsService.setDutySlots(req.body, req.user!)
+      const { clinicId } = req.query as { clinicId?: number }
+      const scope = await resolveClinicScope(req.user!, clinicId)
+      const dutySlots = await settingsService.setDutySlots(req.body, req.user!, scope.clinicId)
       res.status(200).json(ok({ dutySlots }))
     } catch (err) {
       next(err)
     }
   },
-  async getDutyMinimums(_req: Request, res: Response, next: NextFunction) {
+  async getDutyMinimums(req: Request, res: Response, next: NextFunction) {
     try {
-      const dutyMinimums = await settingsService.getDutyMinimums()
+      const { clinicId } = req.query as { clinicId?: number }
+      const scope = await resolveClinicScope(req.user!, clinicId)
+      const dutyMinimums = await settingsService.getDutyMinimums(scope.clinicId)
       res.status(200).json(ok({ dutyMinimums }))
     } catch (err) {
       next(err)
@@ -45,7 +52,13 @@ export const settingsController = {
   },
   async updateDutyMinimums(req: Request, res: Response, next: NextFunction) {
     try {
-      const dutyMinimums = await settingsService.setDutyMinimums(req.body, req.user!)
+      const { clinicId } = req.query as { clinicId?: number }
+      const scope = await resolveClinicScope(req.user!, clinicId)
+      const dutyMinimums = await settingsService.setDutyMinimums(
+        req.body,
+        req.user!,
+        scope.clinicId,
+      )
       res.status(200).json(ok({ dutyMinimums }))
     } catch (err) {
       next(err)

@@ -269,9 +269,9 @@
     "loadFailed": "Could not load rules",
     "error": "Error",
     "dayTypeSummary": "Open {open} · Day after {postOpen} · Closed {closed}",
-    "openDaysLabel": "Open on-call days (1–7)",
-    "postOpenDaysLabel": "Day after open on-call (1–7)",
-    "closedDaysLabel": "Closed on-call days (1–7)",
+    "openDaysLabel": "Open on-call days (1–{max})",
+    "postOpenDaysLabel": "Day after open on-call (1–{max})",
+    "closedDaysLabel": "Closed on-call days (1–{max})",
     "cycle": {
       "title": "On-call duty cycle",
       "summary": "Every {n} day | Every {n} days",
@@ -283,7 +283,8 @@
     },
     "slots": {
       "title": "On-call slots",
-      "help": "How many on-call doctors a single day holds. Open on-call days, the day after an open one, and all other (closed) days each use their own count.",
+      "help": "How many on-call doctors a single day holds in this clinic. Open on-call days, the day after an open one, and all other (closed) days each use their own count. Each count can go up to the clinic's active doctors.",
+      "exceedsActive": "On-call slots cannot exceed the clinic's {n} active doctor | On-call slots cannot exceed the clinic's {n} active doctors",
       "updated": "Slots updated.",
       "save": "Save slots",
       "saveFailed": "Could not save slots"

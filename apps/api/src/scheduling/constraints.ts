@@ -3,7 +3,7 @@ export interface ConstraintResult {
   reason: string
 }
 
-/** On-call slots per day live in app_meta (open/closed); no fixed constant. */
+/** On-call slots per day are per clinic (clinics.open/closed_duty_slots); no fixed constant. */
 
 export function isAvailable(
   _doctorId: number,

@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ChevronDown, ScrollText } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
-import type { DutyMinimumSettings, DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
+import type { ClinicDutySlots, DutyMinimumSettings, OpenDutySettings } from '@oncall/shared'
 import { updateDutyMinimumsSchema, updateDutySlotsSchema, updateOpenDutySchema } from '@oncall/shared'
 import * as settingsService from '@/services/settings'
+import { useAuthStore } from '@/stores/auth'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
 const { t } = useI18n()
+const auth = useAuthStore()
+const clinicId = () => auth.user?.clinicId ?? undefined
 
 type RuleKey = 'cycle' | 'slots' | 'minimums'
 
@@ -27,7 +30,9 @@ const intervalError = ref('')
 const intervalSuccess = ref(false)
 const intervalSubmitting = ref(false)
 
-const dutySlots = ref<DutySlotsSettings | null>(null)
+const dutySlots = ref<ClinicDutySlots | null>(null)
+/** Ceiling for both slot counts: the clinic's active doctors. */
+const maxSlots = computed(() => dutySlots.value?.activeDoctors)
 const openSlotsInput = ref('')
 const postOpenSlotsInput = ref('')
 const closedSlotsInput = ref('')
@@ -55,8 +60,8 @@ async function loadSettings() {
   loading.value = true
   const [cycle, slots, minimums] = await Promise.allSettled([
     settingsService.getOpenDuty(),
-    settingsService.getDutySlots(),
-    settingsService.getDutyMinimums(),
+    settingsService.getDutySlots(clinicId()),
+    settingsService.getDutyMinimums(clinicId()),
   ])
   if (cycle.status === 'fulfilled') {
     openDuty.value = cycle.value
@@ -115,12 +120,22 @@ async function onSubmitSlots() {
     slotsError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
+  const max = maxSlots.value ?? 0
+  if (
+    parsed.data.openDutySlots > max ||
+    parsed.data.postOpenDutySlots > max ||
+    parsed.data.closedDutySlots > max
+  ) {
+    slotsError.value = t('rules.slots.exceedsActive', { n: max }, max)
+    return
+  }
   slotsSubmitting.value = true
   try {
     dutySlots.value = await settingsService.updateDutySlots(
       parsed.data.openDutySlots,
       parsed.data.postOpenDutySlots,
       parsed.data.closedDutySlots,
+      clinicId(),
     )
     openSlotsInput.value = String(dutySlots.value.openDutySlots)
     postOpenSlotsInput.value = String(dutySlots.value.postOpenDutySlots)
@@ -151,6 +166,7 @@ async function onSubmitMinimums() {
       parsed.data.openDutyMinimum,
       parsed.data.postOpenDutyMinimum,
       parsed.data.closedDutyMinimum,
+      clinicId(),
     )
     openMinimumInput.value = String(dutyMinimums.value.openDutyMinimum)
     postOpenMinimumInput.value = String(dutyMinimums.value.postOpenDutyMinimum)
@@ -245,37 +261,37 @@ onMounted(loadSettings)
           </p>
           <form class="flex max-w-sm flex-col gap-3" novalidate @submit.prevent="onSubmitSlots">
             <div class="flex flex-col gap-1.5">
-              <Label for="open-duty-slots">{{ t('rules.openDaysLabel') }}</Label>
+              <Label for="open-duty-slots">{{ t('rules.openDaysLabel', { max: maxSlots ?? '—' }) }}</Label>
               <Input
                 id="open-duty-slots"
                 v-model="openSlotsInput"
                 type="number"
                 min="1"
-                max="7"
+                :max="maxSlots"
                 inputmode="numeric"
                 :disabled="loading"
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label for="post-open-duty-slots">{{ t('rules.postOpenDaysLabel') }}</Label>
+              <Label for="post-open-duty-slots">{{ t('rules.postOpenDaysLabel', { max: maxSlots ?? '—' }) }}</Label>
               <Input
                 id="post-open-duty-slots"
                 v-model="postOpenSlotsInput"
                 type="number"
                 min="1"
-                max="7"
+                :max="maxSlots"
                 inputmode="numeric"
                 :disabled="loading"
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label for="closed-duty-slots">{{ t('rules.closedDaysLabel') }}</Label>
+              <Label for="closed-duty-slots">{{ t('rules.closedDaysLabel', { max: maxSlots ?? '—' }) }}</Label>
               <Input
                 id="closed-duty-slots"
                 v-model="closedSlotsInput"
                 type="number"
                 min="1"
-                max="7"
+                :max="maxSlots"
                 inputmode="numeric"
                 :disabled="loading"
               />
@@ -320,37 +336,37 @@ onMounted(loadSettings)
           </p>
           <form class="flex max-w-sm flex-col gap-3" novalidate @submit.prevent="onSubmitMinimums">
             <div class="flex flex-col gap-1.5">
-              <Label for="open-duty-minimum">{{ t('rules.openDaysLabel') }}</Label>
+              <Label for="open-duty-minimum">{{ t('rules.openDaysLabel', { max: dutySlots?.openDutySlots ?? '—' }) }}</Label>
               <Input
                 id="open-duty-minimum"
                 v-model="openMinimumInput"
                 type="number"
                 min="1"
-                max="7"
+                :max="dutySlots?.openDutySlots"
                 inputmode="numeric"
                 :disabled="loading"
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label for="post-open-duty-minimum">{{ t('rules.postOpenDaysLabel') }}</Label>
+              <Label for="post-open-duty-minimum">{{ t('rules.postOpenDaysLabel', { max: dutySlots?.postOpenDutySlots ?? '—' }) }}</Label>
               <Input
                 id="post-open-duty-minimum"
                 v-model="postOpenMinimumInput"
                 type="number"
                 min="1"
-                max="7"
+                :max="dutySlots?.postOpenDutySlots"
                 inputmode="numeric"
                 :disabled="loading"
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label for="closed-duty-minimum">{{ t('rules.closedDaysLabel') }}</Label>
+              <Label for="closed-duty-minimum">{{ t('rules.closedDaysLabel', { max: dutySlots?.closedDutySlots ?? '—' }) }}</Label>
               <Input
                 id="closed-duty-minimum"
                 v-model="closedMinimumInput"
                 type="number"
                 min="1"
-                max="7"
+                :max="dutySlots?.closedDutySlots"
                 inputmode="numeric"
                 :disabled="loading"
               />

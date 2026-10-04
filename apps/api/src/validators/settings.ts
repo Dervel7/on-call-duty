@@ -1,4 +1,5 @@
 export {
+  dutySlotsQuerySchema,
   updateBillingSchema,
   updateDutyMinimumsSchema,
   updateDutySlotsSchema,

@@ -14,6 +14,7 @@ vi.mock('../services/activity.service', () => ({
 }))
 
 import {
+  getClinicDutySlots,
   getDutyMinimums,
   getDutySlots,
   getOpenDutySettings,
@@ -92,157 +93,210 @@ describe('settings.service', () => {
   })
 })
 
-describe('settings.service duty slots', () => {
-  it('missing app_meta rows fall back to the seeded 2/2/2 defaults', async () => {
-    query.mockResolvedValue({ rows: [] })
-    await expect(getDutySlots()).resolves.toEqual({
-      openDutySlots: 2,
-      postOpenDutySlots: 2,
-      closedDutySlots: 2,
-    })
-  })
+/** One clinics row with its slot counts, minimums, and active doctor count. */
+interface ClinicRow {
+  open_duty_slots: number
+  post_open_duty_slots: number
+  closed_duty_slots: number
+  open_duty_minimum: number
+  post_open_duty_minimum: number
+  closed_duty_minimum: number
+  active_doctors: number
+}
 
-  it('reads the stored slot rows', async () => {
+function clinicRow(overrides: Partial<ClinicRow> = {}): ClinicRow {
+  return {
+    open_duty_slots: 2,
+    post_open_duty_slots: 2,
+    closed_duty_slots: 2,
+    open_duty_minimum: 2,
+    post_open_duty_minimum: 2,
+    closed_duty_minimum: 2,
+    active_doctors: 30,
+    ...overrides,
+  }
+}
+
+/** Serves every clinics SELECT from one row and applies the UPDATEs to it. */
+function useClinic(initial: ClinicRow): { row: ClinicRow } {
+  const state = { row: initial }
+  query.mockImplementation(async (sql: string, params: unknown[] = []) => {
+    if (sql.includes('UPDATE clinics') && sql.includes('open_duty_slots')) {
+      state.row = {
+        ...state.row,
+        open_duty_slots: Number(params[1]),
+        post_open_duty_slots: Number(params[2]),
+        closed_duty_slots: Number(params[3]),
+      }
+      return { rows: [] }
+    }
+    if (sql.includes('UPDATE clinics') && sql.includes('open_duty_minimum')) {
+      state.row = {
+        ...state.row,
+        open_duty_minimum: Number(params[1]),
+        post_open_duty_minimum: Number(params[2]),
+        closed_duty_minimum: Number(params[3]),
+      }
+      return { rows: [] }
+    }
+    return { rows: [state.row] }
+  })
+  return state
+}
+
+describe('settings.service duty slots', () => {
+  it('reads the clinic slot counts and active doctor count', async () => {
     query.mockResolvedValue({
-      rows: [
-        { key: 'open_duty_slots', value: '3' },
-        { key: 'post_open_duty_slots', value: '4' },
-        { key: 'closed_duty_slots', value: '1' },
-      ],
+      rows: [clinicRow({ open_duty_slots: 3, post_open_duty_slots: 4, closed_duty_slots: 1 })],
     })
-    await expect(getDutySlots()).resolves.toEqual({
+    await expect(getClinicDutySlots(4)).resolves.toEqual({
       openDutySlots: 3,
       postOpenDutySlots: 4,
       closedDutySlots: 1,
+      activeDoctors: 30,
     })
+    expect(query.mock.calls[0]?.[1]).toEqual([4])
   })
 
-  it('corrupt rows fall back to the defaults instead of breaking scheduling', async () => {
-    query.mockResolvedValue({
-      rows: [
-        { key: 'open_duty_slots', value: 'three' },
-        { key: 'post_open_duty_slots', value: '-1' },
-        { key: 'closed_duty_slots', value: '0' },
-      ],
-    })
-    await expect(getDutySlots()).resolves.toEqual({
-      openDutySlots: 2,
-      postOpenDutySlots: 2,
-      closedDutySlots: 2,
-    })
+  it('an unknown clinic is 404', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await expect(getDutySlots(99)).rejects.toMatchObject({ status: 404 })
+    await expect(getClinicDutySlots(99)).rejects.toMatchObject({ status: 404 })
+    await expect(getDutyMinimums(99)).rejects.toMatchObject({ status: 404 })
   })
 
-  it('setDutySlots upserts all three keys, audits duty_slots_settings.updated, returns fresh settings', async () => {
-    const appMeta = new Map<string, string>()
-    query.mockImplementation(async (sql: string, params: unknown[] = []) => {
-      if (sql.includes('INSERT INTO app_meta')) {
-        for (let i = 0; i < params.length; i += 2) appMeta.set(String(params[i]), String(params[i + 1]))
-        return { rows: [] }
-      }
-      const rows: Array<{ key: string; value: string }> = []
-      for (const key of params.map(String)) {
-        const value = appMeta.get(key)
-        if (value !== undefined) rows.push({ key, value })
-      }
-      return { rows }
-    })
+  it('setDutySlots accepts counts up to the active doctor count (above the old 7 ceiling)', async () => {
+    useClinic(clinicRow())
 
     const settings = await setDutySlots(
-      { openDutySlots: 3, postOpenDutySlots: 4, closedDutySlots: 2 },
+      { openDutySlots: 30, postOpenDutySlots: 12, closedDutySlots: 10 },
       { id: 1, role: 'administrator' },
+      4,
     )
-    expect(settings).toEqual({ openDutySlots: 3, postOpenDutySlots: 4, closedDutySlots: 2 })
-    const upsert = query.mock.calls.find((c) => String(c[0]).includes('ON CONFLICT'))
-    expect(upsert?.[1]).toEqual([
-      'open_duty_slots',
-      '3',
-      'post_open_duty_slots',
-      '4',
-      'closed_duty_slots',
-      '2',
-    ])
+    expect(settings).toEqual({
+      openDutySlots: 30,
+      postOpenDutySlots: 12,
+      closedDutySlots: 10,
+      activeDoctors: 30,
+    })
+    const update = query.mock.calls.find((c) => String(c[0]).includes('UPDATE clinics'))
+    expect(update?.[1]).toEqual([4, 30, 12, 10])
     expect(logActivity).toHaveBeenCalledWith({
       userId: 1,
       action: 'duty_slots_settings.updated',
       entityType: 'duty_slots_settings',
       entityId: null,
+      clinicId: 4,
       detail: {
         previousOpenDutySlots: 2,
         previousPostOpenDutySlots: 2,
         previousClosedDutySlots: 2,
-        openDutySlots: 3,
-        postOpenDutySlots: 4,
-        closedDutySlots: 2,
+        openDutySlots: 30,
+        postOpenDutySlots: 12,
+        closedDutySlots: 10,
       },
     })
+  })
+
+  it('setDutySlots rejects any count above the active doctor count (422) without writing', async () => {
+    useClinic(clinicRow({ active_doctors: 5 }))
+    for (const input of [
+      { openDutySlots: 6, postOpenDutySlots: 2, closedDutySlots: 2 },
+      { openDutySlots: 2, postOpenDutySlots: 6, closedDutySlots: 2 },
+      { openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 6 },
+    ]) {
+      await expect(
+        setDutySlots(input, { id: 1, role: 'administrator' }, 4),
+      ).rejects.toMatchObject({ status: 422 })
+    }
+    expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE clinics'))).toBe(false)
+    expect(logActivity).not.toHaveBeenCalled()
+  })
+
+  it('setDutySlots 409 when a slot count drops below its minimum, without saving', async () => {
+    useClinic(
+      clinicRow({
+        open_duty_slots: 4,
+        post_open_duty_slots: 3,
+        open_duty_minimum: 1,
+        post_open_duty_minimum: 3,
+        closed_duty_minimum: 1,
+      }),
+    )
+    await expect(
+      setDutySlots(
+        { openDutySlots: 4, postOpenDutySlots: 2, closedDutySlots: 2 },
+        { id: 1, role: 'administrator' },
+        4,
+      ),
+    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('day-after-open minimum is 3') })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE clinics'))).toBe(false)
   })
 })
 
 describe('settings.service duty minimums', () => {
-  /** Serves app_meta reads from the map and applies key/value-pair upserts to it. */
-  function useAppMeta(initial: Record<string, string>): Map<string, string> {
-    const appMeta = new Map(Object.entries(initial))
-    query.mockImplementation(async (sql: string, params: unknown[] = []) => {
-      if (sql.includes('INSERT INTO app_meta')) {
-        for (let i = 0; i < params.length; i += 2) appMeta.set(String(params[i]), String(params[i + 1]))
-        return { rows: [] }
-      }
-      const rows: Array<{ key: string; value: string }> = []
-      for (const key of params.map(String)) {
-        const value = appMeta.get(key)
-        if (value !== undefined) rows.push({ key, value })
-      }
-      return { rows }
+  it('reads the clinic minimums', async () => {
+    useClinic(
+      clinicRow({
+        open_duty_slots: 4,
+        post_open_duty_slots: 5,
+        closed_duty_slots: 3,
+        open_duty_minimum: 3,
+        post_open_duty_minimum: 4,
+        closed_duty_minimum: 1,
+      }),
+    )
+    await expect(getDutyMinimums(4)).resolves.toEqual({
+      openDutyMinimum: 3,
+      postOpenDutyMinimum: 4,
+      closedDutyMinimum: 1,
     })
-    return appMeta
-  }
-
-  it('missing minimum rows fall back to the slot counts (full coverage)', async () => {
-    useAppMeta({ open_duty_slots: '4', post_open_duty_slots: '5', closed_duty_slots: '3' })
-    await expect(getDutyMinimums()).resolves.toEqual({
-      openDutyMinimum: 4,
-      postOpenDutyMinimum: 5,
-      closedDutyMinimum: 3,
-    })
+    expect(query.mock.calls[0]?.[1]).toEqual([4])
   })
 
   it('a stored minimum above its slot count is clamped to the slot count', async () => {
-    useAppMeta({
-      open_duty_slots: '4',
-      post_open_duty_slots: '3',
-      closed_duty_slots: '2',
-      open_duty_minimum: '2',
-      post_open_duty_minimum: '6',
-      closed_duty_minimum: '5',
-    })
-    await expect(getDutyMinimums()).resolves.toEqual({
+    useClinic(
+      clinicRow({
+        open_duty_slots: 4,
+        post_open_duty_slots: 3,
+        closed_duty_slots: 2,
+        open_duty_minimum: 2,
+        post_open_duty_minimum: 6,
+        closed_duty_minimum: 5,
+      }),
+    )
+    await expect(getDutyMinimums(4)).resolves.toEqual({
       openDutyMinimum: 2,
       postOpenDutyMinimum: 3,
       closedDutyMinimum: 2,
     })
   })
 
-  it('setDutyMinimums upserts all three keys, audits duty_minimums_settings.updated, returns fresh settings', async () => {
-    useAppMeta({ open_duty_slots: '4', post_open_duty_slots: '3', closed_duty_slots: '2' })
+  it('setDutyMinimums updates the clinic, audits duty_minimums_settings.updated, returns fresh settings', async () => {
+    useClinic(
+      clinicRow({
+        open_duty_slots: 4,
+        post_open_duty_slots: 3,
+        closed_duty_slots: 2,
+        open_duty_minimum: 4,
+        post_open_duty_minimum: 3,
+        closed_duty_minimum: 2,
+      }),
+    )
     const settings = await setDutyMinimums(
       { openDutyMinimum: 2, postOpenDutyMinimum: 3, closedDutyMinimum: 1 },
       { id: 1, role: 'administrator' },
+      4,
     )
     expect(settings).toEqual({ openDutyMinimum: 2, postOpenDutyMinimum: 3, closedDutyMinimum: 1 })
-    const upsert = query.mock.calls.find((c) => String(c[0]).includes('ON CONFLICT'))
-    expect(upsert?.[1]).toEqual([
-      'open_duty_minimum',
-      '2',
-      'post_open_duty_minimum',
-      '3',
-      'closed_duty_minimum',
-      '1',
-    ])
+    const update = query.mock.calls.find((c) => String(c[0]).includes('UPDATE clinics'))
+    expect(update?.[1]).toEqual([4, 2, 3, 1])
     expect(logActivity).toHaveBeenCalledWith({
       userId: 1,
       action: 'duty_minimums_settings.updated',
       entityType: 'duty_minimums_settings',
       entityId: null,
+      clinicId: 4,
       detail: {
         previousOpenDutyMinimum: 4,
         previousPostOpenDutyMinimum: 3,
@@ -255,30 +309,15 @@ describe('settings.service duty minimums', () => {
   })
 
   it('setDutyMinimums 409 when a minimum exceeds its slot count, without saving', async () => {
-    useAppMeta({ open_duty_slots: '4', post_open_duty_slots: '2', closed_duty_slots: '2' })
+    useClinic(clinicRow({ open_duty_slots: 4, post_open_duty_slots: 2, closed_duty_slots: 2 }))
     await expect(
       setDutyMinimums(
         { openDutyMinimum: 4, postOpenDutyMinimum: 3, closedDutyMinimum: 2 },
         { id: 1, role: 'administrator' },
+        4,
       ),
     ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('days after open have 2') })
-    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO app_meta'))).toBe(false)
+    expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE clinics'))).toBe(false)
     expect(logActivity).not.toHaveBeenCalled()
-  })
-
-  it('setDutySlots 409 when a slot count drops below a stored minimum, without saving', async () => {
-    useAppMeta({
-      open_duty_slots: '4',
-      post_open_duty_slots: '3',
-      closed_duty_slots: '2',
-      post_open_duty_minimum: '3',
-    })
-    await expect(
-      setDutySlots(
-        { openDutySlots: 4, postOpenDutySlots: 2, closedDutySlots: 2 },
-        { id: 1, role: 'administrator' },
-      ),
-    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('day-after-open minimum is 3') })
-    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO app_meta'))).toBe(false)
   })
 })

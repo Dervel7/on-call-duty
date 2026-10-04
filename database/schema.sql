@@ -245,12 +245,43 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'
 -- open on-call days (seeded 8, editable by administrators via /settings).
 -- A date is an open on-call day when it is the anchor or a whole interval
 -- after it; earlier dates are closed.
--- Per-day on-call capacity (app_meta keys, no DDL):
--- 'open_duty_slots' / 'post_open_duty_slots' / 'closed_duty_slots' — on-call
--- doctors per open on-call day / the day right after an open day / every
--- other (closed) day (seeded 2 each, editable 1–7 by administrators via
--- /settings/duty-slots; consumed by the engine, previews, and publishing).
--- 'open_duty_minimum' / 'post_open_duty_minimum' / 'closed_duty_minimum' —
--- minimum on-call doctors per the same day types (seeded 2 each, editable
--- 1–7 via /settings/duty-minimums, never above the matching slot count;
--- missing or corrupt rows fall back to the slot count).
+
+-- Per-clinic on-call capacity: on-call doctors per open on-call day / the day
+-- right after an open day / every other (closed) day. Each clinic sets its own
+-- counts (seeded 2 each) via /settings/duty-slots; the service caps every
+-- count at the clinic's active doctor count. Consumed by the engine, previews,
+-- duty edits, and publishing.
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS open_duty_slots INTEGER NOT NULL DEFAULT 2
+  CHECK (open_duty_slots >= 1);
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS post_open_duty_slots INTEGER NOT NULL DEFAULT 2
+  CHECK (post_open_duty_slots >= 1);
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS closed_duty_slots INTEGER NOT NULL DEFAULT 2
+  CHECK (closed_duty_slots >= 1);
+-- Per-clinic minimum on-call doctors per the same day types (seeded 2 each,
+-- editable via /settings/duty-minimums). The service keeps every minimum at or
+-- below the matching slot count; a stored value above it is clamped on read.
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS open_duty_minimum INTEGER NOT NULL DEFAULT 2
+  CHECK (open_duty_minimum >= 1);
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS post_open_duty_minimum INTEGER NOT NULL DEFAULT 2
+  CHECK (post_open_duty_minimum >= 1);
+ALTER TABLE clinics ADD COLUMN IF NOT EXISTS closed_duty_minimum INTEGER NOT NULL DEFAULT 2
+  CHECK (closed_duty_minimum >= 1);
+-- The counts used to be deployment-wide app_meta keys: copy any stored value
+-- to every clinic once, then drop the keys (no-op on later runs). Minimums
+-- run after the slots so they can be clamped to them.
+UPDATE clinics SET open_duty_slots = m.value::int
+  FROM app_meta m WHERE m.key = 'open_duty_slots' AND m.value ~ '^[1-9][0-9]{0,3}$';
+UPDATE clinics SET post_open_duty_slots = m.value::int
+  FROM app_meta m WHERE m.key = 'post_open_duty_slots' AND m.value ~ '^[1-9][0-9]{0,3}$';
+UPDATE clinics SET closed_duty_slots = m.value::int
+  FROM app_meta m WHERE m.key = 'closed_duty_slots' AND m.value ~ '^[1-9][0-9]{0,3}$';
+UPDATE clinics c SET open_duty_minimum = LEAST(m.value::int, c.open_duty_slots)
+  FROM app_meta m WHERE m.key = 'open_duty_minimum' AND m.value ~ '^[1-9][0-9]{0,3}$';
+UPDATE clinics c SET post_open_duty_minimum = LEAST(m.value::int, c.post_open_duty_slots)
+  FROM app_meta m WHERE m.key = 'post_open_duty_minimum' AND m.value ~ '^[1-9][0-9]{0,3}$';
+UPDATE clinics c SET closed_duty_minimum = LEAST(m.value::int, c.closed_duty_slots)
+  FROM app_meta m WHERE m.key = 'closed_duty_minimum' AND m.value ~ '^[1-9][0-9]{0,3}$';
+DELETE FROM app_meta WHERE key IN (
+  'open_duty_slots', 'post_open_duty_slots', 'closed_duty_slots',
+  'open_duty_minimum', 'post_open_duty_minimum', 'closed_duty_minimum'
+);

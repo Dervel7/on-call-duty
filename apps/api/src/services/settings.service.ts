@@ -1,5 +1,6 @@
 import type {
   AuthUser,
+  ClinicDutySlots,
   DutyMinimumSettings,
   DutySlotsSettings,
   OpenDutySettings,
@@ -8,11 +9,8 @@ import type {
   UpdateOpenDutyRequest,
 } from '@oncall/shared'
 import {
-  DEFAULT_CLOSED_DUTY_SLOTS,
   DEFAULT_OPEN_DUTY_ANCHOR_DATE,
   DEFAULT_OPEN_DUTY_INTERVAL_DAYS,
-  DEFAULT_OPEN_DUTY_SLOTS,
-  DEFAULT_POST_OPEN_DUTY_SLOTS,
   isoDateSchema,
 } from '@oncall/shared'
 import { query } from '../db/client'
@@ -23,12 +21,6 @@ type Actor = Pick<AuthUser, 'id' | 'role'>
 
 const INTERVAL_KEY = 'open_duty_interval_days'
 const ANCHOR_KEY = 'open_duty_anchor_date'
-const OPEN_SLOTS_KEY = 'open_duty_slots'
-const POST_OPEN_SLOTS_KEY = 'post_open_duty_slots'
-const CLOSED_SLOTS_KEY = 'closed_duty_slots'
-const OPEN_MINIMUM_KEY = 'open_duty_minimum'
-const POST_OPEN_MINIMUM_KEY = 'post_open_duty_minimum'
-const CLOSED_MINIMUM_KEY = 'closed_duty_minimum'
 
 /**
  * The open/closed cycle lives in app_meta so administrators can tune it
@@ -70,63 +62,101 @@ export async function setOpenDutyInterval(
   return getOpenDutySettings()
 }
 
-/**
- * Per-day on-call capacity, split by day type. Same resilience contract as
- * the cycle: missing or corrupt rows fall back to the seeded defaults.
- */
-export async function getDutySlots(): Promise<DutySlotsSettings> {
-  const res = await query<{ key: string; value: string }>(
-    'SELECT key, value FROM app_meta WHERE key IN ($1, $2, $3)',
-    [OPEN_SLOTS_KEY, POST_OPEN_SLOTS_KEY, CLOSED_SLOTS_KEY],
+/** Per-day on-call capacity of one clinic, split by day type (clinics columns). */
+export async function getDutySlots(clinicId: number): Promise<DutySlotsSettings> {
+  const res = await query<{
+    open_duty_slots: number
+    post_open_duty_slots: number
+    closed_duty_slots: number
+  }>(
+    'SELECT open_duty_slots, post_open_duty_slots, closed_duty_slots FROM clinics WHERE id = $1',
+    [clinicId],
   )
-  const parse = (key: string, fallback: number): number => {
-    const n = Number.parseInt(res.rows.find((r) => r.key === key)?.value ?? '', 10)
-    return Number.isInteger(n) && n >= 1 ? n : fallback
-  }
+  const row = res.rows[0]
+  if (!row) throw new HttpError(404, 'Clinic not found')
   return {
-    openDutySlots: parse(OPEN_SLOTS_KEY, DEFAULT_OPEN_DUTY_SLOTS),
-    postOpenDutySlots: parse(POST_OPEN_SLOTS_KEY, DEFAULT_POST_OPEN_DUTY_SLOTS),
-    closedDutySlots: parse(CLOSED_SLOTS_KEY, DEFAULT_CLOSED_DUTY_SLOTS),
+    openDutySlots: row.open_duty_slots,
+    postOpenDutySlots: row.post_open_duty_slots,
+    closedDutySlots: row.closed_duty_slots,
   }
 }
 
+/**
+ * The clinic's slot counts plus its active doctor count. Active doctors are
+ * the engine's candidate pool, so that count is the ceiling for every slot.
+ */
+export async function getClinicDutySlots(clinicId: number): Promise<ClinicDutySlots> {
+  const res = await query<{
+    open_duty_slots: number
+    post_open_duty_slots: number
+    closed_duty_slots: number
+    active_doctors: number
+  }>(
+    `SELECT c.open_duty_slots, c.post_open_duty_slots, c.closed_duty_slots,
+       (SELECT COUNT(*)::int FROM doctors d JOIN users u ON u.id = d.user_id
+        WHERE d.clinic_id = c.id AND u.is_active = TRUE) AS active_doctors
+     FROM clinics c WHERE c.id = $1`,
+    [clinicId],
+  )
+  const row = res.rows[0]
+  if (!row) throw new HttpError(404, 'Clinic not found')
+  return {
+    openDutySlots: row.open_duty_slots,
+    postOpenDutySlots: row.post_open_duty_slots,
+    closedDutySlots: row.closed_duty_slots,
+    activeDoctors: row.active_doctors,
+  }
+}
+
+/**
+ * Each count must stay between the clinic's matching minimum and its active
+ * doctor count.
+ */
 export async function setDutySlots(
   input: UpdateDutySlotsRequest,
   actor: Actor,
-): Promise<DutySlotsSettings> {
-  // Slots may never drop below a minimum the administrator set explicitly.
-  // Unset minimums follow the slot count, so they never block a change.
-  const stored = await readStoredMinimums()
+  clinicId: number,
+): Promise<ClinicDutySlots> {
+  const [previous, minimums] = await Promise.all([
+    getClinicDutySlots(clinicId),
+    getDutyMinimums(clinicId),
+  ])
+  const max = previous.activeDoctors
+  if (
+    input.openDutySlots > max ||
+    input.postOpenDutySlots > max ||
+    input.closedDutySlots > max
+  ) {
+    throw new HttpError(
+      422,
+      `On-call slots cannot exceed the clinic's ${max} active doctor${max === 1 ? '' : 's'}`,
+    )
+  }
+  // Slots may never drop below the minimum on-call doctors of the same day type.
   const blocked: string[] = []
-  if (stored.open !== null && input.openDutySlots < stored.open)
-    blocked.push(`open minimum is ${stored.open}`)
-  if (stored.postOpen !== null && input.postOpenDutySlots < stored.postOpen)
-    blocked.push(`day-after-open minimum is ${stored.postOpen}`)
-  if (stored.closed !== null && input.closedDutySlots < stored.closed)
-    blocked.push(`closed minimum is ${stored.closed}`)
+  if (input.openDutySlots < minimums.openDutyMinimum)
+    blocked.push(`open minimum is ${minimums.openDutyMinimum}`)
+  if (input.postOpenDutySlots < minimums.postOpenDutyMinimum)
+    blocked.push(`day-after-open minimum is ${minimums.postOpenDutyMinimum}`)
+  if (input.closedDutySlots < minimums.closedDutyMinimum)
+    blocked.push(`closed minimum is ${minimums.closedDutyMinimum}`)
   if (blocked.length > 0)
     throw new HttpError(
       409,
       `On-call slots cannot be lower than the minimum on-call doctors (${blocked.join(', ')}); lower the minimums first`,
     )
-  const previous = await getDutySlots()
   await query(
-    `INSERT INTO app_meta (key, value) VALUES ($1, $2), ($3, $4), ($5, $6)
-     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-    [
-      OPEN_SLOTS_KEY,
-      String(input.openDutySlots),
-      POST_OPEN_SLOTS_KEY,
-      String(input.postOpenDutySlots),
-      CLOSED_SLOTS_KEY,
-      String(input.closedDutySlots),
-    ],
+    `UPDATE clinics
+     SET open_duty_slots = $2, post_open_duty_slots = $3, closed_duty_slots = $4, updated_at = NOW()
+     WHERE id = $1`,
+    [clinicId, input.openDutySlots, input.postOpenDutySlots, input.closedDutySlots],
   )
   await logActivity({
     userId: actor.id,
     action: 'duty_slots_settings.updated',
     entityType: 'duty_slots_settings',
     entityId: null,
+    clinicId,
     detail: {
       previousOpenDutySlots: previous.openDutySlots,
       previousPostOpenDutySlots: previous.postOpenDutySlots,
@@ -136,52 +166,46 @@ export async function setDutySlots(
       closedDutySlots: input.closedDutySlots,
     },
   })
-  return getDutySlots()
-}
-
-/** Stored minimums; null where the row is missing or corrupt. */
-async function readStoredMinimums(): Promise<{
-  open: number | null
-  postOpen: number | null
-  closed: number | null
-}> {
-  const res = await query<{ key: string; value: string }>(
-    'SELECT key, value FROM app_meta WHERE key IN ($1, $2, $3)',
-    [OPEN_MINIMUM_KEY, POST_OPEN_MINIMUM_KEY, CLOSED_MINIMUM_KEY],
-  )
-  const parse = (key: string): number | null => {
-    const n = Number.parseInt(res.rows.find((r) => r.key === key)?.value ?? '', 10)
-    return Number.isInteger(n) && n >= 1 ? n : null
-  }
-  return {
-    open: parse(OPEN_MINIMUM_KEY),
-    postOpen: parse(POST_OPEN_MINIMUM_KEY),
-    closed: parse(CLOSED_MINIMUM_KEY),
-  }
+  return getClinicDutySlots(clinicId)
 }
 
 /**
- * Hard minimum of on-call doctors per day type. Missing or corrupt rows fall
- * back to the slot count (full coverage), and a stored value above the slot
- * count is clamped to it, so consumers always see 1 ≤ minimum ≤ slots.
+ * Hard minimum of on-call doctors per day type for one clinic. A stored value
+ * above the slot count is clamped to it, so consumers always see
+ * 1 ≤ minimum ≤ slots.
  */
-export async function getDutyMinimums(): Promise<DutyMinimumSettings> {
-  const [slots, stored] = await Promise.all([getDutySlots(), readStoredMinimums()])
+export async function getDutyMinimums(clinicId: number): Promise<DutyMinimumSettings> {
+  const res = await query<{
+    open_duty_slots: number
+    post_open_duty_slots: number
+    closed_duty_slots: number
+    open_duty_minimum: number
+    post_open_duty_minimum: number
+    closed_duty_minimum: number
+  }>(
+    `SELECT open_duty_slots, post_open_duty_slots, closed_duty_slots,
+       open_duty_minimum, post_open_duty_minimum, closed_duty_minimum
+     FROM clinics WHERE id = $1`,
+    [clinicId],
+  )
+  const row = res.rows[0]
+  if (!row) throw new HttpError(404, 'Clinic not found')
   return {
-    openDutyMinimum: Math.min(stored.open ?? slots.openDutySlots, slots.openDutySlots),
-    postOpenDutyMinimum: Math.min(
-      stored.postOpen ?? slots.postOpenDutySlots,
-      slots.postOpenDutySlots,
-    ),
-    closedDutyMinimum: Math.min(stored.closed ?? slots.closedDutySlots, slots.closedDutySlots),
+    openDutyMinimum: Math.min(row.open_duty_minimum, row.open_duty_slots),
+    postOpenDutyMinimum: Math.min(row.post_open_duty_minimum, row.post_open_duty_slots),
+    closedDutyMinimum: Math.min(row.closed_duty_minimum, row.closed_duty_slots),
   }
 }
 
 export async function setDutyMinimums(
   input: UpdateDutyMinimumsRequest,
   actor: Actor,
+  clinicId: number,
 ): Promise<DutyMinimumSettings> {
-  const [slots, previous] = await Promise.all([getDutySlots(), getDutyMinimums()])
+  const [slots, previous] = await Promise.all([
+    getDutySlots(clinicId),
+    getDutyMinimums(clinicId),
+  ])
   const blocked: string[] = []
   if (input.openDutyMinimum > slots.openDutySlots)
     blocked.push(`open days have ${slots.openDutySlots}`)
@@ -195,22 +219,18 @@ export async function setDutyMinimums(
       `Minimum on-call doctors cannot exceed the on-call slots (${blocked.join(', ')}); raise the slots first`,
     )
   await query(
-    `INSERT INTO app_meta (key, value) VALUES ($1, $2), ($3, $4), ($5, $6)
-     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-    [
-      OPEN_MINIMUM_KEY,
-      String(input.openDutyMinimum),
-      POST_OPEN_MINIMUM_KEY,
-      String(input.postOpenDutyMinimum),
-      CLOSED_MINIMUM_KEY,
-      String(input.closedDutyMinimum),
-    ],
+    `UPDATE clinics
+     SET open_duty_minimum = $2, post_open_duty_minimum = $3, closed_duty_minimum = $4,
+       updated_at = NOW()
+     WHERE id = $1`,
+    [clinicId, input.openDutyMinimum, input.postOpenDutyMinimum, input.closedDutyMinimum],
   )
   await logActivity({
     userId: actor.id,
     action: 'duty_minimums_settings.updated',
     entityType: 'duty_minimums_settings',
     entityId: null,
+    clinicId,
     detail: {
       previousOpenDutyMinimum: previous.openDutyMinimum,
       previousPostOpenDutyMinimum: previous.postOpenDutyMinimum,
@@ -220,5 +240,5 @@ export async function setDutyMinimums(
       closedDutyMinimum: input.closedDutyMinimum,
     },
   })
-  return getDutyMinimums()
+  return getDutyMinimums(clinicId)
 }

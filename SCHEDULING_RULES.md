@@ -22,23 +22,23 @@ multiple of the interval after it (`isOpenDutyDate` in
 - `open_duty_anchor_date` — first open day (seeded `2026-10-02`), fixed
 - `open_duty_interval_days` — spacing between open days (seeded `8`),
   editable by administrators via `PATCH /settings/open-duty`
-- `open_duty_slots` — on-call doctors per **open** on-call day (seeded `2`,
-  editable 1–7 via `PATCH /settings/duty-slots`)
-- `post_open_duty_slots` — on-call doctors per **post-open** day, the
-  calendar day right after an open day (seeded `2`, editable 1–7 via
-  `PATCH /settings/duty-slots`)
-- `closed_duty_slots` — on-call doctors per **closed** on-call day (seeded
-  `2`, editable 1–7 via `PATCH /settings/duty-slots`)
-- `open_duty_minimum` — minimum on-call doctors per **open** on-call day
-  (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`; must be ≤
-  `open_duty_slots`, missing/corrupt → the slot count, stored values above
-  the slot count are clamped to it)
-- `post_open_duty_minimum` — minimum on-call doctors per post-open day
-  (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`; must be ≤
-  `post_open_duty_slots`, same fallback)
-- `closed_duty_minimum` — minimum on-call doctors per every other day
-  (seeded `2`, editable 1–7 via `PATCH /settings/duty-minimums`; must be ≤
-  `closed_duty_slots`, same fallback)
+- `clinics.open_duty_slots` — on-call doctors per **open** on-call day, per
+  clinic (default `2`, editable 1–N via `PATCH /settings/duty-slots`, where N
+  is the clinic's active doctor count)
+- `clinics.post_open_duty_slots` — on-call doctors per **post-open** day, the
+  calendar day right after an open day, per clinic (default `2`, editable
+  1–N the same way)
+- `clinics.closed_duty_slots` — on-call doctors per **closed** on-call day,
+  per clinic (default `2`, editable 1–N the same way)
+- `clinics.open_duty_minimum` — minimum on-call doctors per **open** on-call
+  day, per clinic (default `2`, editable via `PATCH /settings/duty-minimums`;
+  must be ≤ `open_duty_slots`, stored values above the slot count are clamped
+  to it)
+- `clinics.post_open_duty_minimum` — minimum on-call doctors per post-open
+  day, per clinic (default `2`; must be ≤ `post_open_duty_slots`, same
+  clamping)
+- `clinics.closed_duty_minimum` — minimum on-call doctors per every other
+  day, per clinic (default `2`; must be ≤ `closed_duty_slots`, same clamping)
 
 Example: open days have 4 slots and the open minimum is 2 → 2 or 3 doctors
 are acceptable, 4 is preferred, fewer than 2 is a hard violation.

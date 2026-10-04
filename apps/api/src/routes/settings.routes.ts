@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/authenticate'
 import { authorize } from '../middleware/authorize'
 import { validate } from '../middleware/validate'
 import {
+  dutySlotsQuerySchema,
   updateDutyMinimumsSchema,
   updateDutySlotsSchema,
   updateOpenDutySchema,
@@ -23,23 +24,36 @@ settingsRouter.patch(
   settingsController.updateOpenDuty,
 )
 
-// Per-day on-call capacity (open vs closed days): administrators tune both
-// counts; the engine, previews, duty edits, and publishing consume them.
-settingsRouter.get('/duty-slots', authorize('administrator'), settingsController.getDutySlots)
+// Per-clinic on-call capacity (open, day after open, closed): administrators tune their
+// own clinic's counts (superadmin names the clinic via ?clinicId= when there
+// are several); the engine, previews, duty edits, and publishing consume them.
+settingsRouter.get(
+  '/duty-slots',
+  authorize('administrator'),
+  validate(dutySlotsQuerySchema, 'query'),
+  settingsController.getDutySlots,
+)
 settingsRouter.patch(
   '/duty-slots',
   authorize('administrator'),
+  validate(dutySlotsQuerySchema, 'query'),
   validate(updateDutySlotsSchema, 'body'),
   settingsController.updateDutySlots,
 )
 
-// Hard minimum of on-call doctors per day type (open vs closed days). Each
-// must stay within its slot count; the engine, plans, duty removal, and
-// publishing enforce it.
-settingsRouter.get('/duty-minimums', authorize('administrator'), settingsController.getDutyMinimums)
+// Per-clinic hard minimum of on-call doctors per day type (open, day after
+// open, closed); same clinic scoping as the slots. Each must stay within its
+// slot count; the engine, plans, duty removal, and publishing enforce it.
+settingsRouter.get(
+  '/duty-minimums',
+  authorize('administrator'),
+  validate(dutySlotsQuerySchema, 'query'),
+  settingsController.getDutyMinimums,
+)
 settingsRouter.patch(
   '/duty-minimums',
   authorize('administrator'),
+  validate(dutySlotsQuerySchema, 'query'),
   validate(updateDutyMinimumsSchema, 'body'),
   settingsController.updateDutyMinimums,
 )

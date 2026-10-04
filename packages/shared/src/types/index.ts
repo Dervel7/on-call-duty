@@ -63,6 +63,7 @@ export type {
   OpenDutySettings,
   UpdateOpenDutyRequest,
   DutySlotsSettings,
+  ClinicDutySlots,
   UpdateDutySlotsRequest,
   DutyMinimumSettings,
   UpdateDutyMinimumsRequest,
