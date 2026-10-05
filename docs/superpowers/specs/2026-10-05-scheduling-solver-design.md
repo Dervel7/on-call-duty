@@ -172,3 +172,18 @@ Use doctor ids only in tests. All doctors are active, `maxMonthlyDuties = 7`. No
 | Level-4 spread with mixed monthly caps gives odd results | Unit test with mixed caps; ratio buckets if needed (4.5) |
 | WebAssembly instance corrupted after an abort | Drop the cached instance on error (5) |
 | Greedy fallback hides solver bugs | Log a `warn` with clinic, year, month, and error on every fallback |
+
+## 9. Implementation notes (2026-10-05)
+
+Where the implementation differs from sections 4-5, and why. Details and dates: `todos/scheduling-solver-status.md`.
+
+| Topic | Implemented | Reason |
+|---|---|---|
+| Level 1 | Split into ordered coverage stages: critical days position by position, then regular days position by position (`u_<date>_<p>` = day has fewer than p doctors) | `sum short[d]` treats "one empty day" and "two days at 1 of 2" as equal; rules.md section 2 requires critical days first and the first doctor on every day before a second |
+| Capacity stage | Stage 0 maximizes duties with per-doctor rules only (no day rows, no relaxations); the result is each doctor's capacity | Needed for level 4 |
+| Level 4 | Fair share: `abs(E*t[i] - cap[i]*total) <= E - 1 + dev`, E = sum of capacities; minimize `dev` | Minimizing `tmax - tmin` above the fill level makes the duty count a multiple of the doctor count whenever an even split is feasible, and lets one low-cap or long-leave doctor cap everyone else |
+| Level 5 | Minimize `max(0, hmax - hmin - 1)` over doctors with a possible holiday duty | Same rounding issue as level 4 |
+| Repeat note | On the later (count - 1) duties of that weekday at their minimum | A repeat is the extra duty, not the first one |
+| Time limit | No solution at a later stage keeps the previous stage's solution (`time limit`); greedy only when no solution exists | A valid schedule is better than the fallback |
+| Worker | HiGHS runs in a `worker_threads` worker; a HiGHS error retires the worker; a silent worker is stopped 5 s after the deadline | October takes about 2 s; generation must never hang |
+| `clinicId` | Added to `SchedulingContext` | The fallback `warn` log names the clinic |

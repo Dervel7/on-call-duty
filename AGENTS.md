@@ -106,7 +106,7 @@ Per workspace: `pnpm --filter @oncall/api <script>` (same for `@oncall/web`, `@o
 - Controllers remain thin.
 - Database access isolated from business logic (single `pg` Pool in `src/db/client.ts`).
 - Middleware in `src/middleware/` for authentication, authorization, validation, logging, and error handling.
-- The scheduling engine lives in `src/scheduling/` (pure functions: engine, constraints, scoring, dates) and is unit-tested independently of Express.
+- `src/scheduling/` holds the scheduling engine: an exact MIP solver (HiGHS, run in a worker thread, async `generate`) with the greedy engine as fallback, plus pure helpers (model builder, constraints, scoring, dates), unit-tested independently of Express.
 - Shared helpers in `src/lib/` (response envelope, `HttpError`, jwt, token).
 
 ### Frontend Structure

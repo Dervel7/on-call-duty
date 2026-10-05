@@ -27,12 +27,11 @@ Open on-call days and the day after them are **critical days**. They are filled 
 
 Slots above the minimum, up to the day's slot count, are filled afterwards on a best-effort basis. An optional slot is left empty if nobody qualifies. It is never a conflict.
 
-Fill order:
+Coverage priority:
 
-1. Critical days, up to the minimum
-2. Regular days, up to the minimum
-3. Critical days, extra slots
-4. Regular days, extra slots
+1. Critical days, up to the minimum (position by position)
+2. Regular days, up to the minimum: every regular day gets its first doctor before any regular day gets a second, and so on
+3. Extra slots above the minimum, after all fairness goals (see section 4)
 
 ## 3. Holiday cap (fairness cap)
 
@@ -41,29 +40,39 @@ A doctor may take at most **2** duties per month on holiday days (Saturdays, Sun
 - It does not apply on critical days.
 - It gives way to minimum coverage. If a regular day would otherwise stay below its minimum, the cap is lifted for that day. The duty's reason then says "day-fill guarantee overrode fairness caps".
 
-## 4. Fair workload distribution (scoring)
+## 4. Objective stages
 
-Among the doctors who pass the rules above, the engine picks the one with the highest score:
+The engine is an exact solver (HiGHS). It solves the whole month at once, one goal (stage) at a time, in the order below. Each later stage keeps the best result of every earlier stage, so a lower goal never makes a higher one worse. Hard constraints (section 1) hold in every stage.
 
-| Factor | Weight | Meaning |
-|---|---|---|
-| Workload | 3 | Doctors with more of their monthly cap left score higher |
-| Weekend | 4 | On weekend days, doctors below their fair share of weekend duties score higher |
-| Friday | 2 | On Fridays, doctors below their fair share of Friday duties score higher |
-| Fri/Sat/Sun | 5 | On a Friday, Saturday or Sunday, doctors with no duty yet on that weekday this month score higher |
+| Stage | Goal |
+|---|---|
+| 1. Coverage | Reach every day's minimum in the priority order of section 2. Days left short become conflicts. |
+| 2. Relax | Use the holiday-cap override and a repeated Friday/Saturday/Sunday as rarely as possible. Both are allowed only where coverage needs them. |
+| 3. Weekdays | Each doctor gets one Friday, one Saturday and one Sunday where possible. |
+| 4. Share | Each doctor's total stays less than one duty away from their fair share. |
+| 5. Holidays | Holiday duty counts (weekends and marked holidays) stay within 1 of each other where possible. |
+| 6. Fill | Fill as many extra slots above each day's minimum as possible. |
 
-A doctor's fair share is the total weekend (or Friday) slots divided by the number of active doctors, rounded up.
+**Fair share.** First the engine works out each doctor's capacity: the most duties they could take alone under every per-doctor rule. A doctor's fair share is the month's total duties x their capacity / the sum of all capacities. A lower monthly cap or a long absence lowers that doctor's share instead of pulling everyone else down.
 
-The Fri/Sat/Sun factor is a soft goal: each doctor gets one Friday, one Saturday and one Sunday per month. It only ranks doctors who already passed every rule above, so it never overrides a hard constraint, minimum coverage or the holiday cap. When there are fewer slots than doctors, or availability prevents it, some doctors get fewer.
+**Extra slots and weekdays.** An extra slot stays empty rather than give a doctor a second Friday, Saturday or Sunday.
 
-## 5. Tie-breakers
+## 5. Reasons, time limit and fallback
 
-If scores are equal, the engine picks, in order:
+Every assigned duty stores a reason. It starts with the solver status, followed by optional notes joined with `; `.
 
-1. The doctor with the fewest total duties
-2. The doctor with the fewest weekend duties
-3. The doctor with the lowest id
+| Part | Meaning |
+|---|---|
+| `solver optimal` | Every stage was solved to the proven best result |
+| `solver time limit` | A stage hit the time limit; the best solution found so far is used |
+| `first friday` / `first saturday` / `first sunday` | The doctor's only duty on that weekday this month |
+| `day-fill guarantee overrode fairness caps` | The holiday cap was exceeded to reach a day's minimum (on the doctor's chronologically last such duties) |
+| `repeat weekday to reach minimum` | A second duty on the same Friday, Saturday or Sunday weekday, needed for coverage (on the later ones) |
+
+Example: `solver optimal; first saturday`.
+
+The time budget is 10 seconds per generation. If the solver fails or finds no solution in time, the earlier greedy engine generates the schedule instead, and every reason ends with `; fallback`. The same input always gives the same schedule, unless the time limit is hit.
 
 ## Explainability
 
-Every assigned duty stores a `reason` with its score breakdown and any tie-break or override that applied. Conflicts are detected before a schedule is created (`POST /schedules/preview`).
+Every assigned duty stores a `reason` in the format of section 5, including any override that applied. Conflicts are detected before a schedule is created (`POST /schedules/preview`) and are listed in date order.

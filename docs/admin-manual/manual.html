@@ -442,7 +442,7 @@ The report is read-only; it cannot be edited here.</p>
   <tr><td><strong>Title block</strong></td><td>“On-Call Duty”, the month, the <strong>Published/Draft</strong> badge, and the generation timestamp.</td></tr>
   <tr><td><strong>Coverage</strong></td><td>Days filled vs. total, and the list of gap days (if any).</td></tr>
   <tr><td><strong>Fairness</strong></td><td>Duty spread with a <em>Well balanced / Imbalanced</em> badge, plus the weekend spread.</td></tr>
-  <tr><td><strong>Duty roster</strong></td><td>Day-by-day table: date, doctor (or <em>Unassigned</em>), flags, and a plain-language reason for each assignment (hover a reason to see the engine's detailed score breakdown).</td></tr>
+  <tr><td><strong>Duty roster</strong></td><td>Day-by-day table: date, doctor (or <em>Unassigned</em>), flags, and a plain-language reason for each assignment (hover a reason to see the engine's detailed stored reason).</td></tr>
   <tr><td><strong>Workload</strong></td><td>Per doctor: duties (with a proportional bar), weekend count, and cap. Inactive doctors are greyed.</td></tr>
 </table>
 
@@ -536,21 +536,31 @@ log. Days already drawn keep their old shape until the schedule is regenerated. 
 <div class="note info"><span class="t">Info</span>Open on-call days follow the cycle described in §8.3 (the red-bordered days in the preview). Because a duty hands over at 15:00 the next day, the day after an open day is protected too.</div>
 
 <h2>9.3 How the engine balances work</h2>
-<p>Among the doctors who satisfy the hard rules for a given day, the engine picks the one with the best
-<strong>score</strong>, so that work is spread fairly:</p>
-<ul>
-  <li><strong>Workload</strong> — favours doctors with the most remaining headroom under their cap (heaviest weight).</li>
-  <li><strong>Weekend balance</strong> — on weekend days, favours doctors who have had fewer weekend duties so far.</li>
-</ul>
-<p>Ties are broken deterministically: fewest total duties first, then fewest weekend duties, then lower doctor id.
-The result is stable — generating the same month with the same inputs always yields the same roster.</p>
+<p>The engine computes the whole month at once with an exact <strong>optimisation solver</strong>. It never breaks a
+hard rule. Within the hard rules it settles the goals below one at a time, in this order; a later goal can never make
+an earlier one worse:</p>
+<ol>
+  <li><strong>Coverage</strong> - open on-call days and the day after reach their minimum first; then every regular day gets its first doctor before any regular day gets a second, and so on. Days that still fall short become conflicts.</li>
+  <li><strong>Fewest exceptions</strong> - the holiday cap is exceeded, or a doctor gets a second Friday, Saturday or Sunday, only where a day could not reach its minimum otherwise, and as rarely as possible.</li>
+  <li><strong>Weekdays</strong> - each doctor gets one Friday, one Saturday and one Sunday where possible.</li>
+  <li><strong>Fair share</strong> - each doctor's total stays less than one duty away from their fair share. The share is the month's total duties split in proportion to how many duties each doctor could take at most; a lower monthly cap or a long absence lowers that doctor's share instead of pulling everyone else down.</li>
+  <li><strong>Holidays</strong> - weekend and holiday duty counts stay within 1 of each other where possible.</li>
+  <li><strong>Extra slots</strong> - as many slots above each day's minimum as possible are filled. An extra slot stays empty rather than give a doctor a second Friday, Saturday or Sunday.</li>
+</ol>
+<p>Each generation has a 10 second time budget and runs in the background, so the application stays responsive. If the
+budget runs out, the best schedule found so far is used. If the solver cannot produce a schedule at all, a simpler
+backup scheduler takes over. The result is stable: generating the same month with the same inputs always yields the same
+roster, unless the time budget runs out.</p>
 
 <h2>9.4 Explainable assignments</h2>
 <p>Every duty stores a human-readable <strong>Reason</strong>. In the report's duty roster it is shown in plain
-language — e.g. <em>“Picked for fair workload — most room left under their monthly duty limit”</em>, with any
-tie-break or coverage-override note. Hovering a reason shows the engine's detailed stored form, which looks like
-<code>score 18 (workload +12, weekend +0, friday +0); tie-break: fewer duties</code>. Manual changes are recorded as
-<code>manual override by admin</code> and shown as <em>“Assigned manually by an administrator”</em>. The CSV export
+language, e.g. <em>"Best possible schedule under the fairness rules; their only Saturday duty this month"</em>, with any
+coverage-override note. Hovering a reason shows the engine's detailed stored form, which looks like
+<code>solver optimal; first saturday</code>. When the time budget ran out the stored form starts with
+<code>solver time limit</code> (<em>"Best schedule found within the time limit, not proven to be the best possible"</em>).
+When the backup scheduler was used, every reason ends with <code>; fallback</code> (<em>"chosen by the backup scheduler
+because the exact solver could not finish"</em>). Manual changes are recorded as
+<code>manual override by admin</code> and shown as <em>"Assigned manually by an administrator"</em>. The CSV export
 always carries the detailed stored form.</p>
 
 <h2>9.5 Conflict detection</h2>
