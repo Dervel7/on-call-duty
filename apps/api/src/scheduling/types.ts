@@ -17,6 +17,8 @@ export interface DaySpec {
 }
 
 export interface SchedulingContext {
+  /** Owning clinic; only used to identify the run in logs. */
+  clinicId: number
    year: number
    month: number
    days: DaySpec[]

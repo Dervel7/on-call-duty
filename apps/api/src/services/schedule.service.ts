@@ -214,7 +214,18 @@ async function buildContext(
   )
   const priorDayDoctorIds = new Set(pres.rows.map((r) => r.doctor_id))
 
-  return { year, month, days, doctors, unavailability, priorDayDoctorIds, openDuty, slots, minimums }
+  return {
+    clinicId,
+    year,
+    month,
+    days,
+    doctors,
+    unavailability,
+    priorDayDoctorIds,
+    openDuty,
+    slots,
+    minimums,
+  }
 }
 
 export interface EligibilityInput {
@@ -378,7 +389,7 @@ export async function preview(
       days,
     }
   }
-  const result = runEngine(ctx)
+  const result = await runEngine(ctx)
   const maps = buildDutyMaps(result.assignments, holidayDatesOf(ctx.days), openDatesOf(ctx.days, openDuty))
   await seedAdjacentDuties(maps.dutiesByDate, ctx, scope.clinicId)
   const days = computeEligibility({
@@ -421,7 +432,7 @@ export async function generate(
   const planDuties =
     assignments && assignments.length > 0
       ? validatePlan(ctx, assignments)
-      : enginePlanToDuties(runEngine(ctx))
+      : enginePlanToDuties(await runEngine(ctx))
 
   const scheduleId = await withTransaction(async (client) => {
     const ins = await client.query<{ id: number }>(

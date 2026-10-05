@@ -1,81 +1,43 @@
 import { describe, expect, it } from 'vitest'
-import { generate } from '../engine'
-import { dayOfWeekISO } from '../dates'
-import type { DutyMinimumSettings, DutySlotsSettings } from '@oncall/shared'
-import type { DaySpec, DoctorSpec, SchedulingContext } from '../types'
+import { generateGreedy } from '../engine'
+import { generate } from '../solver'
+import type { GenerateResult, SchedulingContext } from '../types'
+import { ctx, day, dr } from './helpers'
 
-function ctx(
-  days: DaySpec[],
-  doctors: DoctorSpec[],
-  opts: {
-    unavailability?: Map<number, Array<{ start: string; end: string }>>
-    priorDayDoctorIds?: Set<number>
-    openDuty?: { anchorDate: string; intervalDays: number }
-    slots?: DutySlotsSettings
-    minimums?: DutyMinimumSettings
-  } = {},
-): SchedulingContext {
-  // Default per-day capacity matches the seeded production default (2/2/2).
-  const slots = opts.slots ?? { openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 2 }
-  return {
-    year: 2026,
-    month: 9,
-    days,
-    doctors,
-    unavailability: opts.unavailability ?? new Map(),
-    priorDayDoctorIds: opts.priorDayDoctorIds ?? new Set(),
-    openDuty: opts.openDuty ?? { anchorDate: '2030-01-01', intervalDays: 7 },
-    slots,
-    // Unset minimums mean full coverage, like missing app_meta rows.
-    minimums: opts.minimums ?? {
-      openDutyMinimum: slots.openDutySlots,
-      postOpenDutyMinimum: slots.postOpenDutySlots,
-      closedDutyMinimum: slots.closedDutySlots,
-    },
-  }
-}
+// Outcome rules every engine must keep: the exact solver and the greedy
+// engine it falls back to. Engine-internal behavior lives in solver.test.ts
+// and greedy.test.ts.
+const engines: Array<[string, (c: SchedulingContext) => GenerateResult | Promise<GenerateResult>]> = [
+  ['solver', generate],
+  ['greedy', generateGreedy],
+]
 
-const dr = (id: number, max = 7): DoctorSpec => ({
-  id,
-  firstName: `F${id}`,
-  lastName: `L${id}`,
-  maxMonthlyDuties: max,
-  isActive: true,
-})
-const day = (d: string, isWeekend = false, isHoliday = isWeekend): DaySpec => ({
-  date: d,
-  dayOfWeek: dayOfWeekISO(d),
-  isWeekend,
-  isHoliday,
-})
+describe.each(engines)('%s engine', (_name, engine) => {
+  const run = async (c: SchedulingContext): Promise<GenerateResult> => engine(c)
 
-describe('engine.generate', () => {
-  it('assigns two distinct doctors per fillable day', () => {
+  it('assigns two distinct doctors per fillable day', async () => {
     const days = [day('2026-09-01'), day('2026-09-03'), day('2026-09-05')]
-    const { assignments, conflicts } = generate(ctx(days, [dr(1), dr(2), dr(3)]))
+    const { assignments, conflicts } = await run(ctx(days, [dr(1), dr(2), dr(3)]))
     expect(conflicts).toEqual([])
     for (const date of ['2026-09-01', '2026-09-03', '2026-09-05']) {
       const picked = assignments.filter((a) => a.date === date).map((a) => a.doctorId)
       expect(picked).toHaveLength(2)
       expect(new Set(picked).size).toBe(2) // distinct
     }
-    expect(assignments[0]?.reason).toMatch(
-      /^score \d+ \(workload \+\d+, weekend \+\d+, friday \+\d+, first fri\/sat\/sun \+\d+\)/,
-    )
   })
 
-  it('a single doctor short-fills a day (1 assigned, conflict emitted)', () => {
+  it('a single doctor short-fills a day (1 assigned, conflict emitted)', async () => {
     const days = [day('2026-09-01'), day('2026-09-03'), day('2026-09-05')]
-    const { assignments, conflicts } = generate(ctx(days, [dr(1)]))
+    const { assignments, conflicts } = await run(ctx(days, [dr(1)]))
     // one doctor can only hold one slot per day → each day short-fills
     expect(assignments).toHaveLength(3)
     expect(conflicts).toHaveLength(3)
     expect(conflicts[0]?.detail).toContain('only 1 of 2')
   })
 
-  it('enforces no back-to-back with two doctors over two consecutive days', () => {
+  it('enforces no back-to-back with two doctors over two consecutive days', async () => {
     const days = [day('2026-09-01'), day('2026-09-02')]
-    const { assignments, conflicts } = generate(ctx(days, [dr(1), dr(2)]))
+    const { assignments, conflicts } = await run(ctx(days, [dr(1), dr(2)]))
     // Coverage first gives each day one doctor; neither doctor may hold both
     // days, and the second slots are unfillable (back-to-back).
     const day1 = assignments.filter((a) => a.date === '2026-09-01').map((a) => a.doctorId)
@@ -87,11 +49,11 @@ describe('engine.generate', () => {
     expect(conflicts.every((c) => c.detail.includes('back-to-back'))).toBe(true)
   })
 
-  it('covers every day with one doctor before assigning second doctors', () => {
+  it('covers every day with one doctor before assigning second doctors', async () => {
     // Two doctors capped at 2 duties: doubling up day 1 (the old strategy)
     // starved days 3 and 4 to zero doctors; coverage-first fills all days.
     const days = ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04'].map((d) => day(d))
-    const { assignments, conflicts } = generate(ctx(days, [dr(1, 2), dr(2, 2)]))
+    const { assignments, conflicts } = await run(ctx(days, [dr(1, 2), dr(2, 2)]))
     for (const { date } of days) {
       expect(assignments.filter((a) => a.date === date)).toHaveLength(1)
     }
@@ -99,53 +61,52 @@ describe('engine.generate', () => {
     expect(conflicts.every((c) => c.detail.includes('only 1 of 2'))).toBe(true)
   })
 
-  it('enforces the monthly cap', () => {
+  it('enforces the monthly cap', async () => {
     const everyOther = [day('2026-09-01'), day('2026-09-03'), day('2026-09-05'), day('2026-09-07')]
-    const { conflicts } = generate(ctx(everyOther, [dr(1, 2), dr(2, 2)]))
+    const { conflicts } = await run(ctx(everyOther, [dr(1, 2), dr(2, 2)]))
     expect(conflicts.length).toBeGreaterThan(0)
     expect(conflicts.some((c) => c.detail.includes('at monthly cap'))).toBe(true)
   })
 
-  it('respects unavailability: a fully-unavailable day becomes a conflict', () => {
+  it('respects unavailability: a fully-unavailable day becomes a conflict', async () => {
     const days = [day('2026-09-01')]
     const un = new Map([
       [1, [{ start: '2026-09-01', end: '2026-09-01' }]],
       [2, [{ start: '2026-09-01', end: '2026-09-01' }]],
     ])
-    const { assignments, conflicts } = generate(ctx(days, [dr(1), dr(2)], { unavailability: un }))
+    const { assignments, conflicts } = await run(ctx(days, [dr(1), dr(2)], { unavailability: un }))
     expect(assignments).toEqual([])
     expect(conflicts[0]?.detail).toContain('unavailable')
   })
 
-  it('respects cross-month prior-day duty via priorDayDoctorIds', () => {
+  it('respects cross-month prior-day duty via priorDayDoctorIds', async () => {
     const days = [day('2026-09-01'), day('2026-09-02')]
     const prior = new Set([1, 2])
-    const { assignments } = generate(ctx(days, [dr(1), dr(2), dr(3), dr(4)], { priorDayDoctorIds: prior }))
+    const { assignments } = await run(ctx(days, [dr(1), dr(2), dr(3), dr(4)], { priorDayDoctorIds: prior }))
     const day1 = assignments.filter((a) => a.date === '2026-09-01').map((a) => a.doctorId)
     expect(day1).not.toContain(1)
     expect(day1).not.toContain(2)
   })
 
-  it('spreads Saturday duties across distinct doctors (soft weekend balance)', () => {
-    // four Saturdays, ten doctors: the weekend scoring term — not a cap —
-    // prefers doctors with weekend headroom, so the duties spread out
+  it('spreads Saturday duties across distinct doctors', async () => {
+    // four Saturdays, ten doctors: nobody needs a second Saturday
     const sats = ['2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26'].map((d) => day(d, true))
     const doctors = Array.from({ length: 10 }, (_, i) => dr(i + 1))
-    const { assignments, conflicts } = generate(ctx(sats, doctors))
+    const { assignments, conflicts } = await run(ctx(sats, doctors))
     const satCount = new Map<number, number>()
     for (const a of assignments) satCount.set(a.doctorId, (satCount.get(a.doctorId) ?? 0) + 1)
     for (const c of satCount.values()) expect(c).toBeLessThanOrEqual(1)
     expect(conflicts).toEqual([])
   })
 
-  it('fills five Saturdays with eight doctors (holiday cap allows two each)', () => {
+  it('fills five Saturdays with eight doctors (holiday cap allows two each)', async () => {
     // 5 Saturdays * 2 slots = 10 slots over 8 doctors: the holiday cap —
     // two weekend/holiday duties per doctor — is the only weekend limit.
     const sats = ['2026-10-03', '2026-10-10', '2026-10-17', '2026-10-24', '2026-10-31'].map((d) =>
       day(d, true),
     )
     const doctors = Array.from({ length: 8 }, (_, i) => dr(i + 1))
-    const { assignments, conflicts } = generate(ctx(sats, doctors))
+    const { assignments, conflicts } = await run(ctx(sats, doctors))
     const satCount = new Map<number, number>()
     for (const a of assignments) satCount.set(a.doctorId, (satCount.get(a.doctorId) ?? 0) + 1)
     for (const c of satCount.values()) expect(c).toBeLessThanOrEqual(2)
@@ -153,24 +114,24 @@ describe('engine.generate', () => {
     expect(assignments).toHaveLength(10)
   })
 
-  it('is deterministic: same context yields identical output twice', () => {
+  it('is deterministic: same context yields identical output twice', async () => {
     const days = Array.from({ length: 10 }, (_, i) => day(`2026-09-${String(i + 1).padStart(2, '0')}`))
-    const a = generate(ctx(days, [dr(1), dr(2), dr(3), dr(4)]))
-    const b = generate(ctx(days, [dr(1), dr(2), dr(3), dr(4)]))
+    const a = await run(ctx(days, [dr(1), dr(2), dr(3), dr(4)]))
+    const b = await run(ctx(days, [dr(1), dr(2), dr(3), dr(4)]))
     expect(JSON.stringify(a)).toBe(JSON.stringify(b))
   })
 
-  it('holiday cap yields to the day-fill guarantee: a sole doctor still covers the day', () => {
+  it('holiday cap yields to the day-fill guarantee: a sole doctor still covers the day', async () => {
     // Marked weekdays (Tue/Thu, non-adjacent): the doctor is at the holiday
     // cap (2/2) on the third day, but the strict ≥1-doctor-per-day rule
     // overrides the fairness cap instead of leaving the day empty. Only the
-    // first slot relaxes: the top-up pass still short-fills.
+    // first slot relaxes: the second slot still short-fills.
     const days = [
       day('2026-09-01', false, true),
       day('2026-09-03', false, true),
       day('2026-09-08', false, true),
     ]
-    const { assignments, conflicts } = generate(ctx(days, [dr(1)]))
+    const { assignments, conflicts } = await run(ctx(days, [dr(1)]))
     expect(assignments).toHaveLength(3)
     expect(assignments.every((a) => a.doctorId === 1)).toBe(true)
     expect(assignments.find((a) => a.date === '2026-09-08')?.reason).toContain(
@@ -179,9 +140,9 @@ describe('engine.generate', () => {
     expect(conflicts.every((c) => c.detail.includes('only 1 of 2'))).toBe(true)
   })
 
-  it('weekend holiday cap yields to the day-fill guarantee too', () => {
+  it('weekend holiday cap yields to the day-fill guarantee too', async () => {
     const sats = ['2026-09-05', '2026-09-12', '2026-09-19'].map((d) => day(d, true))
-    const { assignments, conflicts } = generate(ctx(sats, [dr(1)]))
+    const { assignments, conflicts } = await run(ctx(sats, [dr(1)]))
     expect(assignments).toHaveLength(3)
     expect(assignments.find((a) => a.date === '2026-09-19')?.reason).toContain(
       'day-fill guarantee overrode fairness caps',
@@ -189,43 +150,45 @@ describe('engine.generate', () => {
     expect(conflicts.every((c) => c.detail.includes('only 1 of 2'))).toBe(true)
   })
 
-  it('day-fill guarantee never breaks hard constraints: back-to-back still empties the day', () => {
-    // Consecutive marked holidays: the sole doctor takes the first; the
-    // second is back-to-back, and relaxing fairness caps cannot fix that.
+  it('day-fill guarantee never breaks hard constraints: back-to-back still empties the day', async () => {
+    // Consecutive marked holidays: the sole doctor takes one; the other is
+    // back-to-back, and relaxing fairness caps cannot fix that.
     const days = [day('2026-09-01', false, true), day('2026-09-02', false, true)]
-    const { assignments, conflicts } = generate(ctx(days, [dr(1)]))
-    expect(assignments.map((a) => a.date)).toEqual(['2026-09-01'])
-    expect(conflicts.map((c) => c.date)).toEqual(['2026-09-02', '2026-09-01'])
-    expect(conflicts.find((c) => c.date === '2026-09-02')?.detail).toContain('back-to-back')
+    const { assignments, conflicts } = await run(ctx(days, [dr(1)]))
+    expect(assignments).toHaveLength(1)
+    const empty = assignments[0]?.date === '2026-09-01' ? '2026-09-02' : '2026-09-01'
+    expect(conflicts.map((c) => c.date).sort()).toEqual(['2026-09-01', '2026-09-02'])
+    expect(conflicts.find((c) => c.date === empty)?.detail).toContain('1 back-to-back')
   })
 
-  it('non-holiday weekdays are unaffected: a doctor may exceed 2 duties there', () => {
+  it('non-holiday weekdays are unaffected: a doctor may exceed 2 duties there', async () => {
     const days = ['2026-09-01', '2026-09-03', '2026-09-08', '2026-09-10'].map((d) => day(d))
-    const { assignments } = generate(ctx(days, [dr(1)]))
+    const { assignments } = await run(ctx(days, [dr(1)]))
     expect(assignments).toHaveLength(4)
     expect(assignments.every((a) => a.doctorId === 1)).toBe(true)
   })
-  it('open on-call rule: open days and the day after are doubled before regular days get anyone', () => {
+
+  it('open on-call rule: open days and the day after reach their minimum before regular days', async () => {
     const days = [day('2026-09-01'), day('2026-09-02'), day('2026-09-03')]
     // Anchor 09-01 with a long interval: 09-01 is open, 09-02 is the day
     // after an open day — both critical. Four doctors with one duty each.
-    const { assignments, conflicts } = generate(
+    const { assignments, conflicts } = await run(
       ctx(days, [dr(1, 1), dr(2, 1), dr(3, 1), dr(4, 1)], {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
       }),
     )
-    expect(assignments.filter((a) => a.date === '2026-09-01').map((a) => a.doctorId).sort()).toEqual([1, 3])
-    expect(assignments.filter((a) => a.date === '2026-09-02').map((a) => a.doctorId).sort()).toEqual([2, 4])
+    expect(assignments.filter((a) => a.date === '2026-09-01')).toHaveLength(2)
+    expect(assignments.filter((a) => a.date === '2026-09-02')).toHaveLength(2)
     // The regular day starves instead: every doctor spent their single duty
     // on the critical pair first.
     expect(conflicts.map((c) => c.date)).toEqual(['2026-09-03'])
   })
 
-  it('open on-call rule: day 1 is critical when the previous month ends on an open day', () => {
+  it('open on-call rule: day 1 is critical when the previous month ends on an open day', async () => {
     const days = [day('2026-09-01'), day('2026-09-02')]
     // Anchor 2026-08-31: Aug 31 is open, so Sept 1 (the day after) must be
     // doubled even though no September day is open.
-    const { assignments, conflicts } = generate(
+    const { assignments, conflicts } = await run(
       ctx(days, [dr(1), dr(2), dr(3)], {
         openDuty: { anchorDate: '2026-08-31', intervalDays: 90 },
         priorDayDoctorIds: new Set([1]),
@@ -237,7 +200,7 @@ describe('engine.generate', () => {
     expect(conflicts.map((c) => c.date)).toEqual(['2026-09-02'])
   })
 
-  it('open on-call rule: the holiday cap never blocks a critical day', () => {
+  it('open on-call rule: the holiday cap never blocks a critical day', async () => {
     // Anchor 09-05, interval 7: every Saturday is open and every Sunday is
     // the day after an open day — all critical. Doctor 1 is available only
     // on Sundays (blocked from the open Saturdays), so they take three
@@ -262,7 +225,7 @@ describe('engine.generate', () => {
         { start: '2026-09-20', end: '2026-09-20' },
         { start: '2026-09-27', end: '2026-09-27' },
       ])
-    const { assignments, conflicts } = generate(
+    const { assignments, conflicts } = await run(
       ctx(days, doctors, {
         unavailability: un,
         openDuty: { anchorDate: '2026-09-05', intervalDays: 7 },
@@ -283,10 +246,9 @@ describe('engine.generate', () => {
     expect(conflicts.map((c) => c.date).sort()).toEqual(['2026-09-06', '2026-09-20', '2026-09-27'])
   })
 
-
-  it('open on-call rule: an unfillable open day carries the strict-rule prefix', () => {
+  it('open on-call rule: an unfillable open day carries the strict-rule prefix', async () => {
     const un = new Map([[1, [{ start: '2026-09-01', end: '2026-09-01' }]]])
-    const { assignments, conflicts } = generate(
+    const { assignments, conflicts } = await run(
       ctx([day('2026-09-01')], [dr(1)], {
         unavailability: un,
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
@@ -297,12 +259,12 @@ describe('engine.generate', () => {
     expect(conflicts[0]?.detail).toContain('unavailable')
   })
 
-  it('open on-call rule: a doctor never takes a second open on-call day', () => {
+  it('open on-call rule: a doctor never takes a second open on-call day', async () => {
     // Anchor 09-05, interval 7: all four Saturdays are open (8 slots). Eight
     // doctors cover them exactly once each — the cap never bends.
     const sats = ['2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26'].map((d) => day(d, true))
     const doctors = Array.from({ length: 8 }, (_, i) => dr(i + 1))
-    const { assignments, conflicts } = generate(
+    const { assignments, conflicts } = await run(
       ctx(sats, doctors, { openDuty: { anchorDate: '2026-09-05', intervalDays: 7 } }),
     )
     expect(conflicts).toEqual([])
@@ -312,22 +274,22 @@ describe('engine.generate', () => {
     expect([...perDoctor.values()].every((n) => n === 1)).toBe(true)
   })
 
-  it('open on-call rule: a second open-day duty is a hard conflict, even for double coverage', () => {
+  it('open on-call rule: a second open-day duty is a hard conflict, even for double coverage', async () => {
     // Anchor 09-01, interval 8: 09-01 and 09-09 are both open and need 4
     // slots, but the two doctors may each hold one open day only, so both
     // days short-fill and the conflict names the open on-call cap.
     const days = [day('2026-09-01'), day('2026-09-09')]
-    const { assignments, conflicts } = generate(
+    const { assignments, conflicts } = await run(
       ctx(days, [dr(1), dr(2)], { openDuty: { anchorDate: '2026-09-01', intervalDays: 8 } }),
     )
     expect(assignments.map((a) => a.doctorId).sort()).toEqual([1, 2])
     expect(conflicts.map((c) => c.date)).toEqual(['2026-09-01', '2026-09-09'])
-    expect(conflicts.every((c) => c.detail.includes('at open on-call cap'))).toBe(true)
+    expect(conflicts.every((c) => c.detail.includes('1 at open on-call cap'))).toBe(true)
   })
 
-  it('closed slots 1: every day carries exactly one doctor and no top-up pass runs', () => {
+  it('closed slots 1: every day carries exactly one doctor', async () => {
     const days = [day('2026-09-01'), day('2026-09-03'), day('2026-09-05')]
-    const { assignments, conflicts } = generate(
+    const { assignments, conflicts } = await run(
       ctx(days, [dr(1), dr(2), dr(3)], {
         slots: { openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 1 },
       }),
@@ -339,8 +301,8 @@ describe('engine.generate', () => {
     expect(assignments).toHaveLength(3)
   })
 
-  it('open slots 3: a short open day reports "only 2 of 3"', () => {
-    const { assignments, conflicts } = generate(
+  it('open slots 3: a short open day reports "only 2 of 3"', async () => {
+    const { assignments, conflicts } = await run(
       ctx([day('2026-09-01')], [dr(1), dr(2)], {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
         slots: { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 2 },
@@ -351,11 +313,11 @@ describe('engine.generate', () => {
     expect(conflicts[0]?.detail).toContain('only 2 of 3 doctors assigned')
   })
 
-  it('mixed slots: open, post-open, and closed days each hold their own count', () => {
+  it('mixed slots: open, post-open, and closed days each hold their own count', async () => {
     // Anchor 09-01, interval 30: 09-01 is open (3 slots); 09-02 is the day
     // after it (post-open, 2 slots); regular 09-03 is closed (1 slot).
     const days = [day('2026-09-01'), day('2026-09-02'), day('2026-09-03')]
-    const { assignments, conflicts } = generate(
+    const { assignments, conflicts } = await run(
       ctx(days, Array.from({ length: 6 }, (_, i) => dr(i + 1)), {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
         slots: { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 1 },
@@ -367,10 +329,10 @@ describe('engine.generate', () => {
     expect(assignments.filter((a) => a.date === '2026-09-03')).toHaveLength(1)
   })
 
-  it('post-open minimum: a short day after an open day reports its own minimum', () => {
+  it('post-open minimum: a short day after an open day reports its own minimum', async () => {
     // 09-02 follows the open 09-01; with 3 doctors and no back-to-back only
     // one is left for 09-02, below its post-open minimum of 2.
-    const { conflicts } = generate(
+    const { conflicts } = await run(
       ctx([day('2026-09-01'), day('2026-09-02')], [dr(1), dr(2), dr(3)], {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
         slots: { openDutySlots: 2, postOpenDutySlots: 3, closedDutySlots: 1 },
@@ -381,11 +343,11 @@ describe('engine.generate', () => {
     expect(conflicts[0]?.detail).toContain('only 1 of 2 doctors assigned')
   })
 
-  it('minimum below slots: unfillable extra slots are left empty without a conflict', () => {
+  it('minimum below slots: unfillable extra slots are left empty without a conflict', async () => {
     // Two doctors and no back-to-back: each works every other day, so the
     // second slot can never be filled. Minimum 1 makes that acceptable.
     const days = [day('2026-09-01'), day('2026-09-02'), day('2026-09-03'), day('2026-09-04')]
-    const { assignments, conflicts } = generate(
+    const { assignments, conflicts } = await run(
       ctx(days, [dr(1), dr(2)], {
         minimums: { openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 1 },
       }),
@@ -396,12 +358,12 @@ describe('engine.generate', () => {
     }
   })
 
-  it('minimum below slots: every day reaches its minimum before any extra slot is filled', () => {
+  it('minimum below slots: every day reaches its minimum before any extra slot is filled', async () => {
     // Anchor 09-01: the open day has 3 slots but a minimum of 1. Five doctors
     // capped at one duty each must first give every day its one doctor; only
     // the doctor left over tops up the open day.
     const days = [day('2026-09-01'), day('2026-09-02'), day('2026-09-03'), day('2026-09-04')]
-    const { assignments, conflicts } = generate(
+    const { assignments, conflicts } = await run(
       ctx(days, Array.from({ length: 5 }, (_, i) => dr(i + 1, 1)), {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
         slots: { openDutySlots: 3, postOpenDutySlots: 1, closedDutySlots: 1 },
@@ -415,8 +377,8 @@ describe('engine.generate', () => {
     }
   })
 
-  it('minimum 2 of 3: a day short of its minimum reports the minimum, not the slot count', () => {
-    const { conflicts } = generate(
+  it('minimum 2 of 3: a day short of its minimum reports the minimum, not the slot count', async () => {
+    const { conflicts } = await run(
       ctx([day('2026-09-01')], [dr(1)], {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
         slots: { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 2 },
