@@ -133,7 +133,14 @@
     "tieBreakFewerDuties": "tie-break: fewer duties so far",
     "tieBreakFewerWeekendDuties": "tie-break: fewer weekend duties",
     "tieBreakRosterOrder": "tie-break: roster order",
-    "dayFillGuarantee": "assigned to guarantee the day was covered, usual fairness caps were relaxed"
+    "dayFillGuarantee": "assigned to guarantee the day was covered, usual fairness caps were relaxed",
+    "fallback": "chosen by the backup scheduler because the exact solver could not finish",
+    "solverOptimal": "Best possible schedule under the fairness rules",
+    "solverTimeLimit": "Best schedule found within the time limit, not proven to be the best possible",
+    "solverFirstFriday": "their only Friday duty this month",
+    "solverFirstSaturday": "their only Saturday duty this month",
+    "solverFirstSunday": "their only Sunday duty this month",
+    "solverRepeatWeekday": "repeats a Friday, Saturday or Sunday only because the day could not reach its minimum staffing otherwise"
   },
   "scheduleStatus": {
     "published": "Published",
