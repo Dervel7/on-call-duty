@@ -68,7 +68,7 @@ function isActive(to: string): boolean {
   <header
     class="sticky top-0 z-40 w-full border-b border-border/60 bg-background/70 shadow-header backdrop-blur-xl"
   >
-    <div class="flex h-16 w-full items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
+    <div class="flex min-h-16 w-full items-center gap-3 px-4 py-2 sm:gap-4 sm:px-6 lg:px-8">
       <RouterLink to="/" class="group flex shrink-0 items-center gap-2.5">
         <span class="brand-tile transition-transform duration-200 group-hover:scale-105">
           <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" aria-hidden="true">
@@ -90,7 +90,7 @@ function isActive(to: string): boolean {
       <nav
         v-if="auth.isAuthenticated"
         :aria-label="t('nav.main')"
-        class="hidden md:flex min-w-0 flex-1 items-center gap-0.5 lg:gap-1 overflow-x-auto no-scrollbar"
+        class="hidden lg:flex min-w-0 flex-1 flex-wrap items-center gap-0.5 lg:gap-1"
       >
         <RouterLink
           v-for="item in navItems"
@@ -124,7 +124,7 @@ function isActive(to: string): boolean {
     <nav
       v-if="auth.isAuthenticated"
       :aria-label="t('nav.mainMobile')"
-      class="md:hidden flex items-center gap-1 overflow-x-auto no-scrollbar border-t border-border/60 px-3 py-2"
+      class="lg:hidden flex flex-wrap items-center gap-1 border-t border-border/60 px-3 py-2"
     >
       <RouterLink
         v-for="item in navItems"
