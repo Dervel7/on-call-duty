@@ -158,6 +158,8 @@ The algorithm must always:
 3. Produce explainable assignments (every duty persists a `reason`).
 4. Detect conflicts before schedule creation (`POST /schedules/preview`).
 
+Generate returns up to 3 equally optimal schedule options (`POST /schedules/options`, not persisted); the administrator picks one, and only that option is saved as a draft through `POST /schedules`.
+
 Published schedules are locked: duty add/reassign/remove and schedule deletion are rejected (409) at the service layer until reverted to draft.
 
 ## API Standards

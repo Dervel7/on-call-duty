@@ -8,7 +8,7 @@ Generate on the Schedules page computes up to 3 different, equally optimal sched
 - Solver design: `docs/superpowers/specs/2026-10-05-scheduling-solver-design.md`
 - Branch: `multiple_Schedules` (from `main` at `5829a13`). The agent commits on this branch (specific files only, never `commit -A`).
 
-## State (2026-10-07 23:30)
+## State (2026-10-07 23:50)
 
 | Task | State | Commit |
 |---|---|---|
@@ -19,23 +19,14 @@ Generate on the Schedules page computes up to 3 different, equally optimal sched
 | 4 API service, controller, route | Done | `ca8ad11` |
 | 5 Web service and progress composable | Done | `4f2e576` |
 | 6 Options page | Done | `b9807da` |
-| 7 Smoke run | Partly done (see "Smoke so far") | - |
-| 8 Docs | Not started | - |
+| 7 Smoke run | Done (see "Smoke run, multi-clinic") | - |
+| 8 Docs | Done | see git log |
 
-Last full check (after Task 6): root `pnpm typecheck`, `pnpm lint`, `pnpm test` pass (shared 36, utils 34, api 486, web 387 tests).
+Last full check (after Task 8, 2026-10-07 23:50): root `pnpm typecheck`, `pnpm lint`, `pnpm test` pass (shared 36, utils 34, api 486, web 387 tests).
 
-## Handoff for the next agent (start at Task 7)
+`docs/database.md`: no change (no schema change; `git diff 5829a13 -- database docs/database.md` is empty).
 
-1. Read the plan sections Task 7, Task 8 and "Done when".
-2. Task 7 remaining steps (step numbers from the plan):
-   - Step 1: `pnpm db:seed:multi` **resets the user's dev database** (now single-clinic, with an October 2026 draft). Ask the user before running it.
-   - Step 2: run Generate for the next month of 2 clinics (multi-clinic seed).
-   - Step 3: "Use Plan B", check that the draft detail page shows Plan B's duties, then publish.
-   - Step 4: 409 on the options page. Already checked on single-clinic; check it again on multi-clinic.
-   - Step 5: a month with an unfillable day must redirect to `/schedules/preview`. Not checked live yet (covered only by the unit test).
-   - Step 6: record the `POST /schedules/options` time and option count per clinic in this file. If a clinic returns fewer than 3 options, record why (Infeasible or time limit).
-3. Task 8 docs: admin manual section 6.4, the "Alternative options" section in the solver design (D1-D6), a single line in `AGENTS.md` Scheduling Engine Requirements, and `docs/database.md` unchanged (confirm here).
-4. At the end: root `pnpm typecheck`, `pnpm lint`, `pnpm test`; update this file; commit.
+Task 8 changes: admin manual 6.4 rewritten (text only; 6.4 had no screenshot), solver design section 10 "Alternative options" (D1-D6), one line in `AGENTS.md` Scheduling Engine Requirements.
 
 ## Environment notes (this machine, Windows)
 
@@ -53,6 +44,23 @@ Last full check (after Task 6): root `pnpm typecheck`, `pnpm lint`, `pnpm test` 
 | Plan B tab | `aria-selected`, 30 highlighted days (ring + marker), legend entry, load table highlights the cells that differ from Plan A |
 | "Use Plan B" | Confirm dialog opens with the Greek text; Cancel closes it. Nothing saved |
 
+## Smoke run, multi-clinic (2026-10-07 23:35-23:45)
+
+Setup (user choice, to keep the dev DB): separate database `oncall_smoke` seeded with `DATABASE_URL=...oncall_smoke pnpm db:seed:multi` (seed log confirmed `database: "oncall_smoke"`; process env wins over `apps/api/.env`), a second API on port 3002 and a second Vite on port 5175 (`API_PROXY_TARGET=http://localhost:3002`). After the run: both servers stopped, `oncall_smoke` dropped, dev DB `oncall_duty` checked (still only the October 2026 draft).
+
+| Step | Check | Result |
+|---|---|---|
+| 2 | `POST /schedules/options` November 2026, Cardiology A | 200, **3 options**, 0.70 s; 60 duties each; B and C share 0 duties with A; changedDates 0/30/30 |
+| 2 | Same, Neurology A | 200, **3 options**, 0.36 s; same shape as Cardiology A |
+| 2 | Equal quality (both clinics, every option) | totals 6-6, holiday duties 1-2, 0 Fri/Sat/Sun repeats, all reasons `solver optimal...` |
+| 2 | Determinism (Cardiology A, second call) | identical assignments, same order |
+| 2 | UI (Neurology A, English) | 3 tabs; Plan B tab: 30 `[data-highlight-marker]` days |
+| 3 | API: save Cardiology A Plan B through `POST /schedules`, then publish | 201; detail duties equal Plan B exactly; publish 200 |
+| 3 | UI: "Use Plan B" -> confirm (Neurology A) | Navigates to `/schedules/2`, draft; stored duties equal the API Plan B; Publish via UI -> `published` |
+| 4 | Generate November again (API and UI dialog) | 409 `Schedule already exists for this month; delete it first` on `/schedules/options?year=2026&month=11` |
+| 5 | Neurology A, all 10 doctors excluded on 2026-12-10, Generate December via the dialog | API: 3 options, 1.06 s, each with 1 conflict (2026-12-10); UI redirects to `/schedules/preview?year=2026&month=12` showing "1 day(s) with no doctor" |
+| 6 | Fewer than 3 options | Not seen in any clinic/month tried |
+
 ## Implementation map
 
 API (Tasks 1-4):
@@ -60,7 +68,7 @@ API (Tasks 1-4):
 - `POST /schedules/options`: administrator only; optional `?clinicId=` (superadmin, same scope resolution as `/preview`); body `{ year, month }` (`createScheduleSchema`). Returns a `200` envelope with `ScheduleOptionsResult`. Returns `409` `Schedule already exists for this month; delete it first` before any solve.
 - `apps/api/src/services/schedule.service.ts`: `generateOptions(year, month, scope)`, `SCHEDULE_OPTION_COUNT = 3`; private helpers `eligibilityFor`, `assertNoSchedule`, `doctorSetsByDate`, `changedDatesOf`, `loadsOf`. No activity log entry, no usage metering.
 - Types (`packages/shared/src/types/schedule.ts`): `ScheduleOptionsResult { year, month, options }`; `ScheduleOption extends PreviewResult { index (1-based), changedDates, loads }`; `DoctorLoad { doctorId, doctorFirstName, doctorLastName, total, holiday, friday, saturday, sunday }` (every active doctor, ordered by id; `holiday` = weekends + marked holidays).
-- 1 to 3 options. Only option 1 can carry `conflicts`; alternatives exist only when the primary option is optimal (D4).
+- 1 to 3 options. Every option carries the same `conflicts` (same coverage optimum, D10); the web app checks option 1 only. Alternatives exist only when the primary option is optimal (D4).
 - Save path unchanged: `POST /schedules` with `{ year, month, assignments: [{ date, doctorId, reason }] }`.
 
 Web (Tasks 5-6):
@@ -111,4 +119,5 @@ Web (Tasks 5-6):
 |---|---|---|
 | O1 | With the 20 s estimate, the bar is at about 10% when a 2 s solve returns; the 8x fill then adds about 2.3 s. Option: cap the fill time (for example 500 ms) in `useEstimatedProgress.finish` | No change (plan behaviour) |
 | O2 | When B and C differ on every day (30/30 in the smoke run), the calendar marks every day, so the marker carries little information | No change (D2 asks for maximum difference) |
-| O3 | Task 7 step 1 resets the user's dev database | Ask the user before `pnpm db:seed:multi` |
+| O3 | Task 7 step 1 resets the user's dev database | Resolved 2026-10-07 23:35: user chose a separate smoke DB (`oncall_smoke`, dropped after the run) |
+| O4 | Admin manual 6.2 still says the New schedule dialog has a **Preview** button; the dialog has only Generate (already so on `main` at `5829a13`, not caused by this branch) | No change (out of Task 8 scope) |

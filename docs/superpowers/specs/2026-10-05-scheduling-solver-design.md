@@ -187,3 +187,16 @@ Where the implementation differs from sections 4-5, and why. Details and dates: 
 | Time limit | No solution at a later stage keeps the previous stage's solution (`time limit`); greedy only when no solution exists | A valid schedule is better than the fallback |
 | Worker | HiGHS runs in a `worker_threads` worker; a HiGHS error retires the worker; a silent worker is stopped 5 s after the deadline | October takes about 2 s; generation must never hang |
 | `clinicId` | Added to `SchedulingContext` | The fallback `warn` log names the clinic |
+
+## 10. Alternative options (2026-10-07)
+
+`generateOptions(ctx, count)` in `solver.ts` returns up to `count` (3 for `POST /schedules/options`) schedule options: the primary option (same result as `generate`) and alternatives built by `buildModel` with `bounds.avoid` (the earlier options). Plan and dates: `docs/superpowers/plans/2026-10-07-schedule-options-plan.md`, `todos/schedule-options-status.md`.
+
+| Code | Decision | Reason |
+|---|---|---|
+| D1 | Alternatives are equally optimal: every stage optimum of the primary solve (cover, relax, weekdays, share, holidays, fill) is kept as a bound row. | All options respect the same hard rules and the same fairness quality; the administrator chooses on preference, not on quality. |
+| D2 | Each alternative is as different as possible: objective = minimize the overlap with all earlier options (sum of `x` over cells chosen in earlier options), plus one no-good row per earlier option (`sum of its chosen x <= size - 1`). | Guarantees distinct options and avoids options that differ by a single swap when larger differences exist. |
+| D3 | Fewer than `count` options is a valid result. An alternative stops the chain when its model is `Infeasible` (no other equally optimal schedule exists) or when no incumbent is found in its budget. | Some months have a unique optimum; a weaker option would break D1. |
+| D4 | Alternatives run only when the primary option is `optimal`. If the primary option stopped at the time limit or used the greedy fallback, return 1 option. | Without proven optima there are no bounds, so D1 cannot hold. |
+| D5 | Determinism: the same input gives the same options in the same order (fixed `SOLVE_OPTIONS`, deterministic names). | Same as section 3 D5; a page reload shows the same options. |
+| D6 | Budget: the primary solve keeps `SOLVER_BUDGET_MS = 10_000`; each alternative has its own `ALTERNATIVE_BUDGET_MS = 5_000`, with a deadline set when that alternative starts. Worst case about 20 s. | Bounded wait. An incumbent found at the time limit still satisfies every bound row (D1), so it is accepted. |

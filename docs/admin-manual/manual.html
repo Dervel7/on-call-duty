@@ -393,9 +393,25 @@ guarantees the minimum roster on those dates before filling any other day, then 
 <div class="note tip"><span class="t">Tip</span>Each conflict message reads “of N active doctor(s): X unavailable, Y at cap, Z back-to-back”, so you know exactly what to fix.</div>
 
 <h2>6.4 Step 3 — Generate</h2>
-<p>Once the preview reports no conflicts, choose <span class="kbd">Generate</span>. The schedule is created in
-<strong>Draft</strong> status and you are taken to its detail page. Generating is blocked if a schedule for that
-month already exists.</p>
+<p>Choose <span class="kbd">Generate</span>. Generating is blocked if a schedule for that month already exists.
+The system computes up to <strong>three schedule options</strong> for the month and shows them on the
+<strong>Schedule options</strong> page as <strong>Plan A</strong>, <strong>Plan B</strong> and <strong>Plan C</strong>.
+A progress bar shows while the options are computed; this can take up to about 20 seconds.</p>
+<ul>
+  <li><strong>Plan A</strong> is the solver's first choice. Each other plan shows how many days differ from Plan A;
+  those days are marked in the calendar and in the legend.</li>
+  <li>The <strong>Duties per doctor</strong> table shows each doctor's total, holiday, and Fri/Sat/Sun duties for the
+  selected plan. Cells that differ from Plan A are highlighted.</li>
+  <li>All plans are <strong>equally good</strong>: they follow the same hard rules and reach the same fairness
+  results (coverage, Fri/Sat/Sun spread, workload balance, holiday duties). Pick the one you prefer.</li>
+</ul>
+<p>Choose <span class="kbd">Use Plan B</span> (or the plan you picked) and confirm. Only that plan is saved, in
+<strong>Draft</strong> status, and you are taken to its detail page. The other plans are discarded; generating the
+same month again shows the same plans in the same order.</p>
+<div class="note info"><span class="t">Info</span>Fewer than three plans can appear. Some months have only one or two
+different best schedules, and the system never shows a weaker plan to fill the list. If the solver cannot prove the
+best schedule within its time limit, only Plan A is shown. If some days cannot be filled, you are taken to the
+preview page to resolve the conflicts first (see 6.3).</div>
 
 <h2>6.5 Step 4 — Review and edit the draft (Schedule Detail)</h2>
 <p>The detail page shows the full month: each date, the assigned doctor (or <em>Unassigned</em>), <strong>Flags</strong>
