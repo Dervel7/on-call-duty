@@ -41,7 +41,10 @@ beforeEach(() => {
   generate.mockReset()
   push.mockReset()
 })
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 describe('SchedulesPage', () => {
   function mountAs(role: 'doctor' | 'administrator') {
@@ -120,6 +123,7 @@ describe('SchedulesPage', () => {
   })
 
   it('Generate creates the schedule and opens its plan', async () => {
+    vi.useFakeTimers()
     const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
@@ -138,13 +142,65 @@ describe('SchedulesPage', () => {
     generate.mockResolvedValue({ schedule: { id: 7 } })
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     await flushPromises()
+    await vi.advanceTimersByTimeAsync(1_500)
 
     expect(generate).toHaveBeenCalledWith(2027, 3)
     expect(push).toHaveBeenCalledWith('/schedules/7')
     expect(document.body.querySelector('form')).toBeNull()
   })
 
+  async function submitPendingGenerate() {
+    vi.useFakeTimers()
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
+    await flushPromises()
+
+    let resolve!: (v: unknown) => void
+    generate.mockReturnValue(new Promise((r) => (resolve = r)))
+    document.body.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    return resolve
+  }
+  const bar = () => document.body.querySelector('[role="progressbar"]')
+
+  it('shows a spinner and a bar that holds at 95% until the response arrives', async () => {
+    const resolve = await submitPendingGenerate()
+    expect(document.body.querySelector('[role="status"] svg.animate-spin')).not.toBeNull()
+    expect(bar()!.getAttribute('aria-valuenow')).toBe('0')
+
+    await vi.advanceTimersByTimeAsync(1_500)
+    expect(bar()!.getAttribute('aria-valuenow')).toBe('50')
+
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(bar()!.getAttribute('aria-valuenow')).toBe('95')
+
+    resolve({ schedule: { id: 7 } })
+    await flushPromises()
+    expect(push).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(push).toHaveBeenCalledWith('/schedules/7')
+    expect(bar()).toBeNull()
+  })
+
+  it('fills the bar to 100% at double speed before opening the schedule', async () => {
+    const resolve = await submitPendingGenerate()
+    await vi.advanceTimersByTimeAsync(1_500)
+    resolve({ schedule: { id: 7 } })
+    await flushPromises()
+
+    // The remaining 50% takes 750 ms at double speed instead of 1500 ms.
+    await vi.advanceTimersByTimeAsync(700)
+    expect(push).not.toHaveBeenCalled()
+    expect(bar()!.getAttribute('aria-valuenow')).toBe('97')
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(push).toHaveBeenCalledWith('/schedules/7')
+  })
+
   it('Generate with unfillable days opens the preview to resolve conflicts', async () => {
+    vi.useFakeTimers()
     const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
@@ -164,6 +220,7 @@ describe('SchedulesPage', () => {
     )
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     await flushPromises()
+    await vi.advanceTimersByTimeAsync(1_500)
 
     expect(push).toHaveBeenCalledWith({
       path: '/schedules/preview',
