@@ -17,16 +17,23 @@ Generate on the Schedules page computes up to 3 different, equally optimal sched
 | 2 Solver `generateOptions` | Done | `d7f570c` |
 | 3 Shared types | Done | `4508f00` |
 | 4 API service, controller, route | Done | `ca8ad11` |
-| 5 Web service and progress composable | Not started | - |
-| 6 Options page | Not started | - |
-| 7 Smoke run | Not started | - |
+| 5 Web service and progress composable | Done | see git log |
+| 6 Options page | Done | see git log |
+| 7 Smoke run | Partly done (see below) | - |
 | 8 Docs | Not started | - |
 
-Checks after Task 4: `@oncall/shared` typecheck, lint, test pass (36 tests). `@oncall/api` typecheck, lint, test pass (42 files, 486 tests). `@oncall/web` not touched yet; root `pnpm typecheck/lint/test` not run yet.
+Checks after Task 6: root `pnpm typecheck`, `pnpm lint`, `pnpm test` pass (shared 36, utils 34, api 486, web 387 tests).
 
-## Handoff for the next agent (start at Task 5)
+Smoke after Task 6 (2026-10-07 23:25, user's running `pnpm dev`, single-clinic DB, `admin`, Greek UI):
 
-Read the plan sections Task 5 and Task 6 first. The API side is complete; Tasks 5-6 are web only (`apps/web`).
+- Generate for October 2026 (schedule exists): options page shows `Schedule already exists for this month; delete it first` and "Back to schedules".
+- Generate for November 2026: progress bar, then 3 plans after about 3.8 s (B and C: 30 of 30 days differ). Load table highlights differing cells; Plan B tab shows ring + marker on 30 days and the legend entry.
+- "Use Plan B" opens the confirm dialog; Cancel closes it. No schedule was saved (user's DB).
+- Not done (Task 7): save a chosen option, multi-clinic run, conflict month routing.
+
+## Handoff for the next agent (start at Task 7)
+
+Read the plan sections Task 7 and Task 8. Tasks 5-6 notes are in the decision table (T5a-T6e).
 
 API contract (done, Tasks 3-4):
 
@@ -71,7 +78,18 @@ Facts for Task 5:
 | 2026-10-07 23:15 | T4a | `changedDates` compares doctor id sets per date over every day of the month (a date missing in one option counts as an empty set) | Matches the type doc "dates whose doctor set differs from option 1" |
 | 2026-10-07 23:15 | T4b | The service 409 test asserts exactly 1 DB query ran, as proof that no context load or solve happened | The service tests use the real engine (not mocked); the query count is the observable signal |
 | 2026-10-07 23:15 | T4c | `validators/schedule.ts` unchanged | It already re-exports `createScheduleSchema` |
+| 2026-10-07 23:25 | T5a | Composable comment says "8x speed" instead of "double speed" | The code fills at speed 8; the old comment was wrong |
+| 2026-10-07 23:25 | T5b | `ESTIMATED_OPTIONS_MS` (20 000) and `OPTION_COUNT` (3) live in `ScheduleOptionsPage.vue`, with a comment that they mirror the API constants | The page is the only consumer; the services module is fully mocked in tests |
+| 2026-10-07 23:25 | T5c | The 3 old SchedulesPage progress tests failed before this change (they expected a 3 s estimate); replaced as the plan says | Pre-existing drift, removed with the behaviour |
+| 2026-10-07 23:25 | T6a | The options page does not call `doctorService.list()`; it passes `doctors=[]` to DutyCalendar | Readonly mode renders names from the assignments; loads come from `loads`. The request had no consumer |
+| 2026-10-07 23:25 | T6b | DutyCalendar shows the ring plus an icon with screen-reader text (`dutyCalendar.highlighted`); the legend entry is in the page header row, like the preview page legend | DutyCalendar has no legend of its own; the key sits in `dutyCalendar` because the component owns it |
+| 2026-10-07 23:25 | T6c | The 409 case uses the header "Back to schedules" button; header and invalid-month block reuse `schedulePreview.backToSchedules` | No duplicate key |
+| 2026-10-07 23:25 | T6d | Plan letters stay Latin A/B/C in the Greek UI | Letters are identifiers, same in both languages |
+| 2026-10-07 23:25 | T6e | Greek confirm text puts the month in parentheses | `monthLabel` is nominative; "για Νοέμβριος" is not grammatical |
 
 ## Open items
 
-- None from Tasks 1-4.
+| Code | Item | Default if no steer |
+|---|---|---|
+| O1 | With the 20 s estimate, the bar is at about 10% when a 2 s solve returns; the 8x fill then adds about 2.3 s (smoke: 3.8 s total). Option: cap the fill time (for example 500 ms) in `useEstimatedProgress.finish` | No change (plan behaviour) |
+| O2 | When B and C differ on every day (smoke: 30/30), the calendar marks every day, so the marker carries little information | No change (D2 asks for maximum difference) |

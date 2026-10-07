@@ -66,6 +66,12 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['administrator'] },
       },
       {
+        path: 'schedules/options',
+        name: 'schedule-options',
+        component: () => import('../pages/ScheduleOptionsPage.vue'),
+        meta: { roles: ['administrator'] },
+      },
+      {
         path: 'schedules',
         name: 'schedules',
         component: () => import('../pages/SchedulesPage.vue'),

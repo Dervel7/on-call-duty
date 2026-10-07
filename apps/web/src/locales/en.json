@@ -197,7 +197,8 @@
     "assign": "Assign…",
     "unfillable": "Unfillable",
     "noDoctor": "No doctor",
-    "filledOf": "{filled} of {required}"
+    "filledOf": "{filled} of {required}",
+    "highlighted": "Differs from Plan A"
   },
   "schedules": {
     "subtitle": "Generate, review, and publish monthly rosters",
@@ -237,6 +238,24 @@
     "statPartial": "partial",
     "statBelowMinimum": "below minimum",
     "openOnCall": "Open on-call"
+  },
+  "scheduleOptions": {
+    "title": "Schedule options",
+    "subtitle": "Compare equally good plans for this month, then use one. Only the plan you use is saved, as a draft.",
+    "plan": "Plan {plan}",
+    "firstChoice": "Solver's first choice",
+    "daysDiffer": "{n} day(s) differ from Plan A",
+    "fewerOptions": "Only {n} different best plan(s) exist for this month.",
+    "loadsTitle": "DUTIES PER DOCTOR",
+    "doctor": "Doctor",
+    "total": "Total",
+    "holidays": "Holidays",
+    "friSatSun": "Fri/Sat/Sun",
+    "use": "Use Plan {plan}",
+    "useTitle": "Use Plan {plan}",
+    "useMessage": "Save Plan {plan} as the draft schedule for {month}? The other plans are discarded.",
+    "saving": "Saving...",
+    "loadFailed": "Failed to compute schedule options"
   },
   "scheduleDetail": {
     "loadFailed": "Failed to load schedule",
