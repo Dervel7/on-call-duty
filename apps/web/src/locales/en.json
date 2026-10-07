@@ -35,7 +35,6 @@
   },
   "nav": {
     "main": "Main",
-    "mainMobile": "Main (mobile)",
     "home": "Home",
     "dutyRoster": "Duty roster",
     "myAvailability": "My availability",
@@ -48,7 +47,11 @@
     "activity": "Activity",
     "usage": "Usage",
     "profile": "Profile",
-    "logout": "Logout"
+    "logout": "Logout",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar"
   },
   "home": {
     "welcome": "Welcome",
