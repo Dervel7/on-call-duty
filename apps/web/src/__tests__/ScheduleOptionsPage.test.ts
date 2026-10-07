@@ -109,13 +109,11 @@ describe('ScheduleOptionsPage', () => {
     ])
     expect(tabs(wrapper)[0]!.attributes('aria-selected')).toBe('true')
     expect(calendarDoctors(wrapper)).toEqual(['Jane Roe', 'Sam Doe'])
-    expect(wrapper.findAll('[data-highlight-marker]')).toHaveLength(0)
 
     await tabs(wrapper)[1]!.trigger('click')
     expect(tabs(wrapper)[1]!.attributes('aria-selected')).toBe('true')
     expect(tabs(wrapper)[0]!.attributes('aria-selected')).toBe('false')
     expect(calendarDoctors(wrapper)).toEqual(['Sam Doe', 'Jane Roe'])
-    expect(wrapper.findAll('[data-highlight-marker]')).toHaveLength(2)
     expect(wrapper.text()).not.toContain('different best plan')
   })
 

@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DayInfo, Doctor } from '@oncall/shared'
 import { toIsoDate, weekdayNames } from '@oncall/utils'
-import { ArrowLeftRight } from 'lucide-vue-next'
 import Select from '@/components/ui/Select.vue'
 import { useIntlLocale } from '@/composables/useIntlLocale'
 
@@ -26,7 +25,6 @@ const props = defineProps<{
   pool?: 'eligible' | 'available'
   allowClear?: boolean
   showFillHints?: boolean
-  highlightDates?: Set<string>
 }>()
 
 const emit = defineEmits<{ select: [date: string, slotIndex: number, doctorId: number | null] }>()
@@ -49,7 +47,6 @@ interface Cell {
   isWeekend: boolean
   isToday: boolean
   isOpen: boolean
-  highlighted: boolean
   /** The day's configured on-call capacity (open vs closed count). */
   required: number
   slots: (CalendarAssignment | null)[]
@@ -75,7 +72,7 @@ const cells = computed<Cell[]>(() => {
   const firstJs = new Date(`${first.date}T00:00:00`)
   const lead = (firstJs.getDay() + 6) % 7
   for (let i = 0; i < lead; i++) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, isOpen: false, highlighted: false, required: 0, slots: [], options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, isOpen: false, required: 0, slots: [], options: [] })
   }
   for (const day of props.days) {
     const required = day.slotsRequired
@@ -91,7 +88,6 @@ const cells = computed<Cell[]>(() => {
       isWeekend: day.isWeekend,
       isToday: day.date === todayIso,
       isOpen: day.dutyType === 'open',
-      highlighted: props.highlightDates?.has(day.date) ?? false,
       required,
       slots,
       conflict: props.conflictsByDate?.get(day.date),
@@ -99,7 +95,7 @@ const cells = computed<Cell[]>(() => {
     })
   }
   while (out.length % 7 !== 0) {
-    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, isOpen: false, highlighted: false, required: 0, slots: [], options: [] })
+    out.push({ blank: true, date: null, dayNum: null, isWeekend: false, isToday: false, isOpen: false, required: 0, slots: [], options: [] })
   }
   return out
 })
@@ -171,22 +167,15 @@ function cellBg(c: Cell): string {
           :class="[
             'min-h-[112px] rounded-lg border p-2 transition-colors',
             cellBg(c),
-            c.highlighted && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
           ]"
         >
           <template v-if="!c.blank">
             <!-- Fixed height = both badges stacked (WE + OPEN), so the slots
                  start at the same place in every day cell. -->
             <div class="flex h-[34px] items-start justify-between">
-              <span class="flex items-center gap-1">
-                <span v-if="c.isToday" class="grid h-6 w-6 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground shadow-glow">{{ c.dayNum }}</span>
-                <span v-else-if="c.isWeekend" class="font-mono text-xs font-bold text-primary">{{ c.dayNum }}</span>
-                <span v-else class="font-mono text-xs font-bold">{{ c.dayNum }}</span>
-                <span v-if="c.highlighted" class="text-primary" :title="t('dutyCalendar.highlighted')" data-highlight-marker>
-                  <ArrowLeftRight :size="12" aria-hidden="true" />
-                  <span class="sr-only">{{ t('dutyCalendar.highlighted') }}</span>
-                </span>
-              </span>
+              <span v-if="c.isToday" class="grid h-6 w-6 place-items-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground shadow-glow">{{ c.dayNum }}</span>
+              <span v-else-if="c.isWeekend" class="font-mono text-xs font-bold text-primary">{{ c.dayNum }}</span>
+              <span v-else class="font-mono text-xs font-bold">{{ c.dayNum }}</span>
               <span class="flex flex-col items-end gap-0.5">
                 <span
                   v-if="c.isWeekend"

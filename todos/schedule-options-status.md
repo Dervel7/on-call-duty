@@ -22,7 +22,7 @@ Generate on the Schedules page computes up to 3 different, equally optimal sched
 | 7 Smoke run | Done (see "Smoke run, multi-clinic") | - |
 | 8 Docs | Done | see git log |
 
-Last full check (after Task 8, 2026-10-07 23:50): root `pnpm typecheck`, `pnpm lint`, `pnpm test` pass (shared 36, utils 34, api 486, web 387 tests).
+Last full check (after U2, 2026-10-08): root `pnpm typecheck`, `pnpm lint`, `pnpm -r --no-bail test` pass (shared 36, utils 34, api 486, web 384 tests; web lost 1 table test in U1 and 2 DutyCalendar marker tests in U2). After U1, 2 `SchedulePreviewPage.test.ts` tests failed once in the full run (file took 13.7 s); they pass alone and in this full run, so it looks like a timing flake under load.
 
 `docs/database.md`: no change (no schema change; `git diff 5829a13 -- database docs/database.md` is empty).
 
@@ -77,9 +77,9 @@ Web (Tasks 5-6):
 - `apps/web/src/composables/useEstimatedProgress.ts`: `useEstimatedProgress(estimateMs)` returns `EstimatedProgress { progress, start, finish, stop }`, holds at 95% and fills at 8x on `finish`, and stops on scope dispose.
 - `apps/web/src/pages/SchedulesPage.vue`: the dialog only validates, then `router.push({ path: '/schedules/options', query: { year, month } })`.
 - `apps/web/src/pages/ScheduleOptionsPage.vue`: route `schedule-options` (`/schedules/options`, administrator, registered before `schedules/:id`). Constants `OPTION_COUNT = 3`, `ESTIMATED_OPTIONS_MS = 20_000` (mirror the API). Request guarded by `useLatestRequest`. Option 1 with conflicts calls `router.replace` to the preview page. Save goes through `useConfirm`, then `scheduleService.generate`, then `/schedules/<id>`.
-- `apps/web/src/components/schedule/DutyCalendar.vue`: optional `highlightDates?: Set<string>` adds a ring, an `ArrowLeftRight` icon and screen-reader text (`[data-highlight-marker]`).
-- Locales: `scheduleOptions.*` and `dutyCalendar.highlighted` in `en.json` and `el.json`.
-- Tests: `ScheduleOptionsPage.test.ts`, `useEstimatedProgress.test.ts`, `SchedulesPage.test.ts` (navigation tests), `DutyCalendar.test.ts` (marker tests).
+- `apps/web/src/components/schedule/DutyCalendar.vue`: unchanged from `main` (the `highlightDates` marker was removed in U2). The options page passes `show-fill-hints` for the preview colours.
+- Locales: `scheduleOptions.*` in `en.json` and `el.json`.
+- Tests: `ScheduleOptionsPage.test.ts`, `useEstimatedProgress.test.ts`, `SchedulesPage.test.ts` (navigation tests).
 
 ## Measurements (2026-10-07, this machine, Node 24.15)
 
@@ -108,17 +108,18 @@ Web (Tasks 5-6):
 | 2026-10-07 23:25 | T5b | `ESTIMATED_OPTIONS_MS` and `OPTION_COUNT` live in `ScheduleOptionsPage.vue` | Only consumer; the services module is fully mocked in tests |
 | 2026-10-07 23:25 | T5c | The 3 old SchedulesPage progress tests already failed before Task 5 (they expected an older estimate); replaced as the plan says | Pre-existing drift, removed with the behaviour |
 | 2026-10-07 23:25 | T6a | The options page does not call `doctorService.list()`; it passes `doctors=[]` to DutyCalendar | Readonly mode renders names from the assignments; the request had no consumer |
-| 2026-10-07 23:25 | T6b | The legend entry is in the page header row; DutyCalendar owns the marker and the `dutyCalendar.highlighted` key | DutyCalendar has no legend of its own; same pattern as the preview page |
+| 2026-10-07 23:25 | T6b | (Superseded by U2) The legend entry is in the page header row; DutyCalendar owns the marker and the `dutyCalendar.highlighted` key | DutyCalendar has no legend of its own; same pattern as the preview page |
 | 2026-10-07 23:25 | T6c | The 409 case uses the header "Back to schedules" button; reuses `schedulePreview.backToSchedules` | No duplicate key |
 | 2026-10-07 23:25 | T6d | Plan letters stay Latin A/B/C in the Greek UI | Letters are identifiers |
 | 2026-10-07 23:25 | T6e | Greek confirm text puts the month in parentheses | `monthLabel` is nominative; "για Νοέμβριος" is not grammatical |
 | 2026-10-08 | U1 | User: remove the per-doctor comparison table ("DUTIES PER DOCTOR"); the options page shows only the calendar per plan. `loads`, `DoctorLoad`, `loadsOf`, the table locale keys, the table test and the manual bullet are removed with it | User steer; `loads` had no other consumer |
+| 2026-10-08 | U2 | User: remove the "differs from Plan A" marker (ring, icon, legend entry, `dutyCalendar.highlighted`, DutyCalendar `highlightDates` prop and its tests; DutyCalendar files restored to `5829a13`). The plan tabs keep the "N day(s) differ from Plan A" text. The calendar uses the preview colours (`show-fill-hints`): green full, yellow partial, red empty | User steer; resolves O2 |
 
 ## Open items (waiting for user steer)
 
 | Code | Item | Default if no steer |
 |---|---|---|
 | O1 | With the 20 s estimate, the bar is at about 10% when a 2 s solve returns; the 8x fill then adds about 2.3 s. Option: cap the fill time (for example 500 ms) in `useEstimatedProgress.finish` | No change (plan behaviour) |
-| O2 | When B and C differ on every day (30/30 in the smoke run), the calendar marks every day, so the marker carries little information | No change (D2 asks for maximum difference) |
+| O2 | When B and C differ on every day (30/30 in the smoke run), the calendar marks every day, so the marker carries little information | Resolved by U2 (marker removed) |
 | O3 | Task 7 step 1 resets the user's dev database | Resolved 2026-10-07 23:35: user chose a separate smoke DB (`oncall_smoke`, dropped after the run) |
 | O4 | Admin manual 6.2 still says the New schedule dialog has a **Preview** button; the dialog has only Generate (already so on `main` at `5829a13`, not caused by this branch) | No change (out of Task 8 scope) |

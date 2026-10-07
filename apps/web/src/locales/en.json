@@ -197,8 +197,7 @@
     "assign": "Assign…",
     "unfillable": "Unfillable",
     "noDoctor": "No doctor",
-    "filledOf": "{filled} of {required}",
-    "highlighted": "Differs from Plan A"
+    "filledOf": "{filled} of {required}"
   },
   "schedules": {
     "subtitle": "Generate, review, and publish monthly rosters",

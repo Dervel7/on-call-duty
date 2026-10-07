@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import type { ScheduleOption, ScheduleOptionsResult } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import { monthLabel as formatMonth } from '@oncall/utils'
-import { ArrowLeftRight } from 'lucide-vue-next'
 import * as scheduleService from '@/services/schedule'
 import { useConfirm } from '@/composables/useConfirm'
 import { useEstimatedProgress } from '@/composables/useEstimatedProgress'
@@ -57,7 +56,6 @@ const assignmentByDate = computed(() => {
   }
   return m
 })
-const highlightDates = computed(() => new Set(current.value?.changedDates ?? []))
 
 const latest = useLatestRequest()
 
@@ -219,12 +217,6 @@ watch([year, month], load)
               <span class="inline-flex rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">{{ t('dutyCalendar.openBadge') }}</span>
               {{ t('schedulePreview.openOnCall') }}
             </span>
-            <span v-if="current.index > 1" class="inline-flex items-center gap-1.5">
-              <span class="inline-flex rounded px-1 py-0.5 text-primary ring-2 ring-primary">
-                <ArrowLeftRight :size="12" aria-hidden="true" />
-              </span>
-              {{ t('dutyCalendar.highlighted') }}
-            </span>
           </div>
 
           <DutyCalendar
@@ -234,7 +226,7 @@ watch([year, month], load)
             :assignment-by-date="assignmentByDate"
             :doctors="[]"
             mode="readonly"
-            :highlight-dates="highlightDates"
+            show-fill-hints
           />
         </section>
       </div>

@@ -72,37 +72,6 @@ describe('DutyCalendar', () => {
       process.env.TZ = tz
     }
   })
-
-  function mountReadonly(highlightDates?: Set<string>) {
-    return mount(DutyCalendar, {
-      props: {
-        year: 2026,
-        month: 9,
-        days: [day('2026-09-01', 1), day('2026-09-02', 1)],
-        assignmentByDate: new Map(),
-        doctors: [],
-        mode: 'readonly',
-        highlightDates,
-      },
-    })
-  }
-
-  it('marks only highlighted dates with a ring and a text marker', () => {
-    const w = mountReadonly(new Set(['2026-09-02']))
-    const markers = w.findAll('[data-highlight-marker]')
-    expect(markers).toHaveLength(1)
-    expect(markers[0]!.text()).toBe('Differs from Plan A')
-    const ringed = w.findAll('.ring-2')
-    expect(ringed).toHaveLength(1)
-    expect(ringed[0]!.text()).toContain('2')
-    expect(ringed[0]!.text()).not.toContain('1')
-  })
-
-  it('renders no marker without highlightDates', () => {
-    const w = mountReadonly()
-    expect(w.findAll('[data-highlight-marker]')).toHaveLength(0)
-    expect(w.findAll('.ring-2')).toHaveLength(0)
-  })
 })
 
 describe('DutyCalendar in Greek', () => {

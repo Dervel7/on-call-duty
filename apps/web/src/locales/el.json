@@ -197,8 +197,7 @@
     "assign": "Ανάθεση…",
     "unfillable": "Μη καλύψιμη",
     "noDoctor": "Χωρίς ιατρό",
-    "filledOf": "{filled} από {required}",
-    "highlighted": "Διαφέρει από το Σχέδιο A"
+    "filledOf": "{filled} από {required}"
   },
   "schedules": {
     "subtitle": "Δημιουργία, έλεγχος και δημοσίευση μηνιαίων προγραμμάτων",
