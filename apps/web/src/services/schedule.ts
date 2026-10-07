@@ -5,6 +5,7 @@ import type {
   PreviewResult,
   ReassignDutyRequest,
   ScheduleDetail,
+  ScheduleOptionsResult,
   ScheduleQuery,
   ScheduleSummary,
 } from '@oncall/shared'
@@ -24,6 +25,9 @@ export async function preview(
   assignments?: GenerateAssignment[],
 ): Promise<PreviewResult> {
   return apiPost<PreviewResult>('/schedules/preview', { year, month, assignments })
+}
+export async function options(year: number, month: number): Promise<ScheduleOptionsResult> {
+  return apiPost<ScheduleOptionsResult>('/schedules/options', { year, month })
 }
 export async function generate(
   year: number,

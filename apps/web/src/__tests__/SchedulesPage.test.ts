@@ -2,14 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
-import { ApiError } from '@/lib/http'
 
 const list = vi.fn()
-const generate = vi.fn()
 vi.mock('@/services/schedule', () => ({
   list: (...a: unknown[]) => list(...a),
   preview: vi.fn(),
-  generate: (...a: unknown[]) => generate(...a),
+  generate: vi.fn(),
   get: vi.fn(),
   remove: vi.fn(),
   publish: vi.fn(),
@@ -38,13 +36,9 @@ function summary(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   setActivePinia(createPinia())
   list.mockReset()
-  generate.mockReset()
   push.mockReset()
 })
-afterEach(() => {
-  vi.useRealTimers()
-  vi.restoreAllMocks()
-})
+afterEach(() => vi.restoreAllMocks())
 
 describe('SchedulesPage', () => {
   function mountAs(role: 'doctor' | 'administrator') {
@@ -122,111 +116,42 @@ describe('SchedulesPage', () => {
     )
   })
 
-  it('Generate creates the schedule and opens its plan', async () => {
-    vi.useFakeTimers()
+  async function openDialog() {
     const wrapper = mountAs('administrator')
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
     await flushPromises()
-
-    const dialogButtons = Array.from(document.body.querySelectorAll('button'))
-      .map((b) => b.textContent ?? '')
-    expect(dialogButtons.some((t) => t.includes('Preview'))).toBe(false)
-
-    const form = document.body.querySelector('form')!
-    const year = form.querySelector('#g-year') as HTMLInputElement
-    year.value = '2027'
-    year.dispatchEvent(new Event('input', { bubbles: true }))
-    await pickOption(document.body, '#g-month', '3')
-
-    generate.mockResolvedValue({ schedule: { id: 7 } })
-    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
-    await flushPromises()
-    await vi.advanceTimersByTimeAsync(1_500)
-
-    expect(generate).toHaveBeenCalledWith(2027, 3)
-    expect(push).toHaveBeenCalledWith('/schedules/7')
-    expect(document.body.querySelector('form')).toBeNull()
-  })
-
-  async function submitPendingGenerate() {
-    vi.useFakeTimers()
-    const wrapper = mountAs('administrator')
-    await flushPromises()
-    await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
-    await flushPromises()
-
-    let resolve!: (v: unknown) => void
-    generate.mockReturnValue(new Promise((r) => (resolve = r)))
-    document.body.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
-    await flushPromises()
-    return resolve
+    return document.body.querySelector('form')!
   }
-  const bar = () => document.body.querySelector('[role="progressbar"]')
-
-  it('shows a spinner and a bar that holds at 95% until the response arrives', async () => {
-    const resolve = await submitPendingGenerate()
-    expect(document.body.querySelector('[role="status"] svg.animate-spin')).not.toBeNull()
-    expect(bar()!.getAttribute('aria-valuenow')).toBe('0')
-
-    await vi.advanceTimersByTimeAsync(1_500)
-    expect(bar()!.getAttribute('aria-valuenow')).toBe('50')
-
-    await vi.advanceTimersByTimeAsync(60_000)
-    expect(bar()!.getAttribute('aria-valuenow')).toBe('95')
-
-    resolve({ schedule: { id: 7 } })
-    await flushPromises()
-    expect(push).not.toHaveBeenCalled()
-
-    await vi.advanceTimersByTimeAsync(100)
-    expect(push).toHaveBeenCalledWith('/schedules/7')
-    expect(bar()).toBeNull()
-  })
-
-  it('fills the bar to 100% at double speed before opening the schedule', async () => {
-    const resolve = await submitPendingGenerate()
-    await vi.advanceTimersByTimeAsync(1_500)
-    resolve({ schedule: { id: 7 } })
-    await flushPromises()
-
-    // The remaining 50% takes 750 ms at double speed instead of 1500 ms.
-    await vi.advanceTimersByTimeAsync(700)
-    expect(push).not.toHaveBeenCalled()
-    expect(bar()!.getAttribute('aria-valuenow')).toBe('97')
-
-    await vi.advanceTimersByTimeAsync(100)
-    expect(push).toHaveBeenCalledWith('/schedules/7')
-  })
-
-  it('Generate with unfillable days opens the preview to resolve conflicts', async () => {
-    vi.useFakeTimers()
-    const wrapper = mountAs('administrator')
-    await flushPromises()
-    await wrapper.findAll('button').find((b) => b.text().includes('New schedule'))!.trigger('click')
-    await flushPromises()
-
-    const form = document.body.querySelector('form')!
+  async function setYear(form: HTMLFormElement, value: string) {
     const year = form.querySelector('#g-year') as HTMLInputElement
-    year.value = '2027'
+    year.value = value
     year.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+  }
+
+  it('Generate opens the options page for the chosen month', async () => {
+    const form = await openDialog()
+    await setYear(form, '2027')
     await pickOption(document.body, '#g-month', '3')
 
-    generate.mockRejectedValue(
-      new ApiError(
-        'Schedule has 4 unfillable day(s); Preview the schedule and resolve conflicts before generating a plan',
-        422,
-      ),
-    )
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     await flushPromises()
-    await vi.advanceTimersByTimeAsync(1_500)
 
-    expect(push).toHaveBeenCalledWith({
-      path: '/schedules/preview',
-      query: { year: '2027', month: '3' },
-    })
+    expect(push).toHaveBeenCalledWith({ path: '/schedules/options', query: { year: '2027', month: '3' } })
     expect(document.body.querySelector('form')).toBeNull()
+  })
+
+  it('Generate with an invalid year shows the validation error and stays on the page', async () => {
+    const form = await openDialog()
+    await setYear(form, '1969')
+
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+
+    expect(push).not.toHaveBeenCalled()
+    expect(form.querySelector('[role="alert"]')).not.toBeNull()
+    expect(document.body.querySelector('form')).not.toBeNull()
   })
 
   it("hides 'New schedule' from doctors and shows it to administrators", async () => {
