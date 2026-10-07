@@ -135,7 +135,7 @@ pnpm dev
 ```
 
 - API: http://localhost:3000
-- Web: http://localhost:5174
+- Web: http://localhost:5174 (also served on your LAN IP, e.g. http://192.168.1.20:5174, for testing on a phone)
 
 Verify the API:
 
@@ -167,7 +167,8 @@ Root scripts (run from the repository root):
 | `CORS_ORIGIN` | `apps/api/.env` | Allowed web origin (default http://localhost:5174) |
 | `LOG_LEVEL` | `apps/api/.env` | Pino log level (default info) |
 | `NODE_ENV` | `apps/api/.env` | development / production / test |
-| `VITE_API_URL` | `apps/web/.env` | API base URL for the web client (default http://localhost:3000) |
+| `VITE_API_URL` | `apps/web/.env` | API base URL for the web client (`/api` in dev and Docker; the Vite dev server proxies it to `API_PROXY_TARGET`) |
+| `API_PROXY_TARGET` | `apps/web/.env` | Dev-server only: API address behind the `/api` proxy (default http://localhost:3000) |
 | `JWT_ACCESS_SECRET` | `apps/api/.env` | Access-token signing secret. Required in production; dev default in `.env.example`. |
 | `JWT_ACCESS_EXPIRES_IN` | `apps/api/.env` | Access-token lifetime (default `15m`) |
 | `JWT_REFRESH_EXPIRES_IN` | `apps/api/.env` | Refresh-token lifetime (default `1h`) |

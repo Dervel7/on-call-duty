@@ -243,16 +243,19 @@
 
 @layer components {
   .nav-link {
-    display: inline-flex;
+    position: relative;
+    display: flex;
     align-items: center;
-    gap: 0.4375rem;
-    white-space: nowrap;
-    padding: 0.4rem 0.8rem;
-    border-radius: 9999px;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 2.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.75rem;
     border: 1px solid transparent;
     color: hsl(var(--muted-foreground));
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 500;
+    white-space: nowrap;
     transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   }
   .nav-link:hover {
@@ -268,10 +271,16 @@
       inset 0 0 14px -10px hsl(var(--primary) / 1);
     font-weight: 600;
   }
-  @media (max-width: 1279.98px) {
-    .nav-link {
-      padding: 0.4rem 0.55rem;
-    }
+  /* Edge bar on the sidebar border; offset equals the nav's px-3 padding. */
+  .nav-link.is-active::before {
+    content: '';
+    position: absolute;
+    left: -0.75rem;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    width: 3px;
+    border-radius: 9999px;
+    background-image: var(--brand-gradient);
   }
 
   .brand-tile {
@@ -514,12 +523,6 @@
     text-shadow: 0 0 22px hsl(var(--primary) / 0.45);
   }
 
-  .no-scrollbar {
-    scrollbar-width: none;
-  }
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
   /* Rendered on screen never; unhidden by the @media print block below. */
   .print-only {
     display: none;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { ScheduleSummary } from '@oncall/shared'
@@ -74,6 +74,42 @@ const emptyGen = (): GenState => ({
 })
 const gen = ref<GenState>(emptyGen())
 
+// The generate request reports no progress, so the bar is a time-based estimate. It holds
+// below 100% until the response arrives, then fills to 100% at double speed so it never jumps.
+const ESTIMATED_GENERATE_MS = 10000
+const PROGRESS_HOLD = 95
+const PROGRESS_TICK_MS = 100
+const progress = ref(0)
+let filled = 0
+let speed = 1
+let progressTimer: ReturnType<typeof setInterval> | undefined
+let onFilled: (() => void) | undefined
+
+function startProgress() {
+  filled = 0
+  speed = 1
+  progress.value = 0
+  progressTimer = setInterval(() => {
+    const step = (speed * PROGRESS_TICK_MS * 100) / ESTIMATED_GENERATE_MS
+    filled = Math.min(speed > 1 ? 100 : PROGRESS_HOLD, filled + step)
+    progress.value = Math.round(filled)
+    if (filled === 100) {
+      stopProgress()
+      onFilled?.()
+    }
+  }, PROGRESS_TICK_MS)
+}
+
+function finishProgress(): Promise<void> {
+  speed = 8
+  return new Promise((resolve) => (onFilled = resolve))
+}
+
+function stopProgress() {
+  clearInterval(progressTimer)
+  progressTimer = undefined
+}
+
 function openGenerate() {
   gen.value = emptyGen()
   gen.value.open = true
@@ -90,12 +126,15 @@ async function runGenerate() {
     return
   }
   gen.value.generating = true
+  startProgress()
   try {
     const detail = await scheduleService.generate(parsed.data.year, parsed.data.month)
+    await finishProgress()
     gen.value.open = false
     router.push(`/schedules/${detail.schedule.id}`)
   } catch (e) {
     if (e instanceof ApiError && e.status === 422) {
+      await finishProgress()
       gen.value.open = false
       router.push({
         path: '/schedules/preview',
@@ -105,11 +144,13 @@ async function runGenerate() {
     }
     gen.value.errorMsg = e instanceof Error ? e.message : t('schedules.generateFailed')
   } finally {
+    stopProgress()
     gen.value.generating = false
   }
 }
 
 onMounted(load)
+onBeforeUnmount(stopProgress)
 </script>
 
 <template>
@@ -160,7 +201,8 @@ onMounted(load)
       </TableBody>
     </Table>
 
-    <EmptyState v-if="!loading && !errorMsg && records.length === 0" :icon="CalendarOff" :title="t('schedules.empty')" />
+    <EmptyState v-if="!loading && !errorMsg && records.length === 0" :icon="CalendarOff"
+      :title="t('schedules.empty')" />
 
     <Dialog v-model:open="gen.open" :title="t('schedules.newSchedule')">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="runGenerate">
@@ -179,6 +221,16 @@ onMounted(load)
           <Button type="submit" :disabled="gen.generating">
             {{ gen.generating ? t('schedules.generating') : t('schedules.generate') }}
           </Button>
+        </div>
+
+        <div v-if="gen.generating" class="flex flex-col items-center gap-2 py-2" role="status">
+          <Spinner :size="28" class="text-primary" />
+          <div class="h-2 w-full overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin="0"
+            aria-valuemax="100" :aria-valuenow="progress" :aria-label="t('schedules.generating')">
+            <div class="h-full rounded-full bg-primary transition-[width] duration-200"
+              :style="{ width: `${progress}%` }" />
+          </div>
+          <span class="font-mono text-xs text-muted-foreground">{{ progress }}%</span>
         </div>
 
         <p v-if="gen.errorMsg" class="text-sm text-destructive" role="alert">{{ gen.errorMsg }}</p>

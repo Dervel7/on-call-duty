@@ -1,18 +1,5 @@
-import {
-  isOpenDutyDate,
-  minimumForDate,
-  nextDate,
-  prevDate,
-  requiresDoubleCoverage,
-  slotsForDate,
-} from './dates'
-import {
-  isAvailable,
-  notConsecutive,
-  underCap,
-  underHolidayCap,
-  underOpenDutyCap,
-} from './constraints'
+import { isOpenDutyDate, minimumForDate, requiresDoubleCoverage, slotsForDate } from './dates'
+import { blockingRule, conflictFor, emptyTally, type Tally } from './conflicts'
 import { scoreCandidate, weekendBudget, fridayBudget } from './scoring'
 import type {
   AssignmentPlan,
@@ -40,16 +27,11 @@ interface RunState {
   byDate: Map<string, Set<number>>
 }
 
-interface Tally {
-  unavailable: number
-  'at cap': number
-  'at open on-call cap': number
-  'at holiday cap': number
-  'back-to-back': number
-  'already on duty': number
-}
-
-export function generate(ctx: SchedulingContext): GenerateResult {
+/**
+ * Greedy engine: fills one slot at a time in a fixed pass order and never
+ * revisits a choice. Kept as the fallback when the exact solver fails.
+ */
+export function generateGreedy(ctx: SchedulingContext): GenerateResult {
   const assignments: AssignmentPlan[] = []
   const conflicts: ConflictPlan[] = []
 
@@ -81,8 +63,6 @@ export function generate(ctx: SchedulingContext): GenerateResult {
     .reduce((sum, d) => sum + slotsForDate(d.date, ctx.openDuty, ctx.slots), 0)
   const wBudget = weekendBudget(weekendSlots, activeCount)
   const fBudget = fridayBudget(fridaySlots, activeCount)
-  const firstDay = ctx.days[0]
-  const firstDayPrev = firstDay ? prevDate(firstDay.date) : ''
   const maxDaySlots = Math.max(
     ctx.slots.openDutySlots,
     ctx.slots.postOpenDutySlots,
@@ -139,58 +119,11 @@ export function generate(ctx: SchedulingContext): GenerateResult {
      * holiday cap (it yields to the day-fill rule). */
     const collect = (relaxFairness: boolean): { eligible: Eligible[]; tally: Tally } => {
       const eligible: Eligible[] = []
-      const tally: Tally = {
-        unavailable: 0,
-        'at cap': 0,
-        'at open on-call cap': 0,
-
-        'at holiday cap': 0,
-        'already on duty': 0,
-        'back-to-back': 0,
-      }
+      const tally = emptyTally()
       for (const doctor of ctx.doctors) {
-        if (state.byDate.get(day.date)?.has(doctor.id)) {
-          tally['already on duty']++
-          continue
-        }
-        const ranges = ctx.unavailability.get(doctor.id)
-        if (!isAvailable(doctor.id, day.date, ranges).ok) {
-          tally.unavailable++
-          continue
-        }
-        if (!underCap(state.total.get(doctor.id) ?? 0, doctor.maxMonthlyDuties).ok) {
-          tally['at cap']++
-          continue
-        }
-        // Strict rule: one open on-call duty per doctor per schedule. A second
-        // is never allowed — not even to complete an open day's required
-        // double coverage — so it outranks the fairness relaxations below.
-        if (openDay && !underOpenDutyCap(state.openDays.get(doctor.id) ?? 0).ok) {
-          tally['at open on-call cap']++
-          continue
-        }
-        // The holiday cap never blocks the strict open on-call rule and
-        // yields to the day-fill guarantee below; hard constraints still
-        // apply everywhere.
-        if (
-          day.isHoliday &&
-          !critical &&
-          !relaxFairness &&
-          !underHolidayCap(state.holiday.get(doctor.id) ?? 0).ok
-        ) {
-          tally['at holiday cap']++
-          continue
-        }
-        const prev = prevDate(day.date)
-        const onDutyYesterday =
-          prev === firstDayPrev
-            ? ctx.priorDayDoctorIds.has(doctor.id)
-            : state.byDate.get(prev)?.has(doctor.id) ?? false
-        // Later slot passes must also look at the next day: it may already
-        // hold an earlier-pass duty, and the pair would be back-to-back.
-        const onDutyTomorrow = state.byDate.get(nextDate(day.date))?.has(doctor.id) ?? false
-        if (!notConsecutive(onDutyYesterday || onDutyTomorrow).ok) {
-          tally['back-to-back']++
+        const blocked = blockingRule(ctx, state, doctor, day, critical, relaxFairness)
+        if (blocked) {
+          tally[blocked]++
           continue
         }
         eligible.push({
@@ -270,25 +203,6 @@ export function generate(ctx: SchedulingContext): GenerateResult {
       state.holiday.set(winner.doctor.id, (state.holiday.get(winner.doctor.id) ?? 0) + 1)
     if (openDay)
       state.openDays.set(winner.doctor.id, (state.openDays.get(winner.doctor.id) ?? 0) + 1)
-  }
-}
-
-function conflictFor(
-  date: string,
-  activeCount: number,
-  tally: Tally,
-  assigned: number,
-  critical: boolean,
-  required: number,
-): ConflictPlan {
-  // Only top-up passes can skip a doctor because they already hold this day's
-  // other slot; keep the detail identical to the classic format otherwise.
-  const onDutyNote =
-    tally['already on duty'] > 0 ? `, ${tally['already on duty']} already on duty` : ''
-  const rule = critical ? `requires ${required} doctors (open on-call rule); ` : ''
-  return {
-    date,
-    detail: `${rule}only ${assigned} of ${required} doctors assigned; of ${activeCount} active doctor(s): ${tally.unavailable} unavailable, ${tally['at cap']} at monthly cap, ${tally['at open on-call cap']} at open on-call cap, ${tally['at holiday cap']} at holiday cap, ${tally['back-to-back']} back-to-back${onDutyNote}`,
   }
 }
 
