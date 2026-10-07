@@ -8,8 +8,8 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <RouterLink to="/" class="group flex shrink-0 items-center gap-2.5">
-    <span class="brand-tile transition-transform duration-200 group-hover:scale-105">
+  <RouterLink to="/" class="group flex min-w-0 items-center gap-2.5">
+    <span class="brand-tile shrink-0 transition-transform duration-200 group-hover:scale-105">
       <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" aria-hidden="true">
         <path
           d="M10.5 3h3v5.5H19v3h-5.5V21h-3v-9.5H5v-3h5.5z"

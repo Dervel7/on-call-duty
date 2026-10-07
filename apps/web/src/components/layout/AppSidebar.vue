@@ -108,6 +108,7 @@ function isActive(to: string): boolean {
       @click="close"
     />
   </Transition>
+  <!-- Visibility transitions only on close: an opening panel must be visible at once so useModal can move focus into it. -->
   <aside
     id="app-sidebar"
     ref="panel"
@@ -115,8 +116,10 @@ function isActive(to: string): boolean {
     :aria-modal="drawerOpen ? 'true' : undefined"
     :aria-label="drawerOpen ? t('nav.main') : undefined"
     :class="[
-      'no-print fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border/60 bg-background/85 shadow-header backdrop-blur-xl transition-[transform,width,visibility] duration-300 ease-out xl:visible xl:translate-x-0',
-      open ? 'visible translate-x-0' : 'invisible -translate-x-full',
+      'no-print fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border/60 bg-background/85 shadow-header backdrop-blur-xl duration-300 ease-out xl:visible xl:translate-x-0',
+      open
+        ? 'visible translate-x-0 transition-[transform,width]'
+        : 'invisible -translate-x-full transition-[transform,width,visibility]',
       collapsed && 'xl:w-[4.5rem]',
     ]"
   >
