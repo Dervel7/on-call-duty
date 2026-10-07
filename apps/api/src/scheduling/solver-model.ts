@@ -28,6 +28,9 @@ import type { DaySpec, DoctorSpec, SchedulingContext } from './types'
  * 6. `fill`: most duties (fill extra slots)
  *
  * Each stage keeps every earlier stage at its optimum through a bound row.
+ * The `alternative` stage is not in the solve order: it keeps every stage at
+ * its optimum and finds another schedule as different as possible from the
+ * earlier schedule options.
  * Names and row order are deterministic: doctors by id, dates ascending.
  */
 
@@ -40,6 +43,7 @@ export type Stage =
   | 'share'
   | 'holidays'
   | 'fill'
+  | 'alternative'
 
 /** The Fri/Sat/Sun weekdays of the one-each-per-month goal. */
 export const FRI_SAT_SUN = [
@@ -82,6 +86,8 @@ export interface ModelBounds {
   optima: ReadonlyMap<Stage, number>
   /** Capacity-stage result per doctor id; required from the `share` stage on. */
   capacity: ReadonlyMap<number, number>
+  /** Chosen cell names of every earlier schedule option; `alternative` stage only. */
+  avoid?: readonly ReadonlySet<string>[]
 }
 
 /**
@@ -188,10 +194,13 @@ class LpText {
  */
 export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds): string | null {
   const lp = new LpText()
-  const rank = index.stages.indexOf(stage)
+  const avoid = bounds.avoid ?? []
+  // The alternative keeps every stage at its optimum, so every block is built.
+  const rank = stage === 'alternative' ? index.stages.length : index.stages.indexOf(stage)
   const reached = (s: Stage): boolean => index.stages.indexOf(s) <= rank
   const relax = stage !== 'capacity'
   const allCells = [...index.cellsByDoctor.values()].flat()
+  if (stage === 'alternative' && (allCells.length === 0 || avoid.length === 0)) return null
   lp.binaries.push(...allCells.map((c) => c.name))
 
   // Objective terms of every minimized stage, in solve order.
@@ -328,6 +337,23 @@ export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds)
     const optimum = bounds.optima.get(s)
     if (index.stages.indexOf(s) < rank && optimum !== undefined && terms.length > 0)
       lp.row(`bound_${s.replaceAll('-', '_')}`, terms, '<=', optimum)
+  }
+
+  if (stage === 'alternative') {
+    // `fill` is maximized, so its bound is the only `>=` one.
+    const fill = bounds.optima.get('fill')
+    if (fill !== undefined) lp.row('bound_fill', ones(allCells), '>=', fill)
+    // Each earlier option is excluded; the objective counts the duties shared
+    // with earlier options, once per option that holds them.
+    const overlap = new Map<string, number>()
+    for (const [j, set] of avoid.entries()) {
+      const same = allCells.filter((c) => set.has(c.name))
+      // An empty option means the fill optimum is 0: no other schedule exists.
+      if (same.length === 0) return null
+      lp.row(`nogood_${j + 1}`, ones(same), '<=', same.length - 1)
+      for (const c of same) overlap.set(c.name, (overlap.get(c.name) ?? 0) + 1)
+    }
+    return lp.render('Minimize', [...overlap].map(([name, n]): Term => [n, name]))
   }
 
   if (stage === 'fill') return allCells.length > 0 ? lp.render('Maximize', ones(allCells)) : null
