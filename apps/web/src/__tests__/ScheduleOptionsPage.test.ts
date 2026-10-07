@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import type { AssignmentPlan, DayInfo, DoctorLoad, ScheduleOption } from '@oncall/shared'
+import type { AssignmentPlan, DayInfo, ScheduleOption } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
 
 const options = vi.fn()
@@ -49,33 +49,18 @@ function duty(date: string, doctor: typeof JANE): AssignmentPlan {
   return { date, ...doctor, isWeekend: false, reason: `solver optimal ${date}` }
 }
 
-function load(doctor: typeof JANE, total: number, friday = 0): DoctorLoad {
-  return { ...doctor, total, holiday: 0, friday, saturday: 0, sunday: 0 }
-}
-
 function option(
   index: number,
   assignments: AssignmentPlan[],
   changedDates: string[],
-  loads: DoctorLoad[],
   conflicts: ScheduleOption['conflicts'] = [],
 ): ScheduleOption {
-  return { index, assignments, conflicts, days, changedDates, loads }
+  return { index, assignments, conflicts, days, changedDates }
 }
 
-const planA = option(1, [duty('2026-09-01', JANE), duty('2026-09-02', SAM)], [], [load(JANE, 1), load(SAM, 1)])
-const planB = option(
-  2,
-  [duty('2026-09-01', SAM), duty('2026-09-02', JANE)],
-  ['2026-09-01', '2026-09-02'],
-  [load(JANE, 1, 1), load(SAM, 1)],
-)
-const planC = option(
-  3,
-  [duty('2026-09-01', JANE), duty('2026-09-03', SAM)],
-  ['2026-09-02', '2026-09-03'],
-  [load(JANE, 1), load(SAM, 1)],
-)
+const planA = option(1, [duty('2026-09-01', JANE), duty('2026-09-02', SAM)], [])
+const planB = option(2, [duty('2026-09-01', SAM), duty('2026-09-02', JANE)], ['2026-09-01', '2026-09-02'])
+const planC = option(3, [duty('2026-09-01', JANE), duty('2026-09-03', SAM)], ['2026-09-02', '2026-09-03'])
 
 async function mountPage(): Promise<VueWrapper> {
   const wrapper = mount(ScheduleOptionsPage)
@@ -134,14 +119,6 @@ describe('ScheduleOptionsPage', () => {
     expect(wrapper.text()).not.toContain('different best plan')
   })
 
-  it('highlights a load that differs from Plan A in the comparison table', async () => {
-    options.mockResolvedValue({ year: 2026, month: 9, options: [planA, planB] })
-    const wrapper = await mountPage()
-    const janeRow = wrapper.findAll('tbody tr').find((r) => r.text().includes('Roe Jane'))!
-    const highlighted = janeRow.findAll('td.text-primary').map((c) => c.text())
-    expect(highlighted).toEqual(['1/0/0'])
-  })
-
   it('"Use Plan B" saves option B after confirmation and opens the new schedule', async () => {
     options.mockResolvedValue({ year: 2026, month: 9, options: [planA, planB, planC] })
     generate.mockResolvedValue({ schedule: { id: 42 } })
@@ -188,7 +165,7 @@ describe('ScheduleOptionsPage', () => {
     options.mockResolvedValue({
       year: 2026,
       month: 9,
-      options: [option(1, [], [], [], [{ date: '2026-09-03', detail: 'no eligible doctor' }])],
+      options: [option(1, [], [], [{ date: '2026-09-03', detail: 'no eligible doctor' }])],
     })
     const wrapper = await mountPage()
     expect(replace).toHaveBeenCalledWith({ path: '/schedules/preview', query: { year: '2026', month: '9' } })

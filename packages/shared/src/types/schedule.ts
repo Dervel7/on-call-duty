@@ -60,25 +60,12 @@ export interface PreviewResult {
   days: DayInfo[]
 }
 
-/** Per-doctor load of one schedule option, for side-by-side comparison. */
-export interface DoctorLoad {
-  doctorId: number
-  doctorFirstName: string
-  doctorLastName: string
-  total: number
-  holiday: number
-  friday: number
-  saturday: number
-  sunday: number
-}
-
 /** One candidate schedule; not persisted. `days` is eligibility against this option. */
 export interface ScheduleOption extends PreviewResult {
   /** 1-based position; 1 is the primary option. */
   index: number
   /** Dates whose doctor set differs from option 1 (empty for option 1). */
   changedDates: string[]
-  loads: DoctorLoad[]
 }
 
 export interface ScheduleOptionsResult {

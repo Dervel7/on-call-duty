@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import type { DoctorLoad, ScheduleOption, ScheduleOptionsResult } from '@oncall/shared'
+import type { ScheduleOption, ScheduleOptionsResult } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import { monthLabel as formatMonth } from '@oncall/utils'
 import { ArrowLeftRight } from 'lucide-vue-next'
@@ -14,12 +14,6 @@ import { useLatestRequest } from '@/composables/useLatestRequest'
 import Button from '@/components/ui/Button.vue'
 import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 import Spinner from '@/components/ui/Spinner.vue'
-import Table from '@/components/ui/Table.vue'
-import TableBody from '@/components/ui/TableBody.vue'
-import TableCell from '@/components/ui/TableCell.vue'
-import TableHead from '@/components/ui/TableHead.vue'
-import TableHeader from '@/components/ui/TableHeader.vue'
-import TableRow from '@/components/ui/TableRow.vue'
 
 // Mirror the API (apps/api cannot be imported here): SCHEDULE_OPTION_COUNT options, and
 // SOLVER_BUDGET_MS (10 s) for the primary option plus ALTERNATIVE_BUDGET_MS (5 s) per alternative.
@@ -64,27 +58,6 @@ const assignmentByDate = computed(() => {
   return m
 })
 const highlightDates = computed(() => new Set(current.value?.changedDates ?? []))
-
-const loadsByOption = computed(() =>
-  options.value.map((o) => new Map(o.loads.map((l) => [l.doctorId, l]))),
-)
-const doctorRows = computed<DoctorLoad[]>(() => options.value[0]?.loads ?? [])
-
-function weekdays(l: DoctorLoad | undefined): string {
-  return l ? `${l.friday}/${l.saturday}/${l.sunday}` : ''
-}
-function cellClass(differs: boolean): string {
-  return differs ? 'font-mono font-semibold text-primary bg-primary/10' : 'font-mono'
-}
-function loadCells(optionPos: number, doctorId: number) {
-  const load = loadsByOption.value[optionPos]?.get(doctorId)
-  const base = loadsByOption.value[0]?.get(doctorId)
-  return [
-    { key: 'total', value: String(load?.total ?? ''), differs: load?.total !== base?.total },
-    { key: 'holiday', value: String(load?.holiday ?? ''), differs: load?.holiday !== base?.holiday },
-    { key: 'weekdays', value: weekdays(load), differs: weekdays(load) !== weekdays(base) },
-  ]
-}
 
 const latest = useLatestRequest()
 
@@ -235,38 +208,7 @@ watch([year, month], load)
         {{ t('scheduleOptions.fewerOptions', { n: options.length }) }}
       </p>
 
-      <div id="option-panel" role="tabpanel" :aria-labelledby="`option-tab-${current.index}`" class="flex flex-col gap-6">
-        <section>
-          <p class="hud-label mb-2">{{ t('scheduleOptions.loadsTitle') }}</p>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead rowspan="2">{{ t('scheduleOptions.doctor') }}</TableHead>
-                <TableHead v-for="o in options" :key="o.index" colspan="3" class="text-center">
-                  {{ t('scheduleOptions.plan', { plan: letter(o) }) }}
-                </TableHead>
-              </TableRow>
-              <TableRow>
-                <template v-for="o in options" :key="o.index">
-                  <TableHead>{{ t('scheduleOptions.total') }}</TableHead>
-                  <TableHead>{{ t('scheduleOptions.holidays') }}</TableHead>
-                  <TableHead>{{ t('scheduleOptions.friSatSun') }}</TableHead>
-                </template>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-for="d in doctorRows" :key="d.doctorId">
-                <TableCell>{{ d.doctorLastName }} {{ d.doctorFirstName }}</TableCell>
-                <template v-for="(o, pos) in options" :key="o.index">
-                  <TableCell v-for="c in loadCells(pos, d.doctorId)" :key="c.key" :class="cellClass(c.differs)">
-                    {{ c.value }}
-                  </TableCell>
-                </template>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </section>
-
+      <div id="option-panel" role="tabpanel" :aria-labelledby="`option-tab-${current.index}`">
         <section class="overflow-hidden rounded-lg border border-border bg-card">
           <div class="flex flex-wrap items-center justify-end gap-3 border-b border-border px-4 py-3 text-xs text-muted-foreground">
             <span class="inline-flex items-center gap-1.5">

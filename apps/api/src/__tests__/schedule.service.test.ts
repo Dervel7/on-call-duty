@@ -874,7 +874,7 @@ describe('generateOptions', () => {
     expect(query).toHaveBeenCalledTimes(1)
   })
 
-  it('returns 1-3 options with per-doctor loads and changed dates, persisting nothing', async () => {
+  it('returns 1-3 options with changed dates, persisting nothing', async () => {
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
       if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
@@ -887,9 +887,6 @@ describe('generateOptions', () => {
     expect(res.options[0]?.changedDates).toEqual([])
     for (const option of res.options) {
       expect(option.days).toHaveLength(30)
-      expect(option.loads.map((l) => l.doctorId).sort((a, b) => a - b)).toEqual(doctors.map((d) => d.id))
-      expect(option.loads.reduce((sum, l) => sum + l.total, 0)).toBe(option.assignments.length)
-      for (const l of option.loads) expect(l.friday + l.saturday + l.sunday).toBeLessThanOrEqual(l.total)
     }
     for (const option of res.options.slice(1)) expect(option.changedDates.length).toBeGreaterThan(0)
     expect(query.mock.calls.some((c) => String(c[0]).startsWith('INSERT'))).toBe(false)

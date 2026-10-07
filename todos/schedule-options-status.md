@@ -66,8 +66,8 @@ Setup (user choice, to keep the dev DB): separate database `oncall_smoke` seeded
 API (Tasks 1-4):
 
 - `POST /schedules/options`: administrator only; optional `?clinicId=` (superadmin, same scope resolution as `/preview`); body `{ year, month }` (`createScheduleSchema`). Returns a `200` envelope with `ScheduleOptionsResult`. Returns `409` `Schedule already exists for this month; delete it first` before any solve.
-- `apps/api/src/services/schedule.service.ts`: `generateOptions(year, month, scope)`, `SCHEDULE_OPTION_COUNT = 3`; private helpers `eligibilityFor`, `assertNoSchedule`, `doctorSetsByDate`, `changedDatesOf`, `loadsOf`. No activity log entry, no usage metering.
-- Types (`packages/shared/src/types/schedule.ts`): `ScheduleOptionsResult { year, month, options }`; `ScheduleOption extends PreviewResult { index (1-based), changedDates, loads }`; `DoctorLoad { doctorId, doctorFirstName, doctorLastName, total, holiday, friday, saturday, sunday }` (every active doctor, ordered by id; `holiday` = weekends + marked holidays).
+- `apps/api/src/services/schedule.service.ts`: `generateOptions(year, month, scope)`, `SCHEDULE_OPTION_COUNT = 3`; private helpers `eligibilityFor`, `assertNoSchedule`, `doctorSetsByDate`, `changedDatesOf`. No activity log entry, no usage metering.
+- Types (`packages/shared/src/types/schedule.ts`): `ScheduleOptionsResult { year, month, options }`; `ScheduleOption extends PreviewResult { index (1-based), changedDates }`.
 - 1 to 3 options. Every option carries the same `conflicts` (same coverage optimum, D10); the web app checks option 1 only. Alternatives exist only when the primary option is optimal (D4).
 - Save path unchanged: `POST /schedules` with `{ year, month, assignments: [{ date, doctorId, reason }] }`.
 
@@ -112,6 +112,7 @@ Web (Tasks 5-6):
 | 2026-10-07 23:25 | T6c | The 409 case uses the header "Back to schedules" button; reuses `schedulePreview.backToSchedules` | No duplicate key |
 | 2026-10-07 23:25 | T6d | Plan letters stay Latin A/B/C in the Greek UI | Letters are identifiers |
 | 2026-10-07 23:25 | T6e | Greek confirm text puts the month in parentheses | `monthLabel` is nominative; "για Νοέμβριος" is not grammatical |
+| 2026-10-08 | U1 | User: remove the per-doctor comparison table ("DUTIES PER DOCTOR"); the options page shows only the calendar per plan. `loads`, `DoctorLoad`, `loadsOf`, the table locale keys, the table test and the manual bullet are removed with it | User steer; `loads` had no other consumer |
 
 ## Open items (waiting for user steer)
 

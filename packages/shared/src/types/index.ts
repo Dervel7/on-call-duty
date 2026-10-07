@@ -34,7 +34,6 @@ export type {
   AssignmentPlan,
   ConflictPlan,
   PreviewResult,
-  DoctorLoad,
   ScheduleOption,
   ScheduleOptionsResult,
   ScheduleDetail,

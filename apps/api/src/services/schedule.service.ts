@@ -2,7 +2,6 @@ import type {
   AuthUser,
   CreateDutyRequest,
   DayInfo,
-  DoctorLoad,
   Duty,
   DutyMinimumSettings,
   DutySlotsSettings,
@@ -442,36 +441,6 @@ function changedDatesOf(
     })
 }
 
-function loadsOf(ctx: SchedulingContext, assignments: { date: string; doctorId: number }[]): DoctorLoad[] {
-  const dayInfo = new Map(ctx.days.map((d) => [d.date, d]))
-  const loads = new Map<number, DoctorLoad>(
-    ctx.doctors.map((d) => [
-      d.id,
-      {
-        doctorId: d.id,
-        doctorFirstName: d.firstName,
-        doctorLastName: d.lastName,
-        total: 0,
-        holiday: 0,
-        friday: 0,
-        saturday: 0,
-        sunday: 0,
-      },
-    ]),
-  )
-  for (const a of assignments) {
-    const load = loads.get(a.doctorId)
-    const day = dayInfo.get(a.date)
-    if (!load || !day) continue
-    load.total++
-    if (day.isHoliday) load.holiday++
-    if (day.dayOfWeek === 5) load.friday++
-    else if (day.dayOfWeek === 6) load.saturday++
-    else if (day.dayOfWeek === 0) load.sunday++
-  }
-  return [...loads.values()]
-}
-
 /** Read-only like preview: no activity log entry and no usage metering. */
 export async function generateOptions(
   year: number,
@@ -490,7 +459,6 @@ export async function generateOptions(
       conflicts: result.conflicts,
       days: await eligibilityFor(ctx, result.assignments, scope.clinicId),
       changedDates: i === 0 ? [] : changedDatesOf(ctx, base, doctorSetsByDate(result.assignments)),
-      loads: loadsOf(ctx, result.assignments),
     })
   }
   return { year, month, options }
