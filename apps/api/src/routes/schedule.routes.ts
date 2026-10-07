@@ -5,6 +5,7 @@ import { authorize } from '../middleware/authorize'
 import { validate } from '../middleware/validate'
 import {
   createDutySchema,
+  createScheduleSchema,
   generateScheduleSchema,
   idParams,
   reassignDutySchema,
@@ -37,6 +38,13 @@ scheduleRouter.post(
   validate(scheduleQuerySchema, 'query'),
   validate(generateScheduleSchema, 'body'),
   scheduleController.preview,
+)
+scheduleRouter.post(
+  '/options',
+  authorize('administrator'),
+  validate(scheduleQuerySchema, 'query'),
+  validate(createScheduleSchema, 'body'),
+  scheduleController.options,
 )
 scheduleRouter.post(
   '/',

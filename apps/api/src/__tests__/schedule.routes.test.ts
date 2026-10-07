@@ -12,8 +12,10 @@ const reassignDuty = vi.fn()
 const removeDuty = vi.fn()
 const publish = vi.fn()
 const unpublish = vi.fn()
+const generateOptions = vi.fn()
 vi.mock('../services/schedule.service', () => ({
   preview: (...a: unknown[]) => preview(...a),
+  generateOptions: (...a: unknown[]) => generateOptions(...a),
   generate: (...a: unknown[]) => generate(...a),
   list: (...a: unknown[]) => list(...a),
   getById: (...a: unknown[]) => getById(...a),
@@ -76,7 +78,7 @@ const duty = (id: number, doctorId: number) => ({
 })
 
 beforeEach(() => {
-  [preview, generate, list, getById, remove, addDuty, reassignDuty, removeDuty, publish, unpublish].forEach((m) =>
+  [preview, generateOptions, generate, list, getById, remove, addDuty, reassignDuty, removeDuty, publish, unpublish].forEach((m) =>
     m.mockReset(),
   )
   query.mockReset()
@@ -115,6 +117,24 @@ describe('schedule routes', () => {
     expect(res.status).toBe(200)
     expect(res.body.data.assignments).toEqual([])
     expect(res.body.data.conflicts).toEqual([])
+  })
+
+  it('options is admin-only (doctor 403); admin gets 200 with options', async () => {
+    const forbidden = await request(build())
+      .post('/schedules/options')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+      .send({ year: 2026, month: 9 })
+    expect(forbidden.status).toBe(403)
+    expect(generateOptions).not.toHaveBeenCalled()
+
+    generateOptions.mockResolvedValue({ year: 2026, month: 9, options: [] })
+    const res = await request(build())
+      .post('/schedules/options')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ year: 2026, month: 9 })
+    expect(res.status).toBe(200)
+    expect(res.body.data.options).toEqual([])
+    expect(generateOptions).toHaveBeenCalledWith(2026, 9, expect.objectContaining({ clinicId: 1 }))
   })
 
   it('admin preview passes optional assignments through to the service', async () => {
@@ -316,6 +336,17 @@ describe('clinic scoping on schedule routes', () => {
       expect.objectContaining({ clinicId: 1 }),
       undefined,
     )
+  })
+
+  it('superadmin options without clinicId defaults to the sole clinic', async () => {
+    query.mockResolvedValue({ rows: [{ id: 1 }] })
+    generateOptions.mockResolvedValue({ year: 2026, month: 9, options: [] })
+    const res = await request(build())
+      .post('/schedules/options')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+      .send({ year: 2026, month: 9 })
+    expect(res.status).toBe(200)
+    expect(generateOptions).toHaveBeenCalledWith(2026, 9, expect.objectContaining({ clinicId: 1 }))
   })
 
   it('administrator generate without clinicId resolves to own clinic', async () => {

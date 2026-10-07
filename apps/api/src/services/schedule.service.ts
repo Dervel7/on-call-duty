@@ -2,6 +2,7 @@ import type {
   AuthUser,
   CreateDutyRequest,
   DayInfo,
+  DoctorLoad,
   Duty,
   DutyMinimumSettings,
   DutySlotsSettings,
@@ -10,6 +11,8 @@ import type {
   PreviewResult,
   ReassignDutyRequest,
   ScheduleDetail,
+  ScheduleOption,
+  ScheduleOptionsResult,
   ScheduleQuery,
   ScheduleSummary,
   ScheduleStatus,
@@ -22,6 +25,7 @@ import type { ClinicScope } from '../lib/scope'
   HOLIDAY_DUTY_CAP,
   OPEN_DUTY_DUTY_CAP,
    generate as runEngine,
+   generateOptions as runEngineOptions,
    isAvailable,
    notConsecutive,
    underCap,
@@ -349,6 +353,35 @@ function buildDutyMaps(
   return { dutiesByDate, dutyCountByDoctor, holidayByDoctor, openByDoctor }
 }
 
+/** Per-day eligibility answered against `assignments` plus the duties just outside the month. */
+async function eligibilityFor(
+  ctx: SchedulingContext,
+  assignments: { date: string; doctorId: number }[],
+  clinicId: number,
+): Promise<DayInfo[]> {
+  const maps = buildDutyMaps(assignments, holidayDatesOf(ctx.days), openDatesOf(ctx.days, ctx.openDuty))
+  await seedAdjacentDuties(maps.dutiesByDate, ctx, clinicId)
+  return computeEligibility({
+    doctors: ctx.doctors,
+    unavailability: ctx.unavailability,
+    days: ctx.days,
+    openDuty: ctx.openDuty,
+    slots: ctx.slots,
+    minimums: ctx.minimums,
+    ...maps,
+  })
+}
+
+/** Uniqueness is per clinic (D6): another clinic's schedule for the same month must not block this one. */
+async function assertNoSchedule(year: number, month: number, clinicId: number): Promise<void> {
+  const exists = await query(
+    'SELECT id FROM schedules WHERE year = $1 AND month = $2 AND clinic_id = $3',
+    [year, month, clinicId],
+  )
+  if (exists.rows.length > 0)
+    throw new HttpError(409, 'Schedule already exists for this month; delete it first')
+}
+
 export async function preview(
   year: number,
   month: number,
@@ -356,22 +389,11 @@ export async function preview(
   plan?: GenerateAssignment[],
 ): Promise<PreviewResult> {
   const ctx = await buildContext(year, month, scope.clinicId)
-  const openDuty = ctx.openDuty
   if (plan) {
     // WYSIWYG refresh: the admin edited the proposal in the browser, so
     // eligibility must answer against their plan, not the engine's. Nothing
     // is persisted; assignments/conflicts are echoed/blanked for shape only.
-    const maps = buildDutyMaps(plan, holidayDatesOf(ctx.days), openDatesOf(ctx.days, openDuty))
-    await seedAdjacentDuties(maps.dutiesByDate, ctx, scope.clinicId)
-    const days = computeEligibility({
-      doctors: ctx.doctors,
-      unavailability: ctx.unavailability,
-      days: ctx.days,
-      openDuty,
-      slots: ctx.slots,
-      minimums: ctx.minimums,
-      ...maps,
-    })
+    const days = await eligibilityFor(ctx, plan, scope.clinicId)
     const names = new Map(ctx.doctors.map((d) => [d.id, d]))
     return {
       assignments: plan.map((a) => {
@@ -390,18 +412,88 @@ export async function preview(
     }
   }
   const result = await runEngine(ctx)
-  const maps = buildDutyMaps(result.assignments, holidayDatesOf(ctx.days), openDatesOf(ctx.days, openDuty))
-  await seedAdjacentDuties(maps.dutiesByDate, ctx, scope.clinicId)
-  const days = computeEligibility({
-    doctors: ctx.doctors,
-    unavailability: ctx.unavailability,
-    days: ctx.days,
-    openDuty,
-    slots: ctx.slots,
-    minimums: ctx.minimums,
-    ...maps,
-  })
+  const days = await eligibilityFor(ctx, result.assignments, scope.clinicId)
   return { assignments: result.assignments, conflicts: result.conflicts, days }
+}
+
+export const SCHEDULE_OPTION_COUNT = 3
+
+function doctorSetsByDate(assignments: { date: string; doctorId: number }[]): Map<string, Set<number>> {
+  const byDate = new Map<string, Set<number>>()
+  for (const a of assignments) {
+    const set = byDate.get(a.date) ?? new Set<number>()
+    set.add(a.doctorId)
+    byDate.set(a.date, set)
+  }
+  return byDate
+}
+
+function changedDatesOf(
+  ctx: SchedulingContext,
+  base: Map<string, Set<number>>,
+  option: Map<string, Set<number>>,
+): string[] {
+  return ctx.days
+    .map((d) => d.date)
+    .filter((date) => {
+      const a = base.get(date) ?? new Set<number>()
+      const b = option.get(date) ?? new Set<number>()
+      return a.size !== b.size || [...a].some((id) => !b.has(id))
+    })
+}
+
+function loadsOf(ctx: SchedulingContext, assignments: { date: string; doctorId: number }[]): DoctorLoad[] {
+  const dayInfo = new Map(ctx.days.map((d) => [d.date, d]))
+  const loads = new Map<number, DoctorLoad>(
+    ctx.doctors.map((d) => [
+      d.id,
+      {
+        doctorId: d.id,
+        doctorFirstName: d.firstName,
+        doctorLastName: d.lastName,
+        total: 0,
+        holiday: 0,
+        friday: 0,
+        saturday: 0,
+        sunday: 0,
+      },
+    ]),
+  )
+  for (const a of assignments) {
+    const load = loads.get(a.doctorId)
+    const day = dayInfo.get(a.date)
+    if (!load || !day) continue
+    load.total++
+    if (day.isHoliday) load.holiday++
+    if (day.dayOfWeek === 5) load.friday++
+    else if (day.dayOfWeek === 6) load.saturday++
+    else if (day.dayOfWeek === 0) load.sunday++
+  }
+  return [...loads.values()]
+}
+
+/** Read-only like preview: no activity log entry and no usage metering. */
+export async function generateOptions(
+  year: number,
+  month: number,
+  scope: ClinicScope,
+): Promise<ScheduleOptionsResult> {
+  await assertNoSchedule(year, month, scope.clinicId)
+  const ctx = await buildContext(year, month, scope.clinicId)
+  const results = await runEngineOptions(ctx, SCHEDULE_OPTION_COUNT)
+  const base = doctorSetsByDate(results[0]?.assignments ?? [])
+  const options: ScheduleOption[] = []
+  for (const [i, result] of results.entries()) {
+    options.push({
+      index: i + 1,
+      assignments: result.assignments,
+      conflicts: result.conflicts,
+      days: await eligibilityFor(ctx, result.assignments, scope.clinicId),
+      changedDates: i === 0 ? [] : changedDatesOf(ctx, base, doctorSetsByDate(result.assignments)),
+      loads: loadsOf(ctx, result.assignments),
+    })
+  }
+  return { year, month, options }
 }
 
 interface PlanDuty {
@@ -418,14 +510,7 @@ export async function generate(
   scope: ClinicScope,
   assignments?: GenerateAssignment[],
 ): Promise<ScheduleDetail> {
-  // Uniqueness is per clinic (D6): another clinic's schedule for the same
-  // month must not block this one.
-  const exists = await query(
-    'SELECT id FROM schedules WHERE year = $1 AND month = $2 AND clinic_id = $3',
-    [year, month, scope.clinicId],
-  )
-  if (exists.rows.length > 0)
-    throw new HttpError(409, 'Schedule already exists for this month; delete it first')
+  await assertNoSchedule(year, month, scope.clinicId)
 
   const ctx = await buildContext(year, month, scope.clinicId)
 
