@@ -9,6 +9,7 @@ import {
   buildModel,
   indexModel,
   sameWeekday,
+  type ModelBounds,
   type ModelCell,
   type ModelIndex,
   type Stage,
@@ -17,6 +18,9 @@ import type { AssignmentPlan, ConflictPlan, GenerateResult, SchedulingContext } 
 
 /** Wall-clock budget for all solves of one generate() call (D4). */
 export const SOLVER_BUDGET_MS = 10_000
+
+/** Wall-clock budget of each alternative schedule option, on top of the primary solve. */
+export const ALTERNATIVE_BUDGET_MS = 5_000
 
 /** Fixed options so the same input always gives the same schedule (D5). */
 const SOLVE_OPTIONS = { output_flag: false, threads: 1, random_seed: 0, mip_rel_gap: 0 } as const
@@ -29,6 +33,14 @@ interface Solution {
   status: SolverStatus
 }
 
+interface StagesResult {
+  /** The last solution found, or null when none was found within the budget. */
+  solution: Solution | null
+  /** Optimum of every stage solved to optimality, `fill` included. */
+  optima: Map<Stage, number>
+  capacity: Map<number, number>
+}
+
 /**
  * Exact scheduling engine: solves the lexicographic MIP stages of
  * `solver-model.ts` with HiGHS. On a solver error, or when no feasible
@@ -39,13 +51,38 @@ export async function generate(
   ctx: SchedulingContext,
   loader: SolverLoader = loadSolver,
 ): Promise<GenerateResult> {
+  return (await generateOptions(ctx, 1, loader))[0]!
+}
+
+/**
+ * Up to `count` schedule options. The first is the primary option, exactly
+ * what generate() returns. The alternatives keep every stage at its optimum
+ * (equally good) and differ as much as possible from the earlier options.
+ * Alternatives exist only when the primary option is proven optimal; the
+ * chain stops early when no other equally good schedule is found.
+ */
+export async function generateOptions(
+  ctx: SchedulingContext,
+  count: number,
+  loader: SolverLoader = loadSolver,
+): Promise<GenerateResult[]> {
   const deadline = Date.now() + SOLVER_BUDGET_MS
   const index = indexModel(ctx)
-  let failure: unknown
+  let failure: unknown = 'no feasible schedule within the time budget'
   try {
-    const solution = await solveStages(await loader(), index, deadline)
-    if (solution) return decode(ctx, index, solution)
-    failure = 'no feasible schedule within the time budget'
+    const solver = await loader()
+    const { solution, optima, capacity } = await solveStages(solver, index, deadline)
+    if (solution) {
+      const options = [solution]
+      // Without proven optima there are no bounds to keep the alternatives equally good.
+      while (solution.status === 'optimal' && options.length < count) {
+        const avoid = options.map((o) => o.chosen)
+        const chosen = await solveAlternative(ctx, solver, index, { optima, capacity, avoid })
+        if (!chosen) break
+        options.push({ chosen, status: 'optimal' })
+      }
+      return options.map((o) => decode(ctx, index, o))
+    }
   } catch (err) {
     failure = err
   }
@@ -54,49 +91,80 @@ export async function generate(
     'scheduling solver failed; greedy fallback used',
   )
   const greedy = generateGreedy(ctx)
-  return {
-    assignments: greedy.assignments.map((a) => ({ ...a, reason: `${a.reason}; fallback` })),
-    conflicts: greedy.conflicts,
+  return [
+    {
+      assignments: greedy.assignments.map((a) => ({ ...a, reason: `${a.reason}; fallback` })),
+      conflicts: greedy.conflicts,
+    },
+  ]
+}
+
+/**
+ * One alternative schedule option with its own budget, or null when none
+ * exists (Infeasible), none was found in time, or the solve failed. A
+ * failure only ends the chain: the earlier options stay valid.
+ */
+async function solveAlternative(
+  ctx: SchedulingContext,
+  solver: Solver,
+  index: ModelIndex,
+  bounds: ModelBounds,
+): Promise<Set<string> | null> {
+  const lp = buildModel(index, 'alternative', bounds)
+  if (!lp) return null
+  try {
+    const result = await solver.solve(lp, SOLVE_OPTIONS, Date.now() + ALTERNATIVE_BUDGET_MS)
+    if (!result || result.Status === 'Infeasible') return null
+    // An incumbent at the time limit already meets every bound row.
+    if (result.Status === 'Optimal' || result.Status === 'Time limit reached')
+      return Number.isFinite(result.ObjectiveValue) ? chosenCells(index, result.Columns) : null
+    throw new Error(`HiGHS returned "${result.Status}" at stage alternative`)
+  } catch (err) {
+    logger.warn(
+      { clinicId: ctx.clinicId, year: ctx.year, month: ctx.month, option: (bounds.avoid?.length ?? 0) + 1, err },
+      'schedule option solve failed; fewer options returned',
+    )
+    return null
   }
 }
 
 /**
- * Solves the capacity stage, then every objective stage in order. Returns
- * the last solution found, or null when none was found within the budget.
- * A stage that stops at the time limit ends the chain with the best
- * solution so far.
+ * Solves the capacity stage, then every objective stage in order, and keeps
+ * the last solution found. A stage that stops at the time limit ends the
+ * chain with the best solution so far.
  */
-async function solveStages(solver: Solver, index: ModelIndex, deadline: number): Promise<Solution | null> {
+async function solveStages(solver: Solver, index: ModelIndex, deadline: number): Promise<StagesResult> {
   const capacity = new Map<number, number>()
   const optima = new Map<Stage, number>()
+  const result = (solution: Solution | null): StagesResult => ({ solution, optima, capacity })
   let chosen: Set<string> | null = null
   let solvedAny = false
   for (const stage of index.stages) {
     const lp = buildModel(index, stage, { optima, capacity })
     if (!lp) continue
-    const result = await solveOnce(solver, lp, deadline, stage)
+    const solved = await solveOnce(solver, lp, deadline, stage)
     if (stage === 'capacity') {
-      if (result?.Status !== 'Optimal') return null
-      const best = chosenCells(index, result.Columns)
+      if (solved?.Status !== 'Optimal') return result(null)
+      const best = chosenCells(index, solved.Columns)
       for (const [id, cells] of index.cellsByDoctor)
         capacity.set(id, cells.filter((c) => best.has(c.name)).length)
       continue
     }
     solvedAny = true
-    if (result?.Status === 'Optimal') {
-      chosen = chosenCells(index, result.Columns)
+    if (solved?.Status === 'Optimal') {
+      chosen = chosenCells(index, solved.Columns)
       // Every stage objective is integral, so the rounded bound is exact.
-      optima.set(stage, Math.round(result.ObjectiveValue))
+      optima.set(stage, Math.round(solved.ObjectiveValue))
       continue
     }
     // A finite objective at the time limit means HiGHS holds an incumbent.
-    if (result && Number.isFinite(result.ObjectiveValue))
-      chosen = chosenCells(index, result.Columns)
-    return chosen ? { chosen, status: 'time limit' } : null
+    if (solved && Number.isFinite(solved.ObjectiveValue))
+      chosen = chosenCells(index, solved.Columns)
+    return result(chosen ? { chosen, status: 'time limit' } : null)
   }
   // No stage had anything to optimize: no possible duty and no minimum.
-  if (!solvedAny) return { chosen: new Set(), status: 'optimal' }
-  return chosen ? { chosen, status: 'optimal' } : null
+  if (!solvedAny) return result({ chosen: new Set(), status: 'optimal' })
+  return result(chosen ? { chosen, status: 'optimal' } : null)
 }
 
 /**

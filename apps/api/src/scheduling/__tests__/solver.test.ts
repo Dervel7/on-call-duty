@@ -1,3 +1,4 @@
+import type { LegacyHighsSolution } from 'highs'
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
   HOLIDAY_DUTY_CAP,
@@ -9,7 +10,7 @@ import {
 import { dayOfWeekISO, isOpenDutyDate, minimumForDate, prevDate, slotsForDate } from '../dates'
 import { generateGreedy } from '../engine'
 import { loadSolver, type SolverLoader } from '../highs'
-import { generate } from '../solver'
+import { generate, generateOptions } from '../solver'
 import type { GenerateResult, SchedulingContext } from '../types'
 import { october2026 } from './fixtures/october-2026'
 import { ctx, day, dr } from './helpers'
@@ -237,5 +238,112 @@ describe('solver: budget and fallback', () => {
   it('falls back when no schedule is found in time', async () => {
     const result = await generate(c, timeLimitedLoader(2, false))
     expect(result.assignments.every((a) => a.reason.endsWith('; fallback'))).toBe(true)
+  })
+})
+
+/** Wraps the real solver; `override` replaces the result of every alternative solve. */
+function alternativeLoader(
+  override: (result: LegacyHighsSolution | null) => Promise<LegacyHighsSolution | null>,
+): SolverLoader {
+  return async () => {
+    const real = await loadSolver()
+    return {
+      async solve(lp, options, deadline) {
+        const result = await real.solve(lp, options, deadline)
+        return lp.includes(' nogood_') ? override(result) : result
+      },
+    }
+  }
+}
+
+/** One key per duty, to compare the duty sets of two options. */
+const dutyKeys = (result: GenerateResult): string[] => result.assignments.map((a) => `${a.date}/${a.doctorId}`)
+
+describe('solver: options', () => {
+  describe('October 2026, Main Clinic', () => {
+    const c = october2026()
+    let options: GenerateResult[]
+    let again: GenerateResult[]
+    let primary: GenerateResult
+    beforeAll(async () => {
+      options = await generateOptions(c, 3)
+      again = await generateOptions(october2026(), 3)
+      primary = await generate(october2026())
+    }, 3 * SLOW)
+
+    it('returns 3 options, the first one equal to generate()', () => {
+      expect(options).toHaveLength(3)
+      expect(options[0]).toEqual(primary)
+    })
+
+    it('keeps every option equally good: hard rules, coverage, Fri/Sat/Sun, totals, holiday cap', () => {
+      const weekdays = (r: GenerateResult): string[] =>
+        profile(c, r).map((p) => `${p.fri}/${p.sat}/${p.sun}`).sort()
+      for (const option of options) {
+        expectHardRules(c, option)
+        expect(option.conflicts).toEqual([])
+        expect(option.assignments).toHaveLength(59)
+        expect(weekdays(option)).toEqual(weekdays(options[0]!))
+        const rows = profile(c, option)
+        const totals = rows.map((r) => r.total)
+        expect(Math.max(...totals) - Math.min(...totals)).toBeLessThanOrEqual(1)
+        expect(rows.every((r) => r.holiday <= HOLIDAY_DUTY_CAP)).toBe(true)
+        expect(option.assignments.every((a) => a.reason.startsWith('solver optimal'))).toBe(true)
+      }
+    })
+
+    it('gives pairwise different options', () => {
+      const keys = options.map((o) => dutyKeys(o).sort().join(','))
+      expect(new Set(keys).size).toBe(3)
+    })
+
+    it('is deterministic: the same input gives the same options', () => {
+      expect(again).toEqual(options)
+    })
+  })
+
+  it('returns 1 option when the optimum is unique', async () => {
+    // One doctor must take both Saturdays: no other schedule fills them.
+    const sats = [day('2026-09-05', true), day('2026-09-12', true)]
+    const minimums = { openDutyMinimum: 1, postOpenDutyMinimum: 1, closedDutyMinimum: 1 }
+    const options = await generateOptions(ctx(sats, [dr(1)], { minimums }), 3)
+    expect(options).toHaveLength(1)
+    expect(options[0]?.assignments).toHaveLength(2)
+  })
+
+  describe('budget and failures', () => {
+    const days = [day('2026-09-01'), day('2026-09-03'), day('2026-09-05')]
+    const c = ctx(days, [dr(1), dr(2), dr(3)])
+
+    it('has several options when nothing fails', async () => {
+      expect((await generateOptions(c, 3)).length).toBeGreaterThan(1)
+    })
+
+    it('returns only the primary option when it stopped at the time limit', async () => {
+      const options = await generateOptions(c, 3, timeLimitedLoader(2, true))
+      expect(options).toHaveLength(1)
+      expect(options[0]?.assignments.every((a) => a.reason.startsWith('solver time limit'))).toBe(true)
+    })
+
+    it('returns only the fallback option when the solver cannot load', async () => {
+      const options = await generateOptions(c, 3, () => Promise.reject(new Error('wasm load failed')))
+      expect(options).toHaveLength(1)
+      expect(options[0]?.assignments.every((a) => a.reason.endsWith('; fallback'))).toBe(true)
+    })
+
+    it('keeps the primary option when an alternative finds none in time', async () => {
+      const timeLimit = alternativeLoader(async (result) =>
+        result?.Status === 'Optimal' ? { ...result, Status: 'Time limit reached', ObjectiveValue: Infinity } : result,
+      )
+      const options = await generateOptions(c, 3, timeLimit)
+      expect(options).toHaveLength(1)
+      expect(options[0]).toEqual(await generate(c))
+    })
+
+    it('keeps the primary option when an alternative solve fails', async () => {
+      const options = await generateOptions(c, 3, alternativeLoader(() => Promise.reject(new Error('worker crashed'))))
+      expect(options).toHaveLength(1)
+      expect(options[0]).toEqual(await generate(c))
+    })
   })
 })
