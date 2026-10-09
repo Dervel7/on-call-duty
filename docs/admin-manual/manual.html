@@ -409,8 +409,11 @@ A progress bar shows while the options are computed; this can take up to about 2
 same month again shows the same plans in the same order.</p>
 <div class="note info"><span class="t">Info</span>Fewer than three plans can appear. Some months have only one or two
 different best schedules, and the system never shows a weaker plan to fill the list. If the solver cannot prove the
-best schedule within its time limit, only Plan A is shown. If some days cannot be filled, you are taken to the
-preview page to resolve the conflicts first (see 6.3).</div>
+best schedule within its time limit, only Plan A is shown.</div>
+<div class="note warn"><span class="t">Caution</span>If some days cannot reach their minimum number of on-call doctors,
+the plans are still shown, with a list of the short days, but <span class="kbd">Use Plan</span> is disabled: a plan
+below a day's minimum cannot be saved, and every plan has the same short days. Add doctors or availability, or lower
+the minimum in the settings, then generate again.</div>
 
 <h2>6.5 Step 4 — Review and edit the draft (Schedule Detail)</h2>
 <p>The detail page shows the full month: each date, the assigned doctor (or <em>Unassigned</em>), <strong>Flags</strong>

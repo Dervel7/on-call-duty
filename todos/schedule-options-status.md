@@ -68,7 +68,7 @@ API (Tasks 1-4):
 - `POST /schedules/options`: administrator only; optional `?clinicId=` (superadmin, same scope resolution as `/preview`); body `{ year, month }` (`createScheduleSchema`). Returns a `200` envelope with `ScheduleOptionsResult`. Returns `409` `Schedule already exists for this month; delete it first` before any solve.
 - `apps/api/src/services/schedule.service.ts`: `generateOptions(year, month, scope)`, `SCHEDULE_OPTION_COUNT = 3`; private helpers `eligibilityFor`, `assertNoSchedule`, `doctorSetsByDate`, `changedDatesOf`. No activity log entry, no usage metering.
 - Types (`packages/shared/src/types/schedule.ts`): `ScheduleOptionsResult { year, month, options }`; `ScheduleOption extends PreviewResult { index (1-based), changedDates }`.
-- 1 to 3 options. Every option carries the same `conflicts` (same coverage optimum, D10); the web app checks option 1 only. Alternatives exist only when the primary option is optimal (D4).
+- 1 to 3 options. Every option carries the same `conflicts` (same coverage optimum, D10); the web app shows all options and disables saving when the selected option has conflicts (U3). Alternatives exist only when the primary option is optimal (D4).
 - Save path unchanged: `POST /schedules` with `{ year, month, assignments: [{ date, doctorId, reason }] }`.
 
 Web (Tasks 5-6):
@@ -76,7 +76,7 @@ Web (Tasks 5-6):
 - `apps/web/src/services/schedule.ts`: `options(year, month)`.
 - `apps/web/src/composables/useEstimatedProgress.ts`: `useEstimatedProgress(estimateMs)` returns `EstimatedProgress { progress, start, finish, stop }`, holds at 95% and fills at 8x on `finish`, and stops on scope dispose.
 - `apps/web/src/pages/SchedulesPage.vue`: the dialog only validates, then `router.push({ path: '/schedules/options', query: { year, month } })`.
-- `apps/web/src/pages/ScheduleOptionsPage.vue`: route `schedule-options` (`/schedules/options`, administrator, registered before `schedules/:id`). Constants `OPTION_COUNT = 3`, `ESTIMATED_OPTIONS_MS = 20_000` (mirror the API). Request guarded by `useLatestRequest`. Option 1 with conflicts calls `router.replace` to the preview page. Save goes through `useConfirm`, then `scheduleService.generate`, then `/schedules/<id>`.
+- `apps/web/src/pages/ScheduleOptionsPage.vue`: route `schedule-options` (`/schedules/options`, administrator, registered before `schedules/:id`). Constants `OPTION_COUNT = 3`, `ESTIMATED_OPTIONS_MS = 20_000` (mirror the API). Request guarded by `useLatestRequest`. Options with conflicts stay on the page: a `scheduleOptions.understaffed` notice lists the short days, DutyCalendar gets `conflicts-by-date`, and "Use Plan X" is disabled (U3). Save goes through `useConfirm`, then `scheduleService.generate`, then `/schedules/<id>`.
 - `apps/web/src/components/schedule/DutyCalendar.vue`: unchanged from `main` (the `highlightDates` marker was removed in U2). The options page passes `show-fill-hints` for the preview colours.
 - Locales: `scheduleOptions.*` in `en.json` and `el.json`.
 - Tests: `ScheduleOptionsPage.test.ts`, `useEstimatedProgress.test.ts`, `SchedulesPage.test.ts` (navigation tests).
@@ -114,6 +114,7 @@ Web (Tasks 5-6):
 | 2026-10-07 23:25 | T6e | Greek confirm text puts the month in parentheses | `monthLabel` is nominative; "για Νοέμβριος" is not grammatical |
 | 2026-10-08 | U1 | User: remove the per-doctor comparison table ("DUTIES PER DOCTOR"); the options page shows only the calendar per plan. `loads`, `DoctorLoad`, `loadsOf`, the table locale keys, the table test and the manual bullet are removed with it | User steer; `loads` had no other consumer |
 | 2026-10-08 | U2 | User: remove the "differs from Plan A" marker (ring, icon, legend entry, `dutyCalendar.highlighted`, DutyCalendar `highlightDates` prop and its tests; DutyCalendar files restored to `5829a13`). The plan tabs keep the "N day(s) differ from Plan A" text. The calendar uses the preview colours (`show-fill-hints`): green full, yellow partial, red empty | User steer; resolves O2 |
+| 2026-10-09 | U3 | User: always show the options, even when all are understaffed (supersedes the D10 redirect to preview). Save stays blocked: "Use Plan X" disabled, notice lists the short days with the conflict detail; server minimum rule unchanged | User picked S1 over "save understaffed drafts" (relaxes a strict server rule) and "edit in preview" (still ends in 422). `validatePlan` rejects any plan below a day's minimum, so an enabled button would always fail |
 
 ## Open items (waiting for user steer)
 

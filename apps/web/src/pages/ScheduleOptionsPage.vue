@@ -42,6 +42,10 @@ const monthLabel = computed(() =>
 
 const options = computed<ScheduleOption[]>(() => result.value?.options ?? [])
 const current = computed<ScheduleOption | undefined>(() => options.value[selected.value])
+// All options share the coverage optimum, so a short day is short in every option, and the
+// API rejects any plan below a day's minimum.
+const understaffed = computed(() => (current.value?.conflicts.length ?? 0) > 0)
+const conflictsByDate = computed(() => new Map((current.value?.conflicts ?? []).map((c) => [c.date, c.detail])))
 
 function letter(option: ScheduleOption): string {
   return String.fromCharCode(64 + option.index)
@@ -75,15 +79,6 @@ async function load() {
     if (!isCurrent()) return
     await finish()
     if (!isCurrent()) return
-    // All options share the coverage optimum, so short days on option 1 are short on every
-    // option; the preview page owns that conflict workflow.
-    if ((res.options[0]?.conflicts.length ?? 0) > 0) {
-      router.replace({
-        path: '/schedules/preview',
-        query: { year: String(year.value), month: String(month.value) },
-      })
-      return
-    }
     result.value = res
   } catch (e) {
     if (!isCurrent()) return
@@ -140,7 +135,7 @@ watch([year, month], load)
         <Button variant="outline" @click="router.push('/schedules')">
           {{ t('schedulePreview.backToSchedules') }}
         </Button>
-        <Button v-if="current" :disabled="saving" @click="chooseOption">
+        <Button v-if="current" :disabled="saving || understaffed" @click="chooseOption">
           {{ saving ? t('scheduleOptions.saving') : t('scheduleOptions.use', { plan: letter(current) }) }}
         </Button>
       </div>
@@ -206,6 +201,16 @@ watch([year, month], load)
         {{ t('scheduleOptions.fewerOptions', { n: options.length }) }}
       </p>
 
+      <div
+        v-if="understaffed"
+        class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+      >
+        <p>{{ t('scheduleOptions.understaffed', { n: current.conflicts.length }) }}</p>
+        <ul class="mt-2 list-disc pl-5">
+          <li v-for="c in current.conflicts" :key="c.date">{{ c.date }}: {{ c.detail }}</li>
+        </ul>
+      </div>
+
       <div id="option-panel" role="tabpanel" :aria-labelledby="`option-tab-${current.index}`">
         <section class="overflow-hidden rounded-lg border border-border bg-card">
           <div class="flex flex-wrap items-center justify-end gap-3 border-b border-border px-4 py-3 text-xs text-muted-foreground">
@@ -224,6 +229,7 @@ watch([year, month], load)
             :month="month"
             :days="current.days"
             :assignment-by-date="assignmentByDate"
+            :conflicts-by-date="conflictsByDate"
             :doctors="[]"
             mode="readonly"
             show-fill-hints

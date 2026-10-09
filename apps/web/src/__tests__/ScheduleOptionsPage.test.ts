@@ -159,15 +159,28 @@ describe('ScheduleOptionsPage', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
-  it('routes to the preview page when option 1 has conflicts', async () => {
+  it('shows every option when all are understaffed and blocks using them', async () => {
+    const short = [{ date: '2026-09-03', detail: 'requires 3 doctors (open on-call rule)' }]
     options.mockResolvedValue({
       year: 2026,
       month: 9,
-      options: [option(1, [], [], [{ date: '2026-09-03', detail: 'no eligible doctor' }])],
+      options: [option(1, planA.assignments, [], short), option(2, planB.assignments, planB.changedDates, short)],
     })
     const wrapper = await mountPage()
-    expect(replace).toHaveBeenCalledWith({ path: '/schedules/preview', query: { year: '2026', month: '9' } })
-    expect(tabs(wrapper)).toHaveLength(0)
+
+    expect(replace).not.toHaveBeenCalled()
+    expect(tabs(wrapper)).toHaveLength(2)
+    expect(wrapper.text()).toContain('1 day(s) are below their minimum on-call doctors in every plan')
+    expect(wrapper.text()).toContain('2026-09-03: requires 3 doctors (open on-call rule)')
+    const use = () => wrapper.findAll('button').find((b) => b.text().startsWith('Use Plan'))!
+    expect(use().attributes('disabled')).toBeDefined()
+
+    await tabs(wrapper)[1]!.trigger('click')
+    expect(use().text()).toBe('Use Plan B')
+    expect(use().attributes('disabled')).toBeDefined()
+    await use().trigger('click')
+    await flushPromises()
+    expect(generate).not.toHaveBeenCalled()
   })
 
   it('shows a notice when fewer than 3 options exist', async () => {

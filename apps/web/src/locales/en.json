@@ -245,6 +245,7 @@
     "firstChoice": "Solver's first choice",
     "daysDiffer": "{n} day(s) differ from Plan A",
     "fewerOptions": "Only {n} different best plan(s) exist for this month.",
+    "understaffed": "{n} day(s) are below their minimum on-call doctors in every plan, so no plan can be used. Add doctors or availability, or lower the minimum, then generate again.",
     "use": "Use Plan {plan}",
     "useTitle": "Use Plan {plan}",
     "useMessage": "Save Plan {plan} as the draft schedule for {month}? The other plans are discarded.",
