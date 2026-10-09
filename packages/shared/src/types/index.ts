@@ -33,6 +33,7 @@ export type {
   DayInfo,
   AssignmentPlan,
   ConflictPlan,
+  ConflictTally,
   PreviewResult,
   ScheduleOption,
   ScheduleOptionsResult,

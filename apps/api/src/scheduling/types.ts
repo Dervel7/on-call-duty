@@ -1,4 +1,6 @@
-import type { DutyMinimumSettings, DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
+import type { ConflictPlan, ConflictTally, DutyMinimumSettings, DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
+
+export type { ConflictPlan, ConflictTally }
 
 export interface DoctorSpec {
   id: number
@@ -48,11 +50,6 @@ export interface AssignmentPlan {
   doctorLastName: string
   isWeekend: boolean
   reason: string
-}
-
-export interface ConflictPlan {
-  date: string
-  detail: string
 }
 
 export interface GenerateResult {

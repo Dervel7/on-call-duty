@@ -32,7 +32,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
     // one doctor can only hold one slot per day → each day short-fills
     expect(assignments).toHaveLength(3)
     expect(conflicts).toHaveLength(3)
-    expect(conflicts[0]?.detail).toContain('only 1 of 2')
+    expect(conflicts[0]).toMatchObject({ assigned: 1, required: 2 })
   })
 
   it('enforces no back-to-back with two doctors over two consecutive days', async () => {
@@ -46,7 +46,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
     expect(day2).toHaveLength(1)
     expect(day1).not.toEqual(day2)
     expect(conflicts).toHaveLength(2)
-    expect(conflicts.every((c) => c.detail.includes('back-to-back'))).toBe(true)
+    expect(conflicts.every((c) => c.tally.backToBack > 0)).toBe(true)
   })
 
   it('covers every day with one doctor before assigning second doctors', async () => {
@@ -58,14 +58,14 @@ describe.each(engines)('%s engine', (_name, engine) => {
       expect(assignments.filter((a) => a.date === date)).toHaveLength(1)
     }
     expect(conflicts).toHaveLength(4)
-    expect(conflicts.every((c) => c.detail.includes('only 1 of 2'))).toBe(true)
+    expect(conflicts.every((c) => c.assigned === 1 && c.required === 2)).toBe(true)
   })
 
   it('enforces the monthly cap', async () => {
     const everyOther = [day('2026-09-01'), day('2026-09-03'), day('2026-09-05'), day('2026-09-07')]
     const { conflicts } = await run(ctx(everyOther, [dr(1, 2), dr(2, 2)]))
     expect(conflicts.length).toBeGreaterThan(0)
-    expect(conflicts.some((c) => c.detail.includes('at monthly cap'))).toBe(true)
+    expect(conflicts.some((c) => c.tally.atMonthlyCap > 0)).toBe(true)
   })
 
   it('respects unavailability: a fully-unavailable day becomes a conflict', async () => {
@@ -76,7 +76,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
     ])
     const { assignments, conflicts } = await run(ctx(days, [dr(1), dr(2)], { unavailability: un }))
     expect(assignments).toEqual([])
-    expect(conflicts[0]?.detail).toContain('unavailable')
+    expect(conflicts[0]?.tally.unavailable).toBe(2)
   })
 
   it('respects cross-month prior-day duty via priorDayDoctorIds', async () => {
@@ -137,7 +137,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
     expect(assignments.find((a) => a.date === '2026-09-08')?.reason).toContain(
       'day-fill guarantee overrode fairness caps',
     )
-    expect(conflicts.every((c) => c.detail.includes('only 1 of 2'))).toBe(true)
+    expect(conflicts.every((c) => c.assigned === 1 && c.required === 2)).toBe(true)
   })
 
   it('weekend holiday cap yields to the day-fill guarantee too', async () => {
@@ -147,7 +147,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
     expect(assignments.find((a) => a.date === '2026-09-19')?.reason).toContain(
       'day-fill guarantee overrode fairness caps',
     )
-    expect(conflicts.every((c) => c.detail.includes('only 1 of 2'))).toBe(true)
+    expect(conflicts.every((c) => c.assigned === 1 && c.required === 2)).toBe(true)
   })
 
   it('day-fill guarantee never breaks hard constraints: back-to-back still empties the day', async () => {
@@ -158,7 +158,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
     expect(assignments).toHaveLength(1)
     const empty = assignments[0]?.date === '2026-09-01' ? '2026-09-02' : '2026-09-01'
     expect(conflicts.map((c) => c.date).sort()).toEqual(['2026-09-01', '2026-09-02'])
-    expect(conflicts.find((c) => c.date === empty)?.detail).toContain('1 back-to-back')
+    expect(conflicts.find((c) => c.date === empty)?.tally.backToBack).toBe(1)
   })
 
   it('non-holiday weekdays are unaffected: a doctor may exceed 2 duties there', async () => {
@@ -246,7 +246,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
     expect(conflicts.map((c) => c.date).sort()).toEqual(['2026-09-06', '2026-09-20', '2026-09-27'])
   })
 
-  it('open on-call rule: an unfillable open day carries the strict-rule prefix', async () => {
+  it('open on-call rule: an unfillable open day is reported as critical', async () => {
     const un = new Map([[1, [{ start: '2026-09-01', end: '2026-09-01' }]]])
     const { assignments, conflicts } = await run(
       ctx([day('2026-09-01')], [dr(1)], {
@@ -255,8 +255,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
       }),
     )
     expect(assignments).toEqual([])
-    expect(conflicts[0]?.detail).toContain('requires 2 doctors (open on-call rule)')
-    expect(conflicts[0]?.detail).toContain('unavailable')
+    expect(conflicts[0]).toMatchObject({ critical: true, required: 2, tally: { unavailable: 1 } })
   })
 
   it('open on-call rule: a doctor never takes a second open on-call day', async () => {
@@ -284,7 +283,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
     )
     expect(assignments.map((a) => a.doctorId).sort()).toEqual([1, 2])
     expect(conflicts.map((c) => c.date)).toEqual(['2026-09-01', '2026-09-09'])
-    expect(conflicts.every((c) => c.detail.includes('1 at open on-call cap'))).toBe(true)
+    expect(conflicts.every((c) => c.tally.atOpenDutyCap === 1)).toBe(true)
   })
 
   it('closed slots 1: every day carries exactly one doctor', async () => {
@@ -301,7 +300,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
     expect(assignments).toHaveLength(3)
   })
 
-  it('open slots 3: a short open day reports "only 2 of 3"', async () => {
+  it('open slots 3: a short open day reports 2 of 3 assigned', async () => {
     const { assignments, conflicts } = await run(
       ctx([day('2026-09-01')], [dr(1), dr(2)], {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
@@ -309,8 +308,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
       }),
     )
     expect(assignments).toHaveLength(2)
-    expect(conflicts[0]?.detail).toContain('requires 3 doctors (open on-call rule)')
-    expect(conflicts[0]?.detail).toContain('only 2 of 3 doctors assigned')
+    expect(conflicts[0]).toMatchObject({ critical: true, assigned: 2, required: 3 })
   })
 
   it('mixed slots: open, post-open, and closed days each hold their own count', async () => {
@@ -340,7 +338,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
       }),
     )
     expect(conflicts.map((c) => c.date)).toEqual(['2026-09-02'])
-    expect(conflicts[0]?.detail).toContain('only 1 of 2 doctors assigned')
+    expect(conflicts[0]).toMatchObject({ assigned: 1, required: 2 })
   })
 
   it('minimum below slots: unfillable extra slots are left empty without a conflict', async () => {
@@ -386,6 +384,6 @@ describe.each(engines)('%s engine', (_name, engine) => {
       }),
     )
     expect(conflicts).toHaveLength(1)
-    expect(conflicts[0]?.detail).toContain('only 1 of 2 doctors assigned')
+    expect(conflicts[0]).toMatchObject({ assigned: 1, required: 2 })
   })
 })

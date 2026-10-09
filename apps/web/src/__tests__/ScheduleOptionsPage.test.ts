@@ -160,7 +160,16 @@ describe('ScheduleOptionsPage', () => {
   })
 
   it('shows every option when all are understaffed and blocks using them', async () => {
-    const short = [{ date: '2026-09-03', detail: 'requires 3 doctors (open on-call rule)' }]
+    const short: ScheduleOption['conflicts'] = [
+      {
+        date: '2026-09-03',
+        critical: true,
+        required: 3,
+        assigned: 2,
+        activeDoctors: 2,
+        tally: { unavailable: 0, atMonthlyCap: 0, atOpenDutyCap: 0, atHolidayCap: 0, backToBack: 0, alreadyOnDuty: 2 },
+      },
+    ]
     options.mockResolvedValue({
       year: 2026,
       month: 9,

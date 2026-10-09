@@ -6,6 +6,7 @@ import type { ScheduleOption, ScheduleOptionsResult } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import { monthLabel as formatMonth } from '@oncall/utils'
 import * as scheduleService from '@/services/schedule'
+import { explainConflict } from '@/lib/conflict-text'
 import { useConfirm } from '@/composables/useConfirm'
 import { useEstimatedProgress } from '@/composables/useEstimatedProgress'
 import { useIntlLocale } from '@/composables/useIntlLocale'
@@ -45,7 +46,9 @@ const current = computed<ScheduleOption | undefined>(() => options.value[selecte
 // All options share the coverage optimum, so a short day is short in every option, and the
 // API rejects any plan below a day's minimum.
 const understaffed = computed(() => (current.value?.conflicts.length ?? 0) > 0)
-const conflictsByDate = computed(() => new Map((current.value?.conflicts ?? []).map((c) => [c.date, c.detail])))
+const conflictsByDate = computed(
+  () => new Map((current.value?.conflicts ?? []).map((c): [string, string] => [c.date, explainConflict(c, t)])),
+)
 
 function letter(option: ScheduleOption): string {
   return String.fromCharCode(64 + option.index)
@@ -207,7 +210,7 @@ watch([year, month], load)
       >
         <p>{{ t('scheduleOptions.understaffed', { n: current.conflicts.length }) }}</p>
         <ul class="mt-2 list-disc pl-5">
-          <li v-for="c in current.conflicts" :key="c.date">{{ c.date }}: {{ c.detail }}</li>
+          <li v-for="[date, text] in conflictsByDate" :key="date">{{ date }}: {{ text }}</li>
         </ul>
       </div>
 

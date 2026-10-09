@@ -1,10 +1,11 @@
 import { isOpenDutyDate, minimumForDate, requiresDoubleCoverage, slotsForDate } from './dates'
-import { blockingRule, conflictFor, emptyTally, type Tally } from './conflicts'
+import { blockingRule, emptyTally } from './conflicts'
 import { scoreCandidate, weekendBudget, fridayBudget } from './scoring'
 import type {
   AssignmentPlan,
   CandidateScore,
   ConflictPlan,
+  ConflictTally,
   DaySpec,
   DoctorSpec,
   GenerateResult,
@@ -117,7 +118,7 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
 
     /** Constraint pass over the doctor pool; `relaxFairness` skips the
      * holiday cap (it yields to the day-fill rule). */
-    const collect = (relaxFairness: boolean): { eligible: Eligible[]; tally: Tally } => {
+    const collect = (relaxFairness: boolean): { eligible: Eligible[]; tally: ConflictTally } => {
       const eligible: Eligible[] = []
       const tally = emptyTally()
       for (const doctor of ctx.doctors) {
@@ -161,16 +162,14 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
 
     if (eligible.length === 0) {
       if (required)
-        conflicts.push(
-          conflictFor(
-            day.date,
-            activeCount,
-            tally,
-            state.byDate.get(day.date)?.size ?? 0,
-            critical,
-            minimumForDate(day.date, ctx.openDuty, ctx.minimums),
-          ),
-        )
+        conflicts.push({
+          date: day.date,
+          critical,
+          required: minimumForDate(day.date, ctx.openDuty, ctx.minimums),
+          assigned: state.byDate.get(day.date)?.size ?? 0,
+          activeDoctors: activeCount,
+          tally,
+        })
       return
     }
 

@@ -36,9 +36,28 @@ export interface AssignmentPlan {
   reason: string
 }
 
+/** Doctors of the active pool kept off a short day, counted by the first rule that blocks each. */
+export interface ConflictTally {
+  unavailable: number
+  atMonthlyCap: number
+  atOpenDutyCap: number
+  atHolidayCap: number
+  backToBack: number
+  alreadyOnDuty: number
+}
+
+/**
+ * A day left below its minimum. Structured, not text, so the web app explains
+ * it in the active UI language.
+ */
 export interface ConflictPlan {
   date: string
-  detail: string
+  /** Open on-call day or the day after it: the open on-call rule sets its minimum. */
+  critical: boolean
+  required: number
+  assigned: number
+  activeDoctors: number
+  tally: ConflictTally
 }
 
 export interface DayInfo {

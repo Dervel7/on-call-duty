@@ -199,6 +199,12 @@
     "noDoctor": "No doctor",
     "filledOf": "{filled} of {required}"
   },
+  "conflict": {
+    "openRule": "requires {required} doctors (open on-call rule)",
+    "assigned": "only {assigned} of {required} doctors assigned",
+    "pool": "of {active} active doctor(s): {unavailable} unavailable, {atMonthlyCap} at monthly cap, {atOpenDutyCap} at open on-call cap, {atHolidayCap} at holiday cap, {backToBack} back-to-back",
+    "poolOnDuty": "of {active} active doctor(s): {unavailable} unavailable, {atMonthlyCap} at monthly cap, {atOpenDutyCap} at open on-call cap, {atHolidayCap} at holiday cap, {backToBack} back-to-back, {alreadyOnDuty} already on duty"
+  },
   "schedules": {
     "subtitle": "Generate, review, and publish monthly rosters",
     "newSchedule": "New schedule",

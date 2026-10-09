@@ -7,6 +7,7 @@ import { createScheduleSchema } from '@oncall/shared'
 import { monthLabel as formatMonth } from '@oncall/utils'
 import * as scheduleService from '@/services/schedule'
 import * as doctorService from '@/services/doctor'
+import { explainConflict } from '@/lib/conflict-text'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useIntlLocale } from '@/composables/useIntlLocale'
 import Button from '@/components/ui/Button.vue'
@@ -74,7 +75,7 @@ const assignmentByDate = computed(() => {
 
 const conflictsByDate = computed(() => {
   const m = new Map<string, string>()
-  for (const c of result.value?.conflicts ?? []) m.set(c.date, c.detail)
+  for (const c of result.value?.conflicts ?? []) m.set(c.date, explainConflict(c, t))
   return m
 })
 
