@@ -153,6 +153,29 @@ describe('UsersPage', () => {
     wrapper.unmount()
   })
 
+  it('filters doctors by name, ignoring case, accents and word order', async () => {
+    const greek: User = { ...doctorUser, id: 13, email: 'gr@h.com', firstName: 'Νίκος', lastName: 'Παπαδόπουλος' }
+    list.mockResolvedValue([doctorUser, greek])
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    const emails = () => wrapper.findAll('tbody tr').map((r) => r.findAll('td')[1]?.text())
+    const search = wrapper.find('input[type="search"]')
+
+    await search.setValue('ROE jane')
+    expect(emails()).toEqual(['dr@h.com'])
+
+    await search.setValue('παπαδοπουλος')
+    expect(emails()).toEqual(['gr@h.com'])
+
+    await search.setValue('dr@h.com')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+    expect(wrapper.text()).toContain('No doctors match this name.')
+
+    await search.setValue('')
+    expect(emails()).toEqual(['dr@h.com', 'gr@h.com'])
+    wrapper.unmount()
+  })
+
   it('shows an error message when listing fails', async () => {
     list.mockRejectedValue(new Error('nope'))
     const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })

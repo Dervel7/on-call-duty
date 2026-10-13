@@ -23,7 +23,7 @@ import { useConfirmState } from '../composables/useConfirm'
 import { pickDays } from './pick-days'
 import { setTestLocale } from './i18n'
 
-const { settle } = useConfirmState()
+const { settle, request } = useConfirmState()
 
 const record = {
   id: 1,
@@ -366,9 +366,31 @@ describe('MyAvailabilityPage', () => {
     wrapper.unmount()
   })
 
-  it('delete from the edit dialog shows an inline error when it fails', async () => {
+  it('delete from the edit dialog removes only the chip day of a multi-day record', async () => {
     const nm = nextMonthIso()
     listMine.mockResolvedValue([{ ...record, startDate: `${nm}-07`, endDate: `${nm}-11` }])
+    split.mockResolvedValue([])
+    const wrapper = await mountPage()
+    await wrapper.findAll('button').find((b) => b.text() === `${nm}-09`)!.trigger('click')
+    await flushPromises()
+    bodyButton('Delete')!.click()
+    await flushPromises()
+    expect(request.value?.message).toBe(`Delete your exclusion on ${nm}-09?`)
+    settle(true)
+    await flushPromises()
+    expect(split).toHaveBeenCalledWith(1, {
+      segments: [
+        { startDate: `${nm}-07`, endDate: `${nm}-08` },
+        { startDate: `${nm}-10`, endDate: `${nm}-11` },
+      ],
+    })
+    expect(remove).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('delete from the edit dialog shows an inline error when it fails', async () => {
+    const nm = nextMonthIso()
+    listMine.mockResolvedValue([{ ...record, startDate: `${nm}-07`, endDate: `${nm}-07` }])
     remove.mockRejectedValue(new Error('delete failed'))
     const wrapper = await mountPage()
     await wrapper.findAll('button').find((b) => b.text() === `${nm}-07`)!.trigger('click')

@@ -34,7 +34,7 @@ import { pickOption } from './pick-option'
 import { navigateToMonth, pickDays } from './pick-days'
 import { setTestLocale } from './i18n'
 
-const { settle } = useConfirmState()
+const { settle, request } = useConfirmState()
 
 const doctor = {
   id: 5,
@@ -427,6 +427,7 @@ describe('AvailabilityPage', () => {
     await flushPromises()
     bodyButton('Delete')!.click()
     await flushPromises()
+    expect(request.value?.message).toBe("Delete Jane Roe's exclusion on 2026-09-09?")
     settle(true)
     await flushPromises()
     expect(split).toHaveBeenCalledWith(1, {

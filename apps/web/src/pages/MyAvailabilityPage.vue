@@ -37,6 +37,8 @@ interface EditState {
   id: number | null
   /** Marked days (sorted ISO) that will become exclusions on save. */
   days: string[]
+  /** When editing: the day chip that opened the dialog; Delete removes only this day. */
+  chipDay: string | null
   calendarOpen: boolean
   errorMsg: string
 }
@@ -45,6 +47,7 @@ const emptyEdit = (): EditState => ({
   open: false,
   id: null,
   days: [],
+  chipDay: null,
   calendarOpen: false,
   errorMsg: '',
 })
@@ -81,11 +84,12 @@ function openCreate() {
   edit.value = { ...emptyEdit(), open: true }
 }
 
-function openUpdate(x: Unavailability) {
+function openUpdate(iso: string, x: Unavailability) {
   edit.value = {
     open: true,
     id: x.id,
     days: eachDay(x.startDate, x.endDate),
+    chipDay: iso,
     calendarOpen: false,
     errorMsg: '',
   }
@@ -158,20 +162,29 @@ async function save() {
   await load()
 }
 
-/** Deletes the record currently open in the edit dialog. */
+/**
+ * Deletes only the day the dialog was opened from. A multi-day record is
+ * split around that day in one atomic request; its other days stay excluded.
+ */
 async function removeCurrent() {
   const x = records.value.find((r) => r.id === edit.value.id)
   if (!x) return
+  const day = edit.value.chipDay ?? x.startDate
   if (
     !(await confirm({
       title: t('availability.deleteTitle'),
-      message: t('availability.deleteMyMessage', { start: x.startDate, end: x.endDate }),
+      message: t('availability.deleteMyMessage', { day }),
       confirmText: t('common.delete'),
     }))
   )
     return
   try {
-    await unavailabilityService.remove(x.id)
+    const others = eachDay(x.startDate, x.endDate).filter((d) => d !== day)
+    if (others.length > 0) {
+      await unavailabilityService.split(x.id, { segments: groupConsecutiveDays(others) })
+    } else {
+      await unavailabilityService.remove(x.id)
+    }
   } catch (e) {
     edit.value.errorMsg = e instanceof Error ? e.message : t('availability.deleteFailed')
     return
@@ -221,7 +234,7 @@ onMounted(load)
         variant="secondary"
         :class="{ 'line-through opacity-60': d.record.isDisabled }"
         :title="d.record.isDisabled ? t('availability.disabledTitle') : undefined"
-        @click="openUpdate(d.record)"
+        @click="openUpdate(d.iso, d.record)"
       >
         {{ d.iso }}
       </Button>

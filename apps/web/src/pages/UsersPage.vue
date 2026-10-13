@@ -18,7 +18,7 @@ import {
 } from '@oncall/shared'
 import * as doctorService from '@/services/doctor'
 import * as userService from '@/services/user'
-import { Users } from 'lucide-vue-next'
+import { Search, Users } from 'lucide-vue-next'
 import Avatar from '@/components/ui/Avatar.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Button from '@/components/ui/Button.vue'
@@ -42,6 +42,7 @@ const INITIAL_PASSWORD = 'changeme123'
 const users = ref<User[]>([])
 const doctors = ref<Doctor[]>([])
 const loading = ref(false)
+const searchQuery = ref('')
 const errorMsg = ref('')
 /** In-flight flags: edit dialog, reset dialog, and the row whose action runs. */
 const saving = ref(false)
@@ -56,13 +57,24 @@ const doctorByUserId = computed(() => {
   return map
 })
 
+// Case- and accent-insensitive, so "παπαδοπουλος" finds "Παπαδόπουλος".
+function normalizeName(value: string): string {
+  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase()
+}
+
 // Only doctors, always ordered by last name. The sort is derived here, never
-// stored, so no action can reshuffle the list.
-const visibleUsers = computed(() =>
-  users.value
+// stored, so no action can reshuffle the list. Every search word must appear
+// in the full name, so "roe jane" and "jane roe" both match.
+const visibleUsers = computed(() => {
+  const words = normalizeName(searchQuery.value).split(/\s+/).filter(Boolean)
+  return users.value
     .filter((u) => u.role === 'doctor')
-    .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName)),
-)
+    .filter((u) => {
+      const name = normalizeName(`${u.firstName} ${u.lastName}`)
+      return words.every((w) => name.includes(w))
+    })
+    .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName))
+})
 
 interface EditState {
   open: boolean
@@ -290,7 +302,19 @@ onMounted(load)
     </div>
     <p v-if="errorMsg" class="text-sm text-destructive" role="alert">{{ errorMsg }}</p>
 
-    <p class="hud-label mb-2">{{ t('users.directoryKicker') }}</p>
+    <div class="mb-2 flex flex-wrap items-center justify-between gap-3">
+      <p class="hud-label">{{ t('users.directoryKicker') }}</p>
+      <div class="relative w-full sm:w-72">
+        <Search :size="16" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+        <Input
+          v-model="searchQuery"
+          type="search"
+          class="pl-9"
+          :placeholder="t('users.searchPlaceholder')"
+          :aria-label="t('users.searchPlaceholder')"
+        />
+      </div>
+    </div>
     <Table>
       <TableHeader>
         <TableRow>
@@ -330,6 +354,11 @@ onMounted(load)
                 {{ t('common.delete') }}
               </Button>
             </div>
+          </TableCell>
+        </TableRow>
+        <TableRow v-if="!loading && searchQuery.trim() && visibleUsers.length === 0">
+          <TableCell colspan="7" class="py-6 text-center text-sm text-muted-foreground">
+            {{ t('users.noMatches') }}
           </TableCell>
         </TableRow>
       </TableBody>

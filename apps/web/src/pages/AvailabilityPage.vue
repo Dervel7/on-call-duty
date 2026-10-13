@@ -274,8 +274,7 @@ async function removeCurrent() {
       title: t('availability.deleteTitle'),
       message: t('availability.deleteMessage', {
         name: `${x.doctorFirstName} ${x.doctorLastName}`,
-        start: day,
-        end: day,
+        day,
       }),
       confirmText: t('common.delete'),
     }))
