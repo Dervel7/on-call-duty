@@ -260,18 +260,22 @@ async function save() {
   await load()
 }
 
-/** Deletes the record currently open in the edit dialog. */
+/**
+ * Deletes only the day the dialog was opened from. A multi-day record is
+ * split around that day in one atomic request; its other days stay excluded.
+ */
 async function removeCurrent() {
   if (busy.value) return
   const x = records.value.find((r) => r.id === edit.value.id)
   if (!x) return
+  const day = edit.value.chipDay ?? x.startDate
   if (
     !(await confirm({
       title: t('availability.deleteTitle'),
       message: t('availability.deleteMessage', {
         name: `${x.doctorFirstName} ${x.doctorLastName}`,
-        start: x.startDate,
-        end: x.endDate,
+        start: day,
+        end: day,
       }),
       confirmText: t('common.delete'),
     }))
@@ -279,7 +283,12 @@ async function removeCurrent() {
     return
   busy.value = true
   try {
-    await unavailabilityService.remove(x.id)
+    const others = eachDay(x.startDate, x.endDate).filter((d) => d !== day)
+    if (others.length > 0) {
+      await unavailabilityService.split(x.id, { segments: groupConsecutiveDays(others) })
+    } else {
+      await unavailabilityService.remove(x.id)
+    }
   } catch (e) {
     edit.value.errorMsg = e instanceof Error ? e.message : t('availability.deleteFailed')
     return

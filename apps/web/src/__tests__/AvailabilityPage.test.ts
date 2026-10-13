@@ -416,9 +416,32 @@ describe('AvailabilityPage', () => {
     wrapper.unmount()
   })
 
-  it('delete from the edit dialog shows an inline error when it fails', async () => {
+  it('delete from the edit dialog removes only the chip day of a multi-day record', async () => {
     doctorList.mockResolvedValue([])
     listAll.mockResolvedValue([record])
+    split.mockResolvedValue([])
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === '2026-09-09')!.trigger('click')
+    await flushPromises()
+    bodyButton('Delete')!.click()
+    await flushPromises()
+    settle(true)
+    await flushPromises()
+    expect(split).toHaveBeenCalledWith(1, {
+      segments: [
+        { startDate: '2026-09-07', endDate: '2026-09-08' },
+        { startDate: '2026-09-10', endDate: '2026-09-11' },
+      ],
+    })
+    expect(remove).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('delete from the edit dialog shows an inline error when it fails', async () => {
+    doctorList.mockResolvedValue([])
+    listAll.mockResolvedValue([{ ...record, startDate: '2026-09-07', endDate: '2026-09-07' }])
     remove.mockRejectedValue(new Error('delete failed'))
     const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
