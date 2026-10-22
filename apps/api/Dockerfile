@@ -7,9 +7,13 @@
 #
 # The Express app re-exports runtime values (zod schemas) from @oncall/shared,
 # whose package.json points "main" at TypeScript source. Plain `node` cannot
-# import a .ts entrypoint, so the app is run with tsx (the same runtime used in
-# development). This keeps the Docker build working without altering the repo's
-# package configuration.
+# import a .ts entrypoint, so the app is run with the tsx loader (the same
+# runtime used in development). This keeps the Docker build working without
+# altering the repo's package configuration.
+#
+# node loads tsx in-process instead of `pnpm exec tsx`, which keeps pnpm and
+# the tsx CLI running as two extra Node processes (about 130 MB on a 512 MB
+# host).
 
 FROM node:20-slim
 
@@ -45,4 +49,4 @@ COPY packages ./packages
 WORKDIR /repo/apps/api
 EXPOSE 3000
 
-CMD ["pnpm", "exec", "tsx", "src/server.ts"]
+CMD ["node", "--import", "tsx", "src/server.ts"]

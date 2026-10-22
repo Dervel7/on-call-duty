@@ -43,7 +43,11 @@ async function main(): Promise<void> {
     throw new Error(`Unsafe database name in DATABASE_URL: "${dbName}"`);
   }
 
-  const admin = new Client({ connectionString: url.replace(/\/[^/]+$/, '/postgres') });
+  // Swap only the database name: query params such as sslmode (required by
+  // hosted Postgres like Neon) must carry over to the admin connection.
+  const adminUrl = new URL(url);
+  adminUrl.pathname = '/postgres';
+  const admin = new Client({ connectionString: adminUrl.toString() });
   try {
     await admin.connect();
     log.info({ database: dbName }, 'resetting database');

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { loadSolver } from '../highs'
+import { describe, expect, it, vi } from 'vitest'
+import { SOLVER_IDLE_MS, loadSolver } from '../highs'
 
 const OPTIONS = { output_flag: false }
 const LP = 'Maximize\n obj: x\nSubject To\n c: x <= 3\nEnd\n'
@@ -28,5 +28,22 @@ describe('solver worker', () => {
     const fresh = await loadSolver()
     expect(fresh).not.toBe(broken)
     expect((await fresh.solve(LP, OPTIONS, soon()))?.Status).toBe('Optimal')
+  })
+
+  it('retires an idle worker to free its memory; the next request gets a fresh one', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldClearNativeTimers: true })
+    try {
+      const first = await loadSolver()
+      expect((await first.solve(LP, OPTIONS, soon()))?.Status).toBe('Optimal')
+      await vi.advanceTimersByTimeAsync(SOLVER_IDLE_MS - 1)
+      expect(await loadSolver()).toBe(first)
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(first.solve(LP, OPTIONS, soon())).rejects.toThrow(/retired after idle/)
+      const fresh = await loadSolver()
+      expect(fresh).not.toBe(first)
+      expect((await fresh.solve(LP, OPTIONS, soon()))?.Status).toBe('Optimal')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

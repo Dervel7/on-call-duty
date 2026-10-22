@@ -22,6 +22,13 @@ export type SolverLoader = () => Promise<Solver>
 const STUCK_GRACE_MS = 5_000
 
 /**
+ * Idle time after which the worker is retired. HiGHS memory grows to fit the
+ * largest model solved and never shrinks (over 200 MB for a 60-doctor clinic),
+ * so an idle worker would hold it for the life of the process.
+ */
+export const SOLVER_IDLE_MS = 60_000
+
+/**
  * Worker body, plain CommonJS so it runs unchanged under tsx, Vitest and the
  * compiled build. It receives one request at a time.
  */
@@ -54,6 +61,8 @@ interface Job {
 }
 
 let current: { worker: Worker; solver: Solver } | null = null
+/** Termination of the last retired worker; a new one waits for it so two HiGHS heaps never coexist. */
+let retiring: Promise<number> = Promise.resolve(0)
 
 /**
  * One worker, one solve at a time. Requests wait in a FIFO queue here rather
@@ -66,12 +75,15 @@ function startWorker(): { worker: Worker; solver: Solver } {
   const queue: Job[] = []
   let running: { job: Job; watchdog: NodeJS.Timeout } | null = null
   let stopped: Error | null = null
+  let idle: NodeJS.Timeout | undefined
   // An idle worker must not keep the process alive; a busy one must.
   worker.unref()
 
   /** Rejects every open request and retires this worker for good. */
   const stop = (error: Error): void => {
-    stopped ??= error
+    if (stopped) return
+    stopped = error
+    clearTimeout(idle)
     if (running) {
       clearTimeout(running.watchdog)
       running.job.reject(error)
@@ -79,7 +91,7 @@ function startWorker(): { worker: Worker; solver: Solver } {
     }
     for (const job of queue.splice(0)) job.reject(error)
     if (current?.worker === worker) current = null
-    void worker.terminate()
+    retiring = worker.terminate()
   }
 
   const dispatch = (): void => {
@@ -87,6 +99,8 @@ function startWorker(): { worker: Worker; solver: Solver } {
       const job = queue.shift()
       if (!job) {
         worker.unref()
+        idle = setTimeout(() => stop(new Error('solver worker retired after idle')), SOLVER_IDLE_MS)
+        idle.unref()
         return
       }
       const remaining = job.deadline - Date.now()
@@ -131,6 +145,7 @@ function startWorker(): { worker: Worker; solver: Solver } {
           reject(stopped)
           return
         }
+        clearTimeout(idle)
         queue.push({ lp, options, deadline, resolve, reject })
         dispatch()
       })
@@ -139,8 +154,12 @@ function startWorker(): { worker: Worker; solver: Solver } {
   return { worker, solver }
 }
 
-/** Starts the solver worker once per process and reuses it. */
+/**
+ * Starts the solver worker on demand and reuses it until it is retired. A
+ * caller must not hold a solver longer than SOLVER_IDLE_MS between solves.
+ */
 export const loadSolver: SolverLoader = async () => {
+  if (!current) await retiring
   current ??= startWorker()
   return current.solver
 }
