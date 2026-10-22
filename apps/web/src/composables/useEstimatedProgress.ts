@@ -2,7 +2,7 @@ import { onScopeDispose, ref, type Ref } from 'vue'
 
 const PROGRESS_HOLD = 95
 const PROGRESS_TICK_MS = 100
-const FINISH_SPEED = 8
+const FINISH_SPEED = 14
 
 export interface EstimatedProgress {
   /** Whole percent, 0-100. */
