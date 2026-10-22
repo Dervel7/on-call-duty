@@ -40,7 +40,12 @@ RUN pnpm --filter @oncall/web build
 # Lean runtime: nginx serving static files only.
 FROM nginx:1.27-alpine AS runtime
 
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+# The nginx image renders /etc/nginx/templates/*.template into conf.d at start.
+# PORT is overridden by hosts such as Render; API_UPSTREAM points at the API
+# (compose service name by default).
+ENV PORT=80
+ENV API_UPSTREAM=http://api:3000
+COPY apps/web/nginx.conf /etc/nginx/templates/default.conf.template
 COPY apps/web/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=builder /repo/apps/web/dist /usr/share/nginx/html
 
