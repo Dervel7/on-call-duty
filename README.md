@@ -45,7 +45,7 @@ Multi-hospital is out of scope: the system targets a single hospital.
 
 - Node.js 20+ (developed on Node 24)
 - pnpm 10+
-- PostgreSQL 14+ (developed on PostgreSQL 17)
+- PostgreSQL 14+ (developed on PostgreSQL 17; PostgreSQL 18 supported, and the Docker stack runs 18)
 
 ## Repository layout
 

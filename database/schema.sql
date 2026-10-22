@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (username ~ '^[A-Za-z0-9._-]{3,32}$')
 );
-CREATE INDEX IF NOT EXISTS idx_users_role ON users (role) WHERE is_active = TRUE;
+-- No query filters users by role alone (role is always paired with clinic_id).
+DROP INDEX IF EXISTS idx_users_role;
 
 -- Username column evolution for pre-existing databases (no migration runner exists)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT;
@@ -56,8 +57,10 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens (user_id);
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens (token_hash)
-  WHERE revoked_at IS NULL;
+-- token_hash lookups use the column's UNIQUE index; the partial copy was redundant.
+DROP INDEX IF EXISTS idx_refresh_tokens_hash;
+-- Rotation-family walk (replaced_by = id) and the self-FK ON DELETE SET NULL.
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_replaced_by ON refresh_tokens (replaced_by);
 
 -- Phase 3: Doctor Management
 
@@ -102,7 +105,8 @@ CREATE TABLE IF NOT EXISTS holidays (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (clinic_id, holiday_date)
 );
-CREATE INDEX IF NOT EXISTS idx_holidays_clinic_date ON holidays (clinic_id, holiday_date);
+-- Duplicate of the UNIQUE (clinic_id, holiday_date) index.
+DROP INDEX IF EXISTS idx_holidays_clinic_date;
 
 -- Schedules are per clinic: one (clinic, year, month) per schedule.
 CREATE TABLE IF NOT EXISTS schedules (
@@ -127,7 +131,8 @@ CREATE TABLE IF NOT EXISTS duties (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE duties DROP COLUMN IF EXISTS is_holiday;
-CREATE INDEX IF NOT EXISTS idx_duties_schedule ON duties (schedule_id);
+-- Covered by the leading column of idx_duties_schedule_date_doctor.
+DROP INDEX IF EXISTS idx_duties_schedule;
 CREATE INDEX IF NOT EXISTS idx_duties_doctor_date ON duties (doctor_id, duty_date);
 CREATE INDEX IF NOT EXISTS idx_duties_date ON duties (duty_date);
 
@@ -161,10 +166,12 @@ CREATE TABLE IF NOT EXISTS schedule_generation_log (
 );
 CREATE INDEX IF NOT EXISTS idx_schedule_generation_log_doctor
   ON schedule_generation_log (doctor_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_schedule_generation_log_period
-  ON schedule_generation_log (year, month);
-CREATE INDEX IF NOT EXISTS idx_schedule_generation_log_clinic
-  ON schedule_generation_log (clinic_id, year, month);
+-- Every metering query filters (clinic_id, year, month) and then reads or
+-- matches created_at; no query filters by period without the clinic.
+DROP INDEX IF EXISTS idx_schedule_generation_log_period;
+DROP INDEX IF EXISTS idx_schedule_generation_log_clinic;
+CREATE INDEX IF NOT EXISTS idx_schedule_generation_log_clinic_period
+  ON schedule_generation_log (clinic_id, year, month, created_at);
 
 -- One-time backfill from existing duties (no-op once the log has rows).
 INSERT INTO schedule_generation_log (doctor_id, clinic_id, year, month, created_at)
@@ -206,9 +213,12 @@ CREATE TABLE IF NOT EXISTS activity_log (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log (user_id);
-CREATE INDEX IF NOT EXISTS idx_activity_log_clinic ON activity_log (clinic_id);
 CREATE INDEX IF NOT EXISTS idx_activity_log_action ON activity_log (action);
-CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log (created_at);
+-- The audit page always filters one clinic and pages newest first.
+DROP INDEX IF EXISTS idx_activity_log_clinic;
+DROP INDEX IF EXISTS idx_activity_log_created_at;
+CREATE INDEX IF NOT EXISTS idx_activity_log_clinic_created
+  ON activity_log (clinic_id, created_at, id);
 
 -- Phase 12: Doctor soft delete
 -- Deleted accounts: is_deleted = TRUE (and always is_active = FALSE).

@@ -6,6 +6,7 @@ Explanatory reference for `database/schema.sql`: every table, column, constraint
 
 - PostgreSQL. One idempotent DDL file: `database/schema.sql` (`CREATE TABLE IF NOT EXISTS` + inline `ALTER TABLE ... IF NOT EXISTS` / `DROP ... IF EXISTS` evolutions appended under the owning table). No migration runner exists — never introduce one.
 - The file is safe to re-run against a database that already has the current shape. It is **not** a migration path for older shapes: breaking baselines (e.g. the multi-clinic baseline of 2026-09-19) require a reset — `pnpm db:seed:single` / `pnpm db:seed:multi` drop and recreate the database.
+- New production installs: `database/initialize.sql` creates the final schema shape (no evolution statements) plus one clinic (`Main Clinic`, default settings), the `superadmin@oncall.local` superadmin and the `admin@oncall.local` administrator. Run it once against an empty database: `psql -d <db> -v ON_ERROR_STOP=1 -f database/initialize.sql`. It must match `schema.sql`: change both in the same change.
 - Primary keys: `INTEGER GENERATED ALWAYS AS IDENTITY`.
 - Row timestamps: `TIMESTAMPTZ NOT NULL DEFAULT NOW()` (`created_at`, `updated_at`). Calendar days: `DATE`.
 - Index naming: `idx_<table>_<cols>`. Uniqueness that must ignore soft-deleted rows is enforced by partial unique indexes (`WHERE is_deleted = FALSE`), not plain `UNIQUE` constraints.
@@ -107,7 +108,7 @@ Constraints and indexes:
 - `users_clinic_role_check`: `administrator`/`doctor` must have `clinic_id IS NOT NULL`; `superadmin`/`manager` must have `clinic_id IS NULL` (hospital/vendor level).
 - `idx_users_email_live` — UNIQUE on (`email`) `WHERE is_deleted = FALSE`. The original full-table `users_email_key` constraint is dropped.
 - `idx_users_username_live` — UNIQUE on (`username`) `WHERE is_deleted = FALSE`. The original full-table index `idx_users_username` is dropped.
-- `idx_users_role` on (`role`) `WHERE is_active = TRUE`.
+- `idx_users_role` (formerly on `role`) is dropped: no query filters by role without `clinic_id`.
 - `idx_users_clinic` on (`clinic_id`) `WHERE is_deleted = FALSE`.
 
 Behavior:
@@ -131,7 +132,7 @@ Server-side record of issued refresh tokens (httpOnly cookie). Supports rotation
 | `replaced_by` | INTEGER | FK → `refresh_tokens(id)` ON DELETE SET NULL (rotation chain: old row points to its successor) |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
 
-Indexes: `idx_refresh_tokens_user` (`user_id`); `idx_refresh_tokens_hash` on (`token_hash`) `WHERE revoked_at IS NULL` (active-token lookups; the column-level UNIQUE covers all rows).
+Indexes: `idx_refresh_tokens_user` (`user_id`); `idx_refresh_tokens_replaced_by` (`replaced_by`) serves the rotation-family walk (reuse detection) and the self-referencing FK. Lookups by `token_hash` use the column-level UNIQUE index; the former partial `idx_refresh_tokens_hash` duplicated it and is dropped.
 
 ### `doctors`
 
@@ -191,7 +192,7 @@ Behavior:
 - The admin API replaces a whole (clinic, year, month) set in one transaction (`PUT /holidays/month`), writing a `holidays.updated` audit entry inside it.
 - Seeds insert the default Greek public holidays (Jan 1, Jan 6, Mar 25, Oct 28, Dec 25) for 2026 and 2027 for every clinic, with `ON CONFLICT DO NOTHING`.
 
-Index: `idx_holidays_clinic_date` (`clinic_id`, `holiday_date`).
+Index: the UNIQUE (`clinic_id`, `holiday_date`) constraint index. The former `idx_holidays_clinic_date` duplicated it and is dropped.
 
 ### `schedules`
 
@@ -229,7 +230,7 @@ Individual on-call assignments within a schedule.
 Constraints and indexes:
 
 - `idx_duties_schedule_date_doctor` — UNIQUE on (`schedule_id`, `duty_date`, `doctor_id`): the same doctor cannot appear twice on one day in one schedule, but multiple distinct doctors per day are allowed (up to the day's configured slot count). The older one-duty-per-day constraint (`duties_schedule_id_duty_date_key`) is dropped.
-- `idx_duties_schedule` (`schedule_id`); `idx_duties_doctor_date` (`doctor_id`, `duty_date`); `idx_duties_date` (`duty_date`).
+- `idx_duties_doctor_date` (`doctor_id`, `duty_date`); `idx_duties_date` (`duty_date`). Lookups by `schedule_id` use the leading column of `idx_duties_schedule_date_doctor`; the former `idx_duties_schedule` is dropped.
 
 Behavior:
 
@@ -251,7 +252,7 @@ Append-only usage metering: one row per doctor included in each generated schedu
 | `month` | INTEGER | NOT NULL, CHECK between 1 and 12 |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
 
-Indexes: `idx_schedule_generation_log_doctor` (`doctor_id`, `created_at`); `idx_schedule_generation_log_period` (`year`, `month`); `idx_schedule_generation_log_clinic` (`clinic_id`, `year`, `month`).
+Indexes: `idx_schedule_generation_log_doctor` (`doctor_id`, `created_at`); `idx_schedule_generation_log_clinic_period` (`clinic_id`, `year`, `month`, `created_at`) serves the previous-batch `MAX(created_at)` and batch lookups. The former `idx_schedule_generation_log_period` (`year`, `month`) and `idx_schedule_generation_log_clinic` (`clinic_id`, `year`, `month`) are dropped.
 
 The schema contains a one-time backfill: `INSERT ... SELECT DISTINCT` from `duties` joined to `schedules`/`doctors`, guarded by `WHERE NOT EXISTS (SELECT 1 FROM schedule_generation_log LIMIT 1)` — a no-op once the log has rows.
 
@@ -289,7 +290,7 @@ Append-only audit trail of user actions. No update/delete paths exist anywhere i
 | `detail` | JSONB | NOT NULL DEFAULT `'{}'` |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
 
-Indexes: `idx_activity_log_user` (`user_id`); `idx_activity_log_clinic` (`clinic_id`); `idx_activity_log_action` (`action`); `idx_activity_log_created_at` (`created_at`).
+Indexes: `idx_activity_log_user` (`user_id`); `idx_activity_log_action` (`action`); `idx_activity_log_clinic_created` (`clinic_id`, `created_at`, `id`) serves the audit page (one clinic, optional date range, newest first, paged). The former `idx_activity_log_clinic` and `idx_activity_log_created_at` are dropped.
 
 ## Deletion & lifecycle semantics
 
