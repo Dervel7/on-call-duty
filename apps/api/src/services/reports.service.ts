@@ -1,7 +1,7 @@
 import type { AuthUser, MonthlyReport } from '@oncall/shared'
-import type { ClinicScope } from '../lib/scope'
-import * as scheduleService from './schedule.service'
-import * as statsService from './stats.service'
+import type { ClinicScope } from '../lib/scope.ts'
+import * as scheduleService from './schedule.service.ts'
+import * as statsService from './stats.service.ts'
 
 type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 

@@ -6,14 +6,14 @@ import {
   notConsecutive,
   underCap,
   underOpenDutyCap,
-} from '../constraints'
-import { dayOfWeekISO, isOpenDutyDate, minimumForDate, prevDate, slotsForDate } from '../dates'
-import { generateGreedy } from '../engine'
-import { loadSolver, type SolverLoader } from '../highs'
-import { generate, generateOptions } from '../solver'
-import type { GenerateResult, SchedulingContext } from '../types'
-import { october2026 } from './fixtures/october-2026'
-import { ctx, day, dr } from './helpers'
+} from '../constraints.ts'
+import { dayOfWeekISO, isOpenDutyDate, minimumForDate, prevDate, slotsForDate } from '../dates.ts'
+import { generateGreedy } from '../engine.ts'
+import { loadSolver, type SolverLoader } from '../highs.ts'
+import { generate, generateOptions } from '../solver.ts'
+import type { GenerateResult, SchedulingContext } from '../types.ts'
+import { october2026 } from './fixtures/october-2026.ts'
+import { ctx, day, dr } from './helpers.ts'
 
 const SLOW = 60_000
 

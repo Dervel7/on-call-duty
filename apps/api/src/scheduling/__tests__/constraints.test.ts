@@ -1,4 +1,4 @@
-import { HOLIDAY_DUTY_CAP, isAvailable, notConsecutive, underCap, underHolidayCap } from '../constraints'
+import { HOLIDAY_DUTY_CAP, isAvailable, notConsecutive, underCap, underHolidayCap } from '../constraints.ts'
 
 describe('constraints', () => {
   it('isAvailable respects inclusive ranges', () => {

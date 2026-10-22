@@ -1,14 +1,14 @@
 import { Router } from 'express'
-import { settingsController } from '../controllers/settings.controller'
-import { authenticate } from '../middleware/authenticate'
-import { authorize } from '../middleware/authorize'
-import { validate } from '../middleware/validate'
+import { settingsController } from '../controllers/settings.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
 import {
   dutySlotsQuerySchema,
   updateDutyMinimumsSchema,
   updateDutySlotsSchema,
   updateOpenDutySchema,
-} from '../validators/settings'
+} from '../validators/settings.ts'
 
 export const settingsRouter = Router()
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { SOLVER_IDLE_MS, loadSolver } from '../highs'
+import { SOLVER_IDLE_MS, loadSolver } from '../highs.ts'
 
 const OPTIONS = { output_flag: false }
 const LP = 'Maximize\n obj: x\nSubject To\n c: x <= 3\nEnd\n'

@@ -5,4 +5,4 @@ export {
   reassignDutySchema,
   scheduleQuerySchema,
 } from '@oncall/shared'
-export { idParams } from './user'
+export { idParams } from './user.ts'

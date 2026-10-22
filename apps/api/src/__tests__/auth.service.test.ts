@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({ query: (...a: unknown[]) => query(...a) }))
+vi.mock('../db/client.ts', () => ({ query: (...a: unknown[]) => query(...a) }))
 
 const logActivity = vi.fn()
 const recordActivity = vi.fn()
-vi.mock('../services/activity.service', () => ({
+vi.mock('../services/activity.service.ts', () => ({
   logActivity: (...a: unknown[]) => logActivity(...a),
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
 
-vi.mock('../lib/jwt', () => ({ signAccessToken: vi.fn(() => 'ACCESS') }))
+vi.mock('../lib/jwt.ts', () => ({ signAccessToken: vi.fn(() => 'ACCESS') }))
 
-vi.mock('../services/token.service', () => ({
+vi.mock('../services/token.service.ts', () => ({
   issueRefreshToken: vi.fn(async () => 'REFRESH'),
   rotateRefreshToken: vi.fn(async () => ({ token: 'REFRESH2', userId: 1 })),
   revokeRefreshToken: vi.fn(async () => null),
@@ -26,9 +26,9 @@ const { compare, hash } = vi.hoisted(() => ({
 vi.mock('bcrypt', () => ({ default: { compare, hash } }))
 
 import bcrypt from 'bcrypt'
-import { signAccessToken } from '../lib/jwt'
-import * as tokenService from '../services/token.service'
-import { changePassword, getUser, login, logout, refresh } from '../services/auth.service'
+import { signAccessToken } from '../lib/jwt.ts'
+import * as tokenService from '../services/token.service.ts'
+import { changePassword, getUser, login, logout, refresh } from '../services/auth.service.ts'
 
 const SEED_HASH = '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi'
 

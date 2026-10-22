@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: (client: { query: typeof query }) => Promise<unknown>) =>
     work({ query }),
@@ -9,7 +9,7 @@ vi.mock('../db/client', () => ({
 
 const logActivity = vi.fn()
 const recordActivity = vi.fn()
-vi.mock('../services/activity.service', () => ({
+vi.mock('../services/activity.service.ts', () => ({
   logActivity: (...a: unknown[]) => logActivity(...a),
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
@@ -18,12 +18,12 @@ const hash = vi.fn(async (..._a: unknown[]) => 'HASH')
 vi.mock('bcrypt', () => ({ default: { hash: (...a: unknown[]) => hash(...a) } }))
 
 const revokeAllForUser = vi.fn(async (..._a: unknown[]) => undefined)
-vi.mock('../services/token.service', () => ({
+vi.mock('../services/token.service.ts', () => ({
   revokeAllForUser: (...a: unknown[]) => revokeAllForUser(...a),
 }))
 
-import { create, getById, getByUserId, list, remove, update } from '../services/doctor.service'
-import type { ClinicScope } from '../lib/scope'
+import { create, getById, getByUserId, list, remove, update } from '../services/doctor.service.ts'
+import type { ClinicScope } from '../lib/scope.ts'
 
 function doctorRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {

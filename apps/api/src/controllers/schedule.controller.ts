@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { ScheduleQuery } from '@oncall/shared'
-import { ok } from '../lib/envelope'
-import { HttpError } from '../lib/http-error'
-import { resolveClinicScope } from '../lib/scope'
-import * as scheduleService from '../services/schedule.service'
+import { ok } from '../lib/envelope.ts'
+import { HttpError } from '../lib/http-error.ts'
+import { resolveClinicScope } from '../lib/scope.ts'
+import * as scheduleService from '../services/schedule.service.ts'
 
 export const scheduleController = {
   async list(req: Request, res: Response, next: NextFunction) {

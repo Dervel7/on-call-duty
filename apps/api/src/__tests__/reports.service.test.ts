@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const adminStats = vi.fn()
-vi.mock('../services/stats.service', () => ({
+vi.mock('../services/stats.service.ts', () => ({
   adminStats: (...a: unknown[]) => adminStats(...a),
 }))
 
 const getScheduleDuties = vi.fn()
-vi.mock('../services/schedule.service', () => ({
+vi.mock('../services/schedule.service.ts', () => ({
   getScheduleDuties: (...a: unknown[]) => getScheduleDuties(...a),
 }))
 
-import { monthlyReport } from '../services/reports.service'
-import type { ClinicScope } from '../lib/scope'
+import { monthlyReport } from '../services/reports.service.ts'
+import type { ClinicScope } from '../lib/scope.ts'
 
 const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
 const actor = { id: 1, role: 'administrator' as const, clinicId: 1 }

@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { HolidayQuery, SetMonthHolidaysRequest } from '@oncall/shared'
-import { ok } from '../lib/envelope'
-import { resolveClinicScope } from '../lib/scope'
-import * as holidayService from '../services/holiday.service'
+import { ok } from '../lib/envelope.ts'
+import { resolveClinicScope } from '../lib/scope.ts'
+import * as holidayService from '../services/holiday.service.ts'
 
 export const holidayController = {
   async list(req: Request, res: Response, next: NextFunction) {

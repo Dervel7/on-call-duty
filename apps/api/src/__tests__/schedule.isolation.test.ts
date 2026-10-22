@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import type { TwoClinicFixture } from './helpers/clinic-fixtures'
+import type { TwoClinicFixture } from './helpers/clinic-fixtures.ts'
 
 // Live-DB isolation matrix for schedules (§5 I7-I11). Env bootstrap must run
 // before the service loads db/client, hence the ordered dynamic imports.
-const { seedTwoClinics } = await import('./helpers/clinic-fixtures')
-const { query } = await import('../db/client')
-const scheduleService = await import('../services/schedule.service')
+const { seedTwoClinics } = await import('./helpers/clinic-fixtures.ts')
+const { query } = await import('../db/client.ts')
+const scheduleService = await import('../services/schedule.service.ts')
 
 let f: TwoClinicFixture | undefined
 const scheduleIds: number[] = []

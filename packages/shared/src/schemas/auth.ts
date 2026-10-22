@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { passwordSchema } from './common'
+import { passwordSchema } from './common.ts'
 
 export const roleSchema = z.enum(['superadmin', 'manager', 'administrator', 'doctor'])
 export const languageSchema = z.enum(['en', 'el'])

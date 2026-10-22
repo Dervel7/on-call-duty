@@ -20,7 +20,7 @@ import {
   updateLanguageSchema,
   updateThemeSchema,
   usernameSchema,
-} from '../index'
+} from '../index.ts'
 
 describe('date and password primitives', () => {
   it('isoDateSchema rejects calendar-invalid but well-formed dates', () => {
@@ -108,7 +108,7 @@ describe('auth schemas', () => {
   })
 })
 
-import { createDoctorSchema, updateDoctorSchema } from '../index'
+import { createDoctorSchema, updateDoctorSchema } from '../index.ts'
 
 describe('doctor schemas', () => {
   const valid = {
@@ -156,7 +156,7 @@ import {
   setUnavailabilityDisabledSchema,
   splitUnavailabilitySchema,
   updateUnavailabilitySchema,
-} from '../index'
+} from '../index.ts'
 
 describe('unavailability schemas', () => {
   const validSelf = { startDate: '2026-09-01', endDate: '2026-09-03' }
@@ -270,7 +270,7 @@ describe('schedule schemas', () => {
   })
 })
 
-import { updateBillingSchema, updateDutySlotsSchema, updateOpenDutySchema } from '../index'
+import { updateBillingSchema, updateDutySlotsSchema, updateOpenDutySchema } from '../index.ts'
 
 describe('billing schemas', () => {
   it('updateBillingSchema accepts a real calendar date and rejects malformed ones', () => {
@@ -360,7 +360,7 @@ describe('clinic schemas and clinicId query params', () => {
   })
 })
 
-import { holidayQuerySchema, setMonthHolidaysSchema } from '../index'
+import { holidayQuerySchema, setMonthHolidaysSchema } from '../index.ts'
 
 describe('holiday schemas', () => {
   it('holidayQuerySchema requires a year in range and coerces it', () => {

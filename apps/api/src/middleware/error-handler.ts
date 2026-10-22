@@ -1,7 +1,7 @@
 import type { ErrorRequestHandler } from 'express'
 import { ZodError } from 'zod'
-import { HttpError } from '../lib/http-error'
-import { logger } from '../logger'
+import { HttpError } from '../lib/http-error.ts'
+import { logger } from '../logger.ts'
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
   if (res.headersSent) {

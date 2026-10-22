@@ -1,8 +1,8 @@
 import { Router } from 'express'
-import { scheduleController } from '../controllers/schedule.controller'
-import { authenticate } from '../middleware/authenticate'
-import { authorize } from '../middleware/authorize'
-import { validate } from '../middleware/validate'
+import { scheduleController } from '../controllers/schedule.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
 import {
   createDutySchema,
   createScheduleSchema,
@@ -10,7 +10,7 @@ import {
   idParams,
   reassignDutySchema,
   scheduleQuerySchema,
-} from '../validators/schedule'
+} from '../validators/schedule.ts'
 
 export const scheduleRouter = Router()
 

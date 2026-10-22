@@ -6,16 +6,16 @@ const isLocked = vi.fn()
 const getState = vi.fn()
 const setPaidThrough = vi.fn()
 const getPaymentAlert = vi.fn()
-vi.mock('../services/billing.service', () => ({
+vi.mock('../services/billing.service.ts', () => ({
   isLocked: (...a: unknown[]) => isLocked(...a),
   getState: (...a: unknown[]) => getState(...a),
   setPaidThrough: (...a: unknown[]) => setPaidThrough(...a),
   getPaymentAlert: (...a: unknown[]) => getPaymentAlert(...a),
 }))
 
-import { signAccessToken } from '../lib/jwt'
-import { errorHandler } from '../middleware/error-handler'
-import { billingRouter } from '../routes/billing.routes'
+import { signAccessToken } from '../lib/jwt.ts'
+import { errorHandler } from '../middleware/error-handler.ts'
+import { billingRouter } from '../routes/billing.routes.ts'
 
 function build() {
   const app = express()

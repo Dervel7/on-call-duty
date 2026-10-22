@@ -1,6 +1,6 @@
 import type { DutyMinimumSettings, DutySlotsSettings } from '@oncall/shared'
-import { dayOfWeekISO } from '../dates'
-import type { DaySpec, DoctorSpec, SchedulingContext } from '../types'
+import { dayOfWeekISO } from '../dates.ts'
+import type { DaySpec, DoctorSpec, SchedulingContext } from '../types.ts'
 
 export function ctx(
   days: DaySpec[],

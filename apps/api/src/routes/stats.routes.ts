@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import { statsController } from '../controllers/stats.controller'
-import { authenticate } from '../middleware/authenticate'
-import { authorize } from '../middleware/authorize'
-import { validate } from '../middleware/validate'
-import { statsQuerySchema } from '../validators/stats'
+import { statsController } from '../controllers/stats.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
+import { statsQuerySchema } from '../validators/stats.ts'
 
 export const statsRouter = Router()
 

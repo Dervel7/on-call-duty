@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isOpenDutyDate, isPostOpenDutyDate } from '../dates'
+import { isOpenDutyDate, isPostOpenDutyDate } from '../dates.ts'
 
 const ANCHOR = '2026-10-02'
 

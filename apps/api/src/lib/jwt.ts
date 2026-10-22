@@ -1,6 +1,6 @@
 import jwt, { type SignOptions } from 'jsonwebtoken'
 import type { Role } from '@oncall/shared'
-import { env } from '../config/env'
+import { env } from '../config/env.ts'
 
 export interface JwtAccessPayload {
   sub: number

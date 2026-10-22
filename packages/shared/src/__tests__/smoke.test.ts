@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ApiResponse, Role } from '../index'
+import type { ApiResponse, Role } from '../index.ts'
 
 describe('shared types', () => {
   it('compile and produce values', () => {

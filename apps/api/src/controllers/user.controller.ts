@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
-import { ok } from '../lib/envelope'
-import { resolveClinicScope } from '../lib/scope'
-import * as userService from '../services/user.service'
+import { ok } from '../lib/envelope.ts'
+import { resolveClinicScope } from '../lib/scope.ts'
+import * as userService from '../services/user.service.ts'
 export const userController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {

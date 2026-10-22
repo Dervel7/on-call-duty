@@ -7,7 +7,7 @@ if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL
 // db/client builds its Pool at import time, so it must load after DATABASE_URL
 // is set — a static import would hoist above the config() call.
 const { default: bcrypt } = await import('bcrypt')
-const { query } = await import('../../db/client')
+const { query } = await import('../../db/client.ts')
 
 export interface TwoClinicFixture {
   clinicA: number

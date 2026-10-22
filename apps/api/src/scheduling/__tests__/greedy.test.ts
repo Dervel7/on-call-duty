@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { generateGreedy } from '../engine'
-import { ctx, day, dr } from './helpers'
+import { generateGreedy } from '../engine.ts'
+import { ctx, day, dr } from './helpers.ts'
 
 // Greedy internals: score breakdown in the reason and the fixed pass order.
 // Outcome rules shared with the solver are in engine.test.ts.

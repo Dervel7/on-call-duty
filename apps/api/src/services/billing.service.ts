@@ -1,6 +1,6 @@
 import type { AuthUser, BillingState, PaymentAlert, UpdateBillingRequest } from '@oncall/shared'
-import { query } from '../db/client'
-import { logActivity } from './activity.service'
+import { query } from '../db/client.ts'
+import { logActivity } from './activity.service.ts'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 

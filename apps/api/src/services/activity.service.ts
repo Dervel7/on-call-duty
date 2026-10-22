@@ -6,8 +6,8 @@ import type {
   PaginatedActivity,
   Role,
 } from '@oncall/shared'
-import { query, withTransaction } from '../db/client'
-import type { ClinicScope } from '../lib/scope'
+import { query, withTransaction } from '../db/client.ts'
+import type { ClinicScope } from '../lib/scope.ts'
 
 export interface ActivityInput {
   userId: number

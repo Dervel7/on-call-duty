@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const adminStats = vi.fn()
 const meStats = vi.fn()
-vi.mock('../services/stats.service', () => ({
+vi.mock('../services/stats.service.ts', () => ({
   adminStats: (...a: unknown[]) => adminStats(...a),
   meStats: (...a: unknown[]) => meStats(...a),
   currentYearMonthUTC: () => {
@@ -12,19 +12,19 @@ vi.mock('../services/stats.service', () => ({
     return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }
   },
 }))
-vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+vi.mock('../services/billing.service.ts', () => ({ isLocked: async () => false }))
 // The superadmin scope default resolves the sole clinic through the db pool.
 const query = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
 
 
-import { errorHandler } from '../middleware/error-handler'
-import { signAccessToken } from '../lib/jwt'
-import { statsRouter } from '../routes/stats.routes'
+import { errorHandler } from '../middleware/error-handler.ts'
+import { signAccessToken } from '../lib/jwt.ts'
+import { statsRouter } from '../routes/stats.routes.ts'
 
 function build() {
   const app = express()

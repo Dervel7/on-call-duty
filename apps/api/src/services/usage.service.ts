@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg'
 import type { GenerationEvent, OperatorAlert } from '@oncall/shared'
-import { query } from '../db/client'
-import { HttpError } from '../lib/http-error'
+import { query } from '../db/client.ts'
+import { HttpError } from '../lib/http-error.ts'
 
 /** Share of `next` doctors already present in `prev`, as a percentage of the larger set. */
 export function overlapPercent(prev: number[], next: number[]): number {

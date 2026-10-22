@@ -15,7 +15,7 @@ import {
   required,
   toIsoMonth,
   weekdayNames,
-} from '../index'
+} from '../index.ts'
 
 afterEach(() => vi.useRealTimers())
 

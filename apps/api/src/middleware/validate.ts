@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { ZodTypeAny } from 'zod'
-import { HttpError } from '../lib/http-error'
+import { HttpError } from '../lib/http-error.ts'
 
 type Part = 'body' | 'params' | 'query'
 

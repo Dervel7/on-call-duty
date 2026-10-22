@@ -3,16 +3,16 @@ import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
 }))
 // authenticate consults the billing lock on every request; route tests stub it unlocked.
-vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+vi.mock('../services/billing.service.ts', () => ({ isLocked: async () => false }))
 
 
-import { errorHandler } from '../middleware/error-handler'
-import { signAccessToken } from '../lib/jwt'
-import { usageRouter } from '../routes/usage.routes'
+import { errorHandler } from '../middleware/error-handler.ts'
+import { signAccessToken } from '../lib/jwt.ts'
+import { usageRouter } from '../routes/usage.routes.ts'
 
 function build() {
   const app = express()

@@ -1,5 +1,5 @@
-import { dayOfWeekISO, daysInMonth, isWeekendISO, isoDate } from '../../dates'
-import type { DaySpec, DoctorSpec, SchedulingContext } from '../../types'
+import { dayOfWeekISO, daysInMonth, isWeekendISO, isoDate } from '../../dates.ts'
+import type { DaySpec, DoctorSpec, SchedulingContext } from '../../types.ts'
 
 /**
  * Main Clinic, October 2026, captured 2026-10-05 (solver design section 7).

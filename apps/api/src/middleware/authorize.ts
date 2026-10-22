@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { Role } from '@oncall/shared'
-import { HttpError } from '../lib/http-error'
+import { HttpError } from '../lib/http-error.ts'
 
 export function authorize(...roles: Role[]) {
   const allowed = new Set<Role>(roles)

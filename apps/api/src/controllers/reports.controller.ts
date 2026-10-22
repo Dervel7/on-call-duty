@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { ReportQuery } from '@oncall/shared'
-import { ok } from '../lib/envelope'
-import { resolveClinicScope } from '../lib/scope'
-import { monthlyReport } from '../services/reports.service'
-import { currentYearMonthUTC } from '../services/stats.service'
+import { ok } from '../lib/envelope.ts'
+import { resolveClinicScope } from '../lib/scope.ts'
+import { monthlyReport } from '../services/reports.service.ts'
+import { currentYearMonthUTC } from '../services/stats.service.ts'
 
 export const reportsController = {
   async monthly(req: Request, res: Response, next: NextFunction) {

@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt'
-import { query, withTransaction } from '../db/client'
-import { HttpError } from '../lib/http-error'
-import type { ClinicScope } from '../lib/scope'
+import { query, withTransaction } from '../db/client.ts'
+import { HttpError } from '../lib/http-error.ts'
+import type { ClinicScope } from '../lib/scope.ts'
 import type {
   AuthUser,
   CreateUserRequest,
@@ -11,8 +11,8 @@ import type {
   UpdateUserRequest,
   User,
 } from '@oncall/shared'
-import { recordActivity } from './activity.service'
-import * as tokenService from './token.service'
+import { recordActivity } from './activity.service.ts'
+import * as tokenService from './token.service.ts'
 
 type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 

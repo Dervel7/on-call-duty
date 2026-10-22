@@ -7,10 +7,10 @@ import type {
   UnavailabilityQuery,
   UpdateUnavailabilityRequest,
 } from '@oncall/shared'
-import { query, withTransaction } from '../db/client'
-import { HttpError } from '../lib/http-error'
-import type { ClinicScope } from '../lib/scope'
-import { recordActivity } from './activity.service'
+import { query, withTransaction } from '../db/client.ts'
+import { HttpError } from '../lib/http-error.ts'
+import type { ClinicScope } from '../lib/scope.ts'
+import { recordActivity } from './activity.service.ts'
 
 type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 

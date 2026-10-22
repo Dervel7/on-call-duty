@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { UnavailabilityQuery } from '@oncall/shared'
-import { ok } from '../lib/envelope'
-import { HttpError } from '../lib/http-error'
-import { resolveClinicScope } from '../lib/scope'
-import * as unavailabilityService from '../services/unavailability.service'
+import { ok } from '../lib/envelope.ts'
+import { HttpError } from '../lib/http-error.ts'
+import { resolveClinicScope } from '../lib/scope.ts'
+import * as unavailabilityService from '../services/unavailability.service.ts'
 
 export const unavailabilityController = {
   async list(req: Request, res: Response, next: NextFunction) {

@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
-import { ok } from '../lib/envelope'
-import * as clinicService from '../services/clinic.service'
+import { ok } from '../lib/envelope.ts'
+import * as clinicService from '../services/clinic.service.ts'
 
 export const clinicController = {
   async list(_req: Request, res: Response, next: NextFunction) {

@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
-import { list, logActivity, recordActivity } from '../services/activity.service'
-import type { ClinicScope } from '../lib/scope'
+import { list, logActivity, recordActivity } from '../services/activity.service.ts'
+import type { ClinicScope } from '../lib/scope.ts'
 
 const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
 

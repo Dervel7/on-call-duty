@@ -3,23 +3,23 @@ import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 // authenticate consults the billing lock on every request; route tests stub it unlocked.
-vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+vi.mock('../services/billing.service.ts', () => ({ isLocked: async () => false }))
 
 const logActivity = vi.fn()
 const recordActivity = vi.fn()
-vi.mock('../services/activity.service', () => ({
+vi.mock('../services/activity.service.ts', () => ({
   logActivity: (...a: unknown[]) => logActivity(...a),
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
 
-import { signAccessToken } from '../lib/jwt'
-import { errorHandler } from '../middleware/error-handler'
-import { holidayRouter } from '../routes/holiday.routes'
+import { signAccessToken } from '../lib/jwt.ts'
+import { errorHandler } from '../middleware/error-handler.ts'
+import { holidayRouter } from '../routes/holiday.routes.ts'
 
 function build() {
   const app = express()

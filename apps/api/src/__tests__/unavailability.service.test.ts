@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const query = vi.fn()
 type Work = (c: { query: typeof query }) => Promise<unknown>
 const transaction = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: Work) => transaction(work),
 }))
 
 const logActivity = vi.fn()
 const recordActivity = vi.fn()
-vi.mock('../services/activity.service', () => ({
+vi.mock('../services/activity.service.ts', () => ({
   logActivity: (...a: unknown[]) => logActivity(...a),
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
@@ -24,8 +24,8 @@ import {
   setDisabled,
   split,
   update,
-} from '../services/unavailability.service'
-import type { ClinicScope } from '../lib/scope'
+} from '../services/unavailability.service.ts'
+import type { ClinicScope } from '../lib/scope.ts'
 
 function row(overrides: Partial<Record<string, unknown>> = {}) {
   return {

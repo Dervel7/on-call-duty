@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { generateGreedy } from '../engine'
-import { generate } from '../solver'
-import type { GenerateResult, SchedulingContext } from '../types'
-import { ctx, day, dr } from './helpers'
+import { generateGreedy } from '../engine.ts'
+import { generate } from '../solver.ts'
+import type { GenerateResult, SchedulingContext } from '../types.ts'
+import { ctx, day, dr } from './helpers.ts'
 
 // Outcome rules every engine must keep: the exact solver and the greedy
 // engine it falls back to. Engine-internal behavior lives in solver.test.ts

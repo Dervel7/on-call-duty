@@ -1,9 +1,9 @@
 import type { LegacyHighsSolution } from 'highs'
-import { logger } from '../logger'
-import { blockingRule, emptyTally, type DutyCounts } from './conflicts'
-import { HOLIDAY_DUTY_CAP } from './constraints'
-import { generateGreedy } from './engine'
-import { loadSolver, type Solver, type SolverLoader } from './highs'
+import { logger } from '../logger.ts'
+import { blockingRule, emptyTally, type DutyCounts } from './conflicts.ts'
+import { HOLIDAY_DUTY_CAP } from './constraints.ts'
+import { generateGreedy } from './engine.ts'
+import { loadSolver, type Solver, type SolverLoader } from './highs.ts'
 import {
   FRI_SAT_SUN,
   buildModel,
@@ -13,8 +13,8 @@ import {
   type ModelCell,
   type ModelIndex,
   type Stage,
-} from './solver-model'
-import type { AssignmentPlan, ConflictPlan, GenerateResult, SchedulingContext } from './types'
+} from './solver-model.ts'
+import type { AssignmentPlan, ConflictPlan, GenerateResult, SchedulingContext } from './types.ts'
 
 /** Wall-clock budget for all solves of one generate() call (D4). */
 export const SOLVER_BUDGET_MS = 10_000

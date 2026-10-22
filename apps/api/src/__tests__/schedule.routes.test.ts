@@ -13,7 +13,7 @@ const removeDuty = vi.fn()
 const publish = vi.fn()
 const unpublish = vi.fn()
 const generateOptions = vi.fn()
-vi.mock('../services/schedule.service', () => ({
+vi.mock('../services/schedule.service.ts', () => ({
   preview: (...a: unknown[]) => preview(...a),
   generateOptions: (...a: unknown[]) => generateOptions(...a),
   generate: (...a: unknown[]) => generate(...a),
@@ -26,19 +26,19 @@ vi.mock('../services/schedule.service', () => ({
   publish: (...a: unknown[]) => publish(...a),
   unpublish: (...a: unknown[]) => unpublish(...a),
 }))
-vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+vi.mock('../services/billing.service.ts', () => ({ isLocked: async () => false }))
 // The superadmin scope default resolves the sole clinic through the db pool.
 const query = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
 
 
-import { signAccessToken } from '../lib/jwt'
-import { errorHandler } from '../middleware/error-handler'
-import { dutyRouter, scheduleRouter } from '../routes/schedule.routes'
+import { signAccessToken } from '../lib/jwt.ts'
+import { errorHandler } from '../middleware/error-handler.ts'
+import { dutyRouter, scheduleRouter } from '../routes/schedule.routes.ts'
 
 function build() {
   const app = express()

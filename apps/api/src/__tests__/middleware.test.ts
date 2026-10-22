@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from 'vitest'
 
 const isLocked = vi.fn()
-vi.mock('../services/billing.service', () => ({
+vi.mock('../services/billing.service.ts', () => ({
   isLocked: (...a: unknown[]) => isLocked(...a),
 }))
 
@@ -9,11 +9,11 @@ import express from 'express'
 import request from 'supertest'
 import { z } from 'zod'
 import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
-import { signAccessToken } from '../lib/jwt'
-import { errorHandler } from '../middleware/error-handler'
-import { validate } from '../middleware/validate'
-import { authenticate } from '../middleware/authenticate'
-import { authorize } from '../middleware/authorize'
+import { signAccessToken } from '../lib/jwt.ts'
+import { errorHandler } from '../middleware/error-handler.ts'
+import { validate } from '../middleware/validate.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
 
 function build() {
   const app = express()

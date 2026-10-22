@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express'
-import { ok } from '../lib/envelope'
-import { HttpError } from '../lib/http-error'
-import { resolveClinicScope } from '../lib/scope'
-import * as doctorService from '../services/doctor.service'
+import { ok } from '../lib/envelope.ts'
+import { HttpError } from '../lib/http-error.ts'
+import { resolveClinicScope } from '../lib/scope.ts'
+import * as doctorService from '../services/doctor.service.ts'
 
 export const doctorController = {
   async list(req: Request, res: Response, next: NextFunction) {

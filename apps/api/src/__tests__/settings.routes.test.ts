@@ -8,7 +8,7 @@ const getClinicDutySlots = vi.fn()
 const setDutySlots = vi.fn()
 const getDutyMinimums = vi.fn()
 const setDutyMinimums = vi.fn()
-vi.mock('../services/settings.service', () => ({
+vi.mock('../services/settings.service.ts', () => ({
   getOpenDutySettings: (...a: unknown[]) => getOpenDutySettings(...a),
   setOpenDutyInterval: (...a: unknown[]) => setOpenDutyInterval(...a),
   getClinicDutySlots: (...a: unknown[]) => getClinicDutySlots(...a),
@@ -16,11 +16,11 @@ vi.mock('../services/settings.service', () => ({
   getDutyMinimums: (...a: unknown[]) => getDutyMinimums(...a),
   setDutyMinimums: (...a: unknown[]) => setDutyMinimums(...a),
 }))
-vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+vi.mock('../services/billing.service.ts', () => ({ isLocked: async () => false }))
 
-import { signAccessToken } from '../lib/jwt'
-import { errorHandler } from '../middleware/error-handler'
-import { settingsRouter } from '../routes/settings.routes'
+import { signAccessToken } from '../lib/jwt.ts'
+import { errorHandler } from '../middleware/error-handler.ts'
+import { settingsRouter } from '../routes/settings.routes.ts'
 
 function build() {
   const app = express()

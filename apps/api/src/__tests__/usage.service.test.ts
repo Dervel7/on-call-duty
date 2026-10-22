@@ -5,8 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 const { parsed } = config({ path: resolve(import.meta.dirname, '../../.env') })
 if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL
 
-const { query, withTransaction } = await import('../db/client')
-const { generations, overlapPercent, recordGeneration } = await import('../services/usage.service')
+const { query, withTransaction } = await import('../db/client.ts')
+const { generations, overlapPercent, recordGeneration } = await import('../services/usage.service.ts')
 
 describe('overlapPercent', () => {
   it('returns 100 for identical sets', () => {

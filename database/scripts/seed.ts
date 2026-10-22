@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { config } from 'dotenv';
 import { Client } from 'pg';
 import { pino } from 'pino';
-import { runSqlFile } from './run-sql-file';
+import { runSqlFile } from './run-sql-file.ts';
 
 config({ path: resolve(import.meta.dirname, '../../apps/api/.env') });
 

@@ -1,5 +1,5 @@
 import request from 'supertest'
-import { app } from '../app'
+import { app } from '../app.ts'
 
 test('GET /health returns 200 success envelope', async () => {
   const res = await request(app).get('/health')

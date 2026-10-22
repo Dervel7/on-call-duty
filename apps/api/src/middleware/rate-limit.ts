@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
-import { env } from '../config/env'
-import { HttpError } from '../lib/http-error'
+import { env } from '../config/env.ts'
+import { HttpError } from '../lib/http-error.ts'
 
 interface Options {
   windowMs: number

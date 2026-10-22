@@ -13,9 +13,9 @@ import {
   DEFAULT_OPEN_DUTY_INTERVAL_DAYS,
   isoDateSchema,
 } from '@oncall/shared'
-import { query } from '../db/client'
-import { HttpError } from '../lib/http-error'
-import { logActivity } from './activity.service'
+import { query } from '../db/client.ts'
+import { HttpError } from '../lib/http-error.ts'
+import { logActivity } from './activity.service.ts'
 
 type Actor = Pick<AuthUser, 'id' | 'role'>
 

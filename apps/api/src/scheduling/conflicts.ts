@@ -1,12 +1,12 @@
-import { isOpenDutyDate, nextDate, prevDate } from './dates'
+import { isOpenDutyDate, nextDate, prevDate } from './dates.ts'
 import {
   isAvailable,
   notConsecutive,
   underCap,
   underHolidayCap,
   underOpenDutyCap,
-} from './constraints'
-import type { ConflictTally, DaySpec, DoctorSpec, SchedulingContext } from './types'
+} from './constraints.ts'
+import type { ConflictTally, DaySpec, DoctorSpec, SchedulingContext } from './types.ts'
 
 export function emptyTally(): ConflictTally {
   return { unavailable: 0, atMonthlyCap: 0, atOpenDutyCap: 0, atHolidayCap: 0, backToBack: 0, alreadyOnDuty: 0 }

@@ -1,8 +1,8 @@
 import { Router } from 'express'
-import { userController } from '../controllers/user.controller'
-import { authenticate } from '../middleware/authenticate'
-import { authorize } from '../middleware/authorize'
-import { validate } from '../middleware/validate'
+import { userController } from '../controllers/user.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
 import {
   createUserSchema,
   idParams,
@@ -12,7 +12,7 @@ import {
   updateUserSchema,
   updateUsernameSchema,
   userQuerySchema,
-} from '../validators/user'
+} from '../validators/user.ts'
 
 export const userRouter = Router()
 

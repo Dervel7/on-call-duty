@@ -1,6 +1,6 @@
-import { app } from './app'
-import { env } from './config/env'
-import { logger } from './logger'
+import { app } from './app.ts'
+import { env } from './config/env.ts'
+import { logger } from './logger.ts'
 
 // Explicit 0.0.0.0 so container platforms (Render, Docker) can reach the port.
 app.listen(env.PORT, '0.0.0.0', () => {

@@ -29,7 +29,7 @@ const STUCK_GRACE_MS = 5_000
 export const SOLVER_IDLE_MS = 60_000
 
 /**
- * Worker body, plain CommonJS so it runs unchanged under tsx, Vitest and the
+ * Worker body, plain CommonJS so it runs unchanged under Node, Vitest and the
  * compiled build. It receives one request at a time.
  */
 const WORKER_SOURCE = `
@@ -139,7 +139,6 @@ function startWorker(): { worker: Worker; solver: Solver } {
 
   const solver: Solver = {
     solve(lp, options, deadline) {
-      // Promise.withResolvers needs Node 22; the API image runs Node 20.
       return new Promise((resolve, reject) => {
         if (stopped) {
           reject(stopped)

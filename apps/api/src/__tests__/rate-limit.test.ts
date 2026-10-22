@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { NextFunction, Request, Response } from 'express'
 
-vi.mock('../config/env', () => ({
+vi.mock('../config/env.ts', () => ({
   env: { NODE_ENV: 'development' },
 }))
 
-import { rateLimit } from '../middleware/rate-limit'
-import { HttpError } from '../lib/http-error'
+import { rateLimit } from '../middleware/rate-limit.ts'
+import { HttpError } from '../lib/http-error.ts'
 
 describe('rateLimit', () => {
   it('allows up to the limit, then rejects with 429', () => {

@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express'
 import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
-import { HttpError } from '../lib/http-error'
-import { verifyAccessToken } from '../lib/jwt'
-import * as billingService from '../services/billing.service'
+import { HttpError } from '../lib/http-error.ts'
+import { verifyAccessToken } from '../lib/jwt.ts'
+import * as billingService from '../services/billing.service.ts'
 
 // Express 4 does not catch rejected promises from middleware, so every
 // failure path — including the async lock check — must reach the error

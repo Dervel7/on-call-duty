@@ -1,6 +1,6 @@
 import type { AuthUser } from '@oncall/shared'
-import { query } from '../db/client'
-import { HttpError } from './http-error'
+import { query } from '../db/client.ts'
+import { HttpError } from './http-error.ts'
 
 /** Fixed to one clinic (from the JWT) for administrator/doctor. */
 export interface ClinicScope {

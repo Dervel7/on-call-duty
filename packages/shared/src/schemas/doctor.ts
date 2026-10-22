@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { passwordSchema } from './common'
-import { usernameSchema } from './auth'
+import { passwordSchema } from './common.ts'
+import { usernameSchema } from './auth.ts'
 
 export const createDoctorSchema = z.object({
   email: z.string().email(),

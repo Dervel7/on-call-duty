@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import { doctorController } from '../controllers/doctor.controller'
-import { authenticate } from '../middleware/authenticate'
-import { authorize } from '../middleware/authorize'
-import { validate } from '../middleware/validate'
-import { createDoctorSchema, doctorQuerySchema, idParams, updateDoctorSchema } from '../validators/doctor'
+import { doctorController } from '../controllers/doctor.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
+import { createDoctorSchema, doctorQuerySchema, idParams, updateDoctorSchema } from '../validators/doctor.ts'
 
 export const doctorRouter = Router()
 

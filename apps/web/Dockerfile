@@ -8,7 +8,7 @@
 #
 # Multi-stage: compile the SPA with Vite, then serve static assets from nginx.
 
-FROM node:20-slim AS builder
+FROM node:24-slim AS builder
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH

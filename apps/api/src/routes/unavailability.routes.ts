@@ -1,8 +1,8 @@
 import { Router } from 'express'
-import { unavailabilityController } from '../controllers/unavailability.controller'
-import { authenticate } from '../middleware/authenticate'
-import { authorize } from '../middleware/authorize'
-import { validate } from '../middleware/validate'
+import { unavailabilityController } from '../controllers/unavailability.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
 import {
   createUnavailabilityAdminSchema,
   createUnavailabilitySelfSchema,
@@ -11,7 +11,7 @@ import {
   splitUnavailabilitySchema,
   unavailabilityQuerySchema,
   updateUnavailabilitySchema,
-} from '../validators/unavailability'
+} from '../validators/unavailability.ts'
 
 export const unavailabilityRouter = Router()
 

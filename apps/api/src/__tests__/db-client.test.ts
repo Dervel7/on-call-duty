@@ -6,7 +6,7 @@ const { query, release, connect } = vi.hoisted(() => ({
   connect: vi.fn(),
 }))
 
-vi.mock('../config/env', () => ({
+vi.mock('../config/env.ts', () => ({
   env: { DATABASE_URL: 'postgres://x', LOG_LEVEL: 'silent', NODE_ENV: 'test' },
 }))
 vi.mock('pg', () => {
@@ -17,7 +17,7 @@ vi.mock('pg', () => {
   return { Pool, types: { setTypeParser: () => {} } }
 })
 
-import { withTransaction } from '../db/client'
+import { withTransaction } from '../db/client.ts'
 
 beforeEach(() => {
   query.mockReset()

@@ -17,9 +17,9 @@ import type {
   ScheduleStatus,
 } from '@oncall/shared'
 import type { PoolClient } from 'pg'
-import { query, withTransaction } from '../db/client'
-import { HttpError } from '../lib/http-error'
-import type { ClinicScope } from '../lib/scope'
+import { query, withTransaction } from '../db/client.ts'
+import { HttpError } from '../lib/http-error.ts'
+import type { ClinicScope } from '../lib/scope.ts'
  import {
   HOLIDAY_DUTY_CAP,
   OPEN_DUTY_DUTY_CAP,
@@ -30,7 +30,7 @@ import type { ClinicScope } from '../lib/scope'
    underCap,
    underHolidayCap,
    underOpenDutyCap,
- } from '../scheduling'
+ } from '../scheduling/index.ts'
 import {
   daysInMonth,
   dayOfWeekISO,
@@ -43,11 +43,11 @@ import {
   prevDate,
   requiresDoubleCoverage,
   slotsForDate,
-} from '../scheduling/dates'
-import type { DoctorSpec, GenerateResult, SchedulingContext } from '../scheduling/types'
-import { recordGeneration } from './usage.service'
-import { recordActivity } from './activity.service'
-import { getDutyMinimums, getDutySlots, getOpenDutySettings } from './settings.service'
+} from '../scheduling/dates.ts'
+import type { DoctorSpec, GenerateResult, SchedulingContext } from '../scheduling/types.ts'
+import { recordGeneration } from './usage.service.ts'
+import { recordActivity } from './activity.service.ts'
+import { getDutyMinimums, getDutySlots, getOpenDutySettings } from './settings.service.ts'
 
 type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 

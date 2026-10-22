@@ -3,21 +3,21 @@ import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const monthlyReport = vi.fn()
-vi.mock('../services/reports.service', () => ({
+vi.mock('../services/reports.service.ts', () => ({
   monthlyReport: (...a: unknown[]) => monthlyReport(...a),
 }))
-vi.mock('../services/billing.service', () => ({ isLocked: async () => false }))
+vi.mock('../services/billing.service.ts', () => ({ isLocked: async () => false }))
 
-vi.mock('../services/stats.service', () => ({
+vi.mock('../services/stats.service.ts', () => ({
   currentYearMonthUTC: () => {
     const now = new Date()
     return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }
   },
 }))
 
-import { errorHandler } from '../middleware/error-handler'
-import { signAccessToken } from '../lib/jwt'
-import { reportsRouter } from '../routes/reports.routes'
+import { errorHandler } from '../middleware/error-handler.ts'
+import { signAccessToken } from '../lib/jwt.ts'
+import { reportsRouter } from '../routes/reports.routes.ts'
 
 function build() {
   const app = express()

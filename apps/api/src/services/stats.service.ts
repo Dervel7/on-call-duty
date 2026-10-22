@@ -8,11 +8,11 @@ import type {
   ScheduleStatus,
   ScheduleSummary,
 } from '@oncall/shared'
-import { query } from '../db/client'
-import type { ClinicScope } from '../lib/scope'
-import { daysInMonth, isoDate, slotsForDate } from '../scheduling/dates'
-import { getDutySlots, getOpenDutySettings } from './settings.service'
-import { getByUserId as getDoctorByUserId } from './doctor.service'
+import { query } from '../db/client.ts'
+import type { ClinicScope } from '../lib/scope.ts'
+import { daysInMonth, isoDate, slotsForDate } from '../scheduling/dates.ts'
+import { getDutySlots, getOpenDutySettings } from './settings.service.ts'
+import { getByUserId as getDoctorByUserId } from './doctor.service.ts'
 
 interface ScheduleRow {
   id: number

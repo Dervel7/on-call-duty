@@ -1,25 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
 const getByUserId = vi.fn()
-vi.mock('../services/doctor.service', () => ({
+vi.mock('../services/doctor.service.ts', () => ({
   getByUserId: (...a: unknown[]) => getByUserId(...a),
 }))
 
 // Per-clinic slot counts come from the clinics row; pin the seeded 2/2 so the
 // query mocks below only cover the stats queries.
-vi.mock('../services/settings.service', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../services/settings.service')>()),
+vi.mock('../services/settings.service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/settings.service.ts')>()),
   getDutySlots: async () => ({ openDutySlots: 2, closedDutySlots: 2 }),
 }))
 
-import { adminStats, meStats } from '../services/stats.service'
-import type { ClinicScope } from '../lib/scope'
+import { adminStats, meStats } from '../services/stats.service.ts'
+import type { ClinicScope } from '../lib/scope.ts'
 
 const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
 

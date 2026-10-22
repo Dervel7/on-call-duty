@@ -1,4 +1,4 @@
-export type { ApiSuccess, ApiError, ApiResponse } from './envelope'
+export type { ApiSuccess, ApiError, ApiResponse } from './envelope.ts'
 export type {
   Role,
   Language,
@@ -14,8 +14,8 @@ export type {
   UpdateUsernameRequest,
   UpdateThemeRequest,
   UpdateLanguageRequest,
-} from './auth'
-export type { Doctor, CreateDoctorRequest, UpdateDoctorRequest } from './doctor'
+} from './auth.ts'
+export type { Doctor, CreateDoctorRequest, UpdateDoctorRequest } from './doctor.ts'
 export type {
   Unavailability,
   CreateUnavailabilityAdminRequest,
@@ -24,7 +24,7 @@ export type {
   SetUnavailabilityDisabledRequest,
   SplitUnavailabilityRequest,
   UnavailabilityQuery,
-} from './unavailability'
+} from './unavailability.ts'
 export type {
   ScheduleStatus,
   DutyType,
@@ -44,7 +44,7 @@ export type {
   ReassignDutyRequest,
   GenerateAssignment,
   GenerateScheduleRequest,
-} from './schedule'
+} from './schedule.ts'
 export type {
   StatsQuery,
   AdminWorkloadItem,
@@ -55,10 +55,10 @@ export type {
   MeUpcomingDuty,
   OnCallEntry,
   MeStats,
-} from './stats'
-export type { ReportQuery, MonthlyReport } from './reports'
-export type { Clinic, CreateClinicRequest, UpdateClinicRequest } from './clinic'
-export type { Holiday, HolidayQuery, SetMonthHolidaysRequest } from './holiday'
+} from './stats.ts'
+export type { ReportQuery, MonthlyReport } from './reports.ts'
+export type { Clinic, CreateClinicRequest, UpdateClinicRequest } from './clinic.ts'
+export type { Holiday, HolidayQuery, SetMonthHolidaysRequest } from './holiday.ts'
 export type {
   BillingState,
   PaymentAlert,
@@ -70,11 +70,11 @@ export type {
   UpdateDutySlotsRequest,
   DutyMinimumSettings,
   UpdateDutyMinimumsRequest,
-} from './settings'
-export * from './usage'
+} from './settings.ts'
+export * from './usage.ts'
 export type {
   ActivityActor,
   ActivityLogEntry,
   ActivityQuery,
   PaginatedActivity,
-} from './audit'
+} from './audit.ts'

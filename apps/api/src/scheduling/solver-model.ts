@@ -4,10 +4,10 @@ import {
   nextDate,
   requiresDoubleCoverage,
   slotsForDate,
-} from './dates'
-import { HOLIDAY_DUTY_CAP, OPEN_DUTY_DUTY_CAP, isAvailable } from './constraints'
-import { isFriSatSun } from './scoring'
-import type { DaySpec, DoctorSpec, SchedulingContext } from './types'
+} from './dates.ts'
+import { HOLIDAY_DUTY_CAP, OPEN_DUTY_DUTY_CAP, isAvailable } from './constraints.ts'
+import { isFriSatSun } from './scoring.ts'
+import type { DaySpec, DoctorSpec, SchedulingContext } from './types.ts'
 
 /**
  * MIP model of the scheduling rules in CPLEX LP text, one text per stage.

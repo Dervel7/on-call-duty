@@ -1,5 +1,5 @@
-import type { Role } from './auth'
-import type { ActivityAction } from '../schemas/audit'
+import type { Role } from './auth.ts'
+import type { ActivityAction } from '../schemas/audit.ts'
 
 export interface ActivityActor {
   id: number

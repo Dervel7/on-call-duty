@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
 const logActivity = vi.fn()
 const recordActivity = vi.fn()
-vi.mock('../services/activity.service', () => ({
+vi.mock('../services/activity.service.ts', () => ({
   logActivity: (...a: unknown[]) => logActivity(...a),
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
@@ -18,8 +18,8 @@ import request from 'supertest'
 import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
 import cookieParser from 'cookie-parser'
 import express from 'express'
-import { authRouter } from '../routes/auth.routes'
-import { errorHandler } from '../middleware/error-handler'
+import { authRouter } from '../routes/auth.routes.ts'
+import { errorHandler } from '../middleware/error-handler.ts'
 
 const SEED_HASH = '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi'
 

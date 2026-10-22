@@ -1,6 +1,6 @@
-import { isOpenDutyDate, minimumForDate, requiresDoubleCoverage, slotsForDate } from './dates'
-import { blockingRule, emptyTally } from './conflicts'
-import { scoreCandidate, weekendBudget, fridayBudget } from './scoring'
+import { isOpenDutyDate, minimumForDate, requiresDoubleCoverage, slotsForDate } from './dates.ts'
+import { blockingRule, emptyTally } from './conflicts.ts'
+import { scoreCandidate, weekendBudget, fridayBudget } from './scoring.ts'
 import type {
   AssignmentPlan,
   CandidateScore,
@@ -10,7 +10,7 @@ import type {
   DoctorSpec,
   GenerateResult,
   SchedulingContext,
-} from './types'
+} from './types.ts'
 
 interface Eligible {
   doctor: DoctorSpec

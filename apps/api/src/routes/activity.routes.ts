@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import { activityController } from '../controllers/activity.controller'
-import { authenticate } from '../middleware/authenticate'
-import { authorize } from '../middleware/authorize'
-import { validate } from '../middleware/validate'
-import { activityQuerySchema } from '../validators/activity'
+import { activityController } from '../controllers/activity.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
+import { activityQuerySchema } from '../validators/activity.ts'
 
 export const activityRouter = Router()
 

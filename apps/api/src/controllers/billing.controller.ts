@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
-import { ok } from '../lib/envelope'
-import * as billingService from '../services/billing.service'
+import { ok } from '../lib/envelope.ts'
+import * as billingService from '../services/billing.service.ts'
 
 export const billingController = {
   async getState(_req: Request, res: Response, next: NextFunction) {

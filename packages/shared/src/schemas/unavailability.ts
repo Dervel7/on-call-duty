@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateSchema } from './common'
+import { isoDateSchema } from './common.ts'
 
 const adminFields = z.object({
   doctorId: z.number().int().positive(),

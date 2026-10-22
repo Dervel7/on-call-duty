@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { ActivityQuery } from '@oncall/shared'
-import { ok } from '../lib/envelope'
-import { resolveClinicScope } from '../lib/scope'
-import * as activityService from '../services/activity.service'
+import { ok } from '../lib/envelope.ts'
+import { resolveClinicScope } from '../lib/scope.ts'
+import * as activityService from '../services/activity.service.ts'
 
 export const activityController = {
   async list(req: Request, res: Response, next: NextFunction) {

@@ -4,7 +4,7 @@
   "type": "module",
   "version": "0.0.0",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "node src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "lint": "eslint .",
@@ -38,7 +38,6 @@
     "@types/pg": "^8.11.0",
     "@types/supertest": "^6.0.0",
     "supertest": "^7.0.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^3.0.0"
   }

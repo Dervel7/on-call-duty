@@ -1,7 +1,7 @@
-import { env } from '../config/env'
+import { env } from '../config/env.ts'
 import jwt from 'jsonwebtoken'
-import { signAccessToken, verifyAccessToken } from '../lib/jwt'
-import { generateRefreshToken, hashToken } from '../lib/token'
+import { signAccessToken, verifyAccessToken } from '../lib/jwt.ts'
+import { generateRefreshToken, hashToken } from '../lib/token.ts'
 
 describe('jwt', () => {
   it('round-trips the payload', () => {

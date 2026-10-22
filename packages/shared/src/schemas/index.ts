@@ -1,4 +1,4 @@
-export { isoDateSchema, passwordSchema } from './common'
+export { isoDateSchema, passwordSchema } from './common.ts'
 export {
   roleSchema,
   languageSchema,
@@ -11,8 +11,8 @@ export {
   updateUsernameSchema,
   updateThemeSchema,
   updateLanguageSchema,
-} from './auth'
-export { createDoctorSchema, updateDoctorSchema } from './doctor'
+} from './auth.ts'
+export { createDoctorSchema, updateDoctorSchema } from './doctor.ts'
 export {
   createUnavailabilityAdminSchema,
   createUnavailabilitySelfSchema,
@@ -20,19 +20,19 @@ export {
   setUnavailabilityDisabledSchema,
   splitUnavailabilitySchema,
   unavailabilityQuerySchema,
-} from './unavailability'
+} from './unavailability.ts'
 export {
   createScheduleSchema,
   scheduleQuerySchema,
   createDutySchema,
   reassignDutySchema,
   generateScheduleSchema,
-} from './schedule'
-export { statsQuerySchema } from './stats'
-export { reportQuerySchema } from './reports'
-export { ACTIVITY_ACTIONS, activityQuerySchema } from './audit'
-export { createClinicSchema, updateClinicSchema } from './clinic'
-export { holidayQuerySchema, setMonthHolidaysSchema } from './holiday'
+} from './schedule.ts'
+export { statsQuerySchema } from './stats.ts'
+export { reportQuerySchema } from './reports.ts'
+export { ACTIVITY_ACTIONS, activityQuerySchema } from './audit.ts'
+export { createClinicSchema, updateClinicSchema } from './clinic.ts'
+export { holidayQuerySchema, setMonthHolidaysSchema } from './holiday.ts'
 export {
   updateBillingSchema,
   SYSTEM_LOCKED_MESSAGE,
@@ -42,5 +42,5 @@ export {
   updateDutySlotsSchema,
   dutySlotsQuerySchema,
   updateDutyMinimumsSchema,
-} from './settings'
-export type { ActivityAction } from './audit'
+} from './settings.ts'
+export type { ActivityAction } from './audit.ts'

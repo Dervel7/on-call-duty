@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@10.26.0",
   "engines": {
-    "node": ">=20",
+    "node": ">=24",
     "pnpm": ">=10"
   },
   "scripts": {
@@ -13,9 +13,9 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "db:seed:single": "tsx database/scripts/seed.ts single-clinic",
-    "db:seed:multi": "tsx database/scripts/seed.ts multi-clinic",
-    "db:exclusions": "tsx database/scripts/dump-exclusions.ts"
+    "db:seed:single": "node database/scripts/seed.ts single-clinic",
+    "db:seed:multi": "node database/scripts/seed.ts multi-clinic",
+    "db:exclusions": "node database/scripts/dump-exclusions.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -28,7 +28,6 @@
     "pg": "^8.13.0",
     "pino": "^9.5.0",
     "pino-pretty": "^11.3.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^3.0.0",
     "vue-eslint-parser": "^9.4.0"

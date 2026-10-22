@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildModel, indexModel, type Stage } from '../solver-model'
-import { ctx, day, dr } from './helpers'
+import { buildModel, indexModel, type Stage } from '../solver-model.ts'
+import { ctx, day, dr } from './helpers.ts'
 
 // Tue 1, Wed 2, Thu 3 September 2026; anchor 09-01 every 2 days: 1 and 3 are
 // open, 2 is the day after an open day. Doctor 2 is away on the 2nd, doctor 3

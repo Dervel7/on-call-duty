@@ -1,6 +1,6 @@
 import type { Clinic, CreateClinicRequest, UpdateClinicRequest } from '@oncall/shared'
-import { query } from '../db/client'
-import { HttpError } from '../lib/http-error'
+import { query } from '../db/client.ts'
+import { HttpError } from '../lib/http-error.ts'
 
 interface ClinicRow {
   id: number

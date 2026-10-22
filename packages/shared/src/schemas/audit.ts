@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateSchema } from './common'
+import { isoDateSchema } from './common.ts'
 
 export const ACTIVITY_ACTIONS = [
   'auth.login',

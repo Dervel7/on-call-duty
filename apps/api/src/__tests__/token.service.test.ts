@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
-import { issueRefreshToken, revokeAllForUser, rotateRefreshToken } from '../services/token.service'
-import { hashToken } from '../lib/token'
+import { issueRefreshToken, revokeAllForUser, rotateRefreshToken } from '../services/token.service.ts'
+import { hashToken } from '../lib/token.ts'
 
 function returning(rows: unknown) {
   return async () => ({ rows })

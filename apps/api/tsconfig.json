@@ -3,7 +3,9 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "declaration": false
+    "declaration": false,
+    "erasableSyntaxOnly": true,
+    "rewriteRelativeImportExtensions": true
   },
   "include": ["src"]
 }

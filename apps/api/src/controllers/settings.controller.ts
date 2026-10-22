@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
-import { ok } from '../lib/envelope'
-import { resolveClinicScope } from '../lib/scope'
-import * as settingsService from '../services/settings.service'
+import { ok } from '../lib/envelope.ts'
+import { resolveClinicScope } from '../lib/scope.ts'
+import * as settingsService from '../services/settings.service.ts'
 
 export const settingsController = {
   async getOpenDuty(_req: Request, res: Response, next: NextFunction) {

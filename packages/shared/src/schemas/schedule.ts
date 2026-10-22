@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateSchema } from './common'
+import { isoDateSchema } from './common.ts'
 
 const yearMonth = {
   year: z.number().int().min(1970).max(2100),

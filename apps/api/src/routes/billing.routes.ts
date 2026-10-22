@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import { billingController } from '../controllers/billing.controller'
-import { authenticate } from '../middleware/authenticate'
-import { authorize } from '../middleware/authorize'
-import { validate } from '../middleware/validate'
-import { updateBillingSchema } from '../validators/settings'
+import { billingController } from '../controllers/billing.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
+import { updateBillingSchema } from '../validators/settings.ts'
 
 export const billingRouter = Router()
 

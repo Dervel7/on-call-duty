@@ -1,8 +1,8 @@
 import type { PoolClient } from 'pg'
-import { env } from '../config/env'
-import { query, withTransaction } from '../db/client'
-import { HttpError } from '../lib/http-error'
-import { generateRefreshToken, hashToken } from '../lib/token'
+import { env } from '../config/env.ts'
+import { query, withTransaction } from '../db/client.ts'
+import { HttpError } from '../lib/http-error.ts'
+import { generateRefreshToken, hashToken } from '../lib/token.ts'
 
 interface TokenRow {
   id: number

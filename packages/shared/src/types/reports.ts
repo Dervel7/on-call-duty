@@ -1,5 +1,5 @@
-import type { AdminCoverage, AdminFairness, AdminWorkloadItem } from './stats'
-import type { Duty, ScheduleSummary } from './schedule'
+import type { AdminCoverage, AdminFairness, AdminWorkloadItem } from './stats.ts'
+import type { Duty, ScheduleSummary } from './schedule.ts'
 
 export interface ReportQuery {
   year?: number

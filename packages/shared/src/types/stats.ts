@@ -1,4 +1,4 @@
-import type { ScheduleSummary } from './schedule'
+import type { ScheduleSummary } from './schedule.ts'
 
 export interface StatsQuery {
   year?: number

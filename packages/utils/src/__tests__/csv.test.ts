@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dutiesToCsv, escapeCsvField } from '../csv'
+import { dutiesToCsv, escapeCsvField } from '../csv.ts'
 
 describe('escapeCsvField', () => {
   it('passes a clean field through unchanged', () => {

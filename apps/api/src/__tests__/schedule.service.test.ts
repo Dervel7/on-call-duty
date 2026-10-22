@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client', () => ({
+vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
 const logActivity = vi.fn()
 const recordActivity = vi.fn()
-vi.mock('../services/activity.service', () => ({
+vi.mock('../services/activity.service.ts', () => ({
   logActivity: (...a: unknown[]) => logActivity(...a),
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
@@ -18,8 +18,8 @@ vi.mock('../services/activity.service', () => ({
 // below only carry the cycle (app_meta) lookups.
 const SEEDED_MINIMUMS = { openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 2 }
 const getDutyMinimums = vi.fn()
-vi.mock('../services/settings.service', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../services/settings.service')>()),
+vi.mock('../services/settings.service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/settings.service.ts')>()),
   getDutySlots: async () => ({ openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 2 }),
   getDutyMinimums: (...a: unknown[]) => getDutyMinimums(...a),
 }))
@@ -37,8 +37,8 @@ import {
   remove,
   removeDuty,
   unpublish,
-} from '../services/schedule.service'
-import type { DoctorSpec } from '../scheduling/types'
+} from '../services/schedule.service.ts'
+import type { DoctorSpec } from '../scheduling/types.ts'
 
 function scheduleRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {

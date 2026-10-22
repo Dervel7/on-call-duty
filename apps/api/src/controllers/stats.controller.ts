@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { StatsQuery } from '@oncall/shared'
-import { ok } from '../lib/envelope'
-import { HttpError } from '../lib/http-error'
-import { resolveClinicScope } from '../lib/scope'
-import { adminStats, currentYearMonthUTC, meStats } from '../services/stats.service'
+import { ok } from '../lib/envelope.ts'
+import { HttpError } from '../lib/http-error.ts'
+import { resolveClinicScope } from '../lib/scope.ts'
+import { adminStats, currentYearMonthUTC, meStats } from '../services/stats.service.ts'
 
 export const statsController = {
   async admin(req: Request, res: Response, next: NextFunction) {

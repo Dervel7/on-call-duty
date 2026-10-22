@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
-import { ok } from '../lib/envelope'
-import * as usageService from '../services/usage.service'
+import { ok } from '../lib/envelope.ts'
+import * as usageService from '../services/usage.service.ts'
 
 export const usageController = {
   async generations(_req: Request, res: Response, next: NextFunction) {

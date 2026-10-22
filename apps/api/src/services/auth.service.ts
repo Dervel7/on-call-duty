@@ -1,12 +1,12 @@
 import bcrypt from 'bcrypt'
-import { query } from '../db/client'
-import { HttpError } from '../lib/http-error'
-import { signAccessToken } from '../lib/jwt'
+import { query } from '../db/client.ts'
+import { HttpError } from '../lib/http-error.ts'
+import { signAccessToken } from '../lib/jwt.ts'
 import type { AuthUser, ChangePasswordRequest, Language, LoginRequest, Role } from '@oncall/shared'
 import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
-import * as billingService from './billing.service'
-import { logActivity } from './activity.service'
-import * as tokenService from './token.service'
+import * as billingService from './billing.service.ts'
+import { logActivity } from './activity.service.ts'
+import * as tokenService from './token.service.ts'
 
 // Compared against when the identifier does not exist so that response timing
 // cannot reveal which accounts are registered.

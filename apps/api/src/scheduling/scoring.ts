@@ -1,4 +1,4 @@
-import type { CandidateScore, DaySpec, DoctorSpec } from './types'
+import type { CandidateScore, DaySpec, DoctorSpec } from './types.ts'
 
 export const W_WORKLOAD = 3
 export const W_WEEKEND = 4

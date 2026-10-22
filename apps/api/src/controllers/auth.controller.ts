@@ -1,9 +1,9 @@
 import type { CookieOptions, NextFunction, Request, Response } from 'express'
-import { env } from '../config/env'
-import { ok } from '../lib/envelope'
-import { HttpError } from '../lib/http-error'
-import * as authService from '../services/auth.service'
-import { refreshExpiryMs } from '../services/token.service'
+import { env } from '../config/env.ts'
+import { ok } from '../lib/envelope.ts'
+import { HttpError } from '../lib/http-error.ts'
+import * as authService from '../services/auth.service.ts'
+import { refreshExpiryMs } from '../services/token.service.ts'
 
 const COOKIE_NAME = 'refresh_token'
 

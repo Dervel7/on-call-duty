@@ -7,8 +7,8 @@ import {
   fridayBudget,
   scoreCandidate,
   weekendBudget,
-} from '../scoring'
-import type { DaySpec, DoctorSpec } from '../types'
+} from '../scoring.ts'
+import type { DaySpec, DoctorSpec } from '../types.ts'
 
 const doctor = (id: number, max: number): DoctorSpec => ({
   id,

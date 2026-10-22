@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import { reportsController } from '../controllers/reports.controller'
-import { authenticate } from '../middleware/authenticate'
-import { authorize } from '../middleware/authorize'
-import { validate } from '../middleware/validate'
-import { reportQuerySchema } from '../validators/reports'
+import { reportsController } from '../controllers/reports.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
+import { reportQuerySchema } from '../validators/reports.ts'
 
 export const reportsRouter = Router()
 

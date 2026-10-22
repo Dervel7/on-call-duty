@@ -1,8 +1,8 @@
 import express from 'express'
 import request from 'supertest'
 import { z } from 'zod'
-import { HttpError } from '../lib/http-error'
-import { errorHandler } from '../middleware/error-handler'
+import { HttpError } from '../lib/http-error.ts'
+import { errorHandler } from '../middleware/error-handler.ts'
 
 function build() {
   const app = express()
