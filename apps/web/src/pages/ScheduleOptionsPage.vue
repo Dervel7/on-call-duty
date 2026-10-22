@@ -18,8 +18,8 @@ import Spinner from '@/components/ui/Spinner.vue'
 // Mirror the API (apps/api cannot be imported here): SCHEDULE_OPTION_COUNT options, and
 // SOLVER_BUDGET_MS (30 s) for the primary option plus ALTERNATIVE_BUDGET_MS (5 s) per alternative.
 const OPTION_COUNT = 3
-// const ESTIMATED_OPTIONS_MS = 30_000 + 2 * 5_000
-const ESTIMATED_OPTIONS_MS = 60_000
+const ESTIMATED_OPTIONS_MS = 25_000 + 2 * 5_000
+//const ESTIMATED_OPTIONS_MS = 60_000
 
 const route = useRoute()
 const router = useRouter()
