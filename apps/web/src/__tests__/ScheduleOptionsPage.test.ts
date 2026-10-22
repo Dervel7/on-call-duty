@@ -66,7 +66,7 @@ async function mountPage(): Promise<VueWrapper> {
   const wrapper = mount(ScheduleOptionsPage)
   await flushPromises()
   // The progress bar fills to 100% before the options show.
-  await vi.advanceTimersByTimeAsync(3_000)
+  await vi.advanceTimersByTimeAsync(6_000)
   await flushPromises()
   return wrapper
 }
@@ -220,6 +220,6 @@ describe('ScheduleOptionsPage', () => {
     await flushPromises()
     await vi.advanceTimersByTimeAsync(2_000)
     expect(wrapper.find('[role="status"] svg.animate-spin').exists()).toBe(true)
-    expect(wrapper.find('[role="progressbar"]').attributes('aria-valuenow')).toBe('10')
+    expect(wrapper.find('[role="progressbar"]').attributes('aria-valuenow')).toBe('5')
   })
 })

@@ -396,7 +396,7 @@ guarantees the minimum roster on those dates before filling any other day, then 
 <p>Choose <span class="kbd">Generate</span>. Generating is blocked if a schedule for that month already exists.
 The system computes up to <strong>three schedule options</strong> for the month and shows them on the
 <strong>Schedule options</strong> page as <strong>Plan A</strong>, <strong>Plan B</strong> and <strong>Plan C</strong>.
-A progress bar shows while the options are computed; this can take up to about 20 seconds.</p>
+A progress bar shows while the options are computed; this can take up to about 40 seconds.</p>
 <ul>
   <li><strong>Plan A</strong> is the solver's first choice. Each other plan shows how many days differ from Plan A.</li>
   <li>The calendar uses the same colours as the preview: <strong>green</strong> for a full day, <strong>yellow</strong> for a
@@ -565,7 +565,7 @@ an earlier one worse:</p>
   <li><strong>Holidays</strong> - weekend and holiday duty counts stay within 1 of each other where possible.</li>
   <li><strong>Extra slots</strong> - as many slots above each day's minimum as possible are filled. An extra slot stays empty rather than give a doctor a second Friday, Saturday or Sunday.</li>
 </ol>
-<p>Each generation has a 10 second time budget and runs in the background, so the application stays responsive. If the
+<p>Each generation has a 30 second time budget and runs in the background, so the application stays responsive. If the
 budget runs out, the best schedule found so far is used. If the solver cannot produce a schedule at all, a simpler
 backup scheduler takes over. The result is stable: generating the same month with the same inputs always yields the same
 roster, unless the time budget runs out.</p>
