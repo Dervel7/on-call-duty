@@ -1,0 +1,248 @@
+# On-Call Duty - four clinics on one server.
+#
+# Each clinic gets its own database, API and web UI. An edge nginx terminates
+# TLS and routes each clinic's domain to that clinic's web container; the web
+# container still proxies /api to its own API, as in the single-clinic stack.
+#
+#   browser -> edge (443) -> web-X -> api-X -> db-X
+#
+# Each clinic has its own network, so one clinic's API cannot reach another
+# clinic's database. Only the edge container publishes ports.
+#
+# Usage (from this directory):
+#   cp .env.example .env    # set domains and secrets
+#   # TLS certificates must exist before the edge starts, see nginx/default.conf
+#   docker compose up -d --build      # build & start
+#   docker compose pull && docker compose up -d   # use prebuilt GHCR images
+#
+# To add or remove a clinic, copy or delete one db/api/web block, its network
+# and volume, its server block in nginx/default.conf and its .env entries.
+
+x-db: &db
+  image: postgres:18-alpine
+  restart: unless-stopped
+  healthcheck:
+    # $$ defers to the container's own environment, so one check fits all clinics.
+    test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+    interval: 10s
+    timeout: 5s
+    retries: 10
+
+x-api: &api
+  image: ghcr.io/dervel7/on-call-duty/api:${IMAGE_TAG:-latest}
+  build:
+    context: ../..
+    dockerfile: apps/api/Dockerfile
+  restart: unless-stopped
+  healthcheck:
+    test:
+      - CMD
+      - node
+      - -e
+      - "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+    interval: 30s
+    timeout: 5s
+    retries: 5
+    start_period: 20s
+
+x-api-env: &api-env
+  NODE_ENV: production
+  PORT: "3000"
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+  JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-1h}
+  COOKIE_SECURE: "true"
+  COOKIE_SAMESITE: lax
+  # edge nginx -> web nginx -> api
+  TRUST_PROXY_HOPS: "2"
+
+x-web: &web
+  image: ghcr.io/dervel7/on-call-duty/web:${IMAGE_TAG:-latest}
+  build:
+    context: ../..
+    dockerfile: apps/web/Dockerfile
+    args:
+      VITE_API_URL: /api
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+    interval: 30s
+    timeout: 5s
+    retries: 5
+
+services:
+  # --- Clinic A ---
+  db-a:
+    <<: *db
+    environment:
+      POSTGRES_USER: oncall
+      POSTGRES_DB: oncall
+      POSTGRES_PASSWORD: ${CLINIC_A_DB_PASSWORD:?set CLINIC_A_DB_PASSWORD}
+    volumes:
+      - clinic-a-db:/var/lib/postgresql
+      - ../../database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../../database/seeds/single-clinic.seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    networks: [clinic-a]
+
+  api-a:
+    <<: *api
+    depends_on:
+      db-a:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+      DATABASE_URL: postgres://oncall:${CLINIC_A_DB_PASSWORD}@db-a:5432/oncall
+      CORS_ORIGIN: https://${CLINIC_A_DOMAIN:?set CLINIC_A_DOMAIN}
+      JWT_ACCESS_SECRET: ${CLINIC_A_JWT_SECRET:?set CLINIC_A_JWT_SECRET}
+    networks: [clinic-a]
+
+  web-a:
+    <<: *web
+    depends_on:
+      api-a:
+        condition: service_healthy
+    environment:
+      API_UPSTREAM: http://api-a:3000
+    networks: [clinic-a, edge]
+
+  # --- Clinic B ---
+  db-b:
+    <<: *db
+    environment:
+      POSTGRES_USER: oncall
+      POSTGRES_DB: oncall
+      POSTGRES_PASSWORD: ${CLINIC_B_DB_PASSWORD:?set CLINIC_B_DB_PASSWORD}
+    volumes:
+      - clinic-b-db:/var/lib/postgresql
+      - ../../database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../../database/seeds/single-clinic.seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    networks: [clinic-b]
+
+  api-b:
+    <<: *api
+    depends_on:
+      db-b:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+      DATABASE_URL: postgres://oncall:${CLINIC_B_DB_PASSWORD}@db-b:5432/oncall
+      CORS_ORIGIN: https://${CLINIC_B_DOMAIN:?set CLINIC_B_DOMAIN}
+      JWT_ACCESS_SECRET: ${CLINIC_B_JWT_SECRET:?set CLINIC_B_JWT_SECRET}
+    networks: [clinic-b]
+
+  web-b:
+    <<: *web
+    depends_on:
+      api-b:
+        condition: service_healthy
+    environment:
+      API_UPSTREAM: http://api-b:3000
+    networks: [clinic-b, edge]
+
+  # --- Clinic C ---
+  db-c:
+    <<: *db
+    environment:
+      POSTGRES_USER: oncall
+      POSTGRES_DB: oncall
+      POSTGRES_PASSWORD: ${CLINIC_C_DB_PASSWORD:?set CLINIC_C_DB_PASSWORD}
+    volumes:
+      - clinic-c-db:/var/lib/postgresql
+      - ../../database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../../database/seeds/single-clinic.seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    networks: [clinic-c]
+
+  api-c:
+    <<: *api
+    depends_on:
+      db-c:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+      DATABASE_URL: postgres://oncall:${CLINIC_C_DB_PASSWORD}@db-c:5432/oncall
+      CORS_ORIGIN: https://${CLINIC_C_DOMAIN:?set CLINIC_C_DOMAIN}
+      JWT_ACCESS_SECRET: ${CLINIC_C_JWT_SECRET:?set CLINIC_C_JWT_SECRET}
+    networks: [clinic-c]
+
+  web-c:
+    <<: *web
+    depends_on:
+      api-c:
+        condition: service_healthy
+    environment:
+      API_UPSTREAM: http://api-c:3000
+    networks: [clinic-c, edge]
+
+  # --- Clinic D ---
+  db-d:
+    <<: *db
+    environment:
+      POSTGRES_USER: oncall
+      POSTGRES_DB: oncall
+      POSTGRES_PASSWORD: ${CLINIC_D_DB_PASSWORD:?set CLINIC_D_DB_PASSWORD}
+    volumes:
+      - clinic-d-db:/var/lib/postgresql
+      - ../../database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../../database/seeds/single-clinic.seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    networks: [clinic-d]
+
+  api-d:
+    <<: *api
+    depends_on:
+      db-d:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+      DATABASE_URL: postgres://oncall:${CLINIC_D_DB_PASSWORD}@db-d:5432/oncall
+      CORS_ORIGIN: https://${CLINIC_D_DOMAIN:?set CLINIC_D_DOMAIN}
+      JWT_ACCESS_SECRET: ${CLINIC_D_JWT_SECRET:?set CLINIC_D_JWT_SECRET}
+    networks: [clinic-d]
+
+  web-d:
+    <<: *web
+    depends_on:
+      api-d:
+        condition: service_healthy
+    environment:
+      API_UPSTREAM: http://api-d:3000
+    networks: [clinic-d, edge]
+
+  # --- Edge: TLS + routing by domain ---
+  edge:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      web-a:
+        condition: service_healthy
+      web-b:
+        condition: service_healthy
+      web-c:
+        condition: service_healthy
+      web-d:
+        condition: service_healthy
+    environment:
+      # Rendered into nginx/default.conf by the nginx image at start.
+      CLINIC_A_DOMAIN: ${CLINIC_A_DOMAIN}
+      CLINIC_B_DOMAIN: ${CLINIC_B_DOMAIN}
+      CLINIC_C_DOMAIN: ${CLINIC_C_DOMAIN}
+      CLINIC_D_DOMAIN: ${CLINIC_D_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/templates/default.conf.template:ro
+      - ${CERTS_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
+    networks: [edge]
+
+networks:
+  clinic-a:
+  clinic-b:
+  clinic-c:
+  clinic-d:
+  edge:
+
+volumes:
+  clinic-a-db:
+  clinic-b-db:
+  clinic-c-db:
+  clinic-d-db:

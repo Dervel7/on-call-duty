@@ -175,8 +175,14 @@ Root scripts (run from the repository root):
 | `COOKIE_SECURE` | `apps/api/.env` | Refresh-cookie `Secure` flag (default true in production, false in dev) |
 | `COOKIE_SAMESITE` | `apps/api/.env` | Refresh-cookie `SameSite` (default `lax`) |
 | `COOKIE_DOMAIN` | `apps/api/.env` | Optional refresh-cookie domain |
+| `TRUST_PROXY_HOPS` | `apps/api/.env` | Reverse proxies in front of the API, used to find the client IP for rate limiting and logs (default `1`; `2` behind an extra TLS edge proxy) |
 
 The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credentials live in a single place.
+
+## Deployment (Docker)
+
+- **One clinic:** `docker-compose.yml` at the repository root (db, api, web), configured from the root `.env` (copy `.env.example`). The web UI is published on `127.0.0.1:${WEB_PORT}` by default, for a TLS reverse proxy on the same host; set `WEB_BIND_ADDRESS=0.0.0.0` to serve browsers directly.
+- **Several clinics on one server:** `deploy/multi-clinic/` runs four separate stacks (own database, API and web UI per clinic) behind an edge nginx that terminates TLS and routes each clinic's domain. Configure `deploy/multi-clinic/.env` (copy `.env.example`); setup and certificate steps are in the headers of `docker-compose.yml` and `nginx/default.conf` there.
 
 ## API conventions
 
