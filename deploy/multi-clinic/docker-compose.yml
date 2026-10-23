@@ -16,7 +16,8 @@
 #   docker compose pull && docker compose up -d   # use prebuilt GHCR images
 #
 # To add or remove a clinic, copy or delete one db/api/web block, its network
-# and volume, its server block in nginx/default.conf and its .env entries.
+# and volume, its entries in the edge's depends_on and environment, its server
+# block in nginx/default.conf and its .env entries.
 
 x-db: &db
   image: postgres:18-alpine
