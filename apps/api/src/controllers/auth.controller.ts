@@ -2,10 +2,9 @@ import type { CookieOptions, NextFunction, Request, Response } from 'express'
 import { env } from '../config/env.ts'
 import { ok } from '../lib/envelope.ts'
 import { HttpError } from '../lib/http-error.ts'
+import { REFRESH_COOKIE_NAME } from '../lib/token.ts'
 import * as authService from '../services/auth.service.ts'
 import { refreshExpiryMs } from '../services/token.service.ts'
-
-const COOKIE_NAME = 'refresh_token'
 
 function cookieOptions(): CookieOptions {
   return {
@@ -19,14 +18,14 @@ function cookieOptions(): CookieOptions {
 }
 
 function setRefreshCookie(res: Response, token: string): void {
-  res.cookie(COOKIE_NAME, token, cookieOptions())
+  res.cookie(REFRESH_COOKIE_NAME, token, cookieOptions())
 }
 
 function clearRefreshCookie(res: Response): void {
   // No maxAge: express turns it into a future Expires that keeps the cookie
   // alive instead of deleting it.
   const { maxAge: _maxAge, ...clear } = cookieOptions()
-  res.clearCookie(COOKIE_NAME, clear)
+  res.clearCookie(REFRESH_COOKIE_NAME, clear)
 }
 
 export const authController = {
@@ -41,7 +40,7 @@ export const authController = {
   },
   async refresh(req: Request, res: Response, next: NextFunction) {
     try {
-      const token = req.cookies?.[COOKIE_NAME]
+      const token = req.cookies?.[REFRESH_COOKIE_NAME]
       if (!token) throw new HttpError(401, 'Invalid refresh token')
       const { user, accessToken, refreshToken } = await authService.refresh(token)
       setRefreshCookie(res, refreshToken)
@@ -54,7 +53,7 @@ export const authController = {
   },
   async logout(req: Request, res: Response, next: NextFunction) {
     try {
-      const token = req.cookies?.[COOKIE_NAME]
+      const token = req.cookies?.[REFRESH_COOKIE_NAME]
       if (token) await authService.logout(token)
       clearRefreshCookie(res)
       res.status(204).end()

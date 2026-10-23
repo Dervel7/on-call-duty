@@ -23,9 +23,9 @@ import { userRouter } from './routes/user.routes.ts'
 
 export const app = express()
 
-// Deployed behind the nginx reverse proxy; required for req.ip (rate limiting)
-// to reflect the real client instead of the proxy address.
-app.set('trust proxy', 1)
+// Deployed behind reverse proxies; required for req.ip (rate limiting) to
+// reflect the real client instead of the proxy address.
+app.set('trust proxy', env.TRUST_PROXY_HOPS)
 
 app.use(helmet())
 app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }))

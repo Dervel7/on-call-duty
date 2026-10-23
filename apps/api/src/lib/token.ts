@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 
+export const REFRESH_COOKIE_NAME = 'refresh_token'
+
 export function generateRefreshToken(): string {
   return randomBytes(48).toString('base64url')
 }

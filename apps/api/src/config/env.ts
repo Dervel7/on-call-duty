@@ -11,6 +11,10 @@ const schema = z
     DATABASE_URL: z.string().min(1),
     CORS_ORIGIN: z.string().default('http://localhost:5174'),
     LOG_LEVEL: z.string().default('info'),
+    // Reverse proxies in front of the API: 1 for the bundled web nginx, 2 when
+    // an edge proxy (TLS, per-clinic routing) sits in front of it. req.ip, and
+    // so rate limiting and logs, is wrong if this does not match the deployment.
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(1),
 
     JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
     JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),

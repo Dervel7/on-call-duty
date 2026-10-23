@@ -11,7 +11,10 @@
 #
 # Pin a released version: IMAGE_TAG=1.2.3 docker compose up -d
 #
-# The web UI is published on host port ${WEB_PORT:-8080}.
+# The web UI is published on ${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8080}.
+# Docker publishes ports past host firewalls (ufw), so the default keeps it
+# local for a TLS reverse proxy on the same host. Set WEB_BIND_ADDRESS=0.0.0.0
+# only when browsers must reach this port directly.
 
 services:
   db:
@@ -56,6 +59,7 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-1h}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
     healthcheck:
       test:
         - CMD
@@ -79,7 +83,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8080}:80"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
       interval: 30s

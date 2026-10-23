@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express'
 import { env } from '../config/env.ts'
 import { HttpError } from '../lib/http-error.ts'
+import { hashToken, REFRESH_COOKIE_NAME } from '../lib/token.ts'
 
 interface Options {
   windowMs: number
@@ -43,4 +44,14 @@ export function rateLimit({ windowMs, limit, keyFn }: Options) {
     if (entry.count > limit) throw new HttpError(429, 'Too many requests; try again later')
     next()
   }
+}
+
+/**
+ * One bucket per refresh session. A hospital LAN usually reaches the server
+ * through a single NAT address, so an IP key would make every user share one
+ * budget. Requests without the cookie fall back to the client IP.
+ */
+export function refreshSessionKey(req: Request): string {
+  const token: unknown = req.cookies?.[REFRESH_COOKIE_NAME]
+  return typeof token === 'string' && token ? `session:${hashToken(token)}` : `ip:${req.ip ?? 'unknown'}`
 }
