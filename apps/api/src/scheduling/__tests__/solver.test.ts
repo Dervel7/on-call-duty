@@ -10,6 +10,7 @@ import {
 import { dayOfWeekISO, isOpenDutyDate, minimumForDate, prevDate, slotsForDate } from '../dates.ts'
 import { generateGreedy } from '../engine.ts'
 import { loadSolver, type SolverLoader } from '../highs.ts'
+import { buildModel, capacityOf, indexModel, type Stage } from '../solver-model.ts'
 import { generate, generateOptions } from '../solver.ts'
 import type { GenerateResult, SchedulingContext } from '../types.ts'
 import { october2026 } from './fixtures/october-2026.ts'
@@ -222,21 +223,21 @@ describe('solver: budget and fallback', () => {
   })
 
   it('uses the best solution at the time limit and says so', async () => {
-    // Solve 1 is the capacity stage, solve 2 the first coverage stage.
-    const result = await generate(c, timeLimitedLoader(2, true))
+    // Solve 1 is the merged coverage step (capacity needs no solve).
+    const result = await generate(c, timeLimitedLoader(1, true))
     expect(result.assignments.length).toBeGreaterThanOrEqual(3)
     expect(result.assignments.every((a) => a.reason.startsWith('solver time limit'))).toBe(true)
     expectHardRules(c, result)
   })
 
   it("keeps the previous stage's solution when a later stage finds none in time", async () => {
-    const result = await generate(c, timeLimitedLoader(3, false))
+    const result = await generate(c, timeLimitedLoader(2, false))
     expect(result.assignments.length).toBeGreaterThanOrEqual(3)
     expect(result.assignments.every((a) => a.reason.startsWith('solver time limit'))).toBe(true)
   })
 
   it('falls back when no schedule is found in time', async () => {
-    const result = await generate(c, timeLimitedLoader(2, false))
+    const result = await generate(c, timeLimitedLoader(1, false))
     expect(result.assignments.every((a) => a.reason.endsWith('; fallback'))).toBe(true)
   })
 })
@@ -346,4 +347,62 @@ describe('solver: options', () => {
       expect(options[0]).toEqual(await generate(c))
     })
   })
+})
+
+describe('solver: merged and skipped stages', () => {
+  /** The `fill` model after solving every stage on its own, in order. */
+  async function stageByStageFill(c: SchedulingContext): Promise<string | null> {
+    const index = indexModel(c)
+    const capacity = capacityOf(index)
+    const optima = new Map<Stage, number>()
+    const solver = await loadSolver()
+    for (const stage of index.stages.filter((s) => s !== 'fill')) {
+      const lp = buildModel(index, stage, { optima, capacity })
+      if (!lp) continue
+      const options = { output_flag: false, threads: 1, random_seed: 0, mip_rel_gap: 0 }
+      const solved = await solver.solve(lp, options, Date.now() + SLOW)
+      expect(solved?.Status).toBe('Optimal')
+      optima.set(stage, Math.round(solved!.ObjectiveValue))
+    }
+    return buildModel(index, 'fill', { optima, capacity })
+  }
+
+  /** The `fill` model the solver chain builds. */
+  async function chainFill(c: SchedulingContext): Promise<string | undefined> {
+    const lps: string[] = []
+    await generate(c, async () => {
+      const real = await loadSolver()
+      return { solve: (lp, options, deadline) => (lps.push(lp), real.solve(lp, options, deadline)) }
+    })
+    return lps.find((lp) => lp.startsWith('Maximize'))
+  }
+
+  // Short-staffed months leave days below their minimum, so every cover
+  // stage has a positive optimum and the merged weights must separate them.
+  const november = Array.from({ length: 14 }, (_, i) => {
+    const date = `2026-11-${String(i + 1).padStart(2, '0')}`
+    const weekend = [0, 6].includes(dayOfWeekISO(date))
+    return day(date, weekend, weekend || i === 9)
+  })
+  const cases: Array<[string, () => SchedulingContext]> = [
+    ['October 2026, Main Clinic', october2026],
+    [
+      'short-staffed with critical days',
+      () =>
+        ctx(november, [dr(1, 4), dr(2, 3), dr(3, 5), dr(4, 2)], {
+          unavailability: new Map([[3, [{ start: '2026-11-04', end: '2026-11-08' }]]]),
+          priorDayDoctorIds: new Set([2]),
+          openDuty: { anchorDate: '2026-11-01', intervalDays: 4 },
+          slots: { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 2 },
+          minimums: { openDutyMinimum: 3, postOpenDutyMinimum: 2, closedDutyMinimum: 2 },
+        }),
+    ],
+    ['short-staffed regular days', () => ctx(november, [dr(1, 5), dr(2, 5), dr(3, 3)])],
+  ]
+
+  it.each(cases)('reaches the stage-by-stage optima: %s', async (_, make) => {
+    const expected = await stageByStageFill(make())
+    expect(expected).not.toBeNull()
+    expect(await chainFill(make())).toEqual(expected)
+  }, SLOW)
 })

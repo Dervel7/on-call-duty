@@ -7,8 +7,11 @@ import { loadSolver, type Solver, type SolverLoader } from './highs.ts'
 import {
   FRI_SAT_SUN,
   buildModel,
+  capacityOf,
+  holidayCells,
   indexModel,
   sameWeekday,
+  stageValue,
   type ModelBounds,
   type ModelCell,
   type ModelIndex,
@@ -129,32 +132,36 @@ async function solveAlternative(
 }
 
 /**
- * Solves the capacity stage, then every objective stage in order, and keeps
- * the last solution found. A stage that stops at the time limit ends the
- * chain with the best solution so far.
+ * Solves every step in order and keeps the last solution found. A step that
+ * stops at the time limit ends the chain with the best solution so far.
+ *
+ * Every minimized stage objective is at least 0, so a step whose stages are
+ * all 0 for the current schedule is already optimal and is not solved (the
+ * empty schedule is feasible for every model, so it is the start). A merged
+ * cover step reads each stage optimum from its solution. Both give the same
+ * optima as solving stage by stage, so the bound rows of later stages, and
+ * the `fill` and alternative models built from them, are unchanged.
  */
 async function solveStages(solver: Solver, index: ModelIndex, deadline: number): Promise<StagesResult> {
-  const capacity = new Map<number, number>()
+  const capacity = capacityOf(index)
   const optima = new Map<Stage, number>()
   const result = (solution: Solution | null): StagesResult => ({ solution, optima, capacity })
   let chosen: Set<string> | null = null
-  let solvedAny = false
-  for (const stage of index.stages) {
-    const lp = buildModel(index, stage, { optima, capacity })
-    if (!lp) continue
-    const solved = await solveOnce(solver, lp, deadline, stage)
-    if (stage === 'capacity') {
-      if (solved?.Status !== 'Optimal') return result(null)
-      const best = chosenCells(index, solved.Columns)
-      for (const [id, cells] of index.cellsByDoctor)
-        capacity.set(id, cells.filter((c) => best.has(c.name)).length)
+  for (const step of index.steps) {
+    const current = chosen ?? new Set<string>()
+    if (!step.includes('fill') && step.every((s) => stageValue(index, s, current, capacity) === 0)) {
+      for (const s of step) optima.set(s, 0)
       continue
     }
-    solvedAny = true
+    const lp = buildModel(index, step, { optima, capacity })
+    if (!lp) continue
+    const solved = await solveOnce(solver, lp, deadline, step.join(', '))
     if (solved?.Status === 'Optimal') {
-      chosen = chosenCells(index, solved.Columns)
+      const best = chosenCells(index, solved.Columns)
+      chosen = best
       // Every stage objective is integral, so the rounded bound is exact.
-      optima.set(stage, Math.round(solved.ObjectiveValue))
+      if (step.length === 1) optima.set(step[0]!, Math.round(solved.ObjectiveValue))
+      else for (const s of step) optima.set(s, stageValue(index, s, best, capacity))
       continue
     }
     // A finite objective at the time limit means HiGHS holds an incumbent.
@@ -162,9 +169,8 @@ async function solveStages(solver: Solver, index: ModelIndex, deadline: number):
       chosen = chosenCells(index, solved.Columns)
     return result(chosen ? { chosen, status: 'time limit' } : null)
   }
-  // No stage had anything to optimize: no possible duty and no minimum.
-  if (!solvedAny) return result({ chosen: new Set(), status: 'optimal' })
-  return result(chosen ? { chosen, status: 'optimal' } : null)
+  // Nothing solved: no possible duty and no minimum, so the empty schedule.
+  return result({ chosen: chosen ?? new Set(), status: 'optimal' })
 }
 
 /**
@@ -176,11 +182,11 @@ async function solveOnce(
   solver: Solver,
   lp: string,
   deadline: number,
-  stage: Stage,
+  step: string,
 ): Promise<LegacyHighsSolution | null> {
   const result = await solver.solve(lp, SOLVE_OPTIONS, deadline)
   if (!result || result.Status === 'Optimal' || result.Status === 'Time limit reached') return result
-  throw new Error(`HiGHS returned "${result.Status}" at stage ${stage}`)
+  throw new Error(`HiGHS returned "${result.Status}" at stage ${step}`)
 }
 
 function chosenCells(index: ModelIndex, columns: LegacyHighsSolution['Columns']): Set<string> {
@@ -228,8 +234,7 @@ function decode(ctx: SchedulingContext, index: ModelIndex, solution: Solution): 
       // Only the extra duties are repeats: the chronologically last ones.
       if (same.length > 1) repeats.push(...same.filter(needed).slice(1 - same.length))
     }
-    const nonCritical = cells.filter((c) => c.day.day.isHoliday && !c.day.critical)
-    const critical = cells.filter((c) => c.day.day.isHoliday && c.day.critical)
+    const { nonCritical, critical } = holidayCells(cells)
     const excess = nonCritical.length - Math.max(0, HOLIDAY_DUTY_CAP - critical.length)
     if (excess > 0) {
       for (const c of nonCritical.filter(needed).slice(-excess))

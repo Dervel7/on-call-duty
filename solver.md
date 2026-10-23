@@ -6,7 +6,7 @@ on which day. Source of truth: `apps/api/src/scheduling/`.
 | File | Role |
 |---|---|
 | `solver.ts` | Orchestrates the exact solve: stage chain, budgets, fallback |
-| `solver-model.ts` | Builds the MIP as CPLEX LP text, one model per stage |
+| `solver-model.ts` | Builds the MIP as CPLEX LP text, one model per step; capacity DP; stage values |
 | `highs.ts` | HiGHS (WASM) in a worker thread; one solve at a time |
 | `engine.ts` | Greedy fallback engine |
 | `conflicts.ts` | Shared eligibility rule (`blockingRule`) and conflict tally |
@@ -23,17 +23,16 @@ administrator's chosen option is saved as a draft).
 ```mermaid
 flowchart TD
     A[Service builds SchedulingContext] --> B[indexModel: one binary cell per possible duty]
-    B --> C[capacity]
-    C --> D[cover-critical-1..p]
-    D --> E[cover-regular-1..q]
-    E --> F[relax]
+    B --> C[capacityOf: per-doctor dynamic program, no solve]
+    C --> D[cover-critical-1..p + cover-regular-1..q: merged weighted steps]
+    D --> F[relax]
     F --> G[weekdays]
     G --> H[share]
     H --> I[holidays]
     I --> J[fill]
     J --> K[decode: assignments + reasons + conflicts]
-    C -- not optimal --> L[greedy fallback]
-    B -- solver load error --> L
+    B -- solver load error --> L[greedy fallback]
+    D -- no incumbent within budget --> L
     K -- options requested and primary proven optimal --> M[alternative stage: nogood cuts]
 ```
 
@@ -120,7 +119,6 @@ that keep every earlier stage optimal.
 
 | Priority | Stage | Minimizes / maximizes |
 |---|---|---|
-| 0 | `capacity` | - (see below) |
 | 1 | `cover-critical-<p>` | Critical days with fewer than `p` on-call doctors |
 | 2 | `cover-regular-<p>` | Regular days with fewer than `p` on-call doctors |
 | 3 | `relax` | Number of fairness-cap relaxations (holiday overages + Fri/Sat/Sun repeats) |
@@ -139,11 +137,13 @@ day its first doctor before `cover-regular-2` gives any day a second, and so
 on. This is exactly how the solver "places doctors in positions": coverage
 position by coverage position, critical days before all regular days.
 
-**Capacity stage.** Maximizes total assigned cells under per-doctor rules only
-(no day rows yet). Because those rules do not couple doctors, the result is
-each doctor's own ceiling: the most duties they could take given availability,
-monthly cap, open-duty cap, and the caps above. These capacities are not saved
-as duties; they are only weights for the `share` stage.
+**Capacity.** `capacityOf` computes each doctor's ceiling: the most duties
+they could take on their own given availability, monthly cap, back-to-back,
+open-duty cap, holiday cap and Fri/Sat/Sun cap, with no relaxation. These rules
+do not couple doctors, so a dynamic program over each doctor's days is exact
+and no solve is needed. Every rule is downward closed, so the monthly cap only
+clips the result. Capacities are not saved as duties; they are only weights
+for the `share` stage.
 
 **Share stage.** With `E = sum` of positive capacities and `t_d` = doctor d's
 duty count, the rows `fshi_<d>` / `fslo_<d>` enforce
@@ -161,7 +161,29 @@ the spread stays at 1.
 between a day's minimum and its slot count once every fairness goal is as good
 as it can get.
 
-### 4.3 Decoding the solution (`decode` in `solver.ts`)
+### 4.3 Solve steps: same optima, fewer solves
+
+The stages are solved as `index.steps`. Every step gives exactly the optima
+that solving stage by stage would give. The `fill` and alternative models are
+built only from those optima and the capacities, so the schedules are
+identical.
+
+- **Merged cover steps.** Consecutive cover stages are one solve with a
+  weighted objective. A stage weighs more than the largest possible total of
+  every later stage of its step (`w_k` = product of `terms_j + 1` over the
+  later stages), so the weighted optimum is the lexicographic one. Each
+  stage's optimum is then read from the solution with `stageValue`. A step
+  closes when its largest weighted total would pass 1,000,000, which keeps
+  the objective small and exact.
+- **Zero skip.** Every minimized objective is at least 0. When the current
+  schedule (the empty one before the first solve) already scores 0 on every
+  stage of a step, the step is optimal at 0 and is not solved. `fill` is
+  always solved.
+- **No-op rows.** Before `relax` the holiday-cap and Fri/Sat/Sun rows are
+  left out: their relaxation integers can always absorb them (`ho = n` with
+  `hb = 1`, `rp` = repeats), so they never bind in the cover steps.
+
+### 4.4 Decoding the solution (`decode` in `solver.ts`)
 
 Cells with `Primal > 0.5` become assignments. Every assignment persists a
 `reason`, built from the solve status plus placement notes:
@@ -181,7 +203,7 @@ minimum, assigned count, and a tally counting, for every doctor, the first
 computed with fairness relaxed, mirroring the last thing the solver would have
 tried. The service layer refuses to persist a schedule with short days (422).
 
-### 4.4 Alternative options
+### 4.5 Alternative options
 
 `POST /schedules/options` asks for up to 3 schedules. An alternative stage
 rebuilds the model with:
@@ -196,13 +218,12 @@ optimal. Alternatives are attempted only when the primary solve was proven
 optimal; each gets its own budget and a failed or infeasible solve just ends
 the chain, keeping the options found so far.
 
-### 4.5 Budget and fallback
+### 4.6 Budget and fallback
 
-- `SOLVER_BUDGET_MS` (10 s) covers all stages of the primary solve; each
+- `SOLVER_BUDGET_MS` (10 s) covers all steps of the primary solve; each
   alternative gets `ALTERNATIVE_BUDGET_MS` (5 s).
-- The `capacity` stage must finish `Optimal`; otherwise the whole exact solve
-  is abandoned. An objective stage that hits the time limit keeps its incumbent
-  and ends the chain; with no incumbent the exact solve is abandoned.
+- A step that hits the time limit keeps its incumbent and ends the chain;
+  with no incumbent the exact solve is abandoned.
 - Abandonment (solver load error, crash, infeasible within budget) falls back
   to the greedy engine; every greedy reason gets a `; fallback` suffix so
   proven-optimal and fallback schedules are distinguishable in the data.

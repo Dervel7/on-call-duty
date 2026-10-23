@@ -12,10 +12,10 @@ import type { DaySpec, DoctorSpec, SchedulingContext } from './types.ts'
 /**
  * MIP model of the scheduling rules in CPLEX LP text, one text per stage.
  *
- * The `capacity` stage measures each doctor's capacity: the most duties they
- * could take on their own under every per-doctor rule, with no fairness
- * relaxation. The other stages are lexicographic objectives, highest
- * priority first (design levels 1-6):
+ * Each doctor's capacity (the most duties they could take on their own
+ * under every per-doctor rule, with no fairness relaxation) is computed
+ * exactly by `capacityOf`, without a solve. The stages are lexicographic
+ * objectives, highest priority first (design levels 1-6):
  *
  * 1. `cover-*`: minimum coverage, in the greedy fill order. Critical days
  *    (open on-call days and the day after) reach their minimum first; then
@@ -35,7 +35,6 @@ import type { DaySpec, DoctorSpec, SchedulingContext } from './types.ts'
  */
 
 export type Stage =
-  | 'capacity'
   | `cover-critical-${number}`
   | `cover-regular-${number}`
   | 'relax'
@@ -44,6 +43,13 @@ export type Stage =
   | 'holidays'
   | 'fill'
   | 'alternative'
+
+/**
+ * Largest weighted objective of one merged cover solve. Consecutive cover
+ * stages share one solve while their weighted objective stays below this,
+ * so HiGHS works with small exact integers.
+ */
+const COVER_WEIGHT_LIMIT = 1_000_000
 
 /** The Fri/Sat/Sun weekdays of the one-each-per-month goal. */
 export const FRI_SAT_SUN = [
@@ -77,14 +83,22 @@ export interface ModelIndex {
   cellsByDoctor: Map<number, ModelCell[]>
   /** Each date's cells, doctor id ascending. */
   cellsByDate: Map<string, ModelCell[]>
-  /** Solve order, starting with `capacity`. */
+  /** Lexicographic stage order, highest priority first. */
   stages: Stage[]
+  /** Solve order: `stages` with consecutive cover stages merged into one weighted solve. */
+  steps: Stage[][]
+  /**
+   * Objective weight of each cover stage inside its merged step: larger than
+   * the largest total of every later stage of the step, so the weighted
+   * optimum is the lexicographic one. Used only when a step has several stages.
+   */
+  weights: Map<Stage, number>
 }
 
 export interface ModelBounds {
   /** Optimum of every solved stage before the one being built. */
   optima: ReadonlyMap<Stage, number>
-  /** Capacity-stage result per doctor id; required from the `share` stage on. */
+  /** Per-doctor capacity from `capacityOf`; required from the `share` stage on. */
   capacity: ReadonlyMap<number, number>
   /** Chosen cell names of every earlier schedule option; `alternative` stage only. */
   avoid?: readonly ReadonlySet<string>[]
@@ -118,21 +132,162 @@ export function indexModel(ctx: SchedulingContext): ModelIndex {
     }
     cellsByDoctor.set(doctor.id, cells)
   }
-  const positions = (critical: boolean): number[] => {
+  const cover = [true, false].flatMap((critical) => {
     const deepest = Math.max(0, ...days.filter((d) => d.critical === critical).map((d) => d.minimum))
-    return Array.from({ length: deepest }, (_, i) => i + 1)
+    return Array.from({ length: deepest }, (_, i) => ({
+      stage: coverStage(critical, i + 1),
+      terms: days.filter((d) => d.critical === critical && d.minimum > i).length,
+    }))
+  })
+  // Weights are built from the last stage of a step back to the first:
+  // w_k = product of (terms_j + 1) over the later stages j of the step.
+  const steps: Stage[][] = []
+  const weights = new Map<Stage, number>()
+  let group: typeof cover = []
+  const close = (): void => {
+    let weight = 1
+    for (const { stage, terms } of [...group].reverse()) {
+      weights.set(stage, weight)
+      weight *= terms + 1
+    }
+    steps.push(group.map((g) => g.stage))
+    group = []
   }
-  const stages: Stage[] = [
-    'capacity',
-    ...positions(true).map((p): Stage => `cover-critical-${p}`),
-    ...positions(false).map((p): Stage => `cover-regular-${p}`),
-    'relax',
-    'weekdays',
-    'share',
-    'holidays',
-    'fill',
-  ]
-  return { doctors, days, cellsByDoctor, cellsByDate, stages }
+  let product = 1
+  for (const c of cover) {
+    if (group.length > 0 && product * (c.terms + 1) > COVER_WEIGHT_LIMIT) {
+      close()
+      product = 1
+    }
+    group.push(c)
+    product *= c.terms + 1
+  }
+  if (group.length > 0) close()
+  const rest: Stage[] = ['relax', 'weekdays', 'share', 'holidays', 'fill']
+  steps.push(...rest.map((s) => [s]))
+  const stages: Stage[] = [...cover.map((c) => c.stage), ...rest]
+  return { doctors, days, cellsByDoctor, cellsByDate, stages, steps, weights }
+}
+
+const coverStage = (critical: boolean, p: number): Stage =>
+  critical ? `cover-critical-${p}` : `cover-regular-${p}`
+
+/** A doctor's holiday cells, split by whether the holiday cap exempts them. */
+export function holidayCells(cells: readonly ModelCell[]): { nonCritical: ModelCell[]; critical: ModelCell[] } {
+  return {
+    nonCritical: cells.filter((c) => c.day.day.isHoliday && !c.day.critical),
+    critical: cells.filter((c) => c.day.day.isHoliday && c.day.critical),
+  }
+}
+
+/** Doctors with a positive capacity: the ones the fair share is computed over. */
+const sharedDoctors = (index: ModelIndex, capacity: ReadonlyMap<number, number>): DoctorSpec[] =>
+  index.doctors.filter((d) => (capacity.get(d.id) ?? 0) > 0)
+
+/**
+ * Each doctor's capacity: the most duties they could take on their own under
+ * the monthly cap, back-to-back, open-duty, holiday and Fri/Sat/Sun rules,
+ * with no relaxation. Doctors do not couple under these rules, so a dynamic
+ * program over the doctor's days is exact. Every rule is downward closed
+ * (dropping a duty never breaks one), so the monthly cap only clips the
+ * result.
+ */
+export function capacityOf(index: ModelIndex): Map<number, number> {
+  const capacity = new Map<number, number>()
+  for (const doctor of index.doctors) {
+    const cells = index.cellsByDoctor.get(doctor.id) ?? []
+    // State after each cell -> most duties so far. `c` (critical holidays)
+    // saturates above the cap: beyond it every count behaves the same.
+    interface State { taken: boolean; open: number; n: number; c: number; mask: number }
+    const key = (s: State): string => `${+s.taken}|${s.open}|${s.n}|${s.c}|${s.mask}`
+    let states = new Map<string, { state: State; count: number }>([
+      ['', { state: { taken: false, open: 0, n: 0, c: 0, mask: 0 }, count: 0 }],
+    ])
+    cells.forEach((cell, i) => {
+      const adjacent = i > 0 && nextDate(cells[i - 1]!.day.day.date) === cell.day.day.date
+      const next = new Map<string, { state: State; count: number }>()
+      const keep = (state: State, count: number): void => {
+        const k = key(state)
+        if ((next.get(k)?.count ?? -1) < count) next.set(k, { state, count })
+      }
+      const bit = isFriSatSun(cell.day.day) ? 1 << cell.day.day.dayOfWeek : 0
+      const holiday = cell.day.day.isHoliday
+      for (const { state, count } of states.values()) {
+        keep({ ...state, taken: false }, count)
+        if (state.taken && adjacent) continue
+        const open = state.open + (cell.day.open ? 1 : 0)
+        const n = state.n + (holiday && !cell.day.critical ? 1 : 0)
+        const c = Math.min(HOLIDAY_DUTY_CAP + 1, state.c + (holiday && cell.day.critical ? 1 : 0))
+        if (open > OPEN_DUTY_DUTY_CAP || (state.mask & bit) !== 0) continue
+        if (n > 0 && n + c > HOLIDAY_DUTY_CAP) continue
+        keep({ taken: true, open, n, c, mask: state.mask | bit }, count + 1)
+      }
+      states = next
+    })
+    const best = Math.max(0, ...[...states.values()].map((s) => s.count))
+    capacity.set(doctor.id, Math.min(doctor.maxMonthlyDuties, best))
+  }
+  return capacity
+}
+
+/**
+ * Value of a minimized stage objective for the schedule `chosen`, with every
+ * auxiliary variable at its smallest feasible value. Mirrors the rows of
+ * `buildModel`; the stage must be a minimized one.
+ */
+export function stageValue(
+  index: ModelIndex,
+  stage: Stage,
+  chosen: ReadonlySet<string>,
+  capacity: ReadonlyMap<number, number>,
+): number {
+  const picked = (cells: readonly ModelCell[]): number => cells.filter((c) => chosen.has(c.name)).length
+  if (stage.startsWith('cover-')) {
+    const p = Number(stage.slice(stage.lastIndexOf('-') + 1))
+    return index.days.filter(
+      (d) =>
+        d.minimum >= p && coverStage(d.critical, p) === stage && picked(index.cellsByDate.get(d.day.date) ?? []) < p,
+    ).length
+  }
+  const cellsOf = (id: number): ModelCell[] => index.cellsByDoctor.get(id) ?? []
+  switch (stage) {
+    case 'relax':
+      return index.doctors.reduce((sum, doctor) => {
+        const cells = cellsOf(doctor.id)
+        const holidays = holidayCells(cells)
+        const n = picked(holidays.nonCritical)
+        // ho >= n + c - cap without the exemption branch, ho >= n with it.
+        const over = Math.max(0, Math.min(n + picked(holidays.critical) - HOLIDAY_DUTY_CAP, n))
+        const repeats = FRI_SAT_SUN.reduce((s, w) => s + Math.max(0, picked(sameWeekday(cells, w.dayOfWeek)) - 1), 0)
+        return sum + over + repeats
+      }, 0)
+    case 'weekdays':
+      return index.doctors.reduce((sum, doctor) => {
+        const missing = FRI_SAT_SUN.filter((w) => {
+          const same = sameWeekday(cellsOf(doctor.id), w.dayOfWeek)
+          return same.length > 0 && picked(same) === 0
+        })
+        return sum + missing.length
+      }, 0)
+    case 'share': {
+      const shared = sharedDoctors(index, capacity)
+      if (shared.length < 2) return 0
+      const e = shared.reduce((sum, d) => sum + (capacity.get(d.id) ?? 0), 0)
+      const totals = shared.map((d) => picked(cellsOf(d.id)))
+      const total = totals.reduce((sum, t) => sum + t, 0)
+      const worst = Math.max(...shared.map((d, i) => Math.abs(e * totals[i]! - (capacity.get(d.id) ?? 0) * total)))
+      return Math.max(0, worst - (e - 1))
+    }
+    case 'holidays': {
+      const counts = index.doctors
+        .map((d) => cellsOf(d.id).filter((c) => c.day.day.isHoliday))
+        .filter((cells) => cells.length > 0)
+        .map(picked)
+      return counts.length < 2 ? 0 : Math.max(0, Math.max(...counts) - Math.min(...counts) - 1)
+    }
+    default:
+      throw new Error(`stage ${stage} is not minimized`)
+  }
 }
 
 type Term = readonly [coefficient: number, variable: string]
@@ -189,16 +344,18 @@ class LpText {
 }
 
 /**
- * LP text for `stage`, or null when the stage has nothing to optimize (for
- * example no Fri/Sat/Sun duty is possible), so the caller skips it.
+ * LP text for `step` (one stage, or consecutive cover stages solved as one
+ * weighted objective), or null when it has nothing to optimize (for example
+ * no Fri/Sat/Sun duty is possible), so the caller skips it.
  */
-export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds): string | null {
+export function buildModel(index: ModelIndex, step: Stage | readonly Stage[], bounds: ModelBounds): string | null {
+  const group = typeof step === 'string' ? [step] : step
+  const stage = group[0]!
   const lp = new LpText()
   const avoid = bounds.avoid ?? []
   // The alternative keeps every stage at its optimum, so every block is built.
   const rank = stage === 'alternative' ? index.stages.length : index.stages.indexOf(stage)
   const reached = (s: Stage): boolean => index.stages.indexOf(s) <= rank
-  const relax = stage !== 'capacity'
   const allCells = [...index.cellsByDoctor.values()].flat()
   if (stage === 'alternative' && (allCells.length === 0 || avoid.length === 0)) return null
   lp.binaries.push(...allCells.map((c) => c.name))
@@ -225,30 +382,30 @@ export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds)
     const open = cells.filter((c) => c.day.open)
     if (open.length > OPEN_DUTY_DUTY_CAP) lp.row(`open_${id}`, ones(open), '<=', OPEN_DUTY_DUTY_CAP)
 
+    // Before `relax` the relaxation integers can always absorb these rows
+    // (ho = n with hb = 1, rp = repeats), so they cannot bind and are left out.
+    if (!reached('relax')) continue
+
     // Holiday cap: non-critical holiday duties n <= max(0, cap - c) + over,
     // c = critical holiday duties (exempt from the cap but counted). The
     // binary picks the c > cap branch, which allows no non-critical holiday.
-    const nonCritical = cells.filter((c) => c.day.day.isHoliday && !c.day.critical)
-    const critical = cells.filter((c) => c.day.day.isHoliday && c.day.critical)
+    const { nonCritical, critical } = holidayCells(cells)
     if (nonCritical.length > 0 && nonCritical.length + critical.length > HOLIDAY_DUTY_CAP) {
-      const over: Term[] = []
-      if (relax) {
-        lp.integer(`ho_${id}`, nonCritical.length)
-        over.push([-1, `ho_${id}`])
-        add('relax', [1, `ho_${id}`])
-      }
+      lp.integer(`ho_${id}`, nonCritical.length)
+      const over: Term = [-1, `ho_${id}`]
+      add('relax', [1, `ho_${id}`])
       if (critical.length === 0) {
-        lp.row(`hol_${id}`, [...ones(nonCritical), ...over], '<=', HOLIDAY_DUTY_CAP)
+        lp.row(`hol_${id}`, [...ones(nonCritical), over], '<=', HOLIDAY_DUTY_CAP)
       } else {
         const m = nonCritical.length + critical.length
         lp.binaries.push(`hb_${id}`)
         lp.row(
           `hol_${id}`,
-          [...ones(nonCritical), ...ones(critical), [-m, `hb_${id}`], ...over],
+          [...ones(nonCritical), ...ones(critical), [-m, `hb_${id}`], over],
           '<=',
           HOLIDAY_DUTY_CAP,
         )
-        lp.row(`holb_${id}`, [...ones(nonCritical), [m, `hb_${id}`], ...over], '<=', m)
+        lp.row(`holb_${id}`, [...ones(nonCritical), [m, `hb_${id}`], over], '<=', m)
       }
     }
 
@@ -256,17 +413,11 @@ export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds)
     for (const w of FRI_SAT_SUN) {
       const same = sameWeekday(cells, w.dayOfWeek)
       if (same.length < 2) continue
-      const repeat: Term[] = []
-      if (relax) {
-        lp.integer(`rp_${id}_${w.code}`, same.length - 1)
-        repeat.push([-1, `rp_${id}_${w.code}`])
-        add('relax', [1, `rp_${id}_${w.code}`])
-      }
-      lp.row(`rep_${id}_${w.code}`, [...ones(same), ...repeat], '<=', 1)
+      lp.integer(`rp_${id}_${w.code}`, same.length - 1)
+      add('relax', [1, `rp_${id}_${w.code}`])
+      lp.row(`rep_${id}_${w.code}`, [...ones(same), [-1, `rp_${id}_${w.code}`]], '<=', 1)
     }
   }
-
-  if (stage === 'capacity') return allCells.length > 0 ? lp.render('Maximize', ones(allCells)) : null
 
   // Day capacity and minimum coverage. `u_<date>_<p>` is 1 when the day has
   // fewer than p doctors; the cover stages minimize these position by position.
@@ -278,7 +429,7 @@ export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds)
       const unmet = `u_${key}_${p}`
       lp.binaries.push(unmet)
       lp.row(`cover_${key}_${p}`, [...ones(cells), [p, unmet]], '>=', p)
-      add(d.critical ? `cover-critical-${p}` : `cover-regular-${p}`, [1, unmet])
+      add(coverStage(d.critical, p), [1, unmet])
     }
   }
 
@@ -301,7 +452,7 @@ export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds)
     // E - 1 + dev, so integer coefficients and `dev` is the excess in 1/E
     // duty units. A doctor's own limits (monthly cap, unavailability) lower
     // their share instead of pulling everyone else down.
-    const shared = index.doctors.filter((d) => (bounds.capacity.get(d.id) ?? 0) > 0)
+    const shared = sharedDoctors(index, bounds.capacity)
     if (shared.length >= 2) {
       const e = shared.reduce((sum, d) => sum + (bounds.capacity.get(d.id) ?? 0), 0)
       lp.row('tot', [[1, 'total'], ...shared.map((d): Term => [-1, `t_${d.id}`])], '=', 0)
@@ -320,11 +471,11 @@ export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds)
   if (reached('holidays')) {
     // Holiday spread above 1: an uneven split is unavoidable when the holiday
     // duties do not divide evenly between the doctors.
-    const holidayCells = index.doctors
+    const holidays = index.doctors
       .map((d) => ({ id: d.id, cells: (index.cellsByDoctor.get(d.id) ?? []).filter((c) => c.day.day.isHoliday) }))
       .filter((h) => h.cells.length > 0)
-    if (holidayCells.length >= 2) {
-      for (const h of holidayCells) {
+    if (holidays.length >= 2) {
+      for (const h of holidays) {
         lp.row(`hlo_${h.id}`, [...ones(h.cells), [-1, 'hmin']], '>=', 0)
         lp.row(`hhi_${h.id}`, [...ones(h.cells), [-1, 'hmax']], '<=', 0)
       }
@@ -357,6 +508,7 @@ export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds)
   }
 
   if (stage === 'fill') return allCells.length > 0 ? lp.render('Maximize', ones(allCells)) : null
-  const objective = objectives.get(stage) ?? []
+  const weight = (s: Stage): number => (group.length > 1 ? (index.weights.get(s) ?? 1) : 1)
+  const objective = group.flatMap((s) => (objectives.get(s) ?? []).map(([c, v]): Term => [c * weight(s), v]))
   return objective.length > 0 ? lp.render('Minimize', objective) : null
 }

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildModel, indexModel, type Stage } from '../solver-model.ts'
+import { HOLIDAY_DUTY_CAP, OPEN_DUTY_DUTY_CAP } from '../constraints.ts'
+import { dayOfWeekISO, nextDate } from '../dates.ts'
+import { isFriSatSun } from '../scoring.ts'
+import { buildModel, capacityOf, indexModel, type Stage } from '../solver-model.ts'
 import { ctx, day, dr } from './helpers.ts'
 
 // Tue 1, Wed 2, Thu 3 September 2026; anchor 09-01 every 2 days: 1 and 3 are
@@ -81,5 +84,45 @@ describe('solver model', () => {
     it('has nothing to optimize without an earlier option', () => {
       expect(buildModel(model, 'alternative', { optima, capacity })).toBeNull()
     })
+  })
+})
+
+describe('capacityOf', () => {
+  // 1-14 November 2026: open days 1, 5, 9, 13 (post-open 2, 6, 10, 14),
+  // weekends plus a marked holiday on the 10th, so critical holidays (1, 10,
+  // 14) can pass the holiday cap and only then block non-critical ones.
+  const days = Array.from({ length: 14 }, (_, i) => {
+    const date = `2026-11-${String(i + 1).padStart(2, '0')}`
+    const weekend = [0, 6].includes(dayOfWeekISO(date))
+    return day(date, weekend, weekend || i === 9)
+  })
+  const index = indexModel(
+    ctx(days, [dr(1), dr(2, 3), dr(3), dr(4, 5)], {
+      unavailability: new Map([[3, [{ start: '2026-11-04', end: '2026-11-06' }]]]),
+      priorDayDoctorIds: new Set([4]),
+      openDuty: { anchorDate: '2026-11-01', intervalDays: 4 },
+    }),
+  )
+
+  it("equals the largest set of a doctor's days that keeps every per-doctor rule", () => {
+    const capacity = capacityOf(index)
+    for (const doctor of index.doctors) {
+      const cells = index.cellsByDoctor.get(doctor.id) ?? []
+      let best = 0
+      for (let mask = 0; mask < 1 << cells.length; mask++) {
+        const picked = cells.filter((_, i) => mask & (1 << i))
+        if (picked.length <= best || picked.length > doctor.maxMonthlyDuties) continue
+        const dates = picked.map((p) => p.day.day.date)
+        if (dates.some((d) => dates.includes(nextDate(d)))) continue
+        if (picked.filter((p) => p.day.open).length > OPEN_DUTY_DUTY_CAP) continue
+        const n = picked.filter((p) => p.day.day.isHoliday && !p.day.critical).length
+        const critical = picked.filter((p) => p.day.day.isHoliday && p.day.critical).length
+        if (n > 0 && n + critical > HOLIDAY_DUTY_CAP) continue
+        const weekdays = picked.filter((p) => isFriSatSun(p.day.day)).map((p) => p.day.day.dayOfWeek)
+        if (new Set(weekdays).size < weekdays.length) continue
+        best = picked.length
+      }
+      expect(capacity.get(doctor.id), `doctor ${doctor.id}`).toBe(best)
+    }
   })
 })
