@@ -102,6 +102,11 @@ describe('MonthPicker', () => {
     expect(w.emitted('update:modelValue')).toEqual([['']])
   })
 
+  it('hides the clear button when clearable is false', () => {
+    const w = mountPicker({ modelValue: '2026-08', clearable: false })
+    expect(w.find('button[aria-label="Clear month"]').exists()).toBe(false)
+  })
+
   it('closes on Escape without propagating to window listeners', async () => {
     const w = mountPicker()
     await openPicker(w)

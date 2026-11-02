@@ -8,14 +8,19 @@ import { monthLabel, monthNames, toIsoMonth } from '@oncall/utils'
 import { cn } from '@/lib/utils'
 import { useIntlLocale } from '@/composables/useIntlLocale'
 
-const props = defineProps<{
-  id?: string
-  /** Selected month as 'YYYY-MM'; empty string means no month selected. */
-  modelValue?: string
-  placeholder?: string
-  disabled?: boolean
-  class?: HTMLAttributes['class']
-}>()
+const props = withDefaults(
+  defineProps<{
+    id?: string
+    /** Selected month as 'YYYY-MM'; empty string means no month selected. */
+    modelValue?: string
+    placeholder?: string
+    /** Whether the selected month can be cleared; false when a month is required. */
+    clearable?: boolean
+    disabled?: boolean
+    class?: HTMLAttributes['class']
+  }>(),
+  { clearable: true },
+)
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
@@ -35,6 +40,8 @@ const navBtnClass =
 const selectedMonth = computed(() =>
   props.modelValue && /^\d{4}-\d{2}$/.test(props.modelValue) ? props.modelValue : '',
 )
+
+const showClear = computed(() => Boolean(selectedMonth.value) && props.clearable && !props.disabled)
 
 const currentMonth = toIsoMonth(today.getFullYear(), today.getMonth())
 const shortMonths = computed(() => monthNames(intlLocale.value, 'short'))
@@ -130,7 +137,8 @@ useEventListener(
       aria-haspopup="dialog"
       :class="cn(
         'flex h-10 w-full items-center gap-2 rounded-lg border border-input bg-card/60 px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-primary/40 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50',
-        selectedMonth ? 'pr-9 text-foreground' : 'text-muted-foreground/70',
+        selectedMonth ? 'text-foreground' : 'text-muted-foreground/70',
+        showClear && 'pr-9',
       )"
       @click="toggle"
     >
@@ -138,7 +146,7 @@ useEventListener(
       <span class="truncate">{{ triggerLabel || props.placeholder || t('monthPicker.selectMonth') }}</span>
     </button>
     <button
-      v-if="selectedMonth && !props.disabled"
+      v-if="showClear"
       type="button"
       :aria-label="t('monthPicker.clearMonth')"
       class="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"

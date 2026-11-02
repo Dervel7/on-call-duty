@@ -393,6 +393,8 @@ describe('AvailabilityPage', () => {
       next,
     )
     expect(wrapper.find('#f-month').text()).toContain(monthLabel)
+    // A month is always selected — the picker cannot be cleared.
+    expect(wrapper.find('button[aria-label="Clear month"]').exists()).toBe(false)
 
     // The month after the default one, crossing a year boundary when needed.
     const target = new Date(next.getFullYear(), next.getMonth() + 1, 1)

@@ -359,7 +359,7 @@ onMounted(async () => {
       </div>
       <div class="flex flex-col gap-1">
         <Label for="f-month">{{ t('common.month') }}</Label>
-        <MonthPicker id="f-month" v-model="filterMonth" :placeholder="t('availability.anyMonth')" class="w-44" />
+        <MonthPicker id="f-month" v-model="filterMonth" :clearable="false" class="w-44" />
       </div>
     </div>
 

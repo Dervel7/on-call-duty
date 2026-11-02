@@ -74,6 +74,13 @@ describe('HolidaysPage', () => {
     expect(day.classes()).toContain('bg-primary/15')
   })
 
+  it('renders no clear button on the month picker', async () => {
+    listHolidays.mockResolvedValue([])
+    const wrapper = mountAsAdmin()
+    await flushPromises()
+    expect(wrapper.find('button[aria-label="Clear month"]').exists()).toBe(false)
+  })
+
   it('renders weekends as holidays and does not toggle them', async () => {
     listHolidays.mockResolvedValue([])
     const wrapper = mountAsAdmin()
