@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { ScheduleOption, ScheduleOptionsResult } from '@oncall/shared'
@@ -11,15 +11,15 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useEstimatedProgress } from '@/composables/useEstimatedProgress'
 import { useIntlLocale } from '@/composables/useIntlLocale'
 import { useLatestRequest } from '@/composables/useLatestRequest'
+import { groupByDate } from '@/lib/calendar'
 import Button from '@/components/ui/Button.vue'
 import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 import Spinner from '@/components/ui/Spinner.vue'
 
-// Mirror the API (apps/api cannot be imported here): SCHEDULE_OPTION_COUNT options, and
-// SOLVER_BUDGET_MS (30 s) for the primary option plus ALTERNATIVE_BUDGET_MS (5 s) per alternative.
+// Mirror the API (apps/api cannot be imported here): SCHEDULE_OPTION_COUNT options.
 const OPTION_COUNT = 3
+// ~25 s typical primary solve (budget SOLVER_BUDGET_MS = 30 s) plus ALTERNATIVE_BUDGET_MS (5 s) per alternative.
 const ESTIMATED_OPTIONS_MS = 25_000 + 2 * 5_000
-//const ESTIMATED_OPTIONS_MS = 60_000
 
 const route = useRoute()
 const router = useRouter()
@@ -55,15 +55,20 @@ function letter(option: ScheduleOption): string {
   return String.fromCharCode(64 + option.index)
 }
 
-const assignmentByDate = computed(() => {
-  const m = new Map<string, { doctorId: number; firstName: string; lastName: string; reason: string }[]>()
-  for (const a of current.value?.assignments ?? []) {
-    const slots = m.get(a.date) ?? []
-    slots.push({ doctorId: a.doctorId, firstName: a.doctorFirstName, lastName: a.doctorLastName, reason: a.reason })
-    m.set(a.date, slots)
-  }
-  return m
-})
+const assignmentByDate = computed(() =>
+  groupByDate(current.value?.assignments ?? [], (a) => [
+    a.date,
+    { doctorId: a.doctorId, firstName: a.doctorFirstName, lastName: a.doctorLastName },
+  ]),
+)
+
+function focusTab(n: number) {
+  const count = options.value.length
+  if (count === 0) return
+  selected.value = ((n % count) + count) % count
+  const tab = options.value[selected.value]!
+  void nextTick(() => document.getElementById(`option-tab-${tab.index}`)?.focus())
+}
 
 const latest = useLatestRequest()
 
@@ -116,7 +121,7 @@ async function chooseOption() {
       month.value,
       option.assignments.map((a) => ({ date: a.date, doctorId: a.doctorId, reason: a.reason })),
     )
-    router.push(`/schedules/${detail.schedule.id}`)
+    await router.replace(`/schedules/${detail.schedule.id}`)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : t('schedules.generateFailed')
   } finally {
@@ -188,7 +193,12 @@ watch([year, month], load)
             'flex flex-col items-start rounded-lg border px-4 py-2 text-left transition-colors',
             i === selected ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/40',
           ]"
+          :tabindex="i === selected ? 0 : -1"
           @click="selected = i"
+          @keydown.right.prevent="focusTab(i + 1)"
+          @keydown.left.prevent="focusTab(i - 1)"
+          @keydown.home.prevent="focusTab(0)"
+          @keydown.end.prevent="focusTab(options.length - 1)"
         >
           <span class="text-sm font-semibold text-foreground">{{ t('scheduleOptions.plan', { plan: letter(o) }) }}</span>
           <span class="text-xs text-muted-foreground">
@@ -229,8 +239,6 @@ watch([year, month], load)
           </div>
 
           <DutyCalendar
-            :year="year"
-            :month="month"
             :days="current.days"
             :assignment-by-date="assignmentByDate"
             :conflicts-by-date="conflictsByDate"

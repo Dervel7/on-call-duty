@@ -133,7 +133,21 @@ describe('ScheduleOptionsPage', () => {
       { date: '2026-09-01', doctorId: 6, reason: 'solver optimal 2026-09-01' },
       { date: '2026-09-02', doctorId: 5, reason: 'solver optimal 2026-09-02' },
     ])
-    expect(push).toHaveBeenCalledWith('/schedules/42')
+    expect(replace).toHaveBeenCalledWith('/schedules/42')
+  })
+
+  it('moves between plan tabs with the arrow keys (roving tabindex)', async () => {
+    options.mockResolvedValue({ year: 2026, month: 9, options: [planA, planB, planC] })
+    const wrapper = await mountPage()
+    expect(tabs(wrapper).map((t) => t.attributes('tabindex'))).toEqual(['0', '-1', '-1'])
+
+    await tabs(wrapper)[0]!.trigger('keydown', { key: 'ArrowRight' })
+    expect(tabs(wrapper)[1]!.attributes('aria-selected')).toBe('true')
+    expect(tabs(wrapper)[1]!.attributes('tabindex')).toBe('0')
+
+    await tabs(wrapper)[1]!.trigger('keydown', { key: 'ArrowLeft' })
+    await tabs(wrapper)[0]!.trigger('keydown', { key: 'ArrowLeft' })
+    expect(tabs(wrapper)[2]!.attributes('aria-selected')).toBe('true')
   })
 
   it('a cancelled confirmation saves nothing', async () => {

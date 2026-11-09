@@ -21,6 +21,8 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import Badge from '@/components/ui/Badge.vue'
 import { useConfirm } from '@/composables/useConfirm'
 import { useIntlLocale } from '@/composables/useIntlLocale'
+import { useLatestRequest } from '@/composables/useLatestRequest'
+import { groupByDate } from '@/lib/calendar'
 
 const route = useRoute()
 const router = useRouter()
@@ -35,6 +37,7 @@ const doctors = ref<Doctor[]>([])
 const loading = ref(false)
 const errorMsg = ref('')
 const savingDates = ref(new Set<string>())
+const busy = ref(false)
 
 const schedule = computed(() => detail.value?.schedule ?? null)
 const isPublished = computed(() => schedule.value?.status === 'published')
@@ -52,35 +55,43 @@ const dutyIdsByDate = computed<Map<string, number[]>>(() => {
   return m
 })
 
-const assignmentByDate = computed(() => {
-  const m = new Map<
-    string,
-    { doctorId: number; firstName: string; lastName: string; reason: string }[]
-  >()
-  for (const d of detail.value?.duties ?? []) {
-    const arr = m.get(d.dutyDate) ?? []
-    arr.push({
-      doctorId: d.doctorId,
-      firstName: d.doctorFirstName,
-      lastName: d.doctorLastName,
-      reason: d.reason,
-    })
-    m.set(d.dutyDate, arr)
-  }
-  return m
-})
+const assignmentByDate = computed(() =>
+  groupByDate(detail.value?.duties ?? [], (d) => [
+    d.dutyDate,
+    { doctorId: d.doctorId, firstName: d.doctorFirstName, lastName: d.doctorLastName },
+  ]),
+)
 const days = computed<DayInfo[]>(() => detail.value?.days ?? [])
 
+const latest = useLatestRequest()
+
 async function load() {
+  const isCurrent = latest.start()
   loading.value = true
   // errorMsg is not cleared here: duty actions reload after a failure and
   // their error must stay visible. Each user action clears it up front.
   try {
-    detail.value = await scheduleService.get(id)
+    const res = await scheduleService.get(id)
+    if (isCurrent()) detail.value = res
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.loadFailed')
+    if (isCurrent()) errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.loadFailed')
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
+  }
+}
+
+// Runs a schedule-level state change. After a failure the page reloads, so a 409 caused by
+// another admin's change resyncs the status badge and edit mode with the server.
+async function runStatusAction(action: () => Promise<void>, failKey: string) {
+  errorMsg.value = ''
+  busy.value = true
+  try {
+    await action()
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : t(failKey)
+    await load()
+  } finally {
+    busy.value = false
   }
 }
 
@@ -94,13 +105,10 @@ async function publish() {
     }))
   )
     return
-  errorMsg.value = ''
-  try {
+  await runStatusAction(async () => {
     const updated = await scheduleService.publish(id)
     if (detail.value) detail.value.schedule = { ...detail.value.schedule, status: updated.status }
-  } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.publishFailed')
-  }
+  }, 'scheduleDetail.publishFailed')
 }
 
 async function unpublish() {
@@ -113,13 +121,10 @@ async function unpublish() {
     }))
   )
     return
-  errorMsg.value = ''
-  try {
+  await runStatusAction(async () => {
     const updated = await scheduleService.unpublish(id)
     if (detail.value) detail.value.schedule = { ...detail.value.schedule, status: updated.status }
-  } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.revertFailed')
-  }
+  }, 'scheduleDetail.revertFailed')
 }
 
 async function deleteSchedule() {
@@ -131,12 +136,24 @@ async function deleteSchedule() {
     }))
   )
     return
-  errorMsg.value = ''
-  try {
+  await runStatusAction(async () => {
     await scheduleService.remove(id)
-    router.push('/schedules')
+    await router.replace('/schedules')
+  }, 'scheduleDetail.deleteFailed')
+}
+
+async function runDutyAction(date: string, action: () => Promise<unknown>, failKey: string) {
+  savingDates.value = new Set(savingDates.value).add(date)
+  try {
+    await action()
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.deleteFailed')
+    errorMsg.value = e instanceof Error ? e.message : t(failKey)
+  } finally {
+    // The cell stays disabled until the reload shows the committed state.
+    await load()
+    const next = new Set(savingDates.value)
+    next.delete(date)
+    savingDates.value = next
   }
 }
 
@@ -159,15 +176,7 @@ async function onSelect(date: string, slotIndex: number, doctorId: number | null
       }))
     )
       return
-    savingDates.value = new Set(savingDates.value).add(date)
-    try {
-      await scheduleService.removeDuty(dutyId)
-    } catch (e) {
-      errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.removeFailed')
-    } finally {
-      savingDates.value.delete(date)
-      await load()
-    }
+    await runDutyAction(date, () => scheduleService.removeDuty(dutyId), 'scheduleDetail.removeFailed')
     return
   }
   if (dutyId !== null) {
@@ -177,15 +186,7 @@ async function onSelect(date: string, slotIndex: number, doctorId: number | null
       errorMsg.value = r.error.issues[0]?.message ?? t('common.invalidInput')
       return
     }
-    savingDates.value = new Set(savingDates.value).add(date)
-    try {
-      await scheduleService.reassignDuty(dutyId, r.data)
-    } catch (e) {
-      errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.reassignFailed')
-    } finally {
-      savingDates.value.delete(date)
-      await load()
-    }
+    await runDutyAction(date, () => scheduleService.reassignDuty(dutyId, r.data), 'scheduleDetail.reassignFailed')
     return
   }
   const r = createDutySchema.safeParse({ date, doctorId } satisfies CreateDutyRequest)
@@ -193,25 +194,18 @@ async function onSelect(date: string, slotIndex: number, doctorId: number | null
     errorMsg.value = r.error.issues[0]?.message ?? t('common.invalidInput')
     return
   }
-  savingDates.value = new Set(savingDates.value).add(date)
-  try {
-    await scheduleService.addDuty(id, r.data)
-  } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : t('scheduleDetail.addFailed')
-  } finally {
-    savingDates.value.delete(date)
-    await load()
-  }
+  await runDutyAction(date, () => scheduleService.addDuty(id, r.data), 'scheduleDetail.addFailed')
 }
 
-onMounted(async () => {
+async function loadDoctors() {
   try {
     doctors.value = await doctorService.list()
   } catch {
     doctors.value = []
   }
-  await load()
-})
+}
+
+onMounted(() => Promise.all([auth.isAdmin ? loadDoctors() : undefined, load()]))
 </script>
 
 <template>
@@ -224,9 +218,9 @@ onMounted(async () => {
         <template #actions>
           <Badge :variant="isPublished ? 'success' : 'neutral'" dot>{{ isPublished ? t('scheduleStatus.published') : t('scheduleStatus.draft') }}</Badge>
           <template v-if="auth.isAdmin">
-            <Button v-if="!isPublished" @click="publish">{{ t('scheduleDetail.publish') }}</Button>
-            <Button v-else variant="outline" @click="unpublish">{{ t('scheduleDetail.revertToDraft') }}</Button>
-            <Button variant="destructive" :disabled="isPublished" @click="deleteSchedule">
+            <Button v-if="!isPublished" :disabled="busy" @click="publish">{{ t('scheduleDetail.publish') }}</Button>
+            <Button v-else variant="outline" :disabled="busy" @click="unpublish">{{ t('scheduleDetail.revertToDraft') }}</Button>
+            <Button variant="destructive" :disabled="busy || isPublished" @click="deleteSchedule">
               {{ t('scheduleDetail.deleteSchedule') }}
             </Button>
           </template>
@@ -237,7 +231,7 @@ onMounted(async () => {
         {{ t('scheduleDetail.lockedNotice') }}
       </p>
 
-      <DutyCalendar :year="schedule.year" :month="schedule.month" :days="days" :assignment-by-date="assignmentByDate"
+      <DutyCalendar :days="days" :assignment-by-date="assignmentByDate"
         :doctors="doctors" :mode="mode" :saving-dates="savingDates" allow-clear
         show-fill-hints @select="onSelect" />
     </template>

@@ -357,8 +357,6 @@ watch([year, month], load)
         </div>
 
         <DutyCalendar
-          :year="year"
-          :month="month"
           :days="days"
           :assignment-by-date="assignmentByDate"
           :conflicts-by-date="conflictsByDate"

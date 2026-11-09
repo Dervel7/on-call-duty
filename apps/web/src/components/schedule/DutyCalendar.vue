@@ -5,17 +5,9 @@ import type { DayInfo, Doctor } from '@oncall/shared'
 import { toIsoDate, weekdayNames } from '@oncall/utils'
 import Select from '@/components/ui/Select.vue'
 import { useIntlLocale } from '@/composables/useIntlLocale'
-
-interface CalendarAssignment {
-  doctorId: number
-  firstName: string
-  lastName: string
-  reason: string
-}
+import type { CalendarAssignment } from '@/lib/calendar'
 
 const props = defineProps<{
-  year: number
-  month: number
   days: DayInfo[]
   assignmentByDate: Map<string, (CalendarAssignment | null)[]>
   conflictsByDate?: Map<string, string>

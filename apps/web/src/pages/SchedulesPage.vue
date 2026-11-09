@@ -7,6 +7,7 @@ import { createScheduleSchema } from '@oncall/shared'
 import { monthLabel, monthNames } from '@oncall/utils'
 import { useAuthStore } from '@/stores/auth'
 import { useIntlLocale } from '@/composables/useIntlLocale'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import * as scheduleService from '@/services/schedule'
 import { CalendarDays, CalendarOff } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
@@ -40,16 +41,20 @@ const loading = ref(false)
 const errorMsg = ref('')
 const filterYear = ref(String(new Date().getFullYear()))
 
+const latest = useLatestRequest()
+
 async function load() {
+  const isCurrent = latest.start()
   loading.value = true
   errorMsg.value = ''
   try {
     const query = filterYear.value ? { year: Number(filterYear.value) } : undefined
-    records.value = await scheduleService.list(query)
+    const res = await scheduleService.list(query)
+    if (isCurrent()) records.value = res
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : t('schedules.loadFailed')
+    if (isCurrent()) errorMsg.value = e instanceof Error ? e.message : t('schedules.loadFailed')
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 
