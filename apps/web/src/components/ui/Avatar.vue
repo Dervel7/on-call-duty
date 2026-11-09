@@ -41,6 +41,7 @@ const hue = computed(() => [...props.name].reduce((a, c) => a + c.charCodeAt(0),
 
 <template>
   <span
+    aria-hidden="true"
     :class="cn('grid shrink-0 select-none place-items-center rounded-full font-mono font-semibold ring-1 ring-inset ring-foreground/10', PALETTE[hue], SIZES[props.size ?? 'md'], props.class)"
   >
     {{ initials }}

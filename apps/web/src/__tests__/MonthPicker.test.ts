@@ -53,6 +53,24 @@ describe('MonthPicker', () => {
     expect(document.activeElement).toBe(fieldBtn(w).element)
   })
 
+  it('closes back to the trigger when Tab would leave the panel', async () => {
+    const w = mountPicker({ modelValue: '2026-08' })
+    await openPicker(w)
+    const buttons = document.body.querySelectorAll<HTMLElement>('[role="dialog"] button:not([disabled])')
+    const last = buttons[buttons.length - 1]!
+    last.focus()
+    last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    await nextTick()
+    expect(fieldBtn(w).attributes('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(fieldBtn(w).element)
+  })
+
+  it('describes the trigger with the selected month so a label does not hide it', () => {
+    const w = mountPicker({ modelValue: '2026-08' })
+    const valueEl = document.getElementById(fieldBtn(w).attributes('aria-describedby')!)
+    expect(valueEl?.textContent).toContain('August 2026')
+  })
+
   it('returns focus to the trigger after clearing', async () => {
     const w = mountPicker({ modelValue: '2026-08' })
     await w.find('button[aria-label="Clear month"]').trigger('click')

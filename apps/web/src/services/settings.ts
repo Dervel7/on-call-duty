@@ -13,12 +13,8 @@ export async function updateOpenDutyInterval(intervalDays: number): Promise<Open
   return openDuty
 }
 
-function dutySlotsPath(clinicId?: number): string {
-  return clinicId === undefined ? '/settings/duty-slots' : `/settings/duty-slots?clinicId=${clinicId}`
-}
-
-export async function getDutySlots(clinicId?: number): Promise<ClinicDutySlots> {
-  const { dutySlots } = await apiGet<{ dutySlots: ClinicDutySlots }>(dutySlotsPath(clinicId))
+export async function getDutySlots(): Promise<ClinicDutySlots> {
+  const { dutySlots } = await apiGet<{ dutySlots: ClinicDutySlots }>('/settings/duty-slots')
   return dutySlots
 }
 
@@ -26,9 +22,8 @@ export async function updateDutySlots(
   openDutySlots: number,
   postOpenDutySlots: number,
   closedDutySlots: number,
-  clinicId?: number,
 ): Promise<ClinicDutySlots> {
-  const { dutySlots } = await apiPatch<{ dutySlots: ClinicDutySlots }>(dutySlotsPath(clinicId), {
+  const { dutySlots } = await apiPatch<{ dutySlots: ClinicDutySlots }>('/settings/duty-slots', {
     openDutySlots,
     postOpenDutySlots,
     closedDutySlots,
@@ -36,15 +31,9 @@ export async function updateDutySlots(
   return dutySlots
 }
 
-function dutyMinimumsPath(clinicId?: number): string {
-  return clinicId === undefined
-    ? '/settings/duty-minimums'
-    : `/settings/duty-minimums?clinicId=${clinicId}`
-}
-
-export async function getDutyMinimums(clinicId?: number): Promise<DutyMinimumSettings> {
+export async function getDutyMinimums(): Promise<DutyMinimumSettings> {
   const { dutyMinimums } = await apiGet<{ dutyMinimums: DutyMinimumSettings }>(
-    dutyMinimumsPath(clinicId),
+    '/settings/duty-minimums',
   )
   return dutyMinimums
 }
@@ -53,10 +42,9 @@ export async function updateDutyMinimums(
   openDutyMinimum: number,
   postOpenDutyMinimum: number,
   closedDutyMinimum: number,
-  clinicId?: number,
 ): Promise<DutyMinimumSettings> {
   const { dutyMinimums } = await apiPatch<{ dutyMinimums: DutyMinimumSettings }>(
-    dutyMinimumsPath(clinicId),
+    '/settings/duty-minimums',
     { openDutyMinimum, postOpenDutyMinimum, closedDutyMinimum },
   )
   return dutyMinimums

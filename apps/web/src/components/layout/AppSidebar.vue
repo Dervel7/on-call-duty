@@ -41,7 +41,8 @@ const router = useRouter()
 const route = useRoute()
 
 const panel = ref<HTMLElement | null>(null)
-const isDesktop = useMediaQuery('(min-width: 1280px)')
+// Same unit as Tailwind's `xl` (80rem), so JS and CSS agree when the browser font size is raised.
+const isDesktop = useMediaQuery('(min-width: 80rem)')
 const drawerOpen = computed(() => open.value && !isDesktop.value)
 
 useModal(() => drawerOpen.value, panel)
@@ -62,10 +63,16 @@ async function onLogout() {
   await router.push('/login')
 }
 
+interface NavItem {
+  to: string
+  label: string
+  icon: Component
+}
+
 const navItems = computed(() => {
-  const items: { to: string; label: string; icon: Component }[] = [{ to: '/', label: t('nav.home'), icon: House }]
+  const items: NavItem[] = [{ to: '/', label: t('nav.home'), icon: House }]
   if (auth.user?.role === 'doctor') {
-    items.push({ to: '/roster', label: t('nav.dutyRoster'), icon: CalendarCheck2 })
+    items.push({ to: '/schedules', label: t('nav.dutyRoster'), icon: CalendarCheck2 })
     items.push({ to: '/my-availability', label: t('nav.myAvailability'), icon: CalendarClock })
   }
   if (auth.isAdmin) {
@@ -88,9 +95,9 @@ const navItems = computed(() => {
   return items
 })
 
-function isActive(to: string): boolean {
-  if (to === '/') return route.path === '/'
-  return route.path === to || route.path.startsWith(to + '/')
+function isActive(item: NavItem): boolean {
+  if (item.to === '/') return route.path === '/'
+  return route.path === item.to || route.path.startsWith(item.to + '/')
 }
 </script>
 
@@ -141,7 +148,7 @@ function isActive(to: string): boolean {
           <RouterLink
             :to="item.to"
             :title="collapsed ? item.label : undefined"
-            :class="['nav-link', { 'is-active': isActive(item.to), 'xl:justify-center xl:px-0': collapsed }]"
+            :class="['nav-link', { 'is-active': isActive(item), 'xl:justify-center xl:px-0': collapsed }]"
             @click="close"
           >
             <component :is="item.icon" class="size-4 shrink-0" aria-hidden="true" />

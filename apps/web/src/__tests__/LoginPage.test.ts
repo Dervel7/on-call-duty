@@ -139,4 +139,15 @@ describe('LoginPage', () => {
       'Το όνομα χρήστη και ο κωδικός πρόσβασης δεν πρέπει να είναι κενά',
     )
   })
+
+  it('translates schema validation errors into the active UI language', async () => {
+    setTestLocale('el')
+    const { wrapper } = await mountWithRouter()
+    const inputs = wrapper.findAll('input')
+    await inputs[0]!.setValue('a@b.com')
+    await inputs[1]!.setValue('123')
+    await wrapper.find('form').trigger('submit.prevent')
+    expect(login).not.toHaveBeenCalled()
+    expect(wrapper.find('[role="alert"]').text()).toBe('Πρέπει να έχει μήκος τουλάχιστον 6 χαρακτήρων')
+  })
 })

@@ -9,7 +9,6 @@ const generate = vi.fn()
 vi.mock('@/services/schedule', () => ({
   options: (...a: unknown[]) => options(...a),
   generate: (...a: unknown[]) => generate(...a),
-  preview: vi.fn(),
   list: vi.fn(),
   get: vi.fn(),
   remove: vi.fn(),
@@ -234,6 +233,6 @@ describe('ScheduleOptionsPage', () => {
     await flushPromises()
     await vi.advanceTimersByTimeAsync(2_000)
     expect(wrapper.find('[role="status"] svg.animate-spin').exists()).toBe(true)
-    expect(wrapper.find('[role="progressbar"]').attributes('aria-valuenow')).toBe('5')
+    expect(wrapper.find('[role="progressbar"]').attributes('aria-valuenow')).toBe('6')
   })
 })

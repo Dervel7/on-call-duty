@@ -54,10 +54,6 @@ export const useAuthStore = defineStore('auth', () => {
     clearSession()
   }
 
-  async function fetchMe(): Promise<void> {
-    user.value = await authService.fetchMe()
-  }
-
   async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
     user.value = await authService.changePassword(currentPassword, newPassword)
   }
@@ -115,7 +111,6 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     refresh,
     logout,
-    fetchMe,
     changePassword,
     setDarkMode,
     setLanguage,

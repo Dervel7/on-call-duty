@@ -80,6 +80,7 @@
   },
   "profile": {
     "loadFailed": "Could not load profile",
+    "passwordMustDiffer": "The new password must differ from the current one",
     "passwordTitle": "Password",
     "passwordDescription": "Change your password. You will be signed out of all sessions, including this one.",
     "currentPassword": "Current password",
@@ -127,6 +128,14 @@
   "http": {
     "requestFailed": "Request failed",
     "networkError": "Cannot reach the server. Check your connection and try again."
+  },
+  "validation": {
+    "minLength": "Must be at least {min} characters long",
+    "maxLength": "Must be at most {max} characters long",
+    "min": "Must be at least {min}",
+    "max": "Must be at most {max}",
+    "email": "Enter a valid email address",
+    "username": "Username must be 3–32 characters: letters, digits, dots, underscores or hyphens"
   },
   "dutyReason": {
     "plan": "Assigned manually",
@@ -219,33 +228,13 @@
     "generateFailed": "Failed to generate"
   },
   "scheduleRoster": {
-    "subtitle": "Published on-call schedules",
     "empty": "No published schedules yet."
   },
-  "schedulePreview": {
-    "fallbackTitle": "Preview",
-    "subtitle": "Review the proposed roster, adjust any day, then generate the schedule.",
-    "back": "Back",
-    "generateSchedule": "Generate schedule",
-    "invalidMonth": "Invalid or missing month.",
-    "invalidMonthHint": "Open this preview from the schedules list to choose a valid month.",
-    "backToSchedules": "Back to schedules",
-    "daysNoDoctor": "{n} day(s) with no doctor",
-    "daysBelowMinimum": "{n} day(s) below their minimum",
-    "errorDetail": "Assign at least the minimum number of doctors to every day before generating.",
-    "daysBelowSlotCount": "{n} day(s) below their slot count",
-    "warningDetail": "Ready to generate — consider adding doctors where you can.",
-    "allCovered": "All days covered",
-    "successDetail": "{n} assignment(s) ready. No conflicts.",
-    "previewFailed": "Failed to preview",
-    "refreshFailed": "Failed to refresh eligible doctors",
-    "statDays": "days",
-    "statFull": "full",
-    "statPartial": "partial",
-    "statBelowMinimum": "below minimum",
-    "openOnCall": "Open on-call"
-  },
   "scheduleOptions": {
+    "invalidMonth": "Invalid or missing month.",
+    "invalidMonthHint": "Open schedule options from the schedules list to choose a valid month.",
+    "backToSchedules": "Back to schedules",
+    "openOnCall": "Open on-call",
     "title": "Schedule options",
     "subtitle": "Compare equally good plans for this month, then use one. Only the plan you use is saved, as a draft.",
     "plan": "Plan {plan}",

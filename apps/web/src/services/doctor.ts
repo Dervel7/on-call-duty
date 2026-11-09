@@ -5,10 +5,6 @@ export async function list(): Promise<Doctor[]> {
   const { doctors } = await apiGet<{ doctors: Doctor[] }>('/doctors')
   return doctors
 }
-export async function get(id: number): Promise<Doctor> {
-  const { doctor } = await apiGet<{ doctor: Doctor }>(`/doctors/${id}`)
-  return doctor
-}
 export async function me(): Promise<Doctor> {
   const { doctor } = await apiGet<{ doctor: Doctor }>('/doctors/me')
   return doctor

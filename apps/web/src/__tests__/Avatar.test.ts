@@ -44,4 +44,9 @@ describe('Avatar', () => {
     const wrapper = mount(Avatar, { props: { name: 'Jane Roe' } })
     expect(wrapper.classes()).toContain('h-9')
   })
+
+  it('is hidden from assistive tech because the name is always shown beside it', () => {
+    const wrapper = mount(Avatar, { props: { name: 'Jane Roe' } })
+    expect(wrapper.attributes('aria-hidden')).toBe('true')
+  })
 })

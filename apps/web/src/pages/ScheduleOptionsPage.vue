@@ -142,7 +142,7 @@ watch([year, month], load)
       </div>
       <div class="flex items-center gap-2">
         <Button variant="outline" @click="router.push('/schedules')">
-          {{ t('schedulePreview.backToSchedules') }}
+          {{ t('scheduleOptions.backToSchedules') }}
         </Button>
         <Button v-if="current" :disabled="saving || understaffed" @click="chooseOption">
           {{ saving ? t('scheduleOptions.saving') : t('scheduleOptions.use', { plan: letter(current) }) }}
@@ -162,10 +162,10 @@ watch([year, month], load)
       v-if="!valid"
       class="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-6"
     >
-      <p class="text-sm font-medium text-foreground">{{ t('schedulePreview.invalidMonth') }}</p>
-      <p class="text-sm text-muted-foreground">{{ t('schedulePreview.invalidMonthHint') }}</p>
+      <p class="text-sm font-medium text-foreground">{{ t('scheduleOptions.invalidMonth') }}</p>
+      <p class="text-sm text-muted-foreground">{{ t('scheduleOptions.invalidMonthHint') }}</p>
       <Button variant="outline" size="sm" @click="router.push('/schedules')">
-        {{ t('schedulePreview.backToSchedules') }}
+        {{ t('scheduleOptions.backToSchedules') }}
       </Button>
     </div>
 
@@ -234,7 +234,7 @@ watch([year, month], load)
             </span>
             <span class="inline-flex items-center gap-1.5">
               <span class="inline-flex rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">{{ t('dutyCalendar.openBadge') }}</span>
-              {{ t('schedulePreview.openOnCall') }}
+              {{ t('scheduleOptions.openOnCall') }}
             </span>
           </div>
 

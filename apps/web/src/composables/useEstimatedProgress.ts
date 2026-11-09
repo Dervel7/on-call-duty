@@ -14,7 +14,7 @@ export interface EstimatedProgress {
 }
 
 // The request reports no progress, so the bar is a time-based estimate. It holds
-// below 100% until the response arrives, then fills to 100% at 8x speed so it never jumps.
+// below 100% until the response arrives, then fills to 100% at 14x speed so it never jumps.
 export function useEstimatedProgress(estimateMs: number): EstimatedProgress {
   const progress = ref(0)
   let filled = 0

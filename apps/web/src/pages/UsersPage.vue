@@ -18,6 +18,7 @@ import {
 } from '@oncall/shared'
 import * as doctorService from '@/services/doctor'
 import * as userService from '@/services/user'
+import { issueText } from '@/lib/validation'
 import { Search, Users } from 'lucide-vue-next'
 import Avatar from '@/components/ui/Avatar.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -176,7 +177,7 @@ async function persistEdit() {
     }
     const r = createDoctorSchema.safeParse(payload)
     if (!r.success) {
-      edit.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
+      edit.value.errorMsg = issueText(r.error.issues[0], t)
       return
     }
     try {
@@ -195,7 +196,7 @@ async function persistEdit() {
     }
     const r = updateDoctorSchema.safeParse(payload)
     if (!r.success) {
-      edit.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
+      edit.value.errorMsg = issueText(r.error.issues[0], t)
       return
     }
     try {
@@ -214,7 +215,7 @@ async function persistEdit() {
     }
     const r = updateUserSchema.safeParse(payload)
     if (!r.success) {
-      edit.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
+      edit.value.errorMsg = issueText(r.error.issues[0], t)
       return
     }
     try {
@@ -236,7 +237,7 @@ async function savePassword() {
   if (resetting.value) return
   const r = resetUserPasswordSchema.safeParse({ newPassword: reset.value.password })
   if (!r.success) {
-    reset.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
+    reset.value.errorMsg = issueText(r.error.issues[0], t)
     return
   }
   resetting.value = true

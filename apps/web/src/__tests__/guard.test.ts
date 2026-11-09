@@ -37,7 +37,7 @@ describe('resolveGuard', () => {
   })
 
   it('redirects a superadmin away from a doctor-only route to home', () => {
-    const res = resolveGuard(to('/roster', { roles: ['doctor'] }), authed('superadmin'))
+    const res = resolveGuard(to('/my-availability', { roles: ['doctor'] }), authed('superadmin'))
     expect(res).toEqual({ name: 'home' })
   })
 

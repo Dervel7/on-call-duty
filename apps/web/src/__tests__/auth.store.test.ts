@@ -13,14 +13,6 @@ vi.mock('@/services/auth', () => ({
     accessToken: 'BBB',
   })),
   logout: vi.fn(async () => undefined),
-  fetchMe: vi.fn(async () => ({
-    id: 1,
-    email: 'a@b.com',
-    username: 'admin',
-    role: 'doctor',
-    firstName: 'A',
-    lastName: 'B',
-  })),
   changePassword: vi.fn(async () => ({
     id: 1,
     email: 'a@b.com',

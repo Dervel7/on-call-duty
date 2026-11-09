@@ -1,8 +1,9 @@
-/** Builds a `?year=..&month=..` query string; empty when no field is set. */
-export function toQuery(query?: { year?: number; month?: number }): string {
-  if (!query) return ''
-  const parts: string[] = []
-  if (query.year !== undefined) parts.push(`year=${query.year}`)
-  if (query.month !== undefined) parts.push(`month=${query.month}`)
-  return parts.length > 0 ? `?${parts.join('&')}` : ''
+/** Builds a `?a=1&b=2` query string, skipping undefined and empty values; empty when nothing is set. */
+export function toQuery(params: Record<string, string | number | undefined> = {}): string {
+  const qs = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') qs.set(key, String(value))
+  }
+  const s = qs.toString()
+  return s ? `?${s}` : ''
 }

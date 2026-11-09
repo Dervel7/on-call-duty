@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { loginSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
+import { issueText } from '@/lib/validation'
 import { useAuthStore } from '@/stores/auth'
 import { BellRing, CalendarCheck2, ShieldCheck } from 'lucide-vue-next'
 import Button from '@/components/ui/Button.vue'
@@ -34,7 +35,7 @@ async function onSubmit() {
   }
   const parsed = loginSchema.safeParse({ identifier: identifier.value.trim(), password: password.value })
   if (!parsed.success) {
-    formError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
+    formError.value = issueText(parsed.error.issues[0], t)
     return
   }
   submitting.value = true

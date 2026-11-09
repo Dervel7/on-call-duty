@@ -28,12 +28,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../layouts/DefaultLayout.vue'),
     children: [
       { path: '', name: 'home', component: () => import('../pages/HomePage.vue') },
-      {
-        path: 'roster',
-        name: 'roster',
-        component: () => import('../pages/ScheduleRosterPage.vue'),
-        meta: { roles: ['doctor'] },
-      },
       { path: 'profile', name: 'profile', component: () => import('../pages/ProfilePage.vue') },
       {
         path: 'users',
@@ -57,12 +51,6 @@ const routes: RouteRecordRaw[] = [
         path: 'rules',
         name: 'rules',
         component: () => import('../pages/RulesPage.vue'),
-        meta: { roles: ['administrator'] },
-      },
-      {
-        path: 'schedules/preview',
-        name: 'schedule-preview',
-        component: () => import('../pages/SchedulePreviewPage.vue'),
         meta: { roles: ['administrator'] },
       },
       {

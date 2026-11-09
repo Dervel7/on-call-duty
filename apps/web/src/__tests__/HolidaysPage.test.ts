@@ -70,7 +70,7 @@ describe('HolidaysPage', () => {
     listHolidays.mockResolvedValue([holiday(firstWeekday)])
     const wrapper = mountAsAdmin()
     await flushPromises()
-    expect(listHolidays).toHaveBeenCalledWith(year, 1)
+    expect(listHolidays).toHaveBeenCalledWith(year)
     const day = wrapper.find(`button[data-date="${firstWeekday}"]`)
     expect(day.exists()).toBe(true)
     expect(day.classes()).toContain('bg-primary/15')

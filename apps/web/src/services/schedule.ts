@@ -2,7 +2,6 @@ import type {
   CreateDutyRequest,
   Duty,
   GenerateAssignment,
-  PreviewResult,
   ReassignDutyRequest,
   ScheduleDetail,
   ScheduleOptionsResult,
@@ -13,18 +12,11 @@ import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/http'
 import { toQuery } from './query'
 
 export async function list(query?: ScheduleQuery): Promise<ScheduleSummary[]> {
-  const { schedules } = await apiGet<{ schedules: ScheduleSummary[] }>(`/schedules${toQuery(query)}`)
+  const { schedules } = await apiGet<{ schedules: ScheduleSummary[] }>(`/schedules${toQuery({ ...query })}`)
   return schedules
 }
 export async function get(id: number): Promise<ScheduleDetail> {
   return apiGet<ScheduleDetail>(`/schedules/${id}`)
-}
-export async function preview(
-  year: number,
-  month: number,
-  assignments?: GenerateAssignment[],
-): Promise<PreviewResult> {
-  return apiPost<PreviewResult>('/schedules/preview', { year, month, assignments })
 }
 export async function options(year: number, month: number): Promise<ScheduleOptionsResult> {
   return apiPost<ScheduleOptionsResult>('/schedules/options', { year, month })

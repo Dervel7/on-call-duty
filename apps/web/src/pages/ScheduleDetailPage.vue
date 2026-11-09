@@ -23,6 +23,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useIntlLocale } from '@/composables/useIntlLocale'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { groupByDate } from '@/lib/calendar'
+import { issueText } from '@/lib/validation'
 
 const route = useRoute()
 const router = useRouter()
@@ -183,7 +184,7 @@ async function onSelect(date: string, slotIndex: number, doctorId: number | null
     if (existing && doctorId === existing.doctorId) return
     const r = reassignDutySchema.safeParse({ doctorId } satisfies ReassignDutyRequest)
     if (!r.success) {
-      errorMsg.value = r.error.issues[0]?.message ?? t('common.invalidInput')
+      errorMsg.value = issueText(r.error.issues[0], t)
       return
     }
     await runDutyAction(date, () => scheduleService.reassignDuty(dutyId, r.data), 'scheduleDetail.reassignFailed')
@@ -191,7 +192,7 @@ async function onSelect(date: string, slotIndex: number, doctorId: number | null
   }
   const r = createDutySchema.safeParse({ date, doctorId } satisfies CreateDutyRequest)
   if (!r.success) {
-    errorMsg.value = r.error.issues[0]?.message ?? t('common.invalidInput')
+    errorMsg.value = issueText(r.error.issues[0], t)
     return
   }
   await runDutyAction(date, () => scheduleService.addDuty(id, r.data), 'scheduleDetail.addFailed')

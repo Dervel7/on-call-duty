@@ -12,7 +12,6 @@ const reassignDuty = vi.fn()
 const removeDuty = vi.fn()
 vi.mock('@/services/schedule', () => ({
   list: vi.fn(),
-  preview: vi.fn(),
   generate: vi.fn(),
   get: (...a: unknown[]) => get(...a),
   remove: (...a: unknown[]) => remove(...a),

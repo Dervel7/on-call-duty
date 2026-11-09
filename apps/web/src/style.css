@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* The app themes by toggling `.dark` on <html>, not by the OS preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
  * On-Call Duty — "Aurora Command" design language.
  * A futuristic mission-control surface: a deep canvas with drifting aurora
@@ -31,12 +34,8 @@
   --secondary-foreground: 228 30% 12%;
   --muted: 212 30% 93%;
   --muted-foreground: 221 15% 41%;
-  --info: 199 90% 36%;
-  --info-foreground: 0 0% 100%;
   --success: 157 70% 29%;
-  --success-foreground: 0 0% 100%;
   --warning: 30 92% 35%;
-  --warning-foreground: 0 0% 100%;
   --destructive: 350 80% 44%;
   --destructive-foreground: 0 0% 100%;
 
@@ -64,51 +63,48 @@
  * Deep-space variant: bright chromatic accents carry dark foregrounds so
  * text on them keeps healthcare-grade contrast.
  */
-.dark {
-  color-scheme: dark;
+@media screen {
+  .dark {
+    color-scheme: dark;
 
-  --background: 232 38% 4%;
-  --background-tint: 231 33% 7%;
-  --foreground: 210 44% 96%;
-  --card: 228 32% 8%;
-  --card-foreground: 210 44% 96%;
-  --popover: 228 32% 10%;
-  --popover-foreground: 210 44% 96%;
+    --background: 232 38% 4%;
+    --background-tint: 231 33% 7%;
+    --foreground: 210 44% 96%;
+    --card: 228 32% 8%;
+    --card-foreground: 210 44% 96%;
+    --popover: 228 32% 10%;
+    --popover-foreground: 210 44% 96%;
 
-  --primary: 192 98% 60%;
-  --primary-foreground: 230 45% 7%;
+    --primary: 192 98% 60%;
+    --primary-foreground: 230 45% 7%;
 
-  --accent: 262 95% 74%;
-  --accent-foreground: 260 40% 10%;
+    --accent: 262 95% 74%;
+    --accent-foreground: 260 40% 10%;
 
-  --secondary: 228 24% 14%;
-  --secondary-foreground: 210 44% 96%;
+    --secondary: 228 24% 14%;
+    --secondary-foreground: 210 44% 96%;
 
-  --muted: 228 22% 13%;
-  --muted-foreground: 218 18% 66%;
+    --muted: 228 22% 13%;
+    --muted-foreground: 218 18% 66%;
 
-  --info: 199 95% 60%;
-  --info-foreground: 230 45% 7%;
+    --success: 158 84% 52%;
 
-  --success: 158 84% 52%;
-  --success-foreground: 230 45% 7%;
+    --warning: 42 100% 62%;
 
-  --warning: 42 100% 62%;
-  --warning-foreground: 230 45% 7%;
+    --destructive: 350 100% 66%;
+    --destructive-foreground: 230 45% 7%;
 
-  --destructive: 350 100% 66%;
-  --destructive-foreground: 230 45% 7%;
+    --border: 226 26% 18%;
+    --input: 226 26% 24%;
+    --ring: 192 100% 62%;
 
-  --border: 226 26% 18%;
-  --input: 226 26% 24%;
-  --ring: 192 100% 62%;
+    --grid-line: 220 60% 70% / 0.05;
+    --aurora-1: 192 100% 50% / 0.16;
+    --aurora-2: 262 95% 60% / 0.14;
+    --aurora-3: 320 95% 55% / 0.08;
 
-  --grid-line: 220 60% 70% / 0.05;
-  --aurora-1: 192 100% 50% / 0.16;
-  --aurora-2: 262 95% 60% / 0.14;
-  --aurora-3: 320 95% 55% / 0.08;
-
-  --brand-gradient: linear-gradient(120deg, hsl(192 100% 55%) 0%, hsl(235 95% 62%) 52%, hsl(262 92% 68%) 100%);
+    --brand-gradient: linear-gradient(120deg, hsl(192 100% 55%) 0%, hsl(235 95% 62%) 52%, hsl(262 92% 68%) 100%);
+  }
 }
 
 @theme inline {
@@ -127,14 +123,10 @@
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-info: hsl(var(--info));
-  --color-info-foreground: hsl(var(--info-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-success: hsl(var(--success));
-  --color-success-foreground: hsl(var(--success-foreground));
   --color-warning: hsl(var(--warning));
-  --color-warning-foreground: hsl(var(--warning-foreground));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -537,42 +529,9 @@
 }
 
 @media print {
-  /* Print always uses the light palette, even when dark mode is active. */
-  .dark {
-    color-scheme: light;
-    --background: 210 40% 97%;
-    --background-tint: 210 50% 99%;
-    --foreground: 228 30% 12%;
-    --card: 0 0% 100%;
-    --card-foreground: 228 30% 12%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 228 30% 12%;
-    --primary: 194 90% 32%;
-    --primary-foreground: 0 0% 100%;
-    --accent: 262 74% 47%;
-    --accent-foreground: 0 0% 100%;
-    --secondary: 212 34% 92%;
-    --secondary-foreground: 228 30% 12%;
-    --muted: 212 30% 93%;
-    --muted-foreground: 221 15% 41%;
-    --info: 199 90% 36%;
-    --info-foreground: 0 0% 100%;
-    --success: 157 70% 29%;
-    --success-foreground: 0 0% 100%;
-    --warning: 30 92% 35%;
-    --warning-foreground: 0 0% 100%;
-    --destructive: 350 80% 44%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 214 28% 85%;
-    --input: 214 26% 79%;
-    --ring: 194 90% 34%;
-  }
   header,
   .no-print {
     display: none !important;
-  }
-  .container {
-    max-width: 100% !important;
   }
   main {
     padding: 0 !important;

@@ -69,8 +69,8 @@ describe('RulesPage', () => {
   it('lists every rule title with its current value and keeps the forms collapsed', async () => {
     const wrapper = await mountRules()
     expect(getOpenDuty).toHaveBeenCalled()
-    expect(getDutySlots).toHaveBeenCalledWith(1)
-    expect(getDutyMinimums).toHaveBeenCalledWith(1)
+    expect(getDutySlots).toHaveBeenCalledWith()
+    expect(getDutyMinimums).toHaveBeenCalledWith()
     expect(wrapper.find('#rule-cycle-toggle').text()).toContain('On-call duty cycle')
     expect(wrapper.find('#rule-cycle-toggle').text()).toContain('Every 8 days')
     expect(wrapper.find('#rule-slots-toggle').text()).toContain('On-call slots')
@@ -143,7 +143,7 @@ describe('RulesPage', () => {
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-slots').exists())!
     await form.trigger('submit')
     await flushPromises()
-    expect(updateDutySlots).toHaveBeenCalledWith(10, 9, 8, 1)
+    expect(updateDutySlots).toHaveBeenCalledWith(10, 9, 8)
     expect(form.find('[role="status"]').text()).toContain('Slots updated.')
     expect((wrapper.find('#open-duty-slots').element as HTMLInputElement).value).toBe('10')
     expect((wrapper.find('#post-open-duty-slots').element as HTMLInputElement).value).toBe('9')
@@ -171,7 +171,7 @@ describe('RulesPage', () => {
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-minimum').exists())!
     await form.trigger('submit')
     await flushPromises()
-    expect(updateDutyMinimums).toHaveBeenCalledWith(3, 1, 2, 1)
+    expect(updateDutyMinimums).toHaveBeenCalledWith(3, 1, 2)
     expect(form.find('[role="status"]').text()).toContain('Minimums updated.')
     expect((wrapper.find('#open-duty-minimum').element as HTMLInputElement).value).toBe('3')
     expect((wrapper.find('#post-open-duty-minimum').element as HTMLInputElement).value).toBe('1')
@@ -197,7 +197,7 @@ describe('RulesPage', () => {
     const form = wrapper.findAll('form').find((f) => f.find('#open-duty-minimum').exists())!
     await form.trigger('submit')
     await flushPromises()
-    expect(updateDutyMinimums).toHaveBeenCalledWith(5, 2, 1, 1)
+    expect(updateDutyMinimums).toHaveBeenCalledWith(5, 2, 1)
     expect(form.find('[role="alert"]').text()).toContain('cannot exceed the open slot count')
     expect(form.find('[role="status"]').exists()).toBe(false)
     expect(wrapper.findAll('[role="alert"]')).toHaveLength(1)
@@ -262,5 +262,16 @@ describe('RulesPage in Greek', () => {
       'Επόμενη ημέρα ανοιχτής εφημερίας (1–30)',
     )
     expect(wrapper.find('button[type="submit"]').text()).toBe('Αποθήκευση θέσεων')
+  })
+
+  it('translates schema validation errors into the active UI language', async () => {
+    setTestLocale('el')
+    const wrapper = await mountRules()
+    await expand(wrapper, 'cycle')
+    await wrapper.find('#open-duty-interval').setValue('0')
+    const form = wrapper.findAll('form').find((f) => f.find('#open-duty-interval').exists())!
+    await form.trigger('submit')
+    await flushPromises()
+    expect(form.find('[role="alert"]').text()).toBe('Πρέπει να είναι τουλάχιστον 1')
   })
 })

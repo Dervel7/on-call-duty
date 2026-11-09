@@ -7,19 +7,11 @@ import type {
 } from '@oncall/shared'
 import { eachDay, groupConsecutiveDays } from '@oncall/utils'
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/http'
-
-function toQuery(query?: UnavailabilityQuery): string {
-  if (!query) return ''
-  const parts: string[] = []
-  if (query.doctorId !== undefined) parts.push(`doctorId=${query.doctorId}`)
-  if (query.from !== undefined) parts.push(`from=${query.from}`)
-  if (query.to !== undefined) parts.push(`to=${query.to}`)
-  return parts.length > 0 ? `?${parts.join('&')}` : ''
-}
+import { toQuery } from './query'
 
 export async function listAll(query?: UnavailabilityQuery): Promise<Unavailability[]> {
   const { unavailability } = await apiGet<{ unavailability: Unavailability[] }>(
-    `/unavailability${toQuery(query)}`,
+    `/unavailability${toQuery({ ...query })}`,
   )
   return unavailability
 }

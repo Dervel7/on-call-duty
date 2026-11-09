@@ -358,7 +358,7 @@ describe('ProfilePage change username', () => {
     await form.trigger('submit')
     await flushPromises()
     expect(updateUsername).not.toHaveBeenCalled()
-    expect(form.find('[role="alert"]').text()).toContain('Invalid username')
+    expect(form.find('[role="alert"]').text()).toContain('Username must be 3–32 characters')
   })
 
   it('hides the username card from non-doctors', async () => {

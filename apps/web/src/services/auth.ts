@@ -1,5 +1,5 @@
 import type { AuthUser, LoginResponse } from '@oncall/shared'
-import { apiGet, apiPost } from '@/lib/http'
+import { apiPost } from '@/lib/http'
 
 export function login(identifier: string, password: string): Promise<LoginResponse> {
   return apiPost<LoginResponse>('/auth/login', { identifier, password })
@@ -14,11 +14,6 @@ export async function refresh(): Promise<LoginResponse> {
 
 export async function logout(): Promise<void> {
   await apiPost<void>('/auth/logout')
-}
-
-export async function fetchMe(): Promise<AuthUser> {
-  const { user } = await apiGet<{ user: AuthUser }>('/auth/me')
-  return user
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<AuthUser> {

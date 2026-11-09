@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
-import { computed, nextTick, ref } from 'vue'
-import { onClickOutside, useEventListener } from '@vueuse/core'
+import { computed, ref, useId } from 'vue'
+import { usePopover } from '@/composables/usePopover'
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { monthGrid, monthLabel as formatMonth, toIsoDate, toIsoMonth, weekdayNames } from '@oncall/utils'
@@ -22,10 +22,11 @@ const { t } = useI18n()
 const intlLocale = useIntlLocale()
 const today = new Date()
 
-const open = ref(false)
 const root = ref<HTMLElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
 const trigger = ref<HTMLButtonElement | null>(null)
+const valueId = useId()
+const { open, toggle: togglePopover, close, onPanelKeydown } = usePopover({ root, trigger, panel })
 const view = ref({ year: today.getFullYear(), month0: today.getMonth() })
 
 const dayFormat = computed(() => new Intl.DateTimeFormat(intlLocale.value, { day: 'numeric', month: 'short', year: 'numeric' }))
@@ -66,41 +67,9 @@ function syncView() {
   }
 }
 
-function positionPanel() {
-  const btn = trigger.value
-  const p = panel.value
-  if (!btn || !p) return
-  const r = btn.getBoundingClientRect()
-  const gap = 6
-  const margin = 8
-  const left = Math.min(r.left, window.innerWidth - p.offsetWidth - margin)
-  p.style.left = `${Math.max(margin, left)}px`
-  p.style.top = ''
-  p.style.bottom = ''
-  // Flip above the trigger when the calendar does not fit below.
-  if (r.bottom + gap + p.offsetHeight > window.innerHeight - margin && r.top > window.innerHeight - r.bottom) {
-    p.style.bottom = `${window.innerHeight - r.top + gap}px`
-  } else {
-    p.style.top = `${r.bottom + gap}px`
-  }
-}
-
-async function toggle() {
+function toggle() {
   if (props.disabled) return
-  if (open.value) {
-    open.value = false
-    return
-  }
-  syncView()
-  open.value = true
-  await nextTick()
-  positionPanel()
-  panel.value?.focus()
-}
-
-function close() {
-  open.value = false
-  trigger.value?.focus()
+  return togglePopover(syncView)
 }
 
 function pick(iso: string) {
@@ -117,33 +86,6 @@ function shiftMonth(delta: number) {
   const d = new Date(view.value.year, view.value.month0 + delta, 1)
   view.value = { year: d.getFullYear(), month0: d.getMonth() }
 }
-
-// The panel is teleported to body, so it counts as "outside" root.
-onClickOutside(root, () => (open.value = false), { ignore: [panel] })
-
-// Teleported panel is fixed-positioned; a scroll outside it would misplace it.
-useEventListener(
-  window,
-  'scroll',
-  (e: Event) => {
-    if (!open.value || panel.value?.contains(e.target as Node)) return
-    open.value = false
-  },
-  { capture: true, passive: true },
-)
-
-// Capture phase + stopPropagation: Escape closes only this popover, not an
-// enclosing Dialog (Dialog listens on window, bubble phase).
-useEventListener(
-  document,
-  'keydown',
-  (e: KeyboardEvent) => {
-    if (!open.value || e.key !== 'Escape') return
-    e.stopPropagation()
-    close()
-  },
-  { capture: true },
-)
 </script>
 
 <template>
@@ -155,14 +97,15 @@ useEventListener(
       :disabled="props.disabled"
       :aria-expanded="open"
       aria-haspopup="dialog"
+      :aria-describedby="valueId"
       :class="cn(
         'flex h-10 w-full items-center gap-2 rounded-lg border border-input bg-card/60 px-3 py-2 text-left text-sm shadow-sm transition-colors hover:border-primary/40 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50',
         selectedIso ? 'pr-9 text-foreground' : 'text-muted-foreground/70',
       )"
-      @click="toggle"
+      @click="toggle()"
     >
-      <Calendar class="size-4 shrink-0 text-muted-foreground" />
-      <span class="truncate">{{ triggerLabel || props.placeholder || t('datePicker.selectDate') }}</span>
+      <Calendar class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span :id="valueId" class="truncate">{{ triggerLabel || props.placeholder || t('datePicker.selectDate') }}</span>
     </button>
     <button
       v-if="selectedIso && !props.disabled"
@@ -190,6 +133,7 @@ useEventListener(
         :data-month="toIsoMonth(view.year, view.month0)"
         data-popover-layer
         class="glass-card glass-panel fixed z-50 w-80 rounded-xl p-3 focus-visible:outline-none focus-visible:shadow-none"
+        @keydown="onPanelKeydown"
       >
         <div class="flex items-center justify-between pb-2">
           <button type="button" :aria-label="t('common.previousMonth')" :class="navBtnClass" @click="shiftMonth(-1)">

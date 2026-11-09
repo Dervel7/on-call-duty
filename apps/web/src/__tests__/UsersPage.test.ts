@@ -3,7 +3,6 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const list = vi.fn()
-const create = vi.fn()
 const update = vi.fn()
 const remove = vi.fn()
 const resetPassword = vi.fn()
@@ -14,8 +13,6 @@ const doctorRemove = vi.fn()
 
 vi.mock('@/services/user', () => ({
   list: (...a: unknown[]) => list(...a),
-  get: vi.fn(),
-  create: (...a: unknown[]) => create(...a),
   update: (...a: unknown[]) => update(...a),
   remove: (...a: unknown[]) => remove(...a),
   resetPassword: (...a: unknown[]) => resetPassword(...a),
@@ -23,7 +20,6 @@ vi.mock('@/services/user', () => ({
 
 vi.mock('@/services/doctor', () => ({
   list: (...a: unknown[]) => doctorList(...a),
-  get: vi.fn(),
   me: vi.fn(),
   create: (...a: unknown[]) => doctorCreate(...a),
   update: (...a: unknown[]) => doctorUpdate(...a),
@@ -41,7 +37,6 @@ const { request, settle } = useConfirmState()
 beforeEach(() => {
   setActivePinia(createPinia())
   list.mockReset()
-  create.mockReset()
   update.mockReset()
   remove.mockReset()
   resetPassword.mockReset()
@@ -212,7 +207,6 @@ describe('UsersPage', () => {
         maxMonthlyDuties: 4,
       }),
     )
-    expect(create).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -339,7 +333,7 @@ describe('UsersPage', () => {
     await flushPromises()
     bodyButton('Save')!.click()
     await flushPromises()
-    expect(create).not.toHaveBeenCalled()
+    expect(doctorCreate).not.toHaveBeenCalled()
     expect(document.body.querySelector('[role="alert"]')?.textContent).toBeTruthy()
     expect(bodyButton('Save')).toBeTruthy()
     wrapper.unmount()
