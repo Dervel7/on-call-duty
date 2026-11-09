@@ -31,7 +31,6 @@ ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 
 COPY tsconfig.base.json ./
-COPY apps/api ./apps/api
 COPY apps/web ./apps/web
 COPY packages ./packages
 

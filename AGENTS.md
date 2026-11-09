@@ -21,7 +21,7 @@ Build a production-ready Doctor On-Call Duty Scheduling System for medium-sized 
 - Add Vector and Velocity: If you agree, expand. If you disagree, counter. Never just nod.
 - Never add time estimations for tasks.
 - Never suggest pushing git commits.
-- Never commit on main branch. If the work is done on main branch let me commit. If the work is done in another branch you make the commits.
+- Commit rule: on every branch except `main`, commit your own work yourself as soon as a task is finished and `pnpm typecheck`, `pnpm lint` and `pnpm test` pass. Never commit on `main`; if the work is on `main`, leave the commit to me.
 - Avoid over-engineering. Only make changes that are directly requested. Don't add features, refactor code, or make improvements beyond what was asked.
 - Never replace versions of github actions.
 - Never change linting rules.
