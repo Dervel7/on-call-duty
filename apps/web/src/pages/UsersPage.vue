@@ -255,7 +255,10 @@ async function toggleActive(u: User) {
   if (busyUserId.value !== null) return
   busyUserId.value = u.id
   try {
-    await userService.update(u.id, { isActive: !u.isActive })
+    const d = doctorByUserId.value.get(u.id)
+    // Doctors go through the doctor endpoint so the audit log records doctor.* events.
+    if (d) await doctorService.update(d.id, { isActive: !u.isActive })
+    else await userService.update(u.id, { isActive: !u.isActive })
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : t('users.updateFailed')
     return

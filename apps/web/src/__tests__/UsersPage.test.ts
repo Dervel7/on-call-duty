@@ -348,15 +348,29 @@ describe('UsersPage', () => {
   it('shows a page-level error when toggling active fails and does not reload', async () => {
     list.mockResolvedValue([doctorUser])
     doctorList.mockResolvedValue([doctorProfile])
-    update.mockRejectedValue(new Error('boom'))
+    doctorUpdate.mockRejectedValue(new Error('boom'))
     const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     expect(list).toHaveBeenCalledTimes(1)
     await wrapper.findAll('button').find((b) => b.text() === 'Disable')!.trigger('click')
     await flushPromises()
-    expect(update).toHaveBeenCalledWith(1, { isActive: false })
+    expect(doctorUpdate).toHaveBeenCalledWith(10, { isActive: false })
     expect(wrapper.find('[role="alert"]').text()).toContain('boom')
     expect(list).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables a doctor through the doctor service so the audit log records doctor events', async () => {
+    list.mockResolvedValue([doctorUser])
+    doctorList.mockResolvedValue([doctorProfile])
+    doctorUpdate.mockResolvedValue(doctorProfile)
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === 'Disable')!.trigger('click')
+    await flushPromises()
+    expect(doctorUpdate).toHaveBeenCalledWith(10, { isActive: false })
+    expect(update).not.toHaveBeenCalled()
+    expect(list).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
   })
 
   it('deletes a doctor through the doctor service after confirmation', async () => {
@@ -512,7 +526,7 @@ describe('UsersPage', () => {
     list.mockResolvedValue([doctorUser])
     doctorList.mockResolvedValue([doctorProfile])
     let resolveUpdate!: (v: unknown) => void
-    update.mockReturnValue(new Promise((r) => (resolveUpdate = r)))
+    doctorUpdate.mockReturnValue(new Promise((r) => (resolveUpdate = r)))
     const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     const disable = wrapper.findAll('button').find((b) => b.text() === 'Disable')!
@@ -527,7 +541,7 @@ describe('UsersPage', () => {
     disable.element.click()
     del.element.click()
     await flushPromises()
-    expect(update).toHaveBeenCalledTimes(1)
+    expect(doctorUpdate).toHaveBeenCalledTimes(1)
     expect(doctorRemove).not.toHaveBeenCalled()
     resolveUpdate(doctorUser)
     await flushPromises()

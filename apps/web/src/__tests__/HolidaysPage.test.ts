@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, h } from 'vue'
+import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
@@ -154,6 +156,46 @@ describe('HolidaysPage review fixes', () => {
     expect(picker.props('modelValue')).toBe(monthStr)
     expect(wrapper.find(`button[data-date="${firstWeekday}"]`).attributes('aria-pressed')).toBe('true')
     expect(wrapper.findAll('button').some((b) => b.text() === 'Save')).toBe(true)
+  })
+
+  it('clears the previous month marks and hides Save when the next month fails to load', async () => {
+    listHolidays.mockResolvedValueOnce([])
+    const wrapper = mountAsAdmin()
+    await flushPromises()
+    await wrapper.find(`button[data-date="${firstWeekday}"]`).trigger('click')
+    listHolidays.mockRejectedValueOnce(new Error('boom'))
+    wrapper.findComponent(MonthPicker).vm.$emit('update:modelValue', `${year + 1}-${pad(month)}`)
+    await flushPromises()
+    settle(true)
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').text()).toContain('boom')
+    expect(wrapper.findAll('button').some((b) => b.text() === 'Save')).toBe(false)
+    expect(setMonthHolidays).not.toHaveBeenCalled()
+  })
+
+  it('asks before leaving the page with unsaved marks and stays when cancelled', async () => {
+    listHolidays.mockResolvedValue([])
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/holidays', component: HolidaysPage },
+        { path: '/other', component: { template: '<div>other</div>' } },
+      ],
+    })
+    await router.push('/holidays')
+    const App = defineComponent({ render: () => h(RouterView) })
+    const wrapper = mount(App, { global: { plugins: [pinia, router] } })
+    await flushPromises()
+    await wrapper.find(`button[data-date="${firstWeekday}"]`).trigger('click')
+    const leaving = router.push('/other')
+    await flushPromises()
+    expect(request.value).not.toBeNull()
+    settle(false)
+    await leaving
+    expect(router.currentRoute.value.path).toBe('/holidays')
+    wrapper.unmount()
   })
 
   it('exposes pressed state and a full-date label on day toggles', async () => {

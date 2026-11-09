@@ -81,6 +81,17 @@ describe('ActivityPage', () => {
     )
   })
 
+  it('offers clinic-scoped actions but not the hospital-level billing.updated', async () => {
+    getActivity.mockResolvedValue(page())
+    const wrapper = mount(ActivityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    wrapper.element.querySelector('#f-action')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(document.body.querySelector('button[data-value="auth.login"]')).not.toBeNull()
+    expect(document.body.querySelector('button[data-value="billing.updated"]')).toBeNull()
+    wrapper.unmount()
+  })
+
   it('ignores a stale response that resolves after a newer one', async () => {
     let resolveFirst!: (v: PaginatedActivity) => void
     getActivity

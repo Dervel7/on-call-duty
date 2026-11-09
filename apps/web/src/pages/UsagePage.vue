@@ -30,6 +30,7 @@ import TableRow from '@/components/ui/TableRow.vue'
 const generations = ref<GenerationEvent[]>([])
 const alerts = ref<OperatorAlert[]>([])
 const loading = ref(false)
+const resolvingId = ref<number | null>(null)
 const errorMsg = ref('')
 
 const billing = ref<BillingState | null>(null)
@@ -60,11 +61,15 @@ async function load() {
 }
 
 async function resolve(a: OperatorAlert) {
+  if (resolvingId.value !== null) return
+  resolvingId.value = a.id
   try {
     await usageService.resolveAlert(a.id)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : t('usage.resolveFailed')
     return
+  } finally {
+    resolvingId.value = null
   }
   await load()
 }
@@ -176,14 +181,16 @@ onMounted(loadBilling)
             <TableRow>
               <TableHead>{{ t('usage.generatedAt') }}</TableHead>
               <TableHead>{{ t('common.month') }}</TableHead>
+              <TableHead>{{ t('usage.clinic') }}</TableHead>
               <TableHead>{{ t('usage.doctors') }}</TableHead>
               <TableHead>{{ t('usage.overlap') }}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="e in generations" :key="`${e.generatedAt}-${e.year}-${e.month}`">
+            <TableRow v-for="e in generations" :key="`${e.clinicId}-${e.generatedAt}`">
             <TableCell class="font-mono text-xs text-muted-foreground">{{ formatTime(e.generatedAt) }}</TableCell>
             <TableCell class="font-mono text-xs">{{ monthLabel(e) }}</TableCell>
+              <TableCell>{{ e.clinicName }}</TableCell>
               <TableCell>{{ e.doctorNames.join(', ') }}</TableCell>
             <TableCell class="font-mono text-xs">{{ overlapLabel(e) }}</TableCell>
             </TableRow>
@@ -215,7 +222,7 @@ onMounted(loadBilling)
               <TableCell>{{ JSON.stringify(a.detail) }}</TableCell>
               <TableCell><Badge :variant="a.resolvedAt ? 'neutral' : 'warning'">{{ a.resolvedAt ? t('usage.resolved') : t('usage.open') }}</Badge></TableCell>
               <TableCell class="text-right">
-                <Button size="sm" variant="outline" :disabled="a.resolvedAt !== null" @click="resolve(a)">
+                <Button size="sm" variant="outline" :disabled="a.resolvedAt !== null || resolvingId === a.id" @click="resolve(a)">
                   {{ t('usage.resolve') }}
                 </Button>
               </TableCell>

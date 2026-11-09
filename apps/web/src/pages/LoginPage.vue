@@ -32,7 +32,7 @@ async function onSubmit() {
     formError.value = t('login.fieldsRequired')
     return
   }
-  const parsed = loginSchema.safeParse({ identifier: identifier.value, password: password.value })
+  const parsed = loginSchema.safeParse({ identifier: identifier.value.trim(), password: password.value })
   if (!parsed.success) {
     formError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
     return
