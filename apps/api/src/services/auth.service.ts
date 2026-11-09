@@ -94,7 +94,13 @@ export async function login(
   }
   const accessToken = signAccessToken({ sub: row.id, role: row.role, clinicId: row.clinic_id })
   const refreshToken = await tokenService.issueRefreshToken(row.id)
-  await logActivity({ userId: row.id, action: 'auth.login', entityType: 'auth', entityId: null })
+  await logActivity({
+    userId: row.id,
+    clinicId: row.clinic_id,
+    action: 'auth.login',
+    entityType: 'auth',
+    entityId: null,
+  })
   return { user: toAuthUser(row), accessToken, refreshToken }
 }
 
@@ -115,7 +121,14 @@ export async function refresh(
 export async function logout(token: string): Promise<void> {
   const userId = await tokenService.revokeRefreshToken(token)
   if (userId === null) return
-  await logActivity({ userId, action: 'auth.logout', entityType: 'auth', entityId: null })
+  const row = await findUserById(userId)
+  await logActivity({
+    userId,
+    clinicId: row?.clinic_id ?? null,
+    action: 'auth.logout',
+    entityType: 'auth',
+    entityId: null,
+  })
 }
 
 export async function getUser(id: number): Promise<AuthUser> {
@@ -131,7 +144,7 @@ export async function changePassword(
   const row = await findUserById(userId)
   if (!row) throw new HttpError(404, 'User not found')
   const ok = await bcrypt.compare(input.currentPassword, row.password_hash)
-  if (!ok) throw new HttpError(401, 'Current password is incorrect')
+  if (!ok) throw new HttpError(400, 'Current password is incorrect')
   const newHash = await bcrypt.hash(input.newPassword, 12)
   await query(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [
     newHash,
@@ -140,6 +153,7 @@ export async function changePassword(
   await tokenService.revokeAllForUser(userId)
   await logActivity({
     userId,
+    clinicId: row.clinic_id,
     action: 'auth.password_changed',
     entityType: 'user',
     entityId: userId,

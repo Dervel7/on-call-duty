@@ -72,7 +72,7 @@ describe('auth.service', () => {
     expect(r.user.darkMode).toBe(false)
     expect(bcrypt.compare).toHaveBeenCalledWith('changeme123', SEED_HASH)
     expect(logActivity).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'auth.login', userId: 1 }),
+      expect.objectContaining({ action: 'auth.login', userId: 1, clinicId: 1 }),
     )
   })
 
@@ -162,13 +162,22 @@ describe('auth.service', () => {
     expect(sql).toContain('is_deleted = FALSE')
   })
 
-  it('logout revokes the token and logs the audit event', async () => {
+  it('logout revokes the token and logs the audit event with the user clinic', async () => {
     vi.mocked(tokenService.revokeRefreshToken).mockResolvedValue(7)
+    query.mockResolvedValue({ rows: [userRow({ id: 7, clinic_id: 3 })] })
     await logout('t')
     expect(tokenService.revokeRefreshToken).toHaveBeenCalledWith('t')
-    expect(query).not.toHaveBeenCalled()
     expect(logActivity).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'auth.logout', userId: 7 }),
+      expect.objectContaining({ action: 'auth.logout', userId: 7, clinicId: 3 }),
+    )
+  })
+
+  it('logout still logs the event with a null clinic when the user no longer exists', async () => {
+    vi.mocked(tokenService.revokeRefreshToken).mockResolvedValue(7)
+    query.mockResolvedValue({ rows: [] })
+    await logout('t')
+    expect(logActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'auth.logout', userId: 7, clinicId: null }),
     )
   })
 
@@ -185,15 +194,15 @@ describe('auth.service', () => {
     const updateSql = query.mock.calls.find((c) => String(c[0]).includes('UPDATE users'))
     expect(updateSql?.[1]).toEqual(['NEWHASH', 1])
     expect(logActivity).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'auth.password_changed', userId: 1 }),
+      expect.objectContaining({ action: 'auth.password_changed', userId: 1, clinicId: 1 }),
     )
   })
 
-  it('changePassword throws 401 on wrong current password', async () => {
+  it('changePassword throws 400 on wrong current password (401 is reserved for missing auth)', async () => {
     query.mockResolvedValue({ rows: [userRow()] })
     compare.mockResolvedValue(false)
     await expect(
       changePassword(1, { currentPassword: 'wrong', newPassword: 'newpass123' }),
-    ).rejects.toMatchObject({ status: 401 })
+    ).rejects.toMatchObject({ status: 400 })
   })
 })

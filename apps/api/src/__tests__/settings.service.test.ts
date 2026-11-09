@@ -79,12 +79,16 @@ describe('settings.service', () => {
       return { rows }
     })
 
-    const settings = await setOpenDutyInterval({ intervalDays: 14 }, { id: 1, role: 'administrator' })
+    const settings = await setOpenDutyInterval(
+      { intervalDays: 14 },
+      { id: 1, role: 'administrator', clinicId: 4 },
+    )
     expect(settings).toEqual({ anchorDate: '2026-10-02', intervalDays: 14 })
     const upsert = query.mock.calls.find((c) => String(c[0]).includes('ON CONFLICT'))
     expect(upsert?.[1]).toEqual(['open_duty_interval_days', '14'])
     expect(logActivity).toHaveBeenCalledWith({
       userId: 1,
+      clinicId: 4,
       action: 'open_duty_settings.updated',
       entityType: 'open_duty_settings',
       entityId: null,
