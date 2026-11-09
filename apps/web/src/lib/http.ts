@@ -47,27 +47,32 @@ async function parseEnvelope(res: Response): Promise<Envelope> {
   }
 }
 
-function isRefreshPath(path: string): boolean {
-  return path.startsWith('/auth/refresh')
+function skipsRefresh(path: string): boolean {
+  return path.startsWith('/auth/login') || path.startsWith('/auth/refresh')
 }
 
 let refreshing: Promise<string | null> | null = null
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const send = (token: string | null): Promise<Response> =>
-    fetch(`${BASE_URL}${path}`, {
-      method,
-      credentials: 'include',
-      headers: {
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    })
+  const send = async (token: string | null): Promise<Response> => {
+    try {
+      return await fetch(`${BASE_URL}${path}`, {
+        method,
+        credentials: 'include',
+        headers: {
+          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      })
+    } catch {
+      throw new ApiError(i18n.global.t('http.networkError'), 0)
+    }
+  }
 
   let res = await send(accessToken)
 
-  if (res.status === 401 && !isRefreshPath(path) && refreshHandler) {
+  if (res.status === 401 && !skipsRefresh(path) && refreshHandler) {
     const next = await (refreshing ??= refreshHandler().finally(() => (refreshing = null)))
     if (next) res = await send(next)
   }

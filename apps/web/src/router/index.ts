@@ -109,7 +109,11 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  { path: '/:pathMatch(.*)*', redirect: { name: 'home' } },
 ]
+
+// Chunk names are fingerprinted: after a deploy a stale tab 404s on them, so reload on the target.
+const STALE_CHUNK = /dynamically imported module|Importing a module script failed/i
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -117,3 +121,7 @@ export const router = createRouter({
 })
 
 router.beforeEach((to) => resolveGuard(to, useAuthStore()))
+
+router.onError((err, to) => {
+  if (STALE_CHUNK.test(String(err))) window.location.assign(to.fullPath)
+})

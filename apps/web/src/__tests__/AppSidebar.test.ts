@@ -108,6 +108,18 @@ describe('AppSidebar language', () => {
   })
 })
 
+describe('AppSidebar docked focus', () => {
+  it('does not trap Tab while the drawer is closed', async () => {
+    const w = await mountSidebar('doctor', { open: false })
+    const buttons = w.findAll('aside button')
+    const last = buttons[buttons.length - 1]!.element as HTMLElement
+    last.focus()
+    const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    last.dispatchEvent(e)
+    expect(e.defaultPrevented).toBe(false)
+  })
+})
+
 describe('AppSidebar drawer', () => {
   it('locks page scroll and is a modal dialog while open', async () => {
     const w = await mountSidebar('doctor', { open: true })

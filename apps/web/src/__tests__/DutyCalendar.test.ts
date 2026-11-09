@@ -72,6 +72,25 @@ describe('DutyCalendar', () => {
       process.env.TZ = tz
     }
   })
+
+  it('still shows every stored duty after the slot requirement drops below it', () => {
+    const w = mountCalendar(1, 2)
+    expect(w.findAll('[role="combobox"]')).toHaveLength(2)
+    const readonly = mount(DutyCalendar, {
+      props: {
+        year: 2026,
+        month: 9,
+        days: [day('2026-09-01', 1)],
+        assignmentByDate: new Map([
+          ['2026-09-01', [assigned, { ...assigned, doctorId: 6, firstName: 'John', lastName: 'Doe' }]],
+        ]),
+        doctors: [],
+        mode: 'readonly',
+      },
+    })
+    expect(readonly.text()).toContain('Roe')
+    expect(readonly.text()).toContain('Doe')
+  })
 })
 
 describe('DutyCalendar in Greek', () => {

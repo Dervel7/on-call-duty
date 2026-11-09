@@ -3,6 +3,7 @@ import type { Role } from '@oncall/shared'
 
 export interface GuardAuth {
   isAuthenticated: boolean
+  locked: boolean
   user: { role: Role } | null
 }
 
@@ -17,7 +18,9 @@ export function resolveGuard(
 ): true | RouteLocationRaw {
   if (to.meta.public) return true
   if (!auth.isAuthenticated) {
-    return { name: 'login', query: { redirect: to.fullPath } }
+    return auth.locked
+      ? { name: 'locked' }
+      : { name: 'login', query: { redirect: to.fullPath } }
   }
   const roles = to.meta.roles
   if (roles && (auth.user === null || !isRoleAllowed(roles, auth.user.role))) {

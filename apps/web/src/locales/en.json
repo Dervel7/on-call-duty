@@ -125,7 +125,8 @@
     "nextYear": "Next year"
   },
   "http": {
-    "requestFailed": "Request failed"
+    "requestFailed": "Request failed",
+    "networkError": "Cannot reach the server. Check your connection and try again."
   },
   "dutyReason": {
     "plan": "Assigned manually",
@@ -362,7 +363,7 @@
     "lastName": "Last name",
     "usernameHint": "Type the username in English: 3–32 characters (letters, digits, dot, underscore or hyphen).",
     "usernameInvalid": "Username must be 3–32 characters in English: letters, digits, dot, underscore or hyphen",
-    "initialPassword": "Initial password is {password}. The user should change it on first login.",
+    "initialPasswordLabel": "Initial password",
     "resetPassword": "Reset Password",
     "resetPasswordTitle": "Reset password",
     "resetPasswordDescription": "Set a new password for this user. The current password is not needed.",

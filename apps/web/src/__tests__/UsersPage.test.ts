@@ -190,6 +190,7 @@ describe('UsersPage', () => {
     await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
     await flushPromises()
     expect(document.body.querySelector('#e-role')).toBeNull()
+    expect((document.body.querySelector('#e-password') as HTMLInputElement).type).toBe('password')
     expect(document.body.querySelector('#e-username')).toBeTruthy()
     expect(document.body.querySelector('#e-max')).toBeTruthy()
     setBodyValue('#e-email', 'dr@h.com')
@@ -199,6 +200,7 @@ describe('UsersPage', () => {
     await flushPromises()
     expect((document.body.querySelector('#e-username') as HTMLInputElement).value).toBe('')
     setBodyValue('#e-username', 'alsmi')
+    setBodyValue('#e-password', 'secret1')
     await flushPromises()
     bodyButton('Save')!.click()
     await flushPromises()
@@ -206,7 +208,7 @@ describe('UsersPage', () => {
       expect.objectContaining({
         email: 'dr@h.com',
         username: 'alsmi',
-        password: 'changeme123',
+        password: 'secret1',
         maxMonthlyDuties: 4,
       }),
     )
@@ -228,6 +230,25 @@ describe('UsersPage', () => {
     await flushPromises()
     expect(doctorCreate).not.toHaveBeenCalled()
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('Username must be')
+    wrapper.unmount()
+  })
+
+  it('rejects a short initial password without calling the service', async () => {
+    list.mockResolvedValue([])
+    const wrapper = mount(UsersPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === 'New user')!.trigger('click')
+    await flushPromises()
+    setBodyValue('#e-email', 'dr@h.com')
+    setBodyValue('#e-first', 'Al')
+    setBodyValue('#e-last', 'Smith')
+    setBodyValue('#e-username', 'alsmi')
+    setBodyValue('#e-password', '12345')
+    await flushPromises()
+    bodyButton('Save')!.click()
+    await flushPromises()
+    expect(doctorCreate).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[role="alert"]')).toBeTruthy()
     wrapper.unmount()
   })
 
@@ -277,6 +298,7 @@ describe('UsersPage', () => {
     setBodyValue('#e-first', 'Ada')
     setBodyValue('#e-last', 'Ops')
     setBodyValue('#e-username', 'adaops')
+    setBodyValue('#e-password', 'secret1')
     await flushPromises()
     bodyButton('Save')!.click()
     await flushPromises()

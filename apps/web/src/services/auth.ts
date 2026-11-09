@@ -1,24 +1,19 @@
 import type { AuthUser, LoginResponse } from '@oncall/shared'
-import { apiGet, apiPost, setAccessToken } from '@/lib/http'
+import { apiGet, apiPost } from '@/lib/http'
 
-export async function login(identifier: string, password: string): Promise<LoginResponse> {
-  const data = await apiPost<LoginResponse>('/auth/login', { identifier, password })
-  setAccessToken(data.accessToken)
-  return data
+export function login(identifier: string, password: string): Promise<LoginResponse> {
+  return apiPost<LoginResponse>('/auth/login', { identifier, password })
 }
 
+// Tabs share one refresh cookie and the API revokes the whole session family when a rotated
+// token is reused, so refreshes are serialised across tabs: the second one sends the new cookie.
 export async function refresh(): Promise<LoginResponse> {
-  const data = await apiPost<LoginResponse>('/auth/refresh')
-  setAccessToken(data.accessToken)
-  return data
+  const post = () => apiPost<LoginResponse>('/auth/refresh')
+  return navigator.locks ? navigator.locks.request('oncall-auth-refresh', post) : post()
 }
 
 export async function logout(): Promise<void> {
-  try {
-    await apiPost<void>('/auth/logout')
-  } finally {
-    setAccessToken(null)
-  }
+  await apiPost<void>('/auth/logout')
 }
 
 export async function fetchMe(): Promise<AuthUser> {
