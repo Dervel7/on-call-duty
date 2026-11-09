@@ -8,6 +8,7 @@ const createMine = vi.fn()
 const update = vi.fn()
 const remove = vi.fn()
 const split = vi.fn()
+const removeDay = vi.fn()
 vi.mock('@/services/unavailability', () => ({
   listAll: vi.fn(),
   listMine: (...a: unknown[]) => listMine(...a),
@@ -16,6 +17,7 @@ vi.mock('@/services/unavailability', () => ({
   update: (...a: unknown[]) => update(...a),
   remove: (...a: unknown[]) => remove(...a),
   split: (...a: unknown[]) => split(...a),
+  removeDay: (...a: unknown[]) => removeDay(...a),
 }))
 
 import MyAvailabilityPage from '../pages/MyAvailabilityPage.vue'
@@ -44,6 +46,7 @@ beforeEach(() => {
   update.mockReset()
   remove.mockReset()
   split.mockReset()
+  removeDay.mockReset()
   settle(false)
 })
 afterEach(() => {
@@ -369,7 +372,7 @@ describe('MyAvailabilityPage', () => {
   it('delete from the edit dialog removes only the chip day of a multi-day record', async () => {
     const nm = nextMonthIso()
     listMine.mockResolvedValue([{ ...record, startDate: `${nm}-07`, endDate: `${nm}-11` }])
-    split.mockResolvedValue([])
+    removeDay.mockResolvedValue(undefined)
     const wrapper = await mountPage()
     await wrapper.findAll('button').find((b) => b.text() === `${nm}-09`)!.trigger('click')
     await flushPromises()
@@ -378,20 +381,17 @@ describe('MyAvailabilityPage', () => {
     expect(request.value?.message).toBe(`Delete your exclusion on ${nm}-09?`)
     settle(true)
     await flushPromises()
-    expect(split).toHaveBeenCalledWith(1, {
-      segments: [
-        { startDate: `${nm}-07`, endDate: `${nm}-08` },
-        { startDate: `${nm}-10`, endDate: `${nm}-11` },
-      ],
-    })
-    expect(remove).not.toHaveBeenCalled()
+    expect(removeDay).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1, startDate: `${nm}-07`, endDate: `${nm}-11` }),
+      `${nm}-09`,
+    )
     wrapper.unmount()
   })
 
   it('delete from the edit dialog shows an inline error when it fails', async () => {
     const nm = nextMonthIso()
     listMine.mockResolvedValue([{ ...record, startDate: `${nm}-07`, endDate: `${nm}-07` }])
-    remove.mockRejectedValue(new Error('delete failed'))
+    removeDay.mockRejectedValue(new Error('delete failed'))
     const wrapper = await mountPage()
     await wrapper.findAll('button').find((b) => b.text() === `${nm}-07`)!.trigger('click')
     await flushPromises()
@@ -399,9 +399,56 @@ describe('MyAvailabilityPage', () => {
     await flushPromises()
     settle(true)
     await flushPromises()
-    expect(remove).toHaveBeenCalledWith(1)
+    expect(removeDay).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), `${nm}-07`)
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('delete failed')
     expect(bodyButton('Save')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('disables Save and Delete while a delete runs and calls the service once', async () => {
+    const nm = nextMonthIso()
+    listMine.mockResolvedValue([{ ...record, startDate: `${nm}-07`, endDate: `${nm}-11` }])
+    let resolveRemove!: (v: unknown) => void
+    removeDay.mockReturnValue(new Promise((r) => (resolveRemove = r)))
+    const wrapper = await mountPage()
+    await wrapper.findAll('button').find((b) => b.text() === `${nm}-09`)!.trigger('click')
+    await flushPromises()
+    bodyButton('Delete')!.click()
+    await flushPromises()
+    settle(true)
+    await flushPromises()
+    expect(bodyButton('Delete')!.disabled).toBe(true)
+    expect(bodyButton('Save')!.disabled).toBe(true)
+    bodyButton('Delete')!.click()
+    await flushPromises()
+    expect(request.value).toBeNull()
+    expect(removeDay).toHaveBeenCalledTimes(1)
+    resolveRemove(undefined)
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  it('reloads, closes the dialog and names the unsaved days when a create fails after the update', async () => {
+    const nm = nextMonthIso()
+    listMine.mockResolvedValue([{ ...record, startDate: `${nm}-07`, endDate: `${nm}-11` }])
+    update.mockResolvedValue({})
+    createMine.mockRejectedValue(new Error('create failed'))
+    const wrapper = await mountPage()
+    await wrapper.findAll('button').find((b) => b.text() === `${nm}-07`)!.trigger('click')
+    await flushPromises()
+    bodyButton('Select days')!.click()
+    await flushPromises()
+    await pickDays([`${nm}-21`])
+    const listCallsBeforeSave = listMine.mock.calls.length
+    bodyButton('Save')!.click()
+    await flushPromises()
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(bodyButton('Save')).toBeUndefined()
+    // Two reads: the pre-save refresh and the reload after the failure.
+    expect(listMine.mock.calls.length).toBeGreaterThan(listCallsBeforeSave + 1)
+    const alert = wrapper.find('[role="alert"]').text()
+    expect(alert).toContain('create failed')
+    expect(alert).toContain(`must be re-entered: ${nm}-21`)
     wrapper.unmount()
   })
 })

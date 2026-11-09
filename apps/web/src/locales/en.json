@@ -404,6 +404,7 @@
     "unsavedDays": "{message}. These days were not saved and must be re-entered: {ranges}",
     "loadFailed": "Failed to load availability",
     "loadExclusionsFailed": "Failed to load existing exclusions",
+    "loadDoctorsFailed": "Failed to load doctors",
     "saveFailed": "Failed to save availability",
     "deleteFailed": "Failed to delete availability",
     "updateFailed": "Failed to update availability"

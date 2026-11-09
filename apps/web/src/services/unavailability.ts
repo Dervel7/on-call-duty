@@ -5,6 +5,7 @@ import type {
   UnavailabilityQuery,
   UpdateUnavailabilityRequest,
 } from '@oncall/shared'
+import { eachDay, groupConsecutiveDays } from '@oncall/utils'
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/http'
 
 function toQuery(query?: UnavailabilityQuery): string {
@@ -79,4 +80,10 @@ export async function split(
 }
 export async function remove(id: number): Promise<void> {
   await apiDelete<void>(`/unavailability/${id}`)
+}
+/** Removes one day from a record: splits around it, or deletes the record when it was its only day. */
+export async function removeDay(record: Unavailability, day: string): Promise<void> {
+  const others = eachDay(record.startDate, record.endDate).filter((d) => d !== day)
+  if (others.length > 0) await split(record.id, { segments: groupConsecutiveDays(others) })
+  else await remove(record.id)
 }
