@@ -125,4 +125,5 @@ Not run for batch 10: `pnpm typecheck`, `pnpm lint`, `pnpm test`, Docker build. 
 | SCH-05 | Delete the unreachable Schedule Preview page, or restore a link to it? |
 | SCH-10 | Merge the doctor "Duty roster" page into `/schedules`? |
 | ADM-01 | Should admins type each new doctor's initial password? |
-| ADM-04, CORE-05 | Are `apps/api` changes in scope? |
+| ADM-04 | API part moved to RPT-01 in `docs/superpowers/plans/2026-11-10-api-review-fixes-plan.md` (the auth events are already logged). The question is now: should hospital-wide events (`billing.updated`, `open_duty_settings.updated`) show in every clinic's activity log? |
+| CORE-05 | No decision needed. API part is done: `/auth/change-password` returns 400 for a wrong current password. |
