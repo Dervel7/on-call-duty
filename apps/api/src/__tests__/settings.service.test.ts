@@ -6,10 +6,8 @@ vi.mock('../db/client.ts', () => ({
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
-const logActivity = vi.fn()
 const recordActivity = vi.fn()
 vi.mock('../services/activity.service.ts', () => ({
-  logActivity: (...a: unknown[]) => logActivity(...a),
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
 
@@ -25,7 +23,6 @@ import {
 
 beforeEach(() => {
   query.mockReset()
-  logActivity.mockReset()
   recordActivity.mockReset()
 })
 
@@ -86,7 +83,7 @@ describe('settings.service', () => {
     expect(settings).toEqual({ anchorDate: '2026-10-02', intervalDays: 14 })
     const upsert = query.mock.calls.find((c) => String(c[0]).includes('ON CONFLICT'))
     expect(upsert?.[1]).toEqual(['open_duty_interval_days', '14'])
-    expect(logActivity).toHaveBeenCalledWith({
+    expect(recordActivity).toHaveBeenCalledWith(expect.anything(), {
       userId: 1,
       clinicId: 4,
       action: 'open_duty_settings.updated',
@@ -185,7 +182,7 @@ describe('settings.service duty slots', () => {
     })
     const update = query.mock.calls.find((c) => String(c[0]).includes('UPDATE clinics'))
     expect(update?.[1]).toEqual([4, 30, 12, 10])
-    expect(logActivity).toHaveBeenCalledWith({
+    expect(recordActivity).toHaveBeenCalledWith(expect.anything(), {
       userId: 1,
       action: 'duty_slots_settings.updated',
       entityType: 'duty_slots_settings',
@@ -214,7 +211,7 @@ describe('settings.service duty slots', () => {
       ).rejects.toMatchObject({ status: 422 })
     }
     expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE clinics'))).toBe(false)
-    expect(logActivity).not.toHaveBeenCalled()
+    expect(recordActivity).not.toHaveBeenCalled()
   })
 
   it('setDutySlots 409 when a slot count drops below its minimum, without saving', async () => {
@@ -295,7 +292,7 @@ describe('settings.service duty minimums', () => {
     expect(settings).toEqual({ openDutyMinimum: 2, postOpenDutyMinimum: 3, closedDutyMinimum: 1 })
     const update = query.mock.calls.find((c) => String(c[0]).includes('UPDATE clinics'))
     expect(update?.[1]).toEqual([4, 2, 3, 1])
-    expect(logActivity).toHaveBeenCalledWith({
+    expect(recordActivity).toHaveBeenCalledWith(expect.anything(), {
       userId: 1,
       action: 'duty_minimums_settings.updated',
       entityType: 'duty_minimums_settings',
@@ -322,6 +319,6 @@ describe('settings.service duty minimums', () => {
       ),
     ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('days after open have 2') })
     expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE clinics'))).toBe(false)
-    expect(logActivity).not.toHaveBeenCalled()
+    expect(recordActivity).not.toHaveBeenCalled()
   })
 })
