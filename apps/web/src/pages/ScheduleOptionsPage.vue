@@ -17,7 +17,7 @@ import Button from '@/components/ui/Button.vue'
 import DutyCalendar from '@/components/schedule/DutyCalendar.vue'
 import Spinner from '@/components/ui/Spinner.vue'
 
-// ~25 s typical primary solve (budget SOLVER_BUDGET_MS = 30 s).
+// ~25 s typical primary solve (budget SOLVER_BUDGET_MS = 45 s).
 const ESTIMATED_OPTIONS_MS = 25_000
 // Mirrors ALTERNATIVE_BUDGET_MS (5 s) of the API.
 const ESTIMATED_ALTERNATIVE_MS = 5_000
