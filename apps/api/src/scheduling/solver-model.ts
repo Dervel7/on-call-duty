@@ -92,8 +92,8 @@ export interface ModelBounds {
 
 /**
  * Classifies the days and lists every possible duty. Days the doctor is
- * unavailable, and the first day when they held the previous month's last
- * day, get no variable at all.
+ * unavailable, and the first or last day when they hold the neighbouring
+ * month's adjacent day, get no variable at all.
  */
 export function indexModel(ctx: SchedulingContext): ModelIndex {
   const doctors = [...ctx.doctors].sort((a, b) => a.id - b.id)
@@ -105,13 +105,15 @@ export function indexModel(ctx: SchedulingContext): ModelIndex {
     minimum: minimumForDate(day.date, ctx.openDuty, ctx.minimums),
   }))
   const firstDate = ctx.days[0]?.date
+  const lastDate = ctx.days.at(-1)?.date
   const cellsByDoctor = new Map<number, ModelCell[]>()
   const cellsByDate = new Map<string, ModelCell[]>(days.map((d) => [d.day.date, []]))
   for (const doctor of doctors) {
     const cells: ModelCell[] = []
     for (const d of days) {
-      if (!isAvailable(doctor.id, d.day.date, ctx.unavailability.get(doctor.id)).ok) continue
+      if (!isAvailable(d.day.date, ctx.unavailability.get(doctor.id))) continue
       if (d.day.date === firstDate && ctx.priorDayDoctorIds.has(doctor.id)) continue
+      if (d.day.date === lastDate && ctx.nextDayDoctorIds.has(doctor.id)) continue
       const cell = { doctorId: doctor.id, day: d, name: `x_${doctor.id}_${d.day.date.replaceAll('-', '')}` }
       cells.push(cell)
       cellsByDate.get(d.day.date)?.push(cell)

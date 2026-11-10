@@ -24,8 +24,8 @@ Related plans (do not repeat their items here):
 
 | Batch | Topic | Findings | Status |
 |---|---|---|---|
-| 1 | Security: accounts and sessions | 8 | Not started |
-| 2 | Scheduling hard rules | 9 | Not started |
+| 1 | Security: accounts and sessions | 8 | Done (ADM-06 merged into CORE-02) |
+| 2 | Scheduling hard rules | 9 | Done (SCH-04 had no decision: manual edits strict, plan saves keep the minimum relaxation) |
 | 3 | Solver and options robustness | 7 | Not started |
 | 4 | Validation and request plumbing | 8 | Not started |
 | 5 | Audit trail and atomic writes | 9 | Not started |

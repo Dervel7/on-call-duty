@@ -60,7 +60,7 @@ Source of truth: `rules.md`, `engine.ts` (`collect()` inside `fillDay`), `constr
 |---|---|---|
 | Unavailable | `isAvailable` | `x[i,d] = 0` (omit the variable) for every excluded day |
 | Monthly cap | `underCap` | `sum_d x[i,d] <= maxMonthlyDuties[i]` |
-| No back-to-back | `notConsecutive`, `priorDayDoctorIds` | `x[i,d] + x[i,d+1] <= 1`; `x[i,day1] = 0` when `i` is in `priorDayDoctorIds`. Parity with greedy: the first day of the next month is not checked |
+| No back-to-back | `blockingRule`, `priorDayDoctorIds`, `nextDayDoctorIds` | `x[i,d] + x[i,d+1] <= 1`; `x[i,day1] = 0` when `i` is in `priorDayDoctorIds`; `x[i,last day] = 0` when `i` is in `nextDayDoctorIds` (the first day of the next month, checked since 2026-11-10) |
 | One open on-call duty | `underOpenDutyCap`, `OPEN_DUTY_DUTY_CAP = 1` | `sum over open days of x[i,d] <= 1` |
 | One slot per doctor per day | `already on duty` | implicit (binary) |
 | Day capacity | `slotsForDate` | `sum_i x[i,d] <= slots(d)` |

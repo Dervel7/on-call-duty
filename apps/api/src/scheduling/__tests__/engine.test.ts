@@ -200,6 +200,32 @@ describe.each(engines)('%s engine', (_name, engine) => {
     expect(conflicts.map((c) => c.date)).toEqual(['2026-09-02'])
   })
 
+  it('respects next-month first-day duty via nextDayDoctorIds', async () => {
+    const days = [day('2026-09-29'), day('2026-09-30')]
+    const { assignments } = await run(ctx(days, [dr(1), dr(2), dr(3)], { nextDayDoctorIds: new Set([1]) }))
+    expect(assignments.filter((a) => a.date === '2026-09-30').map((a) => a.doctorId)).not.toContain(1)
+  })
+
+  it('an optional slot on a critical holiday never takes a doctor over the holiday cap', async () => {
+    // Doctor 3 is the only one free on Saturdays 5 and 12, so they hold two
+    // regular holiday duties. The open Saturday 19 has a third, optional slot:
+    // a critical duty would be their third holiday duty, which no coverage needs.
+    const away = new Map([
+      [1, [{ start: '2026-09-05', end: '2026-09-12' }]],
+      [2, [{ start: '2026-09-05', end: '2026-09-12' }]],
+    ])
+    const { assignments, conflicts } = await run(
+      ctx(['2026-09-05', '2026-09-12', '2026-09-19'].map((d) => day(d, true)), [dr(1), dr(2), dr(3)], {
+        unavailability: away,
+        openDuty: { anchorDate: '2026-09-19', intervalDays: 90 },
+        slots: { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 1 },
+        minimums: { openDutyMinimum: 1, postOpenDutyMinimum: 1, closedDutyMinimum: 1 },
+      }),
+    )
+    expect(conflicts).toEqual([])
+    expect(assignments.filter((a) => a.doctorId === 3).map((a) => a.date)).toEqual(['2026-09-05', '2026-09-12'])
+  })
+
   it('open on-call rule: the holiday cap never blocks a critical day', async () => {
     // Anchor 09-05, interval 7: every Saturday is open and every Sunday is
     // the day after an open day — all critical. Doctor 1 is available only

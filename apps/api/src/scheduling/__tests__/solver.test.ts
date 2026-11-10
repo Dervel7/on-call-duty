@@ -3,11 +3,10 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import {
   HOLIDAY_DUTY_CAP,
   isAvailable,
-  notConsecutive,
   underCap,
   underOpenDutyCap,
 } from '../constraints.ts'
-import { dayOfWeekISO, isOpenDutyDate, minimumForDate, prevDate, slotsForDate } from '../dates.ts'
+import { dayOfWeekISO, isOpenDutyDate, minimumForDate, nextDate, prevDate, slotsForDate } from '../dates.ts'
 import { generateGreedy } from '../engine.ts'
 import { loadSolver, type SolverLoader } from '../highs.ts'
 import { generate, generateAlternative, generatePrimary, SolverBusyError } from '../solver.ts'
@@ -46,13 +45,15 @@ function expectHardRules(c: SchedulingContext, result: GenerateResult): void {
     const dates = result.assignments.filter((a) => a.doctorId === doctor.id).map((a) => a.date).sort()
     let openDays = 0
     dates.forEach((date, i) => {
-      expect(isAvailable(doctor.id, date, c.unavailability.get(doctor.id)).ok).toBe(true)
-      expect(underCap(i, doctor.maxMonthlyDuties).ok).toBe(true)
+      expect(isAvailable(date, c.unavailability.get(doctor.id))).toBe(true)
+      expect(underCap(i, doctor.maxMonthlyDuties)).toBe(true)
       const yesterday =
         date === c.days[0]?.date ? c.priorDayDoctorIds.has(doctor.id) : dates.includes(prevDate(date))
-      expect(notConsecutive(yesterday).ok).toBe(true)
+      const tomorrow =
+        date === c.days.at(-1)?.date ? c.nextDayDoctorIds.has(doctor.id) : dates.includes(nextDate(date))
+      expect(yesterday || tomorrow).toBe(false)
       if (isOpenDutyDate(date, c.openDuty.anchorDate, c.openDuty.intervalDays)) {
-        expect(underOpenDutyCap(openDays).ok).toBe(true)
+        expect(underOpenDutyCap(openDays)).toBe(true)
         openDays++
       }
     })

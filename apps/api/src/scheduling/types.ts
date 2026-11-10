@@ -27,6 +27,8 @@ export interface SchedulingContext {
    doctors: DoctorSpec[]
    unavailability: Map<number, Array<{ start: string; end: string }>>
    priorDayDoctorIds: Set<number>
+  /** Doctors on duty the day after the month's last day (next month's first day). */
+  nextDayDoctorIds: Set<number>
   /** Open on-call cycle; open days and the day after them are critical. */
   openDuty: OpenDutySettings
   /** Per-day on-call capacity: open, post-open (day after open), or closed slots. */

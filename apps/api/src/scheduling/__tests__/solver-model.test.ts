@@ -28,6 +28,13 @@ describe('solver model', () => {
     ])
   })
 
+  it('gives no last-day variable to a doctor who holds the next month first day', () => {
+    const edge = indexModel(
+      ctx([day('2026-09-29'), day('2026-09-30')], [dr(1), dr(2)], { nextDayDoctorIds: new Set([1]) }),
+    )
+    expect((edge.cellsByDate.get('2026-09-30') ?? []).map((c) => c.doctorId)).toEqual([2])
+  })
+
   it('forbids back-to-back days and a second open on-call day', () => {
     expect(lp).toMatch(/^ b2b_1_20260901: x_1_20260901 \+ x_1_20260902 <= 1$/m)
     expect(lp).toMatch(/^ b2b_1_20260902: x_1_20260902 \+ x_1_20260903 <= 1$/m)

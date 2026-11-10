@@ -8,6 +8,7 @@ export function ctx(
   opts: {
     unavailability?: Map<number, Array<{ start: string; end: string }>>
     priorDayDoctorIds?: Set<number>
+    nextDayDoctorIds?: Set<number>
     openDuty?: { anchorDate: string; intervalDays: number }
     slots?: DutySlotsSettings
     minimums?: DutyMinimumSettings
@@ -23,6 +24,7 @@ export function ctx(
     doctors,
     unavailability: opts.unavailability ?? new Map(),
     priorDayDoctorIds: opts.priorDayDoctorIds ?? new Set(),
+    nextDayDoctorIds: opts.nextDayDoctorIds ?? new Set(),
     openDuty: opts.openDuty ?? { anchorDate: '2030-01-01', intervalDays: 7 },
     slots,
     // Unset minimums mean full coverage, like missing app_meta rows.

@@ -1,7 +1,7 @@
 import type { LegacyHighsSolution } from 'highs'
 import { logger } from '../logger.ts'
 import { blockingRule, emptyTally, type DutyCounts } from './conflicts.ts'
-import { HOLIDAY_DUTY_CAP } from './constraints.ts'
+import { holidayExcess } from './constraints.ts'
 import { generateGreedy } from './engine.ts'
 import { loadSolver, type Solver, type SolverLoader } from './highs.ts'
 import {
@@ -263,7 +263,13 @@ function chosenCells(index: ModelIndex, columns: LegacyHighsSolution['Columns'])
 
 /** Assignments with explainable reasons, plus a conflict for every short day. */
 function decode(ctx: SchedulingContext, index: ModelIndex, solution: Solution): GenerateResult {
-  const counts: DutyCounts = { byDate: new Map(), total: new Map(), openDays: new Map(), holiday: new Map() }
+  const counts: DutyCounts = {
+    byDate: new Map(),
+    total: new Map(),
+    openDays: new Map(),
+    holiday: new Map(),
+    criticalHoliday: new Map(),
+  }
   const bump = (map: Map<number, number>, id: number): void => {
     map.set(id, (map.get(id) ?? 0) + 1)
   }
@@ -274,7 +280,7 @@ function decode(ctx: SchedulingContext, index: ModelIndex, solution: Solution): 
       ids.add(cell.doctorId)
       bump(counts.total, cell.doctorId)
       if (d.open) bump(counts.openDays, cell.doctorId)
-      if (d.day.isHoliday) bump(counts.holiday, cell.doctorId)
+      if (d.day.isHoliday) bump(d.critical ? counts.criticalHoliday : counts.holiday, cell.doctorId)
     }
     counts.byDate.set(d.day.date, ids)
   }
@@ -297,7 +303,7 @@ function decode(ctx: SchedulingContext, index: ModelIndex, solution: Solution): 
     }
     const nonCritical = cells.filter((c) => c.day.day.isHoliday && !c.day.critical)
     const critical = cells.filter((c) => c.day.day.isHoliday && c.day.critical)
-    const excess = nonCritical.length - Math.max(0, HOLIDAY_DUTY_CAP - critical.length)
+    const excess = holidayExcess(nonCritical.length, critical.length)
     if (excess > 0) {
       for (const c of nonCritical.filter(needed).slice(-excess))
         note(c, 'day-fill guarantee overrode fairness caps')

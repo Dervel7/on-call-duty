@@ -83,6 +83,51 @@ beforeEach(() => {
   getDutyMinimums.mockResolvedValue(SEEDED_MINIMUMS)
 })
 
+const ADMIN = { id: 2, role: 'administrator' as const, clinicId: 1 }
+
+interface EditDb {
+  schedule?: Record<string, unknown>
+  duty?: Record<string, unknown>
+  /** Active doctors of the clinic; defaults to doctor 5. */
+  doctors?: number[]
+  /** The doctor exists in the clinic although inactive. */
+  knownDoctor?: boolean
+  held?: Array<{ duty_date: string; doctor_id: number }>
+  unavailability?: Array<{ doctor_id: number; start_date: string; end_date: string }>
+  marked?: string[]
+  adjacent?: Array<{ duty_date: string; doctor_id: number }>
+  appMeta?: Array<{ key: string; value: string }>
+  count?: number
+  updated?: boolean
+  deleted?: boolean
+}
+
+/** SQL-keyed database for the manual duty edit paths (add, reassign, remove). */
+function mockEditDb(o: EditDb = {}) {
+  query.mockImplementation(async (text: unknown) => {
+    const sql = String(text)
+    if (sql.includes('FOR UPDATE')) return { rows: [{ status: 'draft' }] }
+    if (sql.includes('WHERE du.id = $1')) return { rows: [dutyRow(o.duty)] }
+    if (sql.includes('FROM schedules s JOIN clinics')) return { rows: [scheduleRow(o.schedule)] }
+    if (sql.includes('FROM app_meta')) return { rows: o.appMeta ?? [] }
+    if (sql.includes('FROM doctors d JOIN users')) {
+      return {
+        rows: (o.doctors ?? [5]).map((id) => ({ id, max_monthly_duties: 7, first_name: `D${id}`, last_name: `D${id}` })),
+      }
+    }
+    if (sql.includes('FROM doctors WHERE id')) return { rows: o.knownDoctor ? [{ '?column?': 1 }] : [] }
+    if (sql.includes('FROM unavailability')) return { rows: o.unavailability ?? [] }
+    if (sql.includes('FROM holidays')) return { rows: (o.marked ?? []).map((d) => ({ holiday_date: d })) }
+    if (sql.includes('du.duty_date IN')) return { rows: o.adjacent ?? [] }
+    if (sql.includes('doctor_id FROM duties')) return { rows: o.held ?? [] }
+    if (sql.includes('INSERT INTO duties')) return { rows: [{ id: 11 }] }
+    if (sql.includes('UPDATE duties')) return { rows: o.updated === false ? [] : [{ id: 10 }] }
+    if (sql.includes('DELETE FROM duties')) return { rows: o.deleted === false ? [] : [{ id: 10 }] }
+    if (sql.includes('SELECT COUNT(*)::int')) return { rows: [{ n: o.count ?? 0 }] }
+    return { rows: [] }
+  })
+}
+
 describe('schedule.service', () => {
   it('generate 409 when the month already exists', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
@@ -288,203 +333,167 @@ describe('schedule.service', () => {
     ).rejects.toMatchObject({ status: 400 })
   })
 
-  it('addDuty rejects a date with both slots filled (409)', async () => {
-    query.mockResolvedValueOnce({ rows: [scheduleRow()] })
-    query.mockResolvedValueOnce({ rows: [{ n: 2 }] })
-    query.mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> defaults
-    await expect(
-      addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 }),
-    ).rejects.toMatchObject({ status: 409 })
-  })
-
-  it('addDuty 409 when the same doctor is already assigned to the date', async () => {
-    query.mockResolvedValueOnce({ rows: [scheduleRow()] })
-    query.mockResolvedValueOnce({ rows: [{ n: 1 }] })
-    query.mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> defaults
-    query.mockResolvedValueOnce({ rows: [{ max_monthly_duties: 7, is_active: true }] })
-    query.mockResolvedValueOnce({ rows: [] })
-    query.mockResolvedValueOnce({ rows: [{ n: 0 }] })
-    query.mockResolvedValueOnce({ rows: [{ n: 1 }] })
-    await expect(
-      addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 }),
-    ).rejects.toMatchObject({
+  it('addDuty rejects a date with every slot filled (409)', async () => {
+    mockEditDb({
+      doctors: [5, 6, 7],
+      held: [
+        { duty_date: '2026-09-05', doctor_id: 6 },
+        { duty_date: '2026-09-05', doctor_id: 7 },
+      ],
+    })
+    await expect(addDuty(1, { date: '2026-09-05', doctorId: 5 }, ADMIN)).rejects.toMatchObject({
       status: 409,
-      message: expect.stringContaining('already assigned to this date'),
+      message: expect.stringContaining('slots'),
     })
   })
 
   it('addDuty inserts the duty and records the audit row in-transaction', async () => {
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FOR UPDATE')) return { rows: [{ status: 'draft' }] }
-      if (sql.includes('FROM schedules') && sql.includes('WHERE s.id =')) {
-        return { rows: [scheduleRow()] }
-      }
-      if (sql.includes('FROM duties WHERE schedule_id = $1 AND duty_date =')) {
-        return { rows: [{ n: 0 }] }
-      }
-      if (sql.includes('FROM doctors d JOIN users') && sql.includes('WHERE d.id = $1')) {
-        return { rows: [{ max_monthly_duties: 7, is_active: true }] }
-      }
-      if (sql.includes('WHERE u.is_active = TRUE')) return { rows: [{ n: 8 }] }
-      if (sql.includes('FROM unavailability WHERE doctor_id')) return { rows: [] }
-      if (sql.includes('FROM duties WHERE schedule_id = $1 AND doctor_id')) {
-        return { rows: [{ n: 0 }] }
-      }
-      if (sql.includes('du.duty_date IN')) return { rows: [] }
-      if (sql.includes('INSERT INTO duties')) return { rows: [{ id: 11 }] }
-      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
-        return { rows: [dutyRow({ id: 11 })] }
-      }
-      return { rows: [] }
-    })
-    const d = await addDuty(1, { date: '2026-09-05', doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 })
-    const ranges = query.mock.calls.find((c) => String(c[0]).includes('FROM unavailability WHERE doctor_id'))
+    mockEditDb()
+    await addDuty(1, { date: '2026-09-05', doctorId: 5 }, ADMIN)
+    const ranges = query.mock.calls.find((c) => String(c[0]).includes('FROM unavailability'))
     expect(String(ranges?.[0])).toContain('is_disabled = FALSE')
-    expect(d.id).toBe(11)
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'duty.assigned', entityId: 11 }),
     )
   })
 
-  it('addDuty on a critical Saturday skips the holiday cap (strict rule outranks fairness)', async () => {
-    // Seeded defaults: 2026-10-02 is open, so 2026-10-03 (a Saturday, the day
-    // after an open day) is critical — no weekend/holiday cap query may run.
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FOR UPDATE')) return { rows: [{ status: 'draft' }] }
-      if (sql.includes('FROM schedules') && sql.includes('WHERE s.id =')) {
-        return { rows: [scheduleRow({ year: 2026, month: 10 })] }
-      }
-      if (sql.includes('FROM duties WHERE schedule_id = $1 AND duty_date =')) {
-        return { rows: [{ n: 0 }] }
-      }
-      if (sql.includes('FROM doctors d JOIN users') && sql.includes('WHERE d.id = $1')) {
-        return { rows: [{ max_monthly_duties: 7, is_active: true }] }
-      }
-      if (sql.includes('FROM unavailability WHERE doctor_id')) return { rows: [] }
-      if (sql.includes('FROM duties WHERE schedule_id = $1 AND doctor_id')) {
-        return { rows: [{ n: 0 }] }
-      }
-      if (sql.includes('du.duty_date IN')) return { rows: [] }
-      if (sql.includes('INSERT INTO duties')) return { rows: [{ id: 21 }] }
-      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
-        return { rows: [dutyRow({ id: 21, duty_date: '2026-10-03' })] }
-      }
-      return { rows: [] } // app_meta empty -> seeded defaults
+  it('addDuty 404 for an unknown doctor and 409 for an inactive one', async () => {
+    mockEditDb({ doctors: [] })
+    await expect(addDuty(1, { date: '2026-09-05', doctorId: 5 }, ADMIN)).rejects.toMatchObject({ status: 404 })
+    mockEditDb({ doctors: [], knownDoctor: true })
+    await expect(addDuty(1, { date: '2026-09-05', doctorId: 5 }, ADMIN)).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining('inactive'),
     })
-    const d = await addDuty(1, { date: '2026-10-03', doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 })
-    expect(d.id).toBe(21)
-    expect(query.mock.calls.some((c) => String(c[0]).includes('EXTRACT(ISODOW'))).toBe(false)
+    expect(recordActivity).not.toHaveBeenCalled()
   })
-  it('reassignDuty runs validateAssignment and updates the row', async () => {
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
-        return { rows: [dutyRow({ id: 10, doctor_id: 7, duty_date: '2026-09-05', reason: 'manual override by admin #2' })] }
-      }
-      if (sql.includes('FROM schedules s JOIN clinics') && sql.includes('WHERE s.id = $1')) {
-        return { rows: [scheduleRow()] }
-      }
-      if (sql.includes('FOR UPDATE')) return { rows: [{ status: 'draft' }] }
-      if (sql.includes('FROM doctors d JOIN users') && sql.includes('WHERE d.id = $1')) {
-        return { rows: [{ max_monthly_duties: 7, is_active: true }] }
-      }
-      if (sql.includes('WHERE u.is_active = TRUE')) return { rows: [{ n: 8 }] }
-      if (sql.includes('FROM unavailability WHERE doctor_id')) return { rows: [] }
-      if (sql.includes('duty_date IN')) return { rows: [] }
-      if (sql.includes('UPDATE duties')) return { rows: [] }
-      return { rows: [{ n: 0 }] }
+
+  const weekdays = ['01', '03', '08', '10', '15', '17', '22'].map((d) => ({
+    duty_date: `2026-09-${d}`,
+    doctor_id: 5,
+  }))
+  it.each<[string, EditDb, string, RegExp]>([
+    ['the same doctor twice on a date', { held: [{ duty_date: '2026-09-09', doctor_id: 5 }] }, '2026-09-09', /already assigned/],
+    ['the monthly cap', { held: weekdays }, '2026-09-24', /monthly cap/],
+    [
+      'unavailability',
+      { unavailability: [{ doctor_id: 5, start_date: '2026-09-09', end_date: '2026-09-11' }] },
+      '2026-09-10',
+      /unavailable/,
+    ],
+    ['back-to-back inside the month', { held: [{ duty_date: '2026-09-09', doctor_id: 5 }] }, '2026-09-10', /back-to-back/],
+    ['back-to-back with the prior month', { adjacent: [{ duty_date: '2026-08-31', doctor_id: 5 }] }, '2026-09-01', /back-to-back/],
+    ['back-to-back with the next month', { adjacent: [{ duty_date: '2026-10-01', doctor_id: 5 }] }, '2026-09-30', /back-to-back/],
+  ])('addDuty 409 on %s', async (_rule, edit, date, message) => {
+    mockEditDb(edit)
+    await expect(addDuty(1, { date, doctorId: 5 }, ADMIN)).rejects.toMatchObject({ status: 409, message })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO duties'))).toBe(false)
+  })
+
+  const october = { schedule: { year: 2026, month: 10 } }
+  it('addDuty 409 on the holiday cap counting a marked weekday holiday', async () => {
+    // Sunday 10-25 and the marked Wednesday 10-28 are two holiday duties
+    // already, so a third on Saturday 10-31 is refused.
+    mockEditDb({
+      ...october,
+      marked: ['2026-10-28'],
+      held: [
+        { duty_date: '2026-10-25', doctor_id: 5 },
+        { duty_date: '2026-10-28', doctor_id: 5 },
+      ],
     })
-    const d = await reassignDuty(10, { doctorId: 7 }, { id: 2, role: 'administrator', clinicId: 1 })
-    expect(d.doctorId).toBe(7)
-    expect(d.reason).toContain('manual override by admin #2')
+    await expect(addDuty(1, { date: '2026-10-31', doctorId: 5 }, ADMIN)).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining('holiday cap'),
+    })
+  })
+
+  it('addDuty on a critical Saturday skips the holiday cap', async () => {
+    // Seeded defaults: 2026-10-02 is an open day, so Saturday 10-03 is
+    // critical although the doctor already holds two holiday duties.
+    mockEditDb({
+      ...october,
+      held: [
+        { duty_date: '2026-10-17', doctor_id: 5 },
+        { duty_date: '2026-10-24', doctor_id: 5 },
+      ],
+    })
+    await addDuty(1, { date: '2026-10-03', doctorId: 5 }, ADMIN)
+    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO duties'))).toBe(true)
+  })
+
+  it('addDuty validates after the schedule row is locked', async () => {
+    mockEditDb()
+    await addDuty(1, { date: '2026-09-05', doctorId: 5 }, ADMIN)
+    const at = (needle: string): number => query.mock.calls.findIndex((c) => String(c[0]).includes(needle))
+    expect(at('FOR UPDATE')).toBeGreaterThan(-1)
+    expect(at('FOR UPDATE')).toBeLessThan(at('FROM doctors d JOIN users'))
+    expect(at('FOR UPDATE')).toBeLessThan(at('SELECT duty_date::text AS duty_date, doctor_id FROM duties'))
+  })
+
+  it('reassignDuty runs the rule checks and updates the row', async () => {
+    mockEditDb({ duty: { doctor_id: 7 }, doctors: [7] })
+    await reassignDuty(10, { doctorId: 7 }, ADMIN)
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'duty.reassigned', entityId: 10 }),
     )
   })
 
-  it('reassignDuty 409 when the doctor already holds a duty on an open on-call day', async () => {
-    // Anchor 2026-09-05, interval 7: 09-05 and 09-12 are both open Saturdays.
-    // Doctor 5 already holds an open-day duty on 09-05, so taking over the
-    // 09-12 duty is refused — one open on-call duty per doctor.
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
-        return { rows: [dutyRow({ duty_date: '2026-09-12' })] }
-      }
-      if (sql.includes('FROM schedules s JOIN clinics')) return { rows: [scheduleRow()] }
-      if (sql.includes('FROM doctors d JOIN users')) return { rows: [{ max_monthly_duties: 7, is_active: true }] }
-      if (sql.includes('FROM unavailability')) return { rows: [] }
-      if (sql.includes('FROM app_meta'))
-        return {
-          rows: [
-            { key: 'open_duty_anchor_date', value: '2026-09-05' },
-            { key: 'open_duty_interval_days', value: '7' },
-          ],
-        }
-      if (sql.includes('duty_date::text AS duty_date FROM duties'))
-        return { rows: [{ duty_date: '2026-09-05' }] }
-      return { rows: [] }
+  it('reassignDuty 409 when the doctor already holds an open on-call duty', async () => {
+    // Anchor 2026-09-05, interval 7: 09-05 and 09-12 are both open days.
+    mockEditDb({
+      duty: { duty_date: '2026-09-12' },
+      held: [{ duty_date: '2026-09-05', doctor_id: 5 }],
+      appMeta: [
+        { key: 'open_duty_anchor_date', value: '2026-09-05' },
+        { key: 'open_duty_interval_days', value: '7' },
+      ],
     })
-    await expect(
-      reassignDuty(10, { doctorId: 5 }, { id: 2, role: 'administrator', clinicId: 1 }),
-    ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('open on-call') })
+    await expect(reassignDuty(10, { doctorId: 5 }, ADMIN)).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining('open on-call'),
+    })
     expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE duties'))).toBe(false)
   })
 
-  it('reassignDuty 404 when duty missing', async () => {
-    query.mockResolvedValue({ rows: [] })
-    await expect(
-      reassignDuty(99, { doctorId: 7 }, { id: 2, role: 'administrator', clinicId: 1 }),
-    ).rejects.toMatchObject({ status: 404 })
+  it('reassignDuty 404 without an audit row when the duty vanished before the update', async () => {
+    mockEditDb({ updated: false })
+    await expect(reassignDuty(10, { doctorId: 5 }, ADMIN)).rejects.toMatchObject({ status: 404 })
+    expect(recordActivity).not.toHaveBeenCalled()
   })
 
-  it('removeDuty deletes; 404 when missing', async () => {
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
-        return { rows: [dutyRow()] }
-      }
-      if (sql.includes('FROM schedules s JOIN clinics') && sql.includes('WHERE s.id = $1')) {
-        return { rows: [scheduleRow()] }
-      }
-      if (sql.includes('FOR UPDATE')) return { rows: [{ status: 'draft' }] }
-      return { rows: [] }
-    })
-    await removeDuty(10, { id: 2, role: 'administrator', clinicId: 1 })
+  it('reassignDuty 404 when the duty is missing', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await expect(reassignDuty(99, { doctorId: 7 }, ADMIN)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('removeDuty deletes the duty and records the audit row', async () => {
+    mockEditDb()
+    await removeDuty(10, ADMIN)
     expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM duties'))).toBe(true)
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'duty.removed', entityId: 10 }),
     )
-
-    query.mockReset()
-    logActivity.mockReset()
-    query.mockResolvedValue({ rows: [] })
-    await expect(removeDuty(99, { id: 2, role: 'administrator', clinicId: 1 })).rejects.toMatchObject({
-      status: 404,
-    })
   })
 
-  it('removeDuty 409 when an open on-call day would drop below its minimum (must reassign instead)', async () => {
-    // 2026-10-02 is the seeded anchor; no minimum is stored, so the open day
-    // needs its full 2 doctors and removing either would leave one.
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
-        return { rows: [dutyRow({ duty_date: '2026-10-02' })] }
-      }
-      if (sql.includes('FROM schedules s JOIN clinics') && sql.includes('WHERE s.id = $1')) {
-        return { rows: [scheduleRow({ year: 2026, month: 10 })] }
-      }
-      if (sql.includes('FOR UPDATE')) return { rows: [{ status: 'draft' }] }
-      if (sql.includes('SELECT COUNT(*)::int AS n FROM duties')) return { rows: [{ n: 2 }] }
-      return { rows: [] } // app_meta empty -> seeded defaults
-    })
-    await expect(removeDuty(10, { id: 2, role: 'administrator', clinicId: 1 })).rejects.toMatchObject({
+  it('removeDuty 404 when the duty is missing', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await expect(removeDuty(99, ADMIN)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('removeDuty 404 without an audit row when the duty vanished before the delete', async () => {
+    mockEditDb({ deleted: false })
+    await expect(removeDuty(10, ADMIN)).rejects.toMatchObject({ status: 404 })
+    expect(recordActivity).not.toHaveBeenCalled()
+  })
+
+  it('removeDuty 409 when an open on-call day would drop below its minimum', async () => {
+    // 2026-10-02 is the seeded anchor: removing one of 2 doctors leaves 1 < 2.
+    mockEditDb({ ...october, duty: { duty_date: '2026-10-02' }, count: 2 })
+    await expect(removeDuty(10, ADMIN)).rejects.toMatchObject({
       status: 409,
       message: expect.stringContaining('reassign'),
     })
@@ -493,19 +502,8 @@ describe('schedule.service', () => {
 
   it('removeDuty allows an open on-call day to keep a count at or above its minimum', async () => {
     getDutyMinimums.mockResolvedValue({ ...SEEDED_MINIMUMS, openDutyMinimum: 1 })
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FROM duties du') && sql.includes('WHERE du.id = $1')) {
-        return { rows: [dutyRow({ duty_date: '2026-10-02' })] }
-      }
-      if (sql.includes('FROM schedules s JOIN clinics') && sql.includes('WHERE s.id = $1')) {
-        return { rows: [scheduleRow({ year: 2026, month: 10 })] }
-      }
-      if (sql.includes('FOR UPDATE')) return { rows: [{ status: 'draft' }] }
-      if (sql.includes('SELECT COUNT(*)::int AS n FROM duties')) return { rows: [{ n: 2 }] }
-      return { rows: [] }
-    })
-    await removeDuty(10, { id: 2, role: 'administrator', clinicId: 1 })
+    mockEditDb({ ...october, duty: { duty_date: '2026-10-02' }, count: 2 })
+    await removeDuty(10, ADMIN)
     expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM duties'))).toBe(true)
   })
 })
@@ -827,27 +825,42 @@ describe('generate plan path', () => {
     ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('back-to-back') })
   })
 
-  it('409 when a plan collides with the prior month last-day duty', async () => {
+  it.each([
+    ['prior month last-day', '2026-08-31', '2026-09-01'],
+    ['next month first-day', '2026-10-01', '2026-09-30'],
+  ])('409 when a plan collides with the %s duty', async (_label, adjacentDate, planDate) => {
     getDutyMinimums.mockResolvedValue({ ...SEEDED_MINIMUMS, closedDutyMinimum: 1 })
     query.mockImplementation(async (text: unknown) => {
       const sql = String(text)
       if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
       if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
-      if (sql.includes('FROM unavailability')) return { rows: [] }
-      if (sql.includes('du.duty_date = $1 AND s.clinic_id')) return { rows: [{ doctor_id: 1 }] }
+      if (sql.includes('du.duty_date IN')) return { rows: [{ duty_date: adjacentDate, doctor_id: 1 }] }
       return { rows: [] }
     })
 
-    const assignments = [
-      { date: '2026-09-01', doctorId: 1 },
-      ...Array.from({ length: 29 }, (_, i) => ({
-        date: `2026-09-${String(i + 2).padStart(2, '0')}`,
-        doctorId: (i % 10) + 2,
-      })),
-    ]
+    const assignments = Array.from({ length: 30 }, (_, i) => {
+      const date = `2026-09-${String(i + 1).padStart(2, '0')}`
+      return { date, doctorId: date === planDate ? 1 : (i % 10) + 2 }
+    })
     await expect(
       generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, assignments),
     ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('back-to-back') })
+  })
+
+  it('judges the holiday cap on final counts: reversing the plan gives the same outcome', async () => {
+    // Doctor 6 holds Sundays 06, 20 and 27 with doctor 3 next to them on 27.
+    mockContext()
+    const base = Array.from({ length: 30 }, (_, i) => {
+      const day = i + 1
+      const doctorId = day === 20 || day === 27 ? 6 : (i % 12) + 1
+      return { date: `2026-09-${String(day).padStart(2, '0')}`, doctorId }
+    })
+    const plan = [...base, { date: '2026-09-27', doctorId: 3 }]
+    for (const ordered of [plan, [...plan].reverse()]) {
+      await expect(
+        generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, ordered),
+      ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('holiday cap') })
+    }
   })
 
   it('treats an empty assignments array as the engine path (not plan path)', async () => {
@@ -1108,7 +1121,8 @@ describe('computeEligibility', () => {
     minimums: { openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 2 },
     dutiesByDate: new Map<string, Set<number>>(),
     dutyCountByDoctor: new Map<number, number>(),
-    holidayByDoctor: new Map<number, number>(),
+    regularHolidayByDoctor: new Map<number, number>(),
+    criticalHolidayByDoctor: new Map<number, number>(),
     openByDoctor: new Map<number, number>(),
   })
 
@@ -1247,6 +1261,33 @@ describe('computeEligibility', () => {
     // on another open day they are excluded — never a second open duty.
     expect(result[0]?.eligibleDoctorIds).toEqual([1])
     expect(result[1]?.eligibleDoctorIds).toEqual([])
+  })
+
+  it('holiday cap: a critical holiday day stays open to a doctor holding two regular holiday duties', () => {
+    // 10-03 is the day after the open anchor (critical); 10-17 is a regular Saturday.
+    const result = computeEligibility({
+      doctors: [doctor(1)],
+      unavailability: new Map(),
+      days: [day('2026-10-03', true), day('2026-10-17', true)],
+      ...empty(),
+      dutyCountByDoctor: new Map([[1, 2]]),
+      regularHolidayByDoctor: new Map([[1, 2]]),
+    })
+    expect(result[0]?.eligibleDoctorIds).toEqual([1])
+    expect(result[1]?.eligibleDoctorIds).toEqual([])
+  })
+
+  it('holiday cap: critical holiday duties leave less room for regular ones', () => {
+    const result = computeEligibility({
+      doctors: [doctor(1)],
+      unavailability: new Map(),
+      days: [day('2026-10-17', true)],
+      ...empty(),
+      dutyCountByDoctor: new Map([[1, 2]]),
+      regularHolidayByDoctor: new Map([[1, 1]]),
+      criticalHolidayByDoctor: new Map([[1, 1]]),
+    })
+    expect(result[0]?.eligibleDoctorIds).toEqual([])
   })
 
   it('empty: when no doctor passes -> eligibleDoctorIds is []', () => {

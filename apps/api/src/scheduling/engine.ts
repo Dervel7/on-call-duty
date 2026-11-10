@@ -24,6 +24,7 @@ interface RunState {
   /** Duties per doctor per day of week (index 0=Sun … 6=Sat). */
   weekday: Map<number, number[]>
   holiday: Map<number, number>
+  criticalHoliday: Map<number, number>
   openDays: Map<number, number>
   byDate: Map<string, Set<number>>
 }
@@ -42,6 +43,7 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
     friday: new Map(),
     weekday: new Map(),
     holiday: new Map(),
+    criticalHoliday: new Map(),
     openDays: new Map(),
     byDate: new Map(),
   }
@@ -51,6 +53,7 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
     state.friday.set(d.id, 0)
     state.weekday.set(d.id, [0, 0, 0, 0, 0, 0, 0])
     state.holiday.set(d.id, 0)
+    state.criticalHoliday.set(d.id, 0)
     state.openDays.set(d.id, 0)
   }
 
@@ -122,7 +125,7 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
       const eligible: Eligible[] = []
       const tally = emptyTally()
       for (const doctor of ctx.doctors) {
-        const blocked = blockingRule(ctx, state, doctor, day, critical, relaxFairness)
+        const blocked = blockingRule(ctx, state, doctor, day, critical, relaxFairness, required)
         if (blocked) {
           tally[blocked]++
           continue
@@ -199,7 +202,10 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
     if (day.dayOfWeek === 5)
       state.friday.set(winner.doctor.id, (state.friday.get(winner.doctor.id) ?? 0) + 1)
     if (day.isHoliday)
-      state.holiday.set(winner.doctor.id, (state.holiday.get(winner.doctor.id) ?? 0) + 1)
+      (critical ? state.criticalHoliday : state.holiday).set(
+        winner.doctor.id,
+        ((critical ? state.criticalHoliday : state.holiday).get(winner.doctor.id) ?? 0) + 1,
+      )
     if (openDay)
       state.openDays.set(winner.doctor.id, (state.openDays.get(winner.doctor.id) ?? 0) + 1)
   }
