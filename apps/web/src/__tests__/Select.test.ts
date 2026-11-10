@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { defineComponent, h } from 'vue'
+import Dialog from '../components/ui/Dialog.vue'
 import Select from '../components/ui/Select.vue'
 
 /**
@@ -145,5 +147,53 @@ describe('Select arrow keys with no active option', () => {
     const panel = await openUnselected('<option value="a" disabled>Alpha</option><option value="b" disabled>Beta</option>')
     await press(panel, 'ArrowDown')
     expect(activeText(panel)).toBeUndefined()
+  })
+})
+
+describe('Select popover behaviour', () => {
+  it('keeps the listbox inside the viewport horizontally', async () => {
+    stubGeometry({ top: 100, bottom: 136, left: window.innerWidth - 50, width: 40 }, 100, 800)
+    const { panel } = await openPanel()
+
+    expect(parseFloat(panel!.style.left) + 176).toBeLessThanOrEqual(window.innerWidth)
+  })
+
+  it('opens with ArrowDown and points aria-controls at the listbox', async () => {
+    wrapper = mount(Select, {
+      props: { modelValue: 'a' },
+      slots: { default: '<option value="a">Alpha</option>' },
+      attachTo: document.body,
+    })
+    const trigger = wrapper.find('button')
+    expect(trigger.attributes('aria-controls')).toBeUndefined()
+
+    await trigger.trigger('keydown', { key: 'ArrowDown' })
+    await flushPromises()
+
+    const listbox = document.body.querySelector('[role="listbox"]')!
+    expect(listbox.id).not.toBe('')
+    expect(trigger.attributes('aria-controls')).toBe(listbox.id)
+  })
+
+  it('dismissing the listbox by clicking a Dialog backdrop keeps the Dialog open', async () => {
+    const onUpdateOpen = vi.fn()
+    const Host = defineComponent({
+      setup: () => () =>
+        h(Dialog, { open: true, title: 'Edit', 'onUpdate:open': onUpdateOpen }, () =>
+          h(Select, { modelValue: 'a' }, () => [h('option', { value: 'a' }, 'Alpha')]),
+        ),
+    })
+    wrapper = mount(Host, { attachTo: document.body })
+    const click = (el: Element) => el.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+    click(document.body.querySelector('[role="combobox"]')!)
+    await flushPromises()
+    expect(document.body.querySelector('[role="listbox"]')).not.toBeNull()
+
+    click(document.body.querySelector('.animate-dialog-backdrop')!)
+    await flushPromises()
+
+    expect(document.body.querySelector('[role="listbox"]')).toBeNull()
+    expect(onUpdateOpen).not.toHaveBeenCalled()
   })
 })

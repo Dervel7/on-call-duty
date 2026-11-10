@@ -28,17 +28,18 @@ import TableRow from '@/components/ui/TableRow.vue'
 import * as reportsService from '@/services/reports'
 import * as scheduleService from '@/services/schedule'
 import { downloadCsv } from '@/lib/download'
+import { groupByDate } from '@/lib/calendar'
 import { explainDutyReason } from '@/lib/duty-reason'
 
 const router = useRouter()
 const { t } = useI18n()
 const intlLocale = useIntlLocale()
-const weekdayFmt = computed(() => new Intl.DateTimeFormat(intlLocale.value, { weekday: 'short' }))
-const dayFmt = computed(() => new Intl.DateTimeFormat(intlLocale.value, { day: '2-digit' }))
+const weekdayFmt = computed(() => new Intl.DateTimeFormat(intlLocale.value, { weekday: 'short', timeZone: 'UTC' }))
+const dayFmt = computed(() => new Intl.DateTimeFormat(intlLocale.value, { day: '2-digit', timeZone: 'UTC' }))
 
 const now = new Date()
-const year = ref(String(now.getUTCFullYear()))
-const month = ref(String(now.getUTCMonth() + 1))
+const year = ref(String(now.getFullYear()))
+const month = ref(String(now.getMonth() + 1))
 
 const report = ref<MonthlyReport | null>(null)
 const calendar = ref<ScheduleDetail | null>(null)
@@ -100,15 +101,12 @@ const fairnessBadge = computed(() => {
 
 // The print/PDF export is the duty roster calendar the Schedule page shows;
 // it renders from the same schedule detail that view uses.
-const calendarAssignmentByDate = computed(() => {
-  const m = new Map<string, { doctorId: number; firstName: string; lastName: string; reason: string }[]>()
-  for (const d of calendar.value?.duties ?? []) {
-    const arr = m.get(d.dutyDate) ?? []
-    arr.push({ doctorId: d.doctorId, firstName: d.doctorFirstName, lastName: d.doctorLastName, reason: d.reason })
-    m.set(d.dutyDate, arr)
-  }
-  return m
-})
+const calendarAssignmentByDate = computed(() =>
+  groupByDate(calendar.value?.duties ?? [], (d) => [
+    d.dutyDate,
+    { doctorId: d.doctorId, firstName: d.doctorFirstName, lastName: d.doctorLastName },
+  ]),
+)
 const noConflicts = new Map<string, string>()
 
 function fmtGenerated(iso: string): string {
@@ -361,8 +359,6 @@ onMounted(load)
           <Badge :variant="isPublished ? 'primary' : 'neutral'" dot>{{ isPublished ? t('scheduleStatus.published') : t('scheduleStatus.draft') }}</Badge>
         </div>
         <DutyCalendar
-          :year="report.year"
-          :month="report.month"
           :days="calendar.days"
           :assignment-by-date="calendarAssignmentByDate"
           :conflicts-by-date="noConflicts"

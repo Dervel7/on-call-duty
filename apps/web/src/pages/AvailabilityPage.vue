@@ -32,6 +32,7 @@ const loading = ref(false)
 const errorMsg = ref('')
 /** Set while a dialog request (open/save/delete/toggle) runs; blocks re-entry. */
 const busy = ref(false)
+const doctorsError = ref('')
 const { confirm } = useConfirm()
 const { t } = useI18n()
 
@@ -282,12 +283,7 @@ async function removeCurrent() {
     return
   busy.value = true
   try {
-    const others = eachDay(x.startDate, x.endDate).filter((d) => d !== day)
-    if (others.length > 0) {
-      await unavailabilityService.split(x.id, { segments: groupConsecutiveDays(others) })
-    } else {
-      await unavailabilityService.remove(x.id)
-    }
+    await unavailabilityService.removeDay(x, day)
   } catch (e) {
     edit.value.errorMsg = e instanceof Error ? e.message : t('availability.deleteFailed')
     return
@@ -332,8 +328,8 @@ async function toggleDisabledCurrent() {
 onMounted(async () => {
   try {
     doctors.value = await doctorService.list()
-  } catch {
-    doctors.value = []
+  } catch (e) {
+    doctorsError.value = e instanceof Error ? e.message : t('availability.loadDoctorsFailed')
   }
   await load()
 })
@@ -362,6 +358,8 @@ onMounted(async () => {
         <MonthPicker id="f-month" v-model="filterMonth" :clearable="false" class="w-44" />
       </div>
     </div>
+
+    <p v-if="doctorsError" class="text-sm text-destructive" role="alert">{{ doctorsError }}</p>
 
     <div v-if="loading" class="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
       <Spinner :size="16" />

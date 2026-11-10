@@ -103,6 +103,24 @@ describe('DatePicker', () => {
     expect(w.emitted('update:modelValue')).toEqual([['2026-08-20']])
   })
 
+  it('closes back to the trigger when Tab would leave the panel', async () => {
+    const w = mountPicker({ modelValue: '2026-09-07' })
+    await openPicker(w)
+    const buttons = document.body.querySelectorAll<HTMLElement>('[role="dialog"] button:not([disabled])')
+    const last = buttons[buttons.length - 1]!
+    last.focus()
+    last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    await nextTick()
+    expect(fieldBtn(w).attributes('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(fieldBtn(w).element)
+  })
+
+  it('describes the trigger with the selected date so a label does not hide it', () => {
+    const w = mountPicker({ modelValue: '2026-09-07' })
+    const valueEl = document.getElementById(fieldBtn(w).attributes('aria-describedby')!)
+    expect(valueEl?.textContent).toBe(fieldBtn(w).text())
+  })
+
   it('navigates between months', async () => {
     const w = mountPicker()
     await openPicker(w)

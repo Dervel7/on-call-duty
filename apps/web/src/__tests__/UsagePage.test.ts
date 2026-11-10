@@ -86,6 +86,7 @@ describe('UsagePage', () => {
     expect(wrapper.text()).toContain('2026-08')
     expect(wrapper.text()).toContain('Jane Roe, John Doe')
     expect(wrapper.text()).toContain('50%')
+    expect(wrapper.text()).toContain('Main Clinic')
     expect(wrapper.text()).toContain('disjoint_regeneration')
     expect(wrapper.text()).not.toContain('License')
   })
@@ -102,6 +103,22 @@ describe('UsagePage', () => {
     await openBtn!.trigger('click')
     await flushPromises()
     expect(resolveAlert).toHaveBeenCalledWith(2)
+  })
+
+  it('calls resolveAlert once when Resolve is double-clicked', async () => {
+    let finish!: (v: unknown) => void
+    resolveAlert.mockReturnValue(new Promise((r) => (finish = r)))
+    const wrapper = await mountPage()
+    const openBtn = wrapper
+      .findAll('button')
+      .filter((b) => b.text() === 'Resolve')
+      .find((b) => !(b.element as HTMLButtonElement).disabled)!
+    await openBtn.trigger('click')
+    await openBtn.trigger('click')
+    expect(resolveAlert).toHaveBeenCalledTimes(1)
+    expect((openBtn.element as HTMLButtonElement).disabled).toBe(true)
+    finish(alertsFixture[1])
+    await flushPromises()
   })
 
   it('shows a page-level error and does not reload when resolveAlert fails', async () => {

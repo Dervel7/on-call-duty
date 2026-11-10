@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const get = vi.fn()
+const remove = vi.fn()
+const replace = vi.fn()
 const publish = vi.fn()
 const unpublish = vi.fn()
 const addDuty = vi.fn()
@@ -10,10 +12,9 @@ const reassignDuty = vi.fn()
 const removeDuty = vi.fn()
 vi.mock('@/services/schedule', () => ({
   list: vi.fn(),
-  preview: vi.fn(),
   generate: vi.fn(),
   get: (...a: unknown[]) => get(...a),
-  remove: vi.fn(),
+  remove: (...a: unknown[]) => remove(...a),
   publish: (...a: unknown[]) => publish(...a),
   unpublish: (...a: unknown[]) => unpublish(...a),
   addDuty: (...a: unknown[]) => addDuty(...a),
@@ -26,7 +27,7 @@ vi.mock('@/services/doctor', () => ({
 }))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { id: '1' } }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: (...a: unknown[]) => replace(...a) }),
 }))
 
 import ScheduleDetailPage from '../pages/ScheduleDetailPage.vue'
@@ -34,6 +35,11 @@ import { ApiError } from '../lib/http'
 import { useAuthStore } from '../stores/auth'
 import { pickOption } from './pick-option'
 import { setTestLocale } from './i18n'
+import { useConfirmState } from '../composables/useConfirm'
+
+const { settle } = useConfirmState()
+const JANE = { id: 5, userId: 5, email: 'j@b.c', username: 'j', firstName: 'Jane', lastName: 'Roe', isActive: true, maxMonthlyDuties: 7, createdAt: '', updatedAt: '' }
+const SAM = { ...JANE, id: 6, userId: 6, email: 's@b.c', username: 's', firstName: 'Sam', lastName: 'Doe' }
 
 function daysFor(year: number, month: number) {
   const total = new Date(year, month, 0).getDate()
@@ -81,7 +87,20 @@ function mountAs(role: 'administrator' | 'doctor' = 'administrator') {
   return mount(ScheduleDetailPage, { global: { plugins: [pinia] } })
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => (resolve = r))
+  return { promise, resolve }
+}
+
+function buttonByText(wrapper: VueWrapper, text: string) {
+  return wrapper.findAll('button').find((b) => b.text() === text)!
+}
+
 beforeEach(() => {
+  settle(false)
+  remove.mockReset()
+  replace.mockReset()
   setActivePinia(createPinia())
   get.mockReset()
   publish.mockReset()
@@ -114,11 +133,11 @@ describe('ScheduleDetailPage', () => {
     expect(wrapper.findAll('[role="combobox"]').length).toBe(0)
   })
 
-  it('doctor sees read-only names even when doctor list is forbidden (no selects, no publish buttons)', async () => {
+  it('doctor sees read-only names without loading the doctor list (no selects, no publish buttons)', async () => {
     get.mockResolvedValue(detail('published'))
-    doctorList.mockRejectedValue(new Error('Forbidden'))
     const wrapper = mountAs('doctor')
     await flushPromises()
+    expect(doctorList).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('Roe J.')
     expect(wrapper.findAll('[role="combobox"]').length).toBe(0)
     expect(wrapper.text()).not.toContain('Revert to draft')
@@ -177,6 +196,127 @@ describe('ScheduleDetailPage', () => {
     await flushPromises()
     expect(get).toHaveBeenCalledTimes(2)
     expect(wrapper.find('[role="alert"]').text()).toContain('Constraint violation: back-to-back duty')
+  })
+
+  it('keeps the day disabled until the reload lands, and shows the newest of out-of-order reloads', async () => {
+    const empty = { ...detail('draft'), duties: [] }
+    const stale = deferred<unknown>()
+    const fresh = deferred<unknown>()
+    get.mockResolvedValueOnce(empty).mockReturnValueOnce(stale.promise).mockReturnValueOnce(fresh.promise)
+    addDuty.mockResolvedValue({ id: 99 })
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+
+    await pickOption(wrapper.element, '[aria-label="2026-09-01 slot 1"]', '5')
+    expect(wrapper.find('[aria-label="2026-09-01 slot 1"]').attributes('disabled')).toBeDefined()
+
+    await pickOption(wrapper.element, '[aria-label="2026-09-02 slot 1"]', '5')
+    fresh.resolve(detail('draft'))
+    await flushPromises()
+    stale.resolve(empty)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Roe J.')
+  })
+
+  it('reassigns a duty through the day select', async () => {
+    const d = detail('draft')
+    d.days.forEach((x) => (x.eligibleDoctorIds = [5, 6]))
+    get.mockResolvedValue(d)
+    reassignDuty.mockResolvedValue({ id: 10 })
+    doctorList.mockResolvedValue([JANE, SAM])
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await pickOption(wrapper.element, '[aria-label="2026-09-05 slot 1"]', '6')
+    expect(reassignDuty).toHaveBeenCalledWith(10, { doctorId: 6 })
+  })
+
+  it('removes a duty after confirmation and keeps the alert when the API rejects', async () => {
+    get.mockResolvedValue(detail('draft'))
+    removeDuty.mockRejectedValue(new ApiError('Cannot leave an open on-call day empty', 409))
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await pickOption(wrapper.element, '[aria-label="2026-09-05 slot 1"]', '')
+    expect(removeDuty).not.toHaveBeenCalled()
+    settle(true)
+    await flushPromises()
+    expect(removeDuty).toHaveBeenCalledWith(10)
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[role="alert"]').text()).toContain('Cannot leave an open on-call day empty')
+  })
+
+  it('does not remove a duty when the confirmation is cancelled', async () => {
+    get.mockResolvedValue(detail('draft'))
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await pickOption(wrapper.element, '[aria-label="2026-09-05 slot 1"]', '')
+    settle(false)
+    await flushPromises()
+    expect(removeDuty).not.toHaveBeenCalled()
+    expect(get).toHaveBeenCalledTimes(1)
+  })
+
+  it('publishes after confirmation and locks the calendar', async () => {
+    get.mockResolvedValue(detail('draft'))
+    publish.mockResolvedValue({ status: 'published' })
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await buttonByText(wrapper, 'Publish').trigger('click')
+    settle(true)
+    await flushPromises()
+    expect(publish).toHaveBeenCalledWith(1)
+    expect(wrapper.text()).toContain('Published')
+    expect(wrapper.findAll('[role="combobox"]').length).toBe(0)
+  })
+
+  it('disables Publish while the request is in flight', async () => {
+    get.mockResolvedValue(detail('draft'))
+    const pending = deferred<{ status: string }>()
+    publish.mockReturnValue(pending.promise)
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await buttonByText(wrapper, 'Publish').trigger('click')
+    settle(true)
+    await flushPromises()
+    expect(buttonByText(wrapper, 'Publish').attributes('disabled')).toBeDefined()
+    pending.resolve({ status: 'published' })
+    await flushPromises()
+  })
+
+  it('resyncs with the server when publishing hits a 409', async () => {
+    get.mockResolvedValueOnce(detail('draft')).mockResolvedValue(detail('published'))
+    publish.mockRejectedValue(new ApiError('Schedule is already published', 409))
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await buttonByText(wrapper, 'Publish').trigger('click')
+    settle(true)
+    await flushPromises()
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('Revert to draft')
+    expect(wrapper.find('[role="alert"]').text()).toContain('Schedule is already published')
+  })
+
+  it('reverts to draft after confirmation and brings the selects back', async () => {
+    get.mockResolvedValue(detail('published'))
+    unpublish.mockResolvedValue({ status: 'draft' })
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await buttonByText(wrapper, 'Revert to draft').trigger('click')
+    settle(true)
+    await flushPromises()
+    expect(unpublish).toHaveBeenCalledWith(1)
+    expect(wrapper.findAll('[role="combobox"]').length).toBeGreaterThan(0)
+  })
+
+  it('deletes the schedule after confirmation and replaces the route', async () => {
+    get.mockResolvedValue(detail('draft'))
+    remove.mockResolvedValue(undefined)
+    const wrapper = mountAs('administrator')
+    await flushPromises()
+    await buttonByText(wrapper, 'Delete schedule').trigger('click')
+    settle(true)
+    await flushPromises()
+    expect(remove).toHaveBeenCalledWith(1)
+    expect(replace).toHaveBeenCalledWith('/schedules')
   })
 })
 

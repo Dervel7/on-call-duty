@@ -21,19 +21,19 @@ describe('useEstimatedProgress', () => {
     expect(bar.progress.value).toBe(95)
   })
 
-  it('finish fills to 100% at 8x speed and resolves only when full', async () => {
+  it('finish fills to 100% at 14x speed and resolves only when full', async () => {
     const { bar } = setup(10_000)
     bar.start()
     await vi.advanceTimersByTimeAsync(1_500)
     let done = false
     void bar.finish().then(() => (done = true))
 
-    // The remaining 85% takes 11 ticks of 8%, not 85 ticks of 1%.
-    await vi.advanceTimersByTimeAsync(1_000)
-    expect(bar.progress.value).toBe(95)
+    // The remaining 85% takes 7 ticks of 14%, not 85 ticks of 1%.
+    await vi.advanceTimersByTimeAsync(500)
+    expect(bar.progress.value).toBe(85)
     expect(done).toBe(false)
 
-    await vi.advanceTimersByTimeAsync(100)
+    await vi.advanceTimersByTimeAsync(200)
     expect(bar.progress.value).toBe(100)
     expect(done).toBe(true)
   })

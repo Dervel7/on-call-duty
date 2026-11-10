@@ -89,6 +89,17 @@ describe('LoginPage', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('Invalid credentials')
   })
 
+  it('trims the identifier before signing in', async () => {
+    login.mockResolvedValue(undefined)
+    const { wrapper } = await mountWithRouter()
+    const inputs = wrapper.findAll('input')
+    await inputs[0]!.setValue('  a@b.com ')
+    await inputs[1]!.setValue('secret1')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+    expect(login).toHaveBeenCalledWith('a@b.com', 'secret1')
+  })
+
   it('tells the user to sign in again after a password change', async () => {
     const { wrapper } = await mountWithRouter('/login?passwordChanged=1')
     expect(wrapper.find('[role="status"]').text()).toContain('Password changed, please sign in again.')
@@ -127,5 +138,16 @@ describe('LoginPage', () => {
     expect(wrapper.find('[role="alert"]').text()).toBe(
       'Το όνομα χρήστη και ο κωδικός πρόσβασης δεν πρέπει να είναι κενά',
     )
+  })
+
+  it('translates schema validation errors into the active UI language', async () => {
+    setTestLocale('el')
+    const { wrapper } = await mountWithRouter()
+    const inputs = wrapper.findAll('input')
+    await inputs[0]!.setValue('a@b.com')
+    await inputs[1]!.setValue('123')
+    await wrapper.find('form').trigger('submit.prevent')
+    expect(login).not.toHaveBeenCalled()
+    expect(wrapper.find('[role="alert"]').text()).toBe('Πρέπει να έχει μήκος τουλάχιστον 6 χαρακτήρων')
   })
 })

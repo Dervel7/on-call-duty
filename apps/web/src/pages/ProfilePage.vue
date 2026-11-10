@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import type { Doctor } from '@oncall/shared'
 import { changePasswordSchema, languageSchema, updateUsernameSchema } from '@oncall/shared'
 import { ApiError } from '@/lib/http'
+import { issueText } from '@/lib/validation'
 import { useAuthStore } from '@/stores/auth'
 import * as doctorService from '@/services/doctor'
 import Avatar from '@/components/ui/Avatar.vue'
@@ -88,7 +89,12 @@ async function onSubmit() {
     newPassword: newPassword.value,
   })
   if (!parsed.success) {
-    formError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
+    const issue = parsed.error.issues[0]
+    // The only object-level refine on this schema is "new password must differ".
+    formError.value =
+      issue?.code === 'custom' && issue.path.length === 0
+        ? t('profile.passwordMustDiffer')
+        : issueText(issue, t)
     return
   }
   submitting.value = true
@@ -109,7 +115,7 @@ async function onSubmitUsername() {
   usernameSuccess.value = false
   const parsed = updateUsernameSchema.safeParse({ username: newUsername.value })
   if (!parsed.success) {
-    usernameError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
+    usernameError.value = issueText(parsed.error.issues[0], t)
     return
   }
   usernameSubmitting.value = true

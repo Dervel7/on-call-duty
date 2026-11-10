@@ -79,6 +79,17 @@ describe('ConfirmDialog', () => {
     await expect(p).resolves.toBe(true)
   })
 
+  it('is an alertdialog described by the message', async () => {
+    mountHost()
+    const p = confirm({ title: 'Delete schedule', message: 'Delete this schedule and all its duties?' })
+    await flushPromises()
+    const panel = document.body.querySelector('[role="alertdialog"]')!
+    const description = document.getElementById(panel.getAttribute('aria-describedby')!)
+    expect(description?.textContent).toBe('Delete this schedule and all its duties?')
+    settle(false)
+    await p
+  })
+
   it('renders the default labels in the active UI language', async () => {
     setTestLocale('el')
     mountHost()

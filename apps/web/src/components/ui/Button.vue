@@ -16,14 +16,10 @@ const buttonVariants = cva(
           'bg-destructive text-destructive-foreground btn-shine shadow-[0_0_22px_-6px_hsl(var(--destructive)/0.55)] hover:-translate-y-0.5 hover:bg-destructive/90 active:translate-y-0',
         outline:
           'border border-border bg-card/50 text-foreground backdrop-blur hover:border-primary/50 hover:bg-primary/5 hover:shadow-glow',
-        accent:
-          'bg-accent text-accent-foreground btn-shine shadow-[0_0_22px_-6px_hsl(var(--accent)/0.5)] hover:-translate-y-0.5 hover:bg-accent/90 active:translate-y-0',
       },
       size: {
         default: 'h-10 px-5 py-2',
         sm: 'h-9 px-3.5',
-        lg: 'h-12 px-8',
-        icon: 'h-10 w-10 rounded-xl',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

@@ -190,7 +190,7 @@ Where the implementation differs from sections 4-5, and why. Details and dates: 
 
 ## 10. Alternative options (2026-10-07)
 
-`generateOptions(ctx, count)` in `solver.ts` returns up to `count` (3 for `POST /schedules/options`) schedule options: the primary option (same result as `generate`) and alternatives built by `buildModel` with `bounds.avoid` (the earlier options). Plan and dates: `docs/superpowers/plans/2026-10-07-schedule-options-plan.md`, `todos/schedule-options-status.md`.
+`generatePrimary(ctx)` in `solver.ts` returns the primary option (same result as `generate`) and its stage optima; `generateAlternative(ctx, state)` builds one alternative with `buildModel` and `bounds.avoid` (the earlier options). `POST /schedules/options` returns option A only; `POST /schedules/options/alternative` returns B and C on demand. Every solver run takes one module-level slot (`runExclusive`); a second caller gets 429 immediately. Plan and dates: `docs/superpowers/plans/2026-11-10-on-demand-options-and-solver-busy-plan.md`, `docs/superpowers/plans/2026-10-07-schedule-options-plan.md`,  `docs/superpowers/plans/2026-10-07-schedule-options-plan.md`, `todos/schedule-options-status.md`.
 
 | Code | Decision | Reason |
 |---|---|---|

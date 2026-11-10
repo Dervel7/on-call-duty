@@ -44,7 +44,7 @@ export async function getOpenDutySettings(): Promise<OpenDutySettings> {
 
 export async function setOpenDutyInterval(
   input: UpdateOpenDutyRequest,
-  actor: Actor,
+  actor: Actor & Pick<AuthUser, 'clinicId'>,
 ): Promise<OpenDutySettings> {
   const previous = await getOpenDutySettings()
   await query(
@@ -54,6 +54,7 @@ export async function setOpenDutyInterval(
   )
   await logActivity({
     userId: actor.id,
+    clinicId: actor.clinicId,
     action: 'open_duty_settings.updated',
     entityType: 'open_duty_settings',
     entityId: null,

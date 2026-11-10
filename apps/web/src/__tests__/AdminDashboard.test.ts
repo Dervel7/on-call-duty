@@ -144,6 +144,36 @@ describe('AdminDashboard', () => {
     })
   })
 
+  it('drops the previous month figures when a reload fails', async () => {
+    admin.mockResolvedValueOnce(fullStats({ fairness: { dutySpread: 1, weekendSpread: 0 } }))
+    admin.mockRejectedValueOnce(new Error('boom'))
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(w.text()).toContain('Well balanced')
+    await w.findAll('button').find((b) => b.text().includes('Apply'))!.trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('boom')
+    expect(w.text()).not.toContain('Well balanced')
+  })
+
+  it('does not relabel the empty state for a year typed but not applied', async () => {
+    admin.mockResolvedValue(
+      fullStats({
+        year: 2026,
+        month: 3,
+        schedule: null,
+        coverage: { daysInMonth: 31, filled: 0, gaps: [] },
+        workload: [],
+        fairness: { dutySpread: null, weekendSpread: null },
+      }),
+    )
+    const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    await w.find('#s-year').setValue('1999')
+    expect(w.text()).toContain('2026')
+    expect(w.text()).not.toContain('1999')
+  })
+
   it('does not auto-apply on month change when the year field is empty', async () => {
     admin.mockResolvedValue(fullStats())
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
@@ -223,7 +253,7 @@ describe('AdminDashboard in Greek', () => {
     )
     const w = mount(AdminDashboard, { global: { plugins: [createPinia()] } })
     await flushPromises()
-    const month = new Intl.DateTimeFormat('el-GR', { month: 'long', year: 'numeric' }).format(new Date())
+    const month = new Intl.DateTimeFormat('el-GR', { month: 'long', year: 'numeric' }).format(new Date(2026, 7, 1))
     expect(w.text()).toContain(`Δεν υπάρχει πρόγραμμα: ${month}`)
   })
 })

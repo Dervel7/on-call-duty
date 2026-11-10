@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/authenticate.ts'
 import { authorize } from '../middleware/authorize.ts'
 import { validate } from '../middleware/validate.ts'
 import {
+  alternativeOptionSchema,
   createDutySchema,
   createScheduleSchema,
   generateScheduleSchema,
@@ -45,6 +46,13 @@ scheduleRouter.post(
   validate(scheduleQuerySchema, 'query'),
   validate(createScheduleSchema, 'body'),
   scheduleController.options,
+)
+scheduleRouter.post(
+  '/options/alternative',
+  authorize('administrator'),
+  validate(scheduleQuerySchema, 'query'),
+  validate(alternativeOptionSchema, 'body'),
+  scheduleController.alternative,
 )
 scheduleRouter.post(
   '/',

@@ -148,7 +148,7 @@
     <li>The Administrator Dashboard <span class="d">Coverage, fairness, and workload at a glance</span></li>
     <li>Managing Users <span class="d">Accounts, doctor profiles, and the monthly duty cap</span></li>
     <li>Managing Availability <span class="d">Marking excluded days on the calendar</span></li>
-    <li>Building a Schedule <span class="d">Preview → Generate → Edit → Publish</span></li>
+    <li>Building a Schedule <span class="d">Generate → Compare plans → Edit → Publish</span></li>
     <li>Reports <span class="d">The monthly report, CSV export, and printing</span></li>
     <li>Your Profile <span class="d">Changing your password, your username (doctors), dark mode, and language</span></li>
     <li>Rules <span class="d">The on-call cycle, per-day slot counts, and minimum on-call doctors (administrators)</span></li>
@@ -220,7 +220,7 @@ then select <span class="kbd">Sign in</span>.</p>
 </figure>
 
 <h2>2.2 First sign-in: change the initial password</h2>
-<p>New accounts are created with the initial password <strong>changeme123</strong>.
+<p>New accounts are created with the initial password you type in the new-user dialog.
 The system's seeded default administrator is <code>admin@oncall.local</code> with password <code>changeme123</code>.
 On first sign-in, go to <strong>Profile</strong> and set a private password of your own (see Chapter 9).</p>
 <div class="note danger"><span class="t">Important — security</span>Never leave an account on its initial/default password. Anyone can guess the initial password. Change it before doing anything else, and disable any account that should not exist.</div>
@@ -280,8 +280,9 @@ rows show — in that column.</p>
   <li>Fill in <strong>Email, First name</strong> and <strong>Last name</strong>.</li>
   <li>Set <strong>Max monthly duties</strong> (between 1 and 7; the default is 7) — the maximum number of on-call
       duties this doctor can be assigned in any month.</li>
-  <li>Choose <span class="kbd">Save</span>. The account is created as a <em>doctor</em> with the initial password
-      <code>changeme123</code>. Type the <strong>Username</strong> yourself — it must be written in English
+  <li>Type the <strong>Initial password</strong> (at least 6 characters). Give it to the doctor through a private
+      channel and ask them to change it on first sign-in.</li>
+  <li>Choose <span class="kbd">Save</span>. The account is created as a <em>doctor</em>. Type the <strong>Username</strong> yourself — it must be written in English
       (Latin letters, digits, and <code>. _ -</code>, 3–32 characters) and is shown in the users list.</li>
 </ol>
 <figure>
@@ -347,7 +348,7 @@ when you generate the schedule.</div>
 
 <!-- ============================ 6. SCHEDULES ============================ -->
 <h1 class="chapter"><span class="num">6.</span> Building a Schedule</h1>
-<p class="chap-lead">This is the core administrative workflow: <strong>Preview → resolve any conflicts → Generate → edit → Publish</strong>.</p>
+<p class="chap-lead">This is the core administrative workflow: <strong>Generate options → resolve understaffed days → use a plan → edit → Publish</strong>.</p>
 
 <h2>6.1 The schedules list</h2>
 <p>The <strong>Schedules</strong> page lists every generated month with its <strong>Status</strong>
@@ -358,55 +359,48 @@ Use the <strong>Year</strong> filter to narrow the list.</p>
   <figcaption><b>Figure 6.1</b> — Existing schedules. Only one schedule can exist per month.</figcaption>
 </figure>
 
-<h2>6.2 Step 1 — Preview a month</h2>
-<p>Before committing anything, preview a month to see whether it can be filled.</p>
+<h2>6.2 Step 1 — Choose a month</h2>
 <ol class="steps">
   <li>Choose <span class="kbd">New schedule</span>.</li>
   <li>Enter the <strong>Year</strong> and pick the <strong>Month</strong>.</li>
-  <li>Choose <span class="kbd">Preview</span>. The engine runs without saving and reports the result.</li>
+  <li>Choose <span class="kbd">Generate</span>. The engine computes the schedule options without saving anything.</li>
 </ol>
-<figure>
-  <img src="screenshots/16-schedules-new-preview.png" alt="New schedule preview — no conflicts" />
-  <figcaption><b>Figure 6.2</b> — A clean preview: “N day(s) ready to assign. No conflicts.” You can now generate.</figcaption>
-</figure>
-<p>The preview calendar marks every <strong>open on-call day</strong> with a red border and an
-<span class="pill red">OPEN</span> badge (see the legend above the calendar). Open days recur on a fixed cycle —
+<p>Every <strong>open on-call day</strong> is marked with a red border and an
+<span class="pill red">OPEN</span> badge on the calendar. Open days recur on a fixed cycle —
 the first one was 2&nbsp;October&nbsp;2026 and every 8th day after it is open again; all other days are closed
 on-call days. The spacing is a setting, not a fixed rule: administrators can change it on the
 <strong>Rules</strong> page (see 8.3).</p>
 <div class="note info"><span class="t">Info</span>Open on-call days — and the day right after each of them — are <strong>always filled to at least their minimum</strong>: the engine
 guarantees the minimum roster on those dates before filling any other day, then adds extra doctors up to the slot count where possible (see 9.2).</div>
 
-<h2>6.3 Step 2 — Resolve conflicts if any</h2>
-<p>If some days cannot be filled, the preview shows a red conflict panel listing each unfillable date and why.
-<span class="kbd">Generate</span> stays disabled until conflicts are cleared.</p>
-<figure>
-  <img src="screenshots/17-schedules-new-conflict.png" alt="New schedule preview — conflict" />
-  <figcaption><b>Figure 6.3</b> — A preview with an unfillable day. The message tells you what to adjust: availability or doctor capacity.</figcaption>
-</figure>
-<p>To resolve a conflict, address the cause and preview again:</p>
+<h2>6.3 Step 2 — Resolve understaffed days if any</h2>
+<p>If some days stay below their minimum number of doctors in every plan, the schedule options page shows
+“N day(s) are below their minimum on-call doctors in every plan, so no plan can be used” and no plan can be saved.
+Address the cause, then choose <span class="kbd">Generate</span> again:</p>
 <ul>
   <li><strong>Not enough capacity</strong> — a day needs a doctor but too few are eligible. Increase a doctor's <em>Max monthly duties</em> (Users page), add/enable a doctor, or reduce overlapping vacations.</li>
   <li><strong>Everyone unavailable</strong> — adjust the exclusion(s) blocking that date (Availability page).</li>
   <li><strong>Back-to-back constraint</strong> — no doctor is free because each would follow their own previous duty. Add capacity (above) to loosen the chain.</li>
 </ul>
-<div class="note tip"><span class="t">Tip</span>Each conflict message is shown in your interface language and reads “only X of Y doctors assigned; of N active doctor(s): A unavailable, B at monthly cap, C at open on-call cap, D at holiday cap, E back-to-back”, so you know exactly what to fix.</div>
 
-<h2>6.4 Step 3 — Generate</h2>
-<p>Choose <span class="kbd">Generate</span>. Generating is blocked if a schedule for that month already exists.
-The system computes up to <strong>three schedule options</strong> for the month and shows them on the
-<strong>Schedule options</strong> page as <strong>Plan A</strong>, <strong>Plan B</strong> and <strong>Plan C</strong>.
-A progress bar shows while the options are computed; this can take up to about 40 seconds.</p>
+<h2>6.4 Step 3 — Compare and use a plan</h2>
+<p>After you choose <span class="kbd">Generate</span> the system refuses to continue if a schedule for that month already exists.
+The system computes <strong>Plan A</strong> first and shows it on the <strong>Schedule options</strong> page.
+A progress bar shows while it is computed; this can take up to about 30 seconds.
+Open the <strong>Plan B</strong> or <strong>Plan C</strong> tab to compute that plan; each takes up to about 5 seconds.
+Plan C opens after Plan B. If another calculation is running, the page shows a "Solver busy" message; choose
+<span class="kbd">Try again</span> after a few seconds.</p>
 <ul>
   <li><strong>Plan A</strong> is the solver's first choice. Each other plan shows how many days differ from Plan A.</li>
-  <li>The calendar uses the same colours as the preview: <strong>green</strong> for a full day, <strong>yellow</strong> for a
+  <li>The calendar uses <strong>green</strong> for a full day, <strong>yellow</strong> for a
   day with fewer doctors than its slots, <strong>red</strong> for a day with no doctor.</li>
   <li>All plans are <strong>equally good</strong>: they follow the same hard rules and reach the same fairness
   results (coverage, Fri/Sat/Sun spread, workload balance, holiday duties). Pick the one you prefer.</li>
 </ul>
 <p>Choose <span class="kbd">Use Plan B</span> (or the plan you picked) and confirm. Only that plan is saved, in
 <strong>Draft</strong> status, and you are taken to its detail page. The other plans are discarded; generating the
-same month again shows the same plans in the same order.</p>
+same month again shows the same plans in the same order. Computed plans are kept for 15 minutes; after that the
+page computes Plan A again.</p>
 <div class="note info"><span class="t">Info</span>Fewer than three plans can appear. Some months have only one or two
 different best schedules, and the system never shows a weaker plan to fill the list. If the solver cannot prove the
 best schedule within its time limit, only Plan A is shown.</div>
@@ -521,10 +515,10 @@ or opening another rule, closes it. The rules you can tune:</p>
   higher than that day type's slot count, and a slot count cannot be lowered below its minimum — the page refuses
   either change. Choose <span class="kbd">Save minimums</span> to apply.</li>
 </ul>
-<p>Every change takes effect immediately in schedule previews and detail pages, and is recorded in the activity
+<p>Every change takes effect immediately in schedule options and detail pages, and is recorded in the activity
 log. Days already drawn keep their old shape until the schedule is regenerated. Doctors do not see this page.</p>
 <div class="note info"><span class="t">Info</span>With the seeded interval of 8, if a Monday is an open on-call day, the next open day is the Tuesday of the following week.</div>
-<div class="note info"><span class="t">Info</span>Raising a minimum above the number of available doctors makes the affected days fall short — the preview shows them as conflicts until more doctors can take them. A slot count above the minimum never causes a conflict: extra slots that cannot be filled simply stay empty.</div>
+<div class="note info"><span class="t">Info</span>Raising a minimum above the number of available doctors makes the affected days fall short — the schedule options page reports them as below their minimum until more doctors can take them. A slot count above the minimum never causes a conflict: extra slots that cannot be filled simply stay empty.</div>
 <div class="note info"><span class="t">Info</span>Example: open on-call days have 4 slots and the open minimum is 2. A day with 2 or 3 doctors is accepted, 4 is preferred (the engine fills as many as it can), and fewer than 2 is a conflict that blocks generating and publishing.</div>
 
 <!-- ============================ 9. DOMAIN RULES ============================ -->
@@ -548,10 +542,10 @@ log. Days already drawn keep their old shape until the schedule is regenerated. 
   <tr><td><strong>Active only</strong></td><td>Disabled doctors are skipped entirely.</td></tr>
   <tr><td><strong>Minimum coverage on open on-call days</strong></td><td>Every <em>open on-call day</em> and the day right after it always carries <strong>at least its minimum</strong> — the open-day minimum on the open day, the day-after-open minimum on the day after (see §8.3). The engine fills these minimums first, before any other day, and weekend/holiday balancing never blocks them — only the other hard rules above can. Extra slots up to the slot count are filled afterwards when a doctor is free. A schedule cannot be generated (or published) with one of these days below its minimum, and a duty on one of these days can be removed only while the day keeps at least its minimum.</td></tr>
   <tr><td><strong>One open on-call duty per doctor</strong></td><td>A doctor holds at most <strong>1 duty on open on-call days</strong> per monthly schedule. A second open-day duty is refused everywhere — automatic generation, manual plans, and single-duty edits — even when the open day would otherwise be short of a slot. The day <em>after</em> an open day is protected by the minimum-coverage rule but is not itself an open day, so it does not count.</td></tr>
-  <tr><td><strong>Minimum doctors every day</strong></td><td>Every day of the month carries <strong>at least its minimum</strong> of on-call doctors (the closed-day minimum on ordinary days) — a strict rule, like no-back-to-back. Weekend/holiday balancing (the fairness caps) always yields before a day falls below its minimum. Only the hard rules above (availability, monthly cap, no back-to-back, the open-day limit) can leave a day short, and then the preview shows it as a conflict you must fix. A duty placed this way is marked in its Reason with <code>day-fill guarantee overrode fairness caps</code>. Slots above the minimum are filled only when balancing allows; an empty extra slot is not a conflict.</td></tr>
+  <tr><td><strong>Minimum doctors every day</strong></td><td>Every day of the month carries <strong>at least its minimum</strong> of on-call doctors (the closed-day minimum on ordinary days) — a strict rule, like no-back-to-back. Weekend/holiday balancing (the fairness caps) always yields before a day falls below its minimum. Only the hard rules above (availability, monthly cap, no back-to-back, the open-day limit) can leave a day short, and then the schedule options page reports it as below its minimum and offers no usable plan until you fix it. A duty placed this way is marked in its Reason with <code>day-fill guarantee overrode fairness caps</code>. Slots above the minimum are filled only when balancing allows; an empty extra slot is not a conflict.</td></tr>
 </table>
 
-<div class="note info"><span class="t">Info</span>Open on-call days follow the cycle described in §8.3 (the red-bordered days in the preview). Because a duty hands over at 15:00 the next day, the day after an open day is protected too.</div>
+<div class="note info"><span class="t">Info</span>Open on-call days follow the cycle described in §8.3 (the red-bordered days on the schedule calendar). Because a duty hands over at 15:00 the next day, the day after an open day is protected too.</div>
 
 <h2>9.3 How the engine balances work</h2>
 <p>The engine computes the whole month at once with an exact <strong>optimisation solver</strong>. It never breaks a
@@ -582,17 +576,16 @@ because the exact solver could not finish"</em>). Manual changes are recorded as
 always carries the detailed stored form.</p>
 
 <h2>9.5 Conflict detection</h2>
-<p>When a day cannot reach its minimum even after the fairness caps yield, the preview lists it as a conflict with the exact breakdown
-(unavailable / at cap / at open on-call cap / back-to-back). Conflicts on open on-call days (or the day after them) are prefixed with
-<code>requires N doctors (open on-call rule)</code>, where N is the day's minimum. A day that holds at least its minimum but fewer doctors than its slot count is not a conflict and can be generated and published. You resolve conflicts as described in §6.3 before generating.</p>
+<p>When a day cannot reach its minimum even after the fairness caps yield in every option, the schedule options page reports how many days fall short and offers no usable plan.
+Conflicts on open on-call days (or the day after them) are caused by the open on-call rule, which requires the day's minimum number of doctors. A day that holds at least its minimum but fewer doctors than its slot count is not a conflict and can be generated and published. You resolve the cause as described in §6.3 before generating again.</p>
 
 <!-- ============================ 10. TROUBLESHOOTING ============================ -->
 <h1 class="chapter"><span class="num">10.</span> Troubleshooting &amp; FAQ</h1>
 
-<h2>10.1 “Resolve N unfillable day(s) first” when generating</h2>
-<p>One or more days have no eligible doctor. Open the preview to see which days and why, then: raise a doctor's
-monthly cap, enable/add a doctor, or shorten a vacation. Preview again
-until there are no conflicts, then generate.</p>
+<h2>10.1 “N day(s) are below their minimum on-call doctors in every plan”</h2>
+<p>One or more days have no eligible doctor, so no schedule option can be used. The message shows how many days are short. Then: raise a doctor's
+monthly cap, enable/add a doctor, or shorten a vacation. Generate again
+until the options page offers plans.</p>
 
 <h2>10.2 “Doctor has duties in a draft schedule”</h2>
 <p>A doctor with duties in a draft schedule cannot be deleted — finish or discard the draft first, or choose

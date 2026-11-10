@@ -8,6 +8,7 @@ const update = vi.fn()
 const setDisabled = vi.fn()
 const split = vi.fn()
 const remove = vi.fn()
+const removeDay = vi.fn()
 vi.mock('@/services/unavailability', () => ({
   listAll: (...a: unknown[]) => listAll(...a),
   listMine: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('@/services/unavailability', () => ({
   setDisabled: (...a: unknown[]) => setDisabled(...a),
   split: (...a: unknown[]) => split(...a),
   remove: (...a: unknown[]) => remove(...a),
+  removeDay: (...a: unknown[]) => removeDay(...a),
 }))
 const doctorList = vi.fn()
 vi.mock('@/services/doctor', () => ({
@@ -70,6 +72,7 @@ beforeEach(() => {
   setDisabled.mockReset()
   split.mockReset()
   remove.mockReset()
+  removeDay.mockReset()
   settle(false)
   // The month filter defaults to next month: pin it to 2026-09, where the fixtures live.
   vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-08-15T12:00:00') })
@@ -421,7 +424,7 @@ describe('AvailabilityPage', () => {
   it('delete from the edit dialog removes only the chip day of a multi-day record', async () => {
     doctorList.mockResolvedValue([])
     listAll.mockResolvedValue([record])
-    split.mockResolvedValue([])
+    removeDay.mockResolvedValue(undefined)
     const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
@@ -432,20 +435,14 @@ describe('AvailabilityPage', () => {
     expect(request.value?.message).toBe("Delete Jane Roe's exclusion on 2026-09-09?")
     settle(true)
     await flushPromises()
-    expect(split).toHaveBeenCalledWith(1, {
-      segments: [
-        { startDate: '2026-09-07', endDate: '2026-09-08' },
-        { startDate: '2026-09-10', endDate: '2026-09-11' },
-      ],
-    })
-    expect(remove).not.toHaveBeenCalled()
+    expect(removeDay).toHaveBeenCalledWith(record, '2026-09-09')
     wrapper.unmount()
   })
 
   it('delete from the edit dialog shows an inline error when it fails', async () => {
     doctorList.mockResolvedValue([])
     listAll.mockResolvedValue([{ ...record, startDate: '2026-09-07', endDate: '2026-09-07' }])
-    remove.mockRejectedValue(new Error('delete failed'))
+    removeDay.mockRejectedValue(new Error('delete failed'))
     const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
     await flushPromises()
     await wrapper.findAll('button').find((b) => b.text().includes('Jane Roe'))!.trigger('click')
@@ -455,9 +452,18 @@ describe('AvailabilityPage', () => {
     await flushPromises()
     settle(true)
     await flushPromises()
-    expect(remove).toHaveBeenCalledWith(1)
+    expect(removeDay).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), '2026-09-07')
     expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('delete failed')
     expect(bodyButton('Save')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('shows an alert when the doctor list fails to load', async () => {
+    doctorList.mockRejectedValue(new Error('doctors down'))
+    listAll.mockResolvedValue([])
+    const wrapper = mount(AvailabilityPage, { global: { plugins: [createPinia()] } })
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').text()).toContain('doctors down')
     wrapper.unmount()
   })
 

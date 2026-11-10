@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
+import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
 
 vi.mock('@/services/auth', () => ({
   login: vi.fn(async () => ({
@@ -12,14 +13,6 @@ vi.mock('@/services/auth', () => ({
     accessToken: 'BBB',
   })),
   logout: vi.fn(async () => undefined),
-  fetchMe: vi.fn(async () => ({
-    id: 1,
-    email: 'a@b.com',
-    username: 'admin',
-    role: 'doctor',
-    firstName: 'A',
-    lastName: 'B',
-  })),
   changePassword: vi.fn(async () => ({
     id: 1,
     email: 'a@b.com',
@@ -40,13 +33,14 @@ const testRouter = createRouter({
   history: createMemoryHistory(),
   routes: [
     { path: '/login', name: 'login', component: { template: '<div />' } },
+    { path: '/locked', name: 'locked', component: { template: '<div />' } },
     { path: '/doctors', name: 'doctors', component: { template: '<div />' } },
   ],
 })
 vi.mock('@/router', () => ({ router: testRouter }))
 
 import { useAuthStore } from '../stores/auth'
-import { apiGet, setAccessToken } from '../lib/http'
+import { apiGet } from '../lib/http'
 import { logout as logoutService, refresh as refreshService } from '@/services/auth'
 
 beforeEach(() => setActivePinia(createPinia()))
@@ -80,11 +74,33 @@ describe('auth store', () => {
     expect(auth.isAuthenticated).toBe(false)
   })
 
+  it('login and refresh give the http module the token; logout removes it', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _init: RequestInit) =>
+        new Response(JSON.stringify({ success: true, data: {} }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const auth = useAuthStore()
+      const header = async () => {
+        fetchMock.mockClear()
+        await apiGet('/doctors')
+        return (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Record<string, string>
+      }
+      await auth.login('a@b.com', 'secret1')
+      expect((await header()).Authorization).toBe('Bearer AAA')
+      await auth.refresh()
+      expect((await header()).Authorization).toBe('Bearer BBB')
+      await auth.logout()
+      expect(await header()).not.toHaveProperty('Authorization')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('a failed logout stops later requests from sending the old token', async () => {
     const auth = useAuthStore()
     await auth.login('a@b.com', 'secret1')
-    // The real auth service hands the token to the http module; the mock doesn't.
-    setAccessToken('AAA')
     vi.mocked(logoutService).mockRejectedValueOnce(new Error('net'))
     await auth.logout()
     const fetchMock = vi.fn(
@@ -137,6 +153,27 @@ describe('auth store', () => {
       await auth.refresh()
       await flushPromises()
       expect(testRouter.currentRoute.value.name).toBe('doctors')
+    })
+
+    it('a 401 whose refresh is rejected as system-locked ends on the locked route', async () => {
+      const auth = useAuthStore()
+      await auth.login('a@b.com', 'secret1')
+      vi.mocked(refreshService).mockImplementationOnce(async () => {
+        // The real service goes through request(), which fires the locked handler on this 403.
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(
+            async () =>
+              new Response(JSON.stringify({ success: false, error: SYSTEM_LOCKED_MESSAGE }), { status: 403 }),
+          ),
+        )
+        return apiGet('/auth/refresh')
+      })
+      await expect(apiGet('/doctors')).rejects.toThrow()
+      await vi.waitFor(() => expect(testRouter.currentRoute.value.name).toBe('locked'))
+      await flushPromises()
+      expect(testRouter.currentRoute.value.name).toBe('locked')
+      expect(auth.locked).toBe(true)
     })
   })
 })

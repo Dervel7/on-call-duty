@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { CalendarHeart, Check } from 'lucide-vue-next'
 import { daysInMonth, isWeekend, toIsoDate, weekdayNames } from '@oncall/utils'
 import * as holidayService from '@/services/holiday'
-import { useAuthStore } from '@/stores/auth'
 import { useConfirm } from '@/composables/useConfirm'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useIntlLocale } from '@/composables/useIntlLocale'
@@ -15,7 +15,6 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import Spinner from '@/components/ui/Spinner.vue'
 
 const { t } = useI18n()
-const auth = useAuthStore()
 const { confirm } = useConfirm()
 const intlLocale = useIntlLocale()
 const weekdays = computed(() => weekdayNames(intlLocale.value))
@@ -94,8 +93,10 @@ async function load() {
   const ym = month.value
   loading.value = true
   errorMsg.value = ''
+  marked.value = new Set()
+  dirty.value = false
   try {
-    const holidays = await holidayService.listHolidays(Number(ym.slice(0, 4)), auth.user?.clinicId ?? undefined)
+    const holidays = await holidayService.listHolidays(Number(ym.slice(0, 4)))
     if (!isCurrent()) return
     marked.value = new Set(holidays.map((h) => h.date).filter(inMonth(ym)))
     dirty.value = false
@@ -107,19 +108,22 @@ async function load() {
   }
 }
 
+async function confirmDiscard(): Promise<boolean> {
+  return confirm({
+    title: t('holidays.discardTitle'),
+    message: t('holidays.discardMessage'),
+    confirmText: t('holidays.discard'),
+  })
+}
+
 async function changeMonth(next: string) {
   if (next === month.value) return
-  if (dirty.value) {
-    const ok = await confirm({
-      title: t('holidays.discardTitle'),
-      message: t('holidays.discardMessage'),
-      confirmText: t('holidays.discard'),
-    })
-    // Not updating `month` keeps the controlled picker on the current month.
-    if (!ok) return
-  }
+  // Not updating `month` keeps the controlled picker on the current month.
+  if (dirty.value && !(await confirmDiscard())) return
   month.value = next
 }
+
+onBeforeRouteLeave(async () => !dirty.value || (await confirmDiscard()))
 
 watch(month, () => {
   void load()

@@ -18,6 +18,7 @@ import {
 } from '@oncall/shared'
 import * as doctorService from '@/services/doctor'
 import * as userService from '@/services/user'
+import { issueText } from '@/lib/validation'
 import { Search, Users } from 'lucide-vue-next'
 import Avatar from '@/components/ui/Avatar.vue'
 import Badge from '@/components/ui/Badge.vue'
@@ -34,10 +35,6 @@ import TableHeader from '@/components/ui/TableHeader.vue'
 import TableRow from '@/components/ui/TableRow.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { useConfirm } from '@/composables/useConfirm'
-
-// Every account created through this form starts with the same initial
-// password; the user must change it on first login.
-const INITIAL_PASSWORD = 'changeme123'
 
 const users = ref<User[]>([])
 const doctors = ref<Doctor[]>([])
@@ -86,6 +83,8 @@ interface EditState {
   lastName: string
   role: Role
   maxMonthlyDuties: string
+  /** Initial password; used on create only. */
+  password: string
   errorMsg: string
 }
 
@@ -99,6 +98,7 @@ const emptyEdit = (): EditState => ({
   lastName: '',
   role: 'doctor',
   maxMonthlyDuties: '7',
+  password: '',
   errorMsg: '',
 })
 const edit = ref<EditState>(emptyEdit())
@@ -144,6 +144,7 @@ function openUpdate(u: User) {
     lastName: u.lastName,
     role: u.role,
     maxMonthlyDuties: d ? String(d.maxMonthlyDuties) : '7',
+    password: '',
     errorMsg: '',
   }
 }
@@ -169,14 +170,14 @@ async function persistEdit() {
     const payload: CreateDoctorRequest = {
       email: edit.value.email,
       username: u.data,
-      password: INITIAL_PASSWORD,
+      password: edit.value.password,
       firstName: edit.value.firstName,
       lastName: edit.value.lastName,
       maxMonthlyDuties: Number(edit.value.maxMonthlyDuties),
     }
     const r = createDoctorSchema.safeParse(payload)
     if (!r.success) {
-      edit.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
+      edit.value.errorMsg = issueText(r.error.issues[0], t)
       return
     }
     try {
@@ -195,7 +196,7 @@ async function persistEdit() {
     }
     const r = updateDoctorSchema.safeParse(payload)
     if (!r.success) {
-      edit.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
+      edit.value.errorMsg = issueText(r.error.issues[0], t)
       return
     }
     try {
@@ -214,7 +215,7 @@ async function persistEdit() {
     }
     const r = updateUserSchema.safeParse(payload)
     if (!r.success) {
-      edit.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
+      edit.value.errorMsg = issueText(r.error.issues[0], t)
       return
     }
     try {
@@ -236,7 +237,7 @@ async function savePassword() {
   if (resetting.value) return
   const r = resetUserPasswordSchema.safeParse({ newPassword: reset.value.password })
   if (!r.success) {
-    reset.value.errorMsg = r.error.issues[0]?.message ?? t('common.invalidInput')
+    reset.value.errorMsg = issueText(r.error.issues[0], t)
     return
   }
   resetting.value = true
@@ -255,7 +256,10 @@ async function toggleActive(u: User) {
   if (busyUserId.value !== null) return
   busyUserId.value = u.id
   try {
-    await userService.update(u.id, { isActive: !u.isActive })
+    const d = doctorByUserId.value.get(u.id)
+    // Doctors go through the doctor endpoint so the audit log records doctor.* events.
+    if (d) await doctorService.update(d.id, { isActive: !u.isActive })
+    else await userService.update(u.id, { isActive: !u.isActive })
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : t('users.updateFailed')
     return
@@ -389,9 +393,10 @@ onMounted(load)
           <Label for="e-max">{{ t('users.maxMonthlyDutiesRange') }}</Label>
           <Input id="e-max" v-model="edit.maxMonthlyDuties" type="number" />
         </div>
-        <p v-if="edit.id === null" class="text-xs text-muted-foreground">
-          {{ t('users.initialPassword', { password: INITIAL_PASSWORD }) }}
-        </p>
+        <div v-if="edit.id === null" class="flex flex-col gap-1">
+          <Label for="e-password">{{ t('users.initialPasswordLabel') }}</Label>
+          <Input id="e-password" v-model="edit.password" type="password" autocomplete="new-password" />
+        </div>
         <p v-if="edit.errorMsg" class="text-sm text-destructive" role="alert">{{ edit.errorMsg }}</p>
         <div class="flex justify-end gap-2">
           <Button v-if="edit.id !== null" type="button" variant="outline" :disabled="saving" @click="openReset">

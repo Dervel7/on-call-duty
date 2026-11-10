@@ -5,9 +5,11 @@ import type { Role } from '@oncall/shared'
 import { useAuthStore } from '@/stores/auth'
 import { setTestLocale } from './i18n'
 
+const route = vi.hoisted(() => ({ path: '/' }))
+
 vi.mock('vue-router', () => ({
   RouterLink: { template: '<a><slot /></a>' },
-  useRoute: () => ({ path: '/' }),
+  useRoute: () => route,
   useRouter: () => ({ push: vi.fn() }),
 }))
 
@@ -35,6 +37,7 @@ let wrapper: SidebarWrapper | undefined
 afterEach(() => {
   wrapper?.unmount()
   wrapper = undefined
+  route.path = '/'
 })
 
 // The update handlers feed emitted values back as props, as v-model would.
@@ -105,6 +108,18 @@ describe('AppSidebar language', () => {
     expect(navLabels(w)).toEqual(['Αρχική', 'Πρόγραμμα εφημεριών', 'Η διαθεσιμότητά μου', 'Προφίλ'])
     expect(w.text()).toContain('ιατρός')
     expect(w.find('button[aria-label="Αποσύνδεση"]').exists()).toBe(true)
+  })
+})
+
+describe('AppSidebar docked focus', () => {
+  it('does not trap Tab while the drawer is closed', async () => {
+    const w = await mountSidebar('doctor', { open: false })
+    const buttons = w.findAll('aside button')
+    const last = buttons[buttons.length - 1]!.element as HTMLElement
+    last.focus()
+    const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    last.dispatchEvent(e)
+    expect(e.defaultPrevented).toBe(false)
   })
 })
 

@@ -2,7 +2,7 @@
 import type { HTMLAttributes } from 'vue'
 import type { VNode } from 'vue'
 import { Fragment, computed, nextTick, ref, useId, useSlots, watch } from 'vue'
-import { useEventListener } from '@vueuse/core'
+import { usePopover } from '@/composables/usePopover'
 import { Check, ChevronDown } from 'lucide-vue-next'
 import { cn } from '@/lib/utils'
 
@@ -103,63 +103,36 @@ function ariaActiveDescendant(): string | undefined {
   return a ? `${uid}-opt-${a.flatIndex}` : undefined
 }
 
-const open = ref(false)
 const activeValue = ref('')
 const root = ref<HTMLElement | null>(null)
 const trigger = ref<HTMLButtonElement | null>(null)
 const panel = ref<HTMLElement | null>(null)
+const listboxId = `${uid}-listbox`
 
-function positionPanel() {
-  const btn = trigger.value
-  const p = panel.value
-  if (!btn || !p) return
-  const r = btn.getBoundingClientRect()
-  const gap = 6
-  const margin = 16
-  const spaceBelow = window.innerHeight - r.bottom - margin
-  const spaceAbove = r.top - margin
-  p.style.left = `${r.left}px`
-  p.style.width = `${Math.max(r.width, 176)}px`
-  // Clear the previous open's constraints so scrollHeight measures the full
-  // content height before the direction is decided.
-  p.style.maxHeight = ''
-  p.style.top = ''
-  p.style.bottom = ''
-  // Flip the listbox above the button when the content cannot fit below and
-  // there is more room above (e.g. the last calendar row of a month).
-  if (p.scrollHeight > spaceBelow - gap && spaceAbove > spaceBelow) {
-    p.style.bottom = `${window.innerHeight - r.top + gap}px`
-    p.style.maxHeight = `${Math.max(180, spaceAbove)}px`
-  } else {
-    p.style.top = `${r.bottom + gap}px`
-    p.style.maxHeight = `${Math.max(180, spaceBelow)}px`
-  }
-}
+const {
+  open,
+  toggle: togglePopover,
+  close,
+} = usePopover({ root, trigger, panel, matchTrigger: { minWidth: 176 }, margin: 16 })
 
-async function toggle() {
+function toggle() {
   if (props.disabled) return
-  if (open.value) {
-    open.value = false
-    return
-  }
-  activeValue.value = selectedValue.value
-  open.value = true
-  await nextTick()
-  positionPanel()
-  panel.value?.focus()
+  return togglePopover(() => {
+    activeValue.value = selectedValue.value
+  })
 }
 
-// The panel is teleported to body and removed on close, so focus must be moved
-// back to the trigger explicitly or it falls to body (and out of any Dialog).
-function closeToTrigger() {
-  open.value = false
-  trigger.value?.focus()
+function onTriggerKeydown(e: KeyboardEvent) {
+  if (!open.value && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    e.preventDefault()
+    toggle()
+  }
 }
 
 function choose(o: Option) {
   if (o.disabled) return
   emit('update:modelValue', o.value)
-  closeToTrigger()
+  close()
 }
 
 function move(delta: number) {
@@ -198,7 +171,7 @@ function onKeydown(e: KeyboardEvent) {
     if (a) choose(a)
   } else if (e.key === 'Tab') {
     // Refocus the trigger before the default action so Tab continues from it.
-    closeToTrigger()
+    close()
   }
 }
 
@@ -209,38 +182,6 @@ watch(activeValue, async () => {
     // jsdom has no scrollIntoView; the optional call keeps tests green
     ?.scrollIntoView?.({ block: 'nearest' })
 })
-
-useEventListener(document, 'click', (e: MouseEvent) => {
-  if (!open.value) return
-  const t = e.target as Node
-  if (root.value?.contains(t) || panel.value?.contains(t)) return
-  open.value = false
-})
-
-// The panel is teleported (so DutyCalendar's overflow-x-auto cannot clip it);
-// any scroll outside the panel itself closes it instead of misplacing it.
-useEventListener(
-  window,
-  'scroll',
-  (e: Event) => {
-    if (!open.value || panel.value?.contains(e.target as Node)) return
-    open.value = false
-  },
-  { capture: true, passive: true },
-)
-
-// Capture phase + stopPropagation: Escape closes only this popover, not an
-// enclosing Dialog (Dialog listens on window, bubble phase).
-useEventListener(
-  document,
-  'keydown',
-  (e: KeyboardEvent) => {
-    if (!open.value || e.key !== 'Escape') return
-    e.stopPropagation()
-    closeToTrigger()
-  },
-  { capture: true },
-)
 </script>
 
 <template>
@@ -252,10 +193,12 @@ useEventListener(
       role="combobox"
       :aria-label="props.ariaLabel"
       aria-haspopup="listbox"
+      :aria-controls="open ? listboxId : undefined"
       :aria-expanded="open"
       :disabled="props.disabled"
       class="flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card/60 px-3.5 py-2 text-left text-sm text-foreground shadow-sm transition-all hover:border-primary/40 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
-      @click="toggle"
+      @click="toggle()"
+      @keydown="onTriggerKeydown"
     >
       <span class="truncate" :class="!selected() && 'text-muted-foreground/70'">
         {{ selected()?.label ?? selectedValue }}
@@ -274,6 +217,7 @@ useEventListener(
       >
         <div
           v-if="open"
+          :id="listboxId"
           ref="panel"
           role="listbox"
           tabindex="-1"

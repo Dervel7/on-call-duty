@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { AuthUser, Language } from '@oncall/shared'
+import type { AuthUser, Language, LoginResponse } from '@oncall/shared'
 import { setAccessToken, setLockedHandler, setRefreshHandler } from '@/lib/http'
 import * as authService from '@/services/auth'
 import * as userService from '@/services/user'
@@ -8,6 +8,7 @@ import * as userService from '@/services/user'
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null)
   const accessToken = ref<string | null>(null)
+  const locked = ref(false)
 
   const isAuthenticated = computed(() => accessToken.value !== null)
   const isAdmin = computed(
@@ -16,12 +17,17 @@ export const useAuthStore = defineStore('auth', () => {
   const isSuperadmin = computed(() => user.value?.role === 'superadmin')
 
   async function login(identifier: string, password: string): Promise<void> {
-    const data = await authService.login(identifier, password)
-    user.value = data.user
-    accessToken.value = data.accessToken
+    setSession(await authService.login(identifier, password))
+    locked.value = false
   }
 
-  /** Clears the store and the token the http module sends, so the two never drift. */
+  /** The store is the only owner of the token the http module sends, so the two never drift. */
+  function setSession(data: LoginResponse): void {
+    user.value = data.user
+    accessToken.value = data.accessToken
+    setAccessToken(data.accessToken)
+  }
+
   function clearSession(): void {
     user.value = null
     accessToken.value = null
@@ -31,8 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function refresh(): Promise<string | null> {
     try {
       const data = await authService.refresh()
-      user.value = data.user
-      accessToken.value = data.accessToken
+      setSession(data)
       return data.accessToken
     } catch {
       clearSession()
@@ -44,13 +49,9 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await authService.logout()
     } catch {
-    } finally {
-      clearSession()
+      // Best effort: the cookie is cleared server side when reachable.
     }
-  }
-
-  async function fetchMe(): Promise<void> {
-    user.value = await authService.fetchMe()
+    clearSession()
   }
 
   async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
@@ -77,9 +78,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   // A refresh that fails mid-request means the session is gone: send the user to sign in.
   // The bootstrap refresh in main.ts calls refresh() directly and must not redirect.
+  // A lock detected during the refresh is routed by the guard (`locked`), not here.
   setRefreshHandler(async () => {
     const token = await refresh()
-    if (token === null) {
+    if (token === null && !locked.value) {
       import('@/router')
         .then(({ router }) => {
           const current = router.currentRoute.value
@@ -93,6 +95,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   setLockedHandler(() => {
     clearSession()
+    locked.value = true
     import('@/router')
       .then(({ router }) => router.push({ name: 'locked' }))
       .catch(() => {})
@@ -101,13 +104,13 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user,
     accessToken,
+    locked,
     isAuthenticated,
     isAdmin,
     isSuperadmin,
     login,
     refresh,
     logout,
-    fetchMe,
     changePassword,
     setDarkMode,
     setLanguage,

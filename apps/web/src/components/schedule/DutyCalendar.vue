@@ -5,17 +5,9 @@ import type { DayInfo, Doctor } from '@oncall/shared'
 import { toIsoDate, weekdayNames } from '@oncall/utils'
 import Select from '@/components/ui/Select.vue'
 import { useIntlLocale } from '@/composables/useIntlLocale'
-
-interface CalendarAssignment {
-  doctorId: number
-  firstName: string
-  lastName: string
-  reason: string
-}
+import type { CalendarAssignment } from '@/lib/calendar'
 
 const props = defineProps<{
-  year: number
-  month: number
   days: DayInfo[]
   assignmentByDate: Map<string, (CalendarAssignment | null)[]>
   conflictsByDate?: Map<string, string>
@@ -77,7 +69,11 @@ const cells = computed<Cell[]>(() => {
   for (const day of props.days) {
     const required = day.slotsRequired
     const slotsArr = props.assignmentByDate.get(day.date) ?? []
-    const slots: (CalendarAssignment | null)[] = Array.from({ length: required }, (_, i) => slotsArr[i] ?? null)
+    // Never hide stored duties when the clinic's slot count was lowered after they were assigned.
+    const slots: (CalendarAssignment | null)[] = Array.from(
+      { length: Math.max(required, slotsArr.length) },
+      (_, i) => slotsArr[i] ?? null,
+    )
     const poolIds = props.pool === 'available' ? day.availableDoctorIds : day.eligibleDoctorIds
     const options = slots.map((_, i) => slotOptions(poolIds, slots, i))
     const js = new Date(`${day.date}T00:00:00`)

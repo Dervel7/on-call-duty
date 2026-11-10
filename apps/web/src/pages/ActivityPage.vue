@@ -32,7 +32,8 @@ const intlLocale = useIntlLocale()
 
 const actionGroups: Array<[string, string[]]> = (() => {
   const groups = new Map<string, string[]>()
-  for (const action of ACTIVITY_ACTIONS) {
+  // billing.updated is a hospital-level event; the list is always clinic-scoped, so it can never match.
+  for (const action of ACTIVITY_ACTIONS.filter((a) => a !== 'billing.updated')) {
     const [domain = '', verb = ''] = action.split('.')
     const list = groups.get(domain) ?? []
     list.push(verb)

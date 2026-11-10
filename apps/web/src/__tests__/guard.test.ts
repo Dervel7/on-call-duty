@@ -13,16 +13,17 @@ function to(fullPath: string, meta: Partial<RouteLocationNormalized['meta']> = {
 
 const authed = (role: 'administrator' | 'doctor' | 'superadmin'): GuardAuth => ({
   isAuthenticated: true,
+  locked: false,
   user: { role },
 })
 
 describe('resolveGuard', () => {
   it('allows public routes regardless of auth', () => {
-    expect(resolveGuard(to('/login', { public: true }), { isAuthenticated: false, user: null })).toBe(true)
+    expect(resolveGuard(to('/login', { public: true }), { isAuthenticated: false, locked: false, user: null })).toBe(true)
   })
 
   it('redirects unauthenticated users to /login with redirect query', () => {
-    const res = resolveGuard(to('/users'), { isAuthenticated: false, user: null })
+    const res = resolveGuard(to('/users'), { isAuthenticated: false, locked: false, user: null })
     expect(res).not.toBe(true)
     expect(res).toEqual({ name: 'login', query: { redirect: '/users' } })
   })
@@ -36,7 +37,7 @@ describe('resolveGuard', () => {
   })
 
   it('redirects a superadmin away from a doctor-only route to home', () => {
-    const res = resolveGuard(to('/roster', { roles: ['doctor'] }), authed('superadmin'))
+    const res = resolveGuard(to('/my-availability', { roles: ['doctor'] }), authed('superadmin'))
     expect(res).toEqual({ name: 'home' })
   })
 
@@ -59,5 +60,10 @@ describe('resolveGuard', () => {
     const route = to(resolved.fullPath, resolved.meta)
     expect(resolveGuard(route, authed('administrator'))).toEqual({ name: 'home' })
     expect(resolveGuard(route, authed('doctor'))).toBe(true)
+  })
+
+  it('redirects unauthenticated users to /locked when the system is locked', () => {
+    const res = resolveGuard(to('/users'), { isAuthenticated: false, locked: true, user: null })
+    expect(res).toEqual({ name: 'locked' })
   })
 })

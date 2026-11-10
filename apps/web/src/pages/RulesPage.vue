@@ -5,15 +5,13 @@ import { useI18n } from 'vue-i18n'
 import type { ClinicDutySlots, DutyMinimumSettings, OpenDutySettings } from '@oncall/shared'
 import { updateDutyMinimumsSchema, updateDutySlotsSchema, updateOpenDutySchema } from '@oncall/shared'
 import * as settingsService from '@/services/settings'
-import { useAuthStore } from '@/stores/auth'
+import { issueText } from '@/lib/validation'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
 const { t } = useI18n()
-const auth = useAuthStore()
-const clinicId = () => auth.user?.clinicId ?? undefined
 
 type RuleKey = 'cycle' | 'slots' | 'minimums'
 
@@ -60,8 +58,8 @@ async function loadSettings() {
   loading.value = true
   const [cycle, slots, minimums] = await Promise.allSettled([
     settingsService.getOpenDuty(),
-    settingsService.getDutySlots(clinicId()),
-    settingsService.getDutyMinimums(clinicId()),
+    settingsService.getDutySlots(),
+    settingsService.getDutyMinimums(),
   ])
   if (cycle.status === 'fulfilled') {
     openDuty.value = cycle.value
@@ -93,7 +91,7 @@ async function onSubmitInterval() {
   intervalSuccess.value = false
   const parsed = updateOpenDutySchema.safeParse({ intervalDays: intervalInput.value })
   if (!parsed.success) {
-    intervalError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
+    intervalError.value = issueText(parsed.error.issues[0], t)
     return
   }
   intervalSubmitting.value = true
@@ -117,7 +115,7 @@ async function onSubmitSlots() {
     closedDutySlots: closedSlotsInput.value,
   })
   if (!parsed.success) {
-    slotsError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
+    slotsError.value = issueText(parsed.error.issues[0], t)
     return
   }
   const max = maxSlots.value ?? 0
@@ -135,7 +133,6 @@ async function onSubmitSlots() {
       parsed.data.openDutySlots,
       parsed.data.postOpenDutySlots,
       parsed.data.closedDutySlots,
-      clinicId(),
     )
     openSlotsInput.value = String(dutySlots.value.openDutySlots)
     postOpenSlotsInput.value = String(dutySlots.value.postOpenDutySlots)
@@ -157,7 +154,7 @@ async function onSubmitMinimums() {
     closedDutyMinimum: closedMinimumInput.value,
   })
   if (!parsed.success) {
-    minimumsError.value = parsed.error.issues[0]?.message ?? t('common.invalidInput')
+    minimumsError.value = issueText(parsed.error.issues[0], t)
     return
   }
   minimumsSubmitting.value = true
@@ -166,7 +163,6 @@ async function onSubmitMinimums() {
       parsed.data.openDutyMinimum,
       parsed.data.postOpenDutyMinimum,
       parsed.data.closedDutyMinimum,
-      clinicId(),
     )
     openMinimumInput.value = String(dutyMinimums.value.openDutyMinimum)
     postOpenMinimumInput.value = String(dutyMinimums.value.postOpenDutyMinimum)

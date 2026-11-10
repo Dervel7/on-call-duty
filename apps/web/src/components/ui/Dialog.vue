@@ -10,12 +10,24 @@ const openStack = moduleRef<symbol[]>([])
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
-import { onClickOutside, useEventListener } from '@vueuse/core'
+import { useEventListener } from '@vueuse/core'
 import { X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useModal } from '@/composables/useModal'
+import { cn } from '@/lib/utils'
 
-const props = defineProps<{ open: boolean; title?: string }>()
+const props = defineProps<{
+  open: boolean
+  title?: string
+  /** Accessible name when there is no visible title. */
+  ariaLabel?: string
+  /** Id of the element describing the dialog (announced with it). */
+  describedby?: string
+  /** Confirmation dialogs that demand a response use the alertdialog role. */
+  alert?: boolean
+  /** Extra panel classes, merged over the defaults (e.g. a narrower max-width). */
+  panelClass?: string
+}>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 
 const { t } = useI18n()
@@ -34,9 +46,6 @@ function closeIfTop() {
   if (isTop.value) close()
 }
 
-// Clicks inside a popover layer (e.g. a Select's teleported option list, or a
-// dialog stacked on top of this one) belong to this dialog's surface.
-onClickOutside(panel, closeIfTop, { ignore: ['[data-popover-layer]'] })
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   if (e.key === 'Escape') closeIfTop()
 })
@@ -75,11 +84,13 @@ useModal(() => props.open, panel)
       />
       <div
         ref="panel"
-        role="dialog"
+        :role="alert ? 'alertdialog' : 'dialog'"
         aria-modal="true"
         :aria-labelledby="title ? titleId : undefined"
+        :aria-label="title ? undefined : ariaLabel"
+        :aria-describedby="describedby"
         tabindex="-1"
-        class="animate-dialog-panel glass-card glass-panel relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl p-6 focus-visible:outline-none"
+        :class="cn('animate-dialog-panel glass-card glass-panel relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl p-6 focus-visible:outline-none', panelClass)"
       >
         <button
           type="button"

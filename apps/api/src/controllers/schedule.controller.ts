@@ -52,6 +52,22 @@ export const scheduleController = {
       next(err)
     }
   },
+  async alternative(req: Request, res: Response, next: NextFunction) {
+    try {
+      // req.query is typed by validate(scheduleQuerySchema) upstream.
+      const { clinicId } = req.query as { clinicId?: number }
+      const scope = await resolveClinicScope(req.user!, clinicId)
+      const result = await scheduleService.generateAlternative(
+        req.body.year,
+        req.body.month,
+        req.body.index,
+        scope,
+      )
+      res.status(200).json(ok(result))
+    } catch (err) {
+      next(err)
+    }
+  },
   async generate(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new HttpError(401, 'Unauthorized')

@@ -112,4 +112,24 @@ describe('http client', () => {
     i18n.global.locale.value = 'el'
     await expect(apiGet('/users')).rejects.toMatchObject({ status: 502, message: 'Το αίτημα απέτυχε' })
   })
+
+  it('does not refresh on a 401 from /auth/login', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      jsonRes({ success: false, error: 'Invalid credentials' }, 401),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const refresh = vi.fn(async () => 'NEW')
+    setRefreshHandler(refresh)
+    await expect(apiPost('/auth/login', {})).rejects.toMatchObject({ status: 401 })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('turns a network failure into a translated ApiError with status 0', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))))
+    await expect(apiGet('/users')).rejects.toMatchObject({
+      status: 0,
+      message: 'Cannot reach the server. Check your connection and try again.',
+    })
+  })
 })

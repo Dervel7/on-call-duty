@@ -21,7 +21,7 @@ Build a production-ready Doctor On-Call Duty Scheduling System for medium-sized 
 - Add Vector and Velocity: If you agree, expand. If you disagree, counter. Never just nod.
 - Never add time estimations for tasks.
 - Never suggest pushing git commits.
-- Never commit on main branch. If the work is done on main branch let me commit. If the work is done in another branch you make the commits.
+- Commit rule: on every branch except `main`, commit your own work yourself as soon as a task is finished and `pnpm typecheck`, `pnpm lint` and `pnpm test` pass. Never commit on `main`; if the work is on `main`, leave the commit to me.
 - Avoid over-engineering. Only make changes that are directly requested. Don't add features, refactor code, or make improvements beyond what was asked.
 - Never replace versions of github actions.
 - Never change linting rules.
@@ -158,7 +158,7 @@ The algorithm must always:
 3. Produce explainable assignments (every duty persists a `reason`).
 4. Detect conflicts before schedule creation (`POST /schedules/preview`).
 
-Generate returns up to 3 equally optimal schedule options (`POST /schedules/options`, not persisted); the administrator picks one, and only that option is saved as a draft through `POST /schedules`.
+Generate returns option A (`POST /schedules/options`, not persisted); options B and C, up to 3 equally optimal in total, are computed on demand when the administrator opens their tab (`POST /schedules/options/alternative`). Only one solver run executes at a time; a second request gets 429 with `Retry-After`. The administrator picks one option, and only that option is saved as a draft through `POST /schedules`.
 
 Published schedules are locked: duty add/reassign/remove and schedule deletion are rejected (409) at the service layer until reverted to draft.
 

@@ -9,13 +9,11 @@ function day(date: string, slotsRequired: number): DayInfo {
   return { date, isWeekend: false, dutyType: 'closed', slotsRequired, slotsMinimum: 1, eligibleDoctorIds: [], availableDoctorIds: [] }
 }
 
-const assigned = { doctorId: 5, firstName: 'Jane', lastName: 'Roe', reason: '' }
+const assigned = { doctorId: 5, firstName: 'Jane', lastName: 'Roe' }
 
 function mountCalendar(slotsRequired: number, filled: number) {
   return mount(DutyCalendar, {
     props: {
-      year: 2026,
-      month: 9,
       days: [day('2026-09-01', slotsRequired)],
       assignmentByDate: new Map([['2026-09-01', Array.from({ length: filled }, (_, i) => ({ ...assigned, doctorId: 5 + i }))]]),
       conflictsByDate: new Map(),
@@ -58,8 +56,6 @@ describe('DutyCalendar', () => {
       vi.setSystemTime(new Date(2026, 9, 1, 0, 30))
       const w = mount(DutyCalendar, {
         props: {
-          year: 2026,
-          month: 10,
           days: [day('2026-09-30', 1), day('2026-10-01', 1)],
           assignmentByDate: new Map(),
           doctors: [],
@@ -71,6 +67,23 @@ describe('DutyCalendar', () => {
       vi.useRealTimers()
       process.env.TZ = tz
     }
+  })
+
+  it('still shows every stored duty after the slot requirement drops below it', () => {
+    const w = mountCalendar(1, 2)
+    expect(w.findAll('[role="combobox"]')).toHaveLength(2)
+    const readonly = mount(DutyCalendar, {
+      props: {
+        days: [day('2026-09-01', 1)],
+        assignmentByDate: new Map([
+          ['2026-09-01', [assigned, { ...assigned, doctorId: 6, firstName: 'John', lastName: 'Doe' }]],
+        ]),
+        doctors: [],
+        mode: 'readonly',
+      },
+    })
+    expect(readonly.text()).toContain('Roe')
+    expect(readonly.text()).toContain('Doe')
   })
 })
 

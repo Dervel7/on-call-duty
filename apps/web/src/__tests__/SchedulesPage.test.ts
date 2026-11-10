@@ -6,7 +6,6 @@ import { useAuthStore } from '@/stores/auth'
 const list = vi.fn()
 vi.mock('@/services/schedule', () => ({
   list: (...a: unknown[]) => list(...a),
-  preview: vi.fn(),
   generate: vi.fn(),
   get: vi.fn(),
   remove: vi.fn(),
@@ -40,32 +39,45 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-describe('SchedulesPage', () => {
-  function mountAs(role: 'doctor' | 'administrator') {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    useAuthStore(pinia).user = {
-      id: 1,
-      email: 'u@h.com',
-      username: 'u1',
-      role,
-      firstName: 'Jane',
-      lastName: 'Roe',
-      darkMode: false,
-      language: 'en',
-      clinicId: 1,
-      clinicName: 'Main Clinic',
-    }
-    list.mockResolvedValue([])
-    return mount(SchedulesPage, { global: { plugins: [pinia] } })
+function mountAs(role: 'doctor' | 'administrator', records: unknown[] = []) {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useAuthStore(pinia).user = {
+    id: 1,
+    email: 'u@h.com',
+    username: 'u1',
+    role,
+    firstName: 'Jane',
+    lastName: 'Roe',
+    darkMode: false,
+    language: 'en',
+    clinicId: 1,
+    clinicName: 'Main Clinic',
   }
+  list.mockResolvedValue(records)
+  return mount(SchedulesPage, { global: { plugins: [pinia] } })
+}
 
+describe('SchedulesPage', () => {
   it('renders the list with month label and status', async () => {
-    list.mockResolvedValue([summary()])
-    const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator', [summary()])
     await flushPromises()
     expect(wrapper.text()).toContain('August 2026')
     expect(wrapper.text()).toContain('Draft')
+  })
+
+  it('hides the status column from doctors', async () => {
+    const wrapper = mountAs('doctor', [summary({ status: 'published' })])
+    await flushPromises()
+    expect(wrapper.text()).toContain('August 2026')
+    expect(wrapper.text()).not.toContain('Status')
+    expect(wrapper.text()).not.toContain('Published')
+  })
+
+  it('shows doctors the published-schedules empty state', async () => {
+    const wrapper = mountAs('doctor')
+    await flushPromises()
+    expect(wrapper.text()).toContain('No published schedules yet.')
   })
 
   it('shows an error when listing fails', async () => {
@@ -76,8 +88,7 @@ describe('SchedulesPage', () => {
   })
 
   it('shows an empty state when there are no schedules', async () => {
-    list.mockResolvedValue([])
-    const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator')
     await flushPromises()
     expect(wrapper.text()).toContain('No schedules yet.')
   })
@@ -168,8 +179,7 @@ describe('SchedulesPage', () => {
 describe('SchedulesPage in Greek', () => {
   it('renders the month, status, created date and empty state in the active UI language', async () => {
     setTestLocale('el')
-    list.mockResolvedValue([summary({ createdAt: '2026-09-01T12:00:00.000Z' })])
-    const wrapper = mount(SchedulesPage, { global: { plugins: [createPinia()] } })
+    const wrapper = mountAs('administrator', [summary({ createdAt: '2026-09-01T12:00:00.000Z' })])
     await flushPromises()
     expect(wrapper.text()).toContain('Αύγουστος 2026')
     expect(wrapper.text()).toContain('Πρόχειρο')

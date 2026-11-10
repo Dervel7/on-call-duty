@@ -18,7 +18,10 @@ export function useModal(open: () => boolean, panel: Ref<HTMLElement | null>) {
   let returnFocus: HTMLElement | null = null
 
   function focusables(): HTMLElement[] {
-    return Array.from(panel.value?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
+    return Array.from(panel.value?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter(
+      // Skip controls hidden by responsive classes; jsdom has no checkVisibility, so treat all as visible there.
+      (el) => el.checkVisibility?.({ visibilityProperty: true }) ?? true,
+    )
   }
 
   async function activate() {
@@ -48,7 +51,8 @@ export function useModal(open: () => boolean, panel: Ref<HTMLElement | null>) {
   onBeforeUnmount(release)
 
   useEventListener(panel, 'keydown', (e: KeyboardEvent) => {
-    if (e.key !== 'Tab') return
+    // The panel may stay mounted while closed (the docked sidebar): only trap while open.
+    if (e.key !== 'Tab' || !open()) return
     const items = focusables()
     const first = items[0]
     const last = items[items.length - 1]

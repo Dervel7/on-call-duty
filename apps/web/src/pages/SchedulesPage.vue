@@ -5,8 +5,10 @@ import { useI18n } from 'vue-i18n'
 import type { ScheduleSummary } from '@oncall/shared'
 import { createScheduleSchema } from '@oncall/shared'
 import { monthLabel, monthNames } from '@oncall/utils'
+import { issueText } from '@/lib/validation'
 import { useAuthStore } from '@/stores/auth'
 import { useIntlLocale } from '@/composables/useIntlLocale'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import * as scheduleService from '@/services/schedule'
 import { CalendarDays, CalendarOff } from 'lucide-vue-next'
 import Badge from '@/components/ui/Badge.vue'
@@ -40,16 +42,20 @@ const loading = ref(false)
 const errorMsg = ref('')
 const filterYear = ref(String(new Date().getFullYear()))
 
+const latest = useLatestRequest()
+
 async function load() {
+  const isCurrent = latest.start()
   loading.value = true
   errorMsg.value = ''
   try {
     const query = filterYear.value ? { year: Number(filterYear.value) } : undefined
-    records.value = await scheduleService.list(query)
+    const res = await scheduleService.list(query)
+    if (isCurrent()) records.value = res
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : t('schedules.loadFailed')
+    if (isCurrent()) errorMsg.value = e instanceof Error ? e.message : t('schedules.loadFailed')
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 
@@ -83,7 +89,7 @@ function runGenerate() {
     month: Number(gen.value.month),
   })
   if (!parsed.success) {
-    gen.value.errorMsg = parsed.error.issues[0]?.message ?? t('common.invalidInput')
+    gen.value.errorMsg = issueText(parsed.error.issues[0], t)
     return
   }
   gen.value.open = false
@@ -123,7 +129,7 @@ onMounted(load)
       <TableHeader>
         <TableRow>
           <TableHead>{{ t('common.month') }}</TableHead>
-          <TableHead>{{ t('schedules.status') }}</TableHead>
+          <TableHead v-if="auth.isAdmin">{{ t('schedules.status') }}</TableHead>
           <TableHead>{{ t('schedules.created') }}</TableHead>
           <TableHead class="text-right">{{ t('common.actions') }}</TableHead>
         </TableRow>
@@ -131,7 +137,7 @@ onMounted(load)
       <TableBody>
         <TableRow v-for="s in records" :key="s.id">
           <TableCell>{{ monthLabel(s.year, s.month, intlLocale) }}</TableCell>
-          <TableCell>
+          <TableCell v-if="auth.isAdmin">
             <Badge :variant="s.status === 'published' ? 'success' : 'neutral'" dot>
               {{ s.status === 'published' ? t('scheduleStatus.published') : t('scheduleStatus.draft') }}
             </Badge>
@@ -145,7 +151,7 @@ onMounted(load)
     </Table>
 
     <EmptyState v-if="!loading && !errorMsg && records.length === 0" :icon="CalendarOff"
-      :title="t('schedules.empty')" />
+      :title="auth.isAdmin ? t('schedules.empty') : t('scheduleRoster.empty')" />
 
     <Dialog v-model:open="gen.open" :title="t('schedules.newSchedule')">
       <form class="flex flex-col gap-3" novalidate @submit.prevent="runGenerate">

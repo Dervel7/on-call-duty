@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onUnmounted, ref, watch } from 'vue'
+import { nextTick, onUnmounted, ref, useId, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { TriangleAlert } from 'lucide-vue-next'
@@ -10,6 +10,7 @@ import { useConfirmState } from '@/composables/useConfirm'
 const { t } = useI18n()
 const { request, settle } = useConfirmState()
 const footer = ref<HTMLElement | null>(null)
+const messageId = useId()
 
 // A confirm opened on one page must not act on the next one.
 const removeAfterEach = useRouter().afterEach(() => {
@@ -31,7 +32,13 @@ watch(
 </script>
 
 <template>
-  <Dialog :open="request !== null" :title="request?.title" @update:open="settle(false)">
+  <Dialog
+    alert
+    :describedby="messageId"
+    :open="request !== null"
+    :title="request?.title"
+    @update:open="settle(false)"
+  >
     <div v-if="request" class="flex items-start gap-4">
       <span
         :class="request.variant === 'primary'
@@ -40,7 +47,7 @@ watch(
       >
         <TriangleAlert class="h-5 w-5" />
       </span>
-      <p class="pt-2 text-sm text-muted-foreground">{{ request.message }}</p>
+      <p :id="messageId" class="pt-2 text-sm text-muted-foreground">{{ request.message }}</p>
     </div>
     <template #footer>
       <div ref="footer" class="contents">

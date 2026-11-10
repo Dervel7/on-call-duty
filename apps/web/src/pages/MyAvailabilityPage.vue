@@ -119,6 +119,7 @@ async function openCalendar() {
  * its disabled flag). Newly marked days always become new records.
  */
 async function save() {
+  if (saving.value) return
   const st = edit.value
   st.errorMsg = ''
   if (st.days.length === 0) {
@@ -126,6 +127,8 @@ async function save() {
     return
   }
   saving.value = true
+  let wrote = false
+  let unsaved: { startDate: string; endDate: string }[] = []
   try {
     // Fresh reserved days: another session may have added exclusions since
     // the calendar was opened; the API would 409 on overlaps otherwise.
@@ -136,6 +139,7 @@ async function save() {
       if (ranges.length === 0) {
         // Every marked day is already covered by another record.
         await unavailabilityService.remove(st.id)
+        wrote = true
       } else {
         const original = records.value.find((r) => r.id === st.id)
         const originDays = new Set(original ? eachDay(original.startDate, original.endDate) : [])
@@ -144,16 +148,36 @@ async function save() {
         if (keptRanges.length === 0) await unavailabilityService.remove(st.id)
         else if (keptRanges.length === 1) await unavailabilityService.update(st.id, keptRanges[0]!)
         else await unavailabilityService.split(st.id, { segments: keptRanges })
+        wrote = true
         const added = st.days.filter((d) => !reserved.has(d) && !originDays.has(d))
-        for (const range of groupConsecutiveDays(added)) {
+        unsaved = groupConsecutiveDays(added)
+        for (const range of [...unsaved]) {
           await unavailabilityService.createMine(range)
+          unsaved.shift()
         }
       }
     } else {
-      for (const range of ranges) await unavailabilityService.createMine(range)
+      unsaved = [...ranges]
+      for (const range of ranges) {
+        await unavailabilityService.createMine(range)
+        unsaved.shift()
+        wrote = true
+      }
     }
   } catch (e) {
-    st.errorMsg = e instanceof Error ? e.message : t('availability.saveFailed')
+    const message = e instanceof Error ? e.message : t('availability.saveFailed')
+    if (!wrote) {
+      st.errorMsg = message
+      return
+    }
+    // An earlier request was saved, so the loaded records are stale: close,
+    // reload and name the days that still have to be entered.
+    edit.value = emptyEdit()
+    await load()
+    errorMsg.value =
+      unsaved.length > 0
+        ? t('availability.unsavedDays', { message, ranges: unsaved.map(formatRange).join(', ') })
+        : message
     return
   } finally {
     saving.value = false
@@ -167,6 +191,7 @@ async function save() {
  * split around that day in one atomic request; its other days stay excluded.
  */
 async function removeCurrent() {
+  if (saving.value) return
   const x = records.value.find((r) => r.id === edit.value.id)
   if (!x) return
   const day = edit.value.chipDay ?? x.startDate
@@ -178,16 +203,14 @@ async function removeCurrent() {
     }))
   )
     return
+  saving.value = true
   try {
-    const others = eachDay(x.startDate, x.endDate).filter((d) => d !== day)
-    if (others.length > 0) {
-      await unavailabilityService.split(x.id, { segments: groupConsecutiveDays(others) })
-    } else {
-      await unavailabilityService.remove(x.id)
-    }
+    await unavailabilityService.removeDay(x, day)
   } catch (e) {
     edit.value.errorMsg = e instanceof Error ? e.message : t('availability.deleteFailed')
     return
+  } finally {
+    saving.value = false
   }
   edit.value = emptyEdit()
   await load()

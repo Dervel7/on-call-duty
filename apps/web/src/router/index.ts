@@ -28,12 +28,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../layouts/DefaultLayout.vue'),
     children: [
       { path: '', name: 'home', component: () => import('../pages/HomePage.vue') },
-      {
-        path: 'roster',
-        name: 'roster',
-        component: () => import('../pages/ScheduleRosterPage.vue'),
-        meta: { roles: ['doctor'] },
-      },
       { path: 'profile', name: 'profile', component: () => import('../pages/ProfilePage.vue') },
       {
         path: 'users',
@@ -57,12 +51,6 @@ const routes: RouteRecordRaw[] = [
         path: 'rules',
         name: 'rules',
         component: () => import('../pages/RulesPage.vue'),
-        meta: { roles: ['administrator'] },
-      },
-      {
-        path: 'schedules/preview',
-        name: 'schedule-preview',
-        component: () => import('../pages/SchedulePreviewPage.vue'),
         meta: { roles: ['administrator'] },
       },
       {
@@ -109,7 +97,11 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  { path: '/:pathMatch(.*)*', redirect: { name: 'home' } },
 ]
+
+// Chunk names are fingerprinted: after a deploy a stale tab 404s on them, so reload on the target.
+const STALE_CHUNK = /dynamically imported module|Importing a module script failed/i
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -117,3 +109,7 @@ export const router = createRouter({
 })
 
 router.beforeEach((to) => resolveGuard(to, useAuthStore()))
+
+router.onError((err, to) => {
+  if (STALE_CHUNK.test(String(err))) window.location.assign(to.fullPath)
+})
