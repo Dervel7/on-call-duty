@@ -17,6 +17,7 @@ Related plans (do not repeat their items here):
 - Findings with a **Merge note** are the same defect seen from two slices. Implement them once, as one change.
 - Every bugfix needs a test (see each finding's *Fix*). Delete tests that only pin behaviour a finding removes.
 - Any change to `database/schema.sql` must update `docs/database.md` in the same change. Do not add a migration runner.
+- The low-resource plan edits many of the same API files. Before a batch, check its Status there. Do not implement an item that a finding marks as tracked in that plan (for example SCH-16 = QRY-02, SCH-06 = SOL-05). Do not run a batch from each plan on the same files at the same time.
 - When a batch is done, run from the repo root: `pnpm typecheck`, `pnpm lint`, `pnpm test`. All three must pass. Then update the Status table in this file. Commit per `AGENTS.md` (only on a non-`main` branch, only the files of the batch).
 
 ## Status
