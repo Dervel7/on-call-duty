@@ -253,6 +253,7 @@ export async function update(
       })
     }
   })
+  if (input.isActive === false && existing.isActive) await tokenService.revokeAllForUser(userId)
   return getById(id, actor)
 }
 

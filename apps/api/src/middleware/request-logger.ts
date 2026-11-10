@@ -4,7 +4,7 @@ import { logger } from '../logger.ts'
 export const requestLogger = pinoHttp({
   logger,
   redact: {
-    paths: ['req.headers.authorization', 'req.headers.cookie'],
+    paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
     censor: '[redacted]',
   },
 })

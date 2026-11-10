@@ -204,6 +204,17 @@ describe('doctor.service', () => {
     await expect(update(1, { firstName: 'X' }, actor)).rejects.toMatchObject({ status: 404 })
   })
 
+  it('update revokes sessions on deactivation but not on reactivation', async () => {
+    installDb([doctorRow({ user_id: 10 })])
+    await update(1, { isActive: false }, actor)
+    expect(revokeAllForUser).toHaveBeenCalledWith(10)
+
+    revokeAllForUser.mockClear()
+    installDb([doctorRow({ user_id: 10, is_active: false })])
+    await update(1, { isActive: true }, actor)
+    expect(revokeAllForUser).not.toHaveBeenCalled()
+  })
+
   it('remove soft-deletes: sets is_deleted and is_active, revokes tokens, keeps rows', async () => {
     query
       .mockResolvedValueOnce({ rows: [doctorRow({ id: 2, user_id: 7 })] })

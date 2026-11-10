@@ -154,6 +154,18 @@ describe('DELETE /users/:id (admin)', () => {
   })
 })
 
+describe('PATCH /users/:id role escalation', () => {
+  it('returns 403 when an administrator promotes a user to manager', async () => {
+    const token = signAccessToken({ sub: 2, role: 'administrator', clinicId: 1 })
+    query.mockResolvedValueOnce({ rows: [row({ id: 2, role: 'administrator' })] })
+    const res = await request(app)
+      .patch('/users/2')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ role: 'manager' })
+    expect(res.status).toBe(403)
+  })
+})
+
 describe('PATCH /users/:id/password (admin)', () => {
   it('returns 401 without auth', async () => {
     const res = await request(app).patch('/users/1/password').send({ newPassword: 'secret1' })

@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt'
+import type { PoolClient } from 'pg'
 import { query, withTransaction } from '../db/client.ts'
 import { HttpError } from '../lib/http-error.ts'
 import type { ClinicScope } from '../lib/scope.ts'
@@ -85,6 +86,36 @@ function assertRowVisible(row: UserRow, actor: Actor): void {
   }
 }
 
+function assertNotSelf(id: number, actor: Actor): void {
+  if (id === actor.id) throw new HttpError(409, 'You cannot change your own account here')
+}
+
+function assertMayAssignRole(actor: Actor, role: Role): void {
+  if (actor.role === 'administrator' && (role === 'superadmin' || role === 'manager')) {
+    throw new HttpError(403, 'Administrators can only manage clinic accounts')
+  }
+}
+
+// FOR UPDATE serialises two concurrent removals of the last two holders.
+async function assertNotLastHolder(client: PoolClient, existing: User): Promise<void> {
+  if (!existing.isActive || (existing.role !== 'administrator' && existing.role !== 'superadmin')) return
+  const res = await client.query(
+    `SELECT id FROM users
+     WHERE role = $1 AND is_deleted = FALSE AND is_active = TRUE
+       AND clinic_id IS NOT DISTINCT FROM $2 AND id <> $3
+     FOR UPDATE`,
+    [existing.role, existing.clinicId, existing.id],
+  )
+  if (res.rows.length === 0) {
+    throw new HttpError(
+      409,
+      existing.role === 'superadmin'
+        ? 'Cannot remove the last superadmin'
+        : 'Cannot remove the last administrator of a clinic',
+    )
+  }
+}
+
 /** Unknown or inactive target clinic → 404/403 (creation into it is blocked, D10). */
 async function assertClinicUsable(clinicId: number): Promise<void> {
   const res = await query<{ is_active: boolean }>(`SELECT is_active FROM clinics WHERE id = $1`, [
@@ -121,9 +152,7 @@ export async function getById(id: number, actor: Actor): Promise<User> {
 /** Resolves the target clinic of a new account per §2.5 POST /users rules. */
 function resolveCreateClinic(input: CreateUserRequest, actor: Actor): number | null {
   if (actor.role === 'administrator') {
-    if (input.role === 'superadmin' || input.role === 'manager') {
-      throw new HttpError(403, 'Administrators can only create clinic accounts')
-    }
+    assertMayAssignRole(actor, input.role)
     if (actor.clinicId === null) throw new HttpError(403, 'Forbidden')
     return actor.clinicId // payload clinicId is never trusted (isolation I3)
   }
@@ -201,7 +230,14 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
       throw new HttpError(403, 'Managers can only manage administrator accounts')
     }
   }
+  const roleChanged = input.role !== undefined && input.role !== existing.role
   const clinicChanged = input.clinicId !== undefined && input.clinicId !== existing.clinicId
+  if (input.role !== undefined) assertMayAssignRole(actor, input.role)
+  if (input.isActive === false || roleChanged || clinicChanged) assertNotSelf(id, actor)
+  const targetRole = input.role ?? existing.role
+  if ((targetRole === 'manager' || targetRole === 'superadmin') && input.clinicId !== undefined) {
+    throw new HttpError(400, 'Hospital roles carry no clinic')
+  }
   if (clinicChanged) {
     if (actor.role !== 'superadmin' && actor.role !== 'manager') {
       throw new HttpError(403, 'Clinic reassignment is not allowed for this role')
@@ -244,7 +280,6 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
   }
   // Keep users_clinic_role_check satisfiable: hospital roles carry no clinic;
   // clinic roles need one (payload clinicId or the row's existing clinic).
-  const targetRole = input.role ?? existing.role
   if ((targetRole === 'manager' || targetRole === 'superadmin') && input.clinicId === undefined) {
     params.push(null)
     sets.push(`clinic_id = $${params.length}`)
@@ -295,7 +330,9 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
       ? 'user.reactivated'
       : 'user.deactivated'
     : 'user.updated'
+  const leavesRole = input.isActive === false || roleChanged || clinicChanged
   const row = await withTransaction(async (client) => {
+    if (leavesRole) await assertNotLastHolder(client, existing)
     const res = await client.query(
       `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} AND is_deleted = FALSE RETURNING id`,
       params,
@@ -320,6 +357,7 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
     }
     return selectUserById(client, id)
   })
+  if (isActiveChanged && input.isActive === false) await tokenService.revokeAllForUser(id)
   return toUser(row)
 }
 
@@ -331,8 +369,10 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   if (actor.role === 'manager' && existing.role !== 'administrator') {
     throw new HttpError(403, 'Managers can only manage administrator accounts')
   }
+  assertNotSelf(id, actor)
   // Soft delete: keeps doctor/duty/audit references intact (schema Phase 12).
   await withTransaction(async (client) => {
+    await assertNotLastHolder(client, existing)
     const res = await client.query(
       'UPDATE users SET is_deleted = TRUE, is_active = FALSE, updated_at = NOW() WHERE id = $1 AND is_deleted = FALSE RETURNING id',
       [id],
@@ -359,6 +399,7 @@ export async function resetPassword(id: number, input: ResetUserPasswordRequest,
   if (actor.role === 'manager' && existing.role !== 'administrator') {
     throw new HttpError(403, 'Managers can only manage administrator accounts')
   }
+  assertNotSelf(id, actor)
   const passwordHash = await bcrypt.hash(input.newPassword, 12)
   await withTransaction(async (client) => {
     const res = await client.query(
@@ -366,6 +407,7 @@ export async function resetPassword(id: number, input: ResetUserPasswordRequest,
       [passwordHash, id],
     )
     if (res.rows.length === 0) throw new HttpError(404, 'User not found')
+    await tokenService.revokeAllForUser(id, client)
     await recordActivity(client, {
       userId: actor.id,
       action: 'user.password_reset',
@@ -375,7 +417,6 @@ export async function resetPassword(id: number, input: ResetUserPasswordRequest,
       detail: { email: existing.email, username: existing.username },
     })
   })
-  await tokenService.revokeAllForUser(id)
   return getById(id, actor)
 }
 

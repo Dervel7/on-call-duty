@@ -122,10 +122,17 @@ export async function revokeRefreshToken(token: string): Promise<number | null> 
   return res.rows[0]?.user_id ?? null
 }
 
-export async function revokeAllForUser(userId: number): Promise<void> {
-  await query(
+export async function revokeAllForUser(userId: number, client?: PoolClient): Promise<void> {
+  const sql = `UPDATE refresh_tokens SET revoked_at = NOW()
+     WHERE user_id = $1 AND revoked_at IS NULL`
+  if (client) await client.query(sql, [userId])
+  else await query(sql, [userId])
+}
+
+export async function revokeAllForClinic(clinicId: number, client: PoolClient): Promise<void> {
+  await client.query(
     `UPDATE refresh_tokens SET revoked_at = NOW()
-     WHERE user_id = $1 AND revoked_at IS NULL`,
-    [userId],
+     WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE clinic_id = $1)`,
+    [clinicId],
   )
 }

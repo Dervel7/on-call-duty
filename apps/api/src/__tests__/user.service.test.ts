@@ -39,6 +39,7 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
     last_name: 'Roe',
     dark_mode: false,
     language: 'en',
+    is_active: true,
     clinic_id: 1,
     clinic_name: 'Radiology',
     created_at: new Date('2026-01-01'),
@@ -310,6 +311,7 @@ describe('user.service', () => {
   it('update allows a superadmin actor to manage superadmin accounts', async () => {
     query
       .mockResolvedValueOnce({ rows: [row({ role: 'superadmin', clinic_id: null })] })
+      .mockResolvedValueOnce({ rows: [{ id: 5 }] }) // another active superadmin
       .mockResolvedValueOnce({ rows: [{ id: 1 }] })
       .mockResolvedValueOnce({ rows: [row({ role: 'superadmin', is_active: false, clinic_id: null })] })
     const u = await update(1, { isActive: false }, superadminActor)
@@ -399,6 +401,83 @@ describe('user.service', () => {
   it('resetPassword throws 404 for an unknown id', async () => {
     query.mockResolvedValue({ rows: [] })
     await expect(resetPassword(99, { newPassword: 'secret1' }, adminActor)).rejects.toMatchObject({ status: 404 })
+  })
+
+  describe('role escalation (ADM-01)', () => {
+    it.each([
+      ['another user', 1],
+      ['themselves', 2],
+    ])('administrator promoting %s to manager is 403 and writes nothing', async (_who, targetId) => {
+      query.mockResolvedValueOnce({ rows: [row({ id: targetId, role: 'administrator' })] })
+      await expect(update(targetId, { role: 'manager' }, adminActor)).rejects.toMatchObject({ status: 403 })
+      expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))).toBe(false)
+    })
+  })
+
+  describe('self and last-holder protection (ADM-03)', () => {
+    const selfRow = row({ id: 2, role: 'administrator' })
+
+    it('rejects self-delete, self-deactivate, self-demote and self-reset with 409', async () => {
+      query.mockResolvedValue({ rows: [selfRow] })
+      await expect(remove(2, adminActor)).rejects.toMatchObject({ status: 409 })
+      await expect(update(2, { isActive: false }, adminActor)).rejects.toMatchObject({ status: 409 })
+      await expect(update(2, { role: 'doctor' }, adminActor)).rejects.toMatchObject({ status: 409 })
+      await expect(resetPassword(2, { newPassword: 'secret1' }, adminActor)).rejects.toMatchObject({ status: 409 })
+      expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))).toBe(false)
+    })
+
+    it('refuses to delete the last superadmin', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [row({ role: 'superadmin', clinic_id: null })] })
+        .mockResolvedValueOnce({ rows: [] }) // no other active superadmin
+      await expect(remove(1, superadminActor)).rejects.toMatchObject({
+        status: 409,
+        message: 'Cannot remove the last superadmin',
+      })
+    })
+
+    it('refuses to deactivate the last administrator of a clinic', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [row({ role: 'administrator' })] })
+        .mockResolvedValueOnce({ rows: [] })
+      await expect(update(1, { isActive: false }, superadminActor)).rejects.toMatchObject({ status: 409 })
+      expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))).toBe(false)
+    })
+
+    it('deletes one of two administrators', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [row({ role: 'administrator' })] })
+        .mockResolvedValueOnce({ rows: [{ id: 5 }] }) // another active administrator in the clinic
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE ... RETURNING id
+      await expect(remove(1, superadminActor)).resolves.toBeUndefined()
+    })
+  })
+
+  it('update rejects a clinicId for a hospital role with 400 instead of a constraint 500 (ADM-10)', async () => {
+    query.mockResolvedValueOnce({ rows: [row()] })
+    await expect(update(1, { role: 'manager', clinicId: 2 }, superadminActor)).rejects.toMatchObject({
+      status: 400,
+      message: 'Hospital roles carry no clinic',
+    })
+  })
+
+  describe('session revocation on deactivation (ADM-09)', () => {
+    it('deactivating revokes refresh tokens; reactivating does not', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [row()] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [row({ is_active: false })] })
+      await update(1, { isActive: false }, adminActor)
+      expect(query.mock.calls.some((c) => String(c[0]).includes('refresh_tokens'))).toBe(true)
+
+      query.mockReset()
+      query
+        .mockResolvedValueOnce({ rows: [row({ is_active: false })] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [row()] })
+      await update(1, { isActive: true }, adminActor)
+      expect(query.mock.calls.some((c) => String(c[0]).includes('refresh_tokens'))).toBe(false)
+    })
   })
 
   it('create duplicate checks ignore deleted accounts', async () => {

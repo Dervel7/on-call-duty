@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt'
-import { query } from '../db/client.ts'
+import { query, withTransaction } from '../db/client.ts'
 import { HttpError } from '../lib/http-error.ts'
 import { signAccessToken } from '../lib/jwt.ts'
 import type { AuthUser, ChangePasswordRequest, Language, LoginRequest, Role } from '@oncall/shared'
@@ -111,6 +111,7 @@ export async function refresh(
   const row = await findUserById(userId)
   if (!row) throw new HttpError(401, 'Invalid refresh token')
   if (!row.is_active) throw new HttpError(403, 'Account disabled')
+  if (row.clinic_is_active === false) throw new HttpError(403, 'Clinic is deactivated')
   if (row.role !== 'superadmin' && (await billingService.isLocked())) {
     throw new HttpError(403, SYSTEM_LOCKED_MESSAGE)
   }
@@ -146,11 +147,13 @@ export async function changePassword(
   const ok = await bcrypt.compare(input.currentPassword, row.password_hash)
   if (!ok) throw new HttpError(400, 'Current password is incorrect')
   const newHash = await bcrypt.hash(input.newPassword, 12)
-  await query(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [
-    newHash,
-    row.id,
-  ])
-  await tokenService.revokeAllForUser(userId)
+  await withTransaction(async (client) => {
+    await client.query(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [
+      newHash,
+      row.id,
+    ])
+    await tokenService.revokeAllForUser(userId, client)
+  })
   await logActivity({
     userId,
     clinicId: row.clinic_id,

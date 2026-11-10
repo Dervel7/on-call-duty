@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const query = vi.fn()
 vi.mock('../db/client.ts', () => ({
   query: (...a: unknown[]) => query(...a),
+  withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 vi.mock('../services/billing.service.ts', () => ({ isLocked: async () => false }))
 
@@ -109,6 +110,7 @@ describe('clinics routes', () => {
     expect(res.status).toBe(200)
     const update = query.mock.calls.find((c) => String(c[0]).includes('UPDATE clinics'))
     expect(update?.[1]).toEqual([1, 'Imaging', null])
+    expect(query.mock.calls.some((c) => String(c[0]).includes('refresh_tokens'))).toBe(false)
 
     query.mockImplementation(async (...args: unknown[]) => {
       const sql = String(args[0] ?? '')
@@ -131,6 +133,8 @@ describe('clinics routes', () => {
     expect(res.status).toBe(200)
     const update = query.mock.calls.find((c) => String(c[0]).includes('UPDATE clinics'))
     expect(update?.[1]).toEqual([1, null, false])
+    const revoke = query.mock.calls.find((c) => String(c[0]).includes('refresh_tokens'))
+    expect(revoke?.[1]).toEqual([1])
   })
 
   it('unknown clinic id is 404', async () => {
