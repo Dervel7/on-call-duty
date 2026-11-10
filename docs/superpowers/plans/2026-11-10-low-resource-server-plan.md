@@ -56,7 +56,7 @@ Files: `docker-compose.yml`, `apps/api/Dockerfile`, `apps/web/Dockerfile`, `apps
 
 ## Batch 2: Scheduling solver (largest single CPU/RAM consumer)
 
-Files: `apps/api/src/scheduling/solver.ts`, `highs.ts`, `solver-model.ts`, `apps/api/src/services/schedule.service.ts`, `apps/api/src/routes/schedule.routes.ts`, `apps/api/src/validators/schedule.ts`, `apps/web/src/pages/ScheduleOptionsPage.vue`.
+Files: `apps/api/src/scheduling/solver.ts`, `highs.ts`, `solver-model.ts`, `apps/api/src/services/schedule.service.ts`, `apps/api/src/routes/schedule.routes.ts`, `packages/shared/src/schemas/schedule.ts`, `apps/web/src/pages/ScheduleOptionsPage.vue`.
 
 What is already lean: one HiGHS worker per process, created on first use, `threads: 1`, one solve at a time, retired after 60 s idle (`highs.ts:22-29,63-65`, `solver.ts:26`). Keep that design.
 

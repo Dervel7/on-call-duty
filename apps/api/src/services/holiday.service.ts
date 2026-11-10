@@ -42,10 +42,12 @@ export async function setMonth(
   scope: ClinicScope,
 ): Promise<Holiday[]> {
   return withTransaction(async (client) => {
-    const clinic = await client.query('SELECT 1 FROM clinics WHERE id = $1 FOR UPDATE', [
-      scope.clinicId,
-    ])
-    if (clinic.rows.length === 0) throw new HttpError(404, 'Clinic not found')
+    const clinic = await client.query<{ is_active: boolean }>(
+      'SELECT is_active FROM clinics WHERE id = $1 FOR UPDATE',
+      [scope.clinicId],
+    )
+    if (!clinic.rows[0]) throw new HttpError(404, 'Clinic not found')
+    if (!clinic.rows[0].is_active) throw new HttpError(403, 'Clinic is deactivated')
     await client.query(
       `DELETE FROM holidays
        WHERE clinic_id = $1
