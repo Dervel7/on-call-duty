@@ -127,6 +127,13 @@ describe('doctor routes', () => {
     expect(res.body.data.doctor.userId).toBe(10)
   })
 
+  it('an id above the integer range is 400, not a database error', async () => {
+    const res = await request(build())
+      .get('/doctors/2147483648')
+      .set('Authorization', `Bearer ${adminToken()}`)
+    expect(res.status).toBe(400)
+  })
+
   it('non-numeric :id is 400', async () => {
     const res = await request(build())
       .get('/doctors/abc')

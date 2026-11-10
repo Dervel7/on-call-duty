@@ -1,4 +1,4 @@
-export { isoDateSchema, passwordSchema } from './common.ts'
+export { clinicQuerySchema, idParamsSchema, idSchema, isoDateSchema, passwordSchema } from './common.ts'
 export {
   roleSchema,
   languageSchema,
@@ -41,7 +41,6 @@ export {
   DEFAULT_OPEN_DUTY_ANCHOR_DATE,
   DEFAULT_OPEN_DUTY_INTERVAL_DAYS,
   updateDutySlotsSchema,
-  dutySlotsQuerySchema,
   updateDutyMinimumsSchema,
 } from './settings.ts'
 export type { ActivityAction } from './audit.ts'

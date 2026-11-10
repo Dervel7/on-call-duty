@@ -369,7 +369,7 @@ describe('clinic schemas and clinicId query params', () => {
   })
 })
 
-import { holidayQuerySchema, setMonthHolidaysSchema } from '../index.ts'
+import { holidayQuerySchema, idSchema, setMonthHolidaysSchema } from '../index.ts'
 
 describe('holiday schemas', () => {
   it('holidayQuerySchema requires a year in range and coerces it', () => {
@@ -390,6 +390,22 @@ describe('holiday schemas', () => {
       setMonthHolidaysSchema.safeParse({ year: 2026, month: 3, dates: ['2026-3-25'] }).success,
     ).toBe(false)
     expect(setMonthHolidaysSchema.safeParse({ year: 2026, month: 3, dates: [] }).success).toBe(
+      true,
+    )
+  })
+
+  it('idSchema accepts ids up to the Postgres INTEGER range', () => {
+    expect(idSchema.safeParse('5').success).toBe(true)
+    expect(idSchema.safeParse('2147483647').success).toBe(true)
+    expect(idSchema.safeParse('2147483648').success).toBe(false)
+    expect(idSchema.safeParse('0').success).toBe(false)
+  })
+
+  it('activityQuerySchema rejects from after to', () => {
+    expect(activityQuerySchema.safeParse({ from: '2026-09-30', to: '2026-09-01' }).success).toBe(
+      false,
+    )
+    expect(activityQuerySchema.safeParse({ from: '2026-09-01', to: '2026-09-01' }).success).toBe(
       true,
     )
   })

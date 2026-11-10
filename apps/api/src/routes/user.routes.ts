@@ -1,18 +1,18 @@
 import { Router } from 'express'
-import { userController } from '../controllers/user.controller.ts'
-import { authenticate } from '../middleware/authenticate.ts'
-import { authorize } from '../middleware/authorize.ts'
-import { validate } from '../middleware/validate.ts'
 import {
+  clinicQuerySchema,
   createUserSchema,
-  idParams,
+  idParamsSchema,
   resetUserPasswordSchema,
   updateLanguageSchema,
   updateThemeSchema,
   updateUserSchema,
   updateUsernameSchema,
-  userQuerySchema,
-} from '../validators/user.ts'
+} from '@oncall/shared'
+import { userController } from '../controllers/user.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
 
 export const userRouter = Router()
 
@@ -47,9 +47,9 @@ userRouter.patch(
 
 userRouter.use(authenticate, authorize('administrator', 'manager'))
 
-userRouter.get('/', validate(userQuerySchema, 'query'), userController.list)
-userRouter.get('/:id', validate(idParams, 'params'), userController.getById)
+userRouter.get('/', validate(clinicQuerySchema, 'query'), userController.list)
+userRouter.get('/:id', validate(idParamsSchema, 'params'), userController.getById)
 userRouter.post('/', validate(createUserSchema, 'body'), userController.create)
-userRouter.patch('/:id', validate(idParams, 'params'), validate(updateUserSchema, 'body'), userController.update)
-userRouter.patch('/:id/password', validate(idParams, 'params'), validate(resetUserPasswordSchema, 'body'), userController.resetPassword)
-userRouter.delete('/:id', validate(idParams, 'params'), userController.remove)
+userRouter.patch('/:id', validate(idParamsSchema, 'params'), validate(updateUserSchema, 'body'), userController.update)
+userRouter.patch('/:id/password', validate(idParamsSchema, 'params'), validate(resetUserPasswordSchema, 'body'), userController.resetPassword)
+userRouter.delete('/:id', validate(idParamsSchema, 'params'), userController.remove)

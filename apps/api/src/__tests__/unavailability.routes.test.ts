@@ -161,6 +161,30 @@ describe('unavailability routes', () => {
     expect(invertedRes.status).toBe(400)
   })
 
+  it('admin create accepts the own clinicId query (201); a non-numeric clinicId is 400', async () => {
+    let n = 0
+    query.mockImplementation(async () => {
+      n++
+      if (n === 1) return { rows: [{ id: 1 }] }
+      if (n === 2) return { rows: [] }
+      if (n === 3) return { rows: [{ id: 9 }] }
+      return { rows: [row()] }
+    })
+    const res = await request(build())
+      .post('/unavailability?clinicId=1')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ doctorId: 5, startDate: '2026-09-20', endDate: '2026-09-21' })
+    expect(res.status).toBe(201)
+
+    query.mockReset()
+    const bad = await request(build())
+      .post('/unavailability?clinicId=abc')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+      .send({ doctorId: 5, startDate: '2026-09-20', endDate: '2026-09-21' })
+    expect(bad.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
+
   it('doctor creates own via /me (201)', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: 5 }] })
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })

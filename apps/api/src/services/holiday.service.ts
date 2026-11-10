@@ -1,5 +1,6 @@
 import type { AuthUser, Holiday, SetMonthHolidaysRequest } from '@oncall/shared'
 import { query, withTransaction } from '../db/client.ts'
+import { HttpError } from '../lib/http-error.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 import { recordActivity } from './activity.service.ts'
 
@@ -32,7 +33,8 @@ export async function list(year: number, scope: ClinicScope): Promise<Holiday[]>
 /**
  * Replaces the marked holidays of one (clinic, year, month) with `dates`:
  * removed dates are deleted, added dates inserted, all inside one
- * transaction together with the audit write.
+ * transaction together with the audit write. The clinic row lock serializes
+ * concurrent replacements so the last request wins instead of merging.
  */
 export async function setMonth(
   input: SetMonthHolidaysRequest,
@@ -40,9 +42,15 @@ export async function setMonth(
   scope: ClinicScope,
 ): Promise<Holiday[]> {
   return withTransaction(async (client) => {
+    const clinic = await client.query('SELECT 1 FROM clinics WHERE id = $1 FOR UPDATE', [
+      scope.clinicId,
+    ])
+    if (clinic.rows.length === 0) throw new HttpError(404, 'Clinic not found')
     await client.query(
       `DELETE FROM holidays
-       WHERE clinic_id = $1 AND date_trunc('month', holiday_date) = MAKE_DATE($2, $3, 1)`,
+       WHERE clinic_id = $1
+         AND holiday_date >= MAKE_DATE($2, $3, 1)
+         AND holiday_date < MAKE_DATE($2, $3, 1) + INTERVAL '1 month'`,
       [scope.clinicId, input.year, input.month],
     )
     if (input.dates.length > 0) {
@@ -56,8 +64,8 @@ export async function setMonth(
     const res = await client.query<HolidayRow>(
       `SELECT id, clinic_id, holiday_date FROM holidays
        WHERE clinic_id = $1
-         AND EXTRACT(YEAR FROM holiday_date) = $2
-         AND EXTRACT(MONTH FROM holiday_date) = $3
+         AND holiday_date >= MAKE_DATE($2, $3, 1)
+         AND holiday_date < MAKE_DATE($2, $3, 1) + INTERVAL '1 month'
        ORDER BY holiday_date`,
       [scope.clinicId, input.year, input.month],
     )

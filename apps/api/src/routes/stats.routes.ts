@@ -1,9 +1,9 @@
 import { Router } from 'express'
+import { statsQuerySchema } from '@oncall/shared'
 import { statsController } from '../controllers/stats.controller.ts'
 import { authenticate } from '../middleware/authenticate.ts'
 import { authorize } from '../middleware/authorize.ts'
 import { validate } from '../middleware/validate.ts'
-import { statsQuerySchema } from '../validators/stats.ts'
 
 export const statsRouter = Router()
 

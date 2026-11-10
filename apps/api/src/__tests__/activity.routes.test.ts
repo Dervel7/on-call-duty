@@ -82,6 +82,14 @@ describe('activity routes', () => {
     )
   })
 
+  it('from after to is 400', async () => {
+    const res = await request(build())
+      .get('/activity?from=2026-08-31&to=2026-08-01')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+    expect(res.status).toBe(400)
+    expect(list).not.toHaveBeenCalled()
+  })
+
   it('manager: 400 without clinicId; drill-down with clinicId (I23)', async () => {
     list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 50 })
     const bad = await request(build())

@@ -28,7 +28,6 @@ export const unavailabilityController = {
   },
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      // req.query is typed by validate(unavailabilityQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
       const unavailability = await unavailabilityService.create(

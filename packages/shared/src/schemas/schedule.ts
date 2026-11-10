@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateSchema } from './common.ts'
+import { isoDateSchema, idSchema } from './common.ts'
 
 const yearMonth = {
   year: z.number().int().min(1970).max(2100),
@@ -10,7 +10,7 @@ export const createScheduleSchema = z.object(yearMonth)
 export const scheduleQuerySchema = z.object({
   year: z.coerce.number().int().min(1970).max(2100).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
-  clinicId: z.coerce.number().int().positive().optional(),
+  clinicId: idSchema.optional(),
 })
 export const createDutySchema = z.object({
   date: isoDateSchema,

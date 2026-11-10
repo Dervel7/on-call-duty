@@ -1,14 +1,14 @@
 import { Router } from 'express'
+import {
+  clinicQuerySchema,
+  updateDutyMinimumsSchema,
+  updateDutySlotsSchema,
+  updateOpenDutySchema,
+} from '@oncall/shared'
 import { settingsController } from '../controllers/settings.controller.ts'
 import { authenticate } from '../middleware/authenticate.ts'
 import { authorize } from '../middleware/authorize.ts'
 import { validate } from '../middleware/validate.ts'
-import {
-  dutySlotsQuerySchema,
-  updateDutyMinimumsSchema,
-  updateDutySlotsSchema,
-  updateOpenDutySchema,
-} from '../validators/settings.ts'
 
 export const settingsRouter = Router()
 
@@ -30,13 +30,13 @@ settingsRouter.patch(
 settingsRouter.get(
   '/duty-slots',
   authorize('administrator'),
-  validate(dutySlotsQuerySchema, 'query'),
+  validate(clinicQuerySchema, 'query'),
   settingsController.getDutySlots,
 )
 settingsRouter.patch(
   '/duty-slots',
   authorize('administrator'),
-  validate(dutySlotsQuerySchema, 'query'),
+  validate(clinicQuerySchema, 'query'),
   validate(updateDutySlotsSchema, 'body'),
   settingsController.updateDutySlots,
 )
@@ -47,13 +47,13 @@ settingsRouter.patch(
 settingsRouter.get(
   '/duty-minimums',
   authorize('administrator'),
-  validate(dutySlotsQuerySchema, 'query'),
+  validate(clinicQuerySchema, 'query'),
   settingsController.getDutyMinimums,
 )
 settingsRouter.patch(
   '/duty-minimums',
   authorize('administrator'),
-  validate(dutySlotsQuerySchema, 'query'),
+  validate(clinicQuerySchema, 'query'),
   validate(updateDutyMinimumsSchema, 'body'),
   settingsController.updateDutyMinimums,
 )

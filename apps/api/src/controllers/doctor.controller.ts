@@ -7,7 +7,7 @@ import * as doctorService from '../services/doctor.service.ts'
 export const doctorController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      // req.query is typed by validate(doctorQuerySchema) upstream.
+      // req.query is typed by validate(clinicQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
       const doctors = await doctorService.list(scope)
@@ -35,7 +35,7 @@ export const doctorController = {
   },
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      // req.query is typed by validate(doctorQuerySchema) upstream.
+      // req.query is typed by validate(clinicQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
       const doctor = await doctorService.create(req.body, req.user!, scope)

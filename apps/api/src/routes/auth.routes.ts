@@ -1,9 +1,9 @@
 import { Router } from 'express'
+import { changePasswordSchema, loginSchema } from '@oncall/shared'
 import { authController } from '../controllers/auth.controller.ts'
 import { authenticate } from '../middleware/authenticate.ts'
 import { rateLimit } from '../middleware/rate-limit.ts'
 import { validate } from '../middleware/validate.ts'
-import { changePasswordSchema, loginSchema } from '../validators/auth.ts'
 
 export const authRouter = Router()
 
