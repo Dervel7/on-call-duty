@@ -3,6 +3,7 @@ import type {
   Duty,
   GenerateAssignment,
   ReassignDutyRequest,
+  ScheduleAlternativeResult,
   ScheduleDetail,
   ScheduleOptionsResult,
   ScheduleQuery,
@@ -20,6 +21,13 @@ export async function get(id: number): Promise<ScheduleDetail> {
 }
 export async function options(year: number, month: number): Promise<ScheduleOptionsResult> {
   return apiPost<ScheduleOptionsResult>('/schedules/options', { year, month })
+}
+export async function alternative(
+  year: number,
+  month: number,
+  index: number,
+): Promise<ScheduleAlternativeResult> {
+  return apiPost<ScheduleAlternativeResult>('/schedules/options/alternative', { year, month, index })
 }
 export async function generate(
   year: number,

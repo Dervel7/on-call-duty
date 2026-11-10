@@ -10,7 +10,7 @@ import {
 import { dayOfWeekISO, isOpenDutyDate, minimumForDate, prevDate, slotsForDate } from '../dates.ts'
 import { generateGreedy } from '../engine.ts'
 import { loadSolver, type SolverLoader } from '../highs.ts'
-import { generate, generateOptions } from '../solver.ts'
+import { generate, generateAlternative, generatePrimary, SolverBusyError } from '../solver.ts'
 import type { GenerateResult, SchedulingContext } from '../types.ts'
 import { october2026 } from './fixtures/october-2026.ts'
 import { ctx, day, dr } from './helpers.ts'
@@ -256,6 +256,22 @@ function alternativeLoader(
   }
 }
 
+/** Option A, then B and C on demand, as the service does; stops at the first missing option. */
+async function generateOptions(
+  c: SchedulingContext,
+  count: number,
+  loader?: SolverLoader,
+): Promise<GenerateResult[]> {
+  const { result, state } = await generatePrimary(c, loader)
+  const options = [result]
+  while (options.length < count) {
+    const next = await generateAlternative(c, state, loader)
+    if (!next) break
+    options.push(next.result)
+  }
+  return options
+}
+
 /** One key per duty, to compare the duty sets of two options. */
 const dutyKeys = (result: GenerateResult): string[] => result.assignments.map((a) => `${a.date}/${a.doctorId}`)
 
@@ -322,13 +338,13 @@ describe('solver: options', () => {
     it('returns only the primary option when it stopped at the time limit', async () => {
       const options = await generateOptions(c, 3, timeLimitedLoader(2, true))
       expect(options).toHaveLength(1)
-      expect(options[0]?.assignments.every((a) => a.reason.startsWith('solver time limit'))).toBe(true)
+      expect(options[0]?.assignments.every((a: { reason: string }) => a.reason.startsWith('solver time limit'))).toBe(true)
     })
 
     it('returns only the fallback option when the solver cannot load', async () => {
       const options = await generateOptions(c, 3, () => Promise.reject(new Error('wasm load failed')))
       expect(options).toHaveLength(1)
-      expect(options[0]?.assignments.every((a) => a.reason.endsWith('; fallback'))).toBe(true)
+      expect(options[0]?.assignments.every((a: { reason: string }) => a.reason.endsWith('; fallback'))).toBe(true)
     })
 
     it('keeps the primary option when an alternative finds none in time', async () => {
@@ -345,5 +361,45 @@ describe('solver: options', () => {
       expect(options).toHaveLength(1)
       expect(options[0]).toEqual(await generate(c))
     })
+  })
+})
+
+describe('solver: busy gate', () => {
+  const days = [day('2026-09-01'), day('2026-09-03'), day('2026-09-05')]
+  const c = ctx(days, [dr(1), dr(2), dr(3)])
+
+  it('rejects a second concurrent call and lets the first finish', async () => {
+    const first = generatePrimary(c)
+    await expect(generatePrimary(c)).rejects.toBeInstanceOf(SolverBusyError)
+    await expect(generate(c)).rejects.toBeInstanceOf(SolverBusyError)
+    const { state } = await first
+    expect(state.optimal).toBe(true)
+  })
+
+  it('gates the alternative too and releases the slot afterwards', async () => {
+    const { state } = await generatePrimary(c)
+    const alternative = generateAlternative(c, state)
+    await expect(generatePrimary(c)).rejects.toBeInstanceOf(SolverBusyError)
+    await expect(generateAlternative(c, state)).rejects.toBeInstanceOf(SolverBusyError)
+    expect(await alternative).not.toBeNull()
+    await expect(generate(c)).resolves.toBeDefined()
+  })
+
+  it('releases the slot after the greedy fallback', async () => {
+    const fallback = await generate(c, () => Promise.reject(new Error('wasm load failed')))
+    expect(fallback.assignments.every((a) => a.reason.endsWith('; fallback'))).toBe(true)
+    await expect(generate(c)).resolves.toBeDefined()
+  })
+
+  it('releases the slot when the alternative solver cannot load', async () => {
+    const { state } = await generatePrimary(c)
+    expect(await generateAlternative(c, state, () => Promise.reject(new Error('wasm load failed')))).toBeNull()
+    await expect(generate(c)).resolves.toBeDefined()
+  })
+
+  it('gives no alternative when the primary is not proven optimal', async () => {
+    const { state } = await generatePrimary(c, timeLimitedLoader(2, true))
+    expect(state.optimal).toBe(false)
+    expect(await generateAlternative(c, state)).toBeNull()
   })
 })

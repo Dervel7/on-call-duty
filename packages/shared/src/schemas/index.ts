@@ -27,6 +27,7 @@ export {
   createDutySchema,
   reassignDutySchema,
   generateScheduleSchema,
+  alternativeOptionSchema,
 } from './schedule.ts'
 export { statsQuerySchema } from './stats.ts'
 export { reportQuerySchema } from './reports.ts'

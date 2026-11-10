@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   activityQuerySchema,
+  alternativeOptionSchema,
   changePasswordSchema,
   createClinicSchema,
   createDutySchema,
@@ -242,6 +243,14 @@ describe('schedule schemas', () => {
     expect(createDutySchema.safeParse({ date: '2026-09-01', doctorId: 5 }).success).toBe(true)
     expect(reassignDutySchema.safeParse({ doctorId: -1 }).success).toBe(false)
     expect(reassignDutySchema.safeParse({ doctorId: 5 }).success).toBe(true)
+  })
+
+  it('alternativeOptionSchema accepts index 2 and 3 only', () => {
+    expect(alternativeOptionSchema.safeParse({ year: 2026, month: 9, index: 2 }).success).toBe(true)
+    expect(alternativeOptionSchema.safeParse({ year: 2026, month: 9, index: 3 }).success).toBe(true)
+    expect(alternativeOptionSchema.safeParse({ year: 2026, month: 9, index: 1 }).success).toBe(false)
+    expect(alternativeOptionSchema.safeParse({ year: 2026, month: 9, index: 4 }).success).toBe(false)
+    expect(alternativeOptionSchema.safeParse({ year: 2026, month: 9 }).success).toBe(false)
   })
 
   it('generateScheduleSchema accepts with/without assignments and validates items', () => {

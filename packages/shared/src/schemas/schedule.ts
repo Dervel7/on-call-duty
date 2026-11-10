@@ -31,3 +31,7 @@ export const generateScheduleSchema = createScheduleSchema.extend({
     )
     .optional(),
 })
+
+export const alternativeOptionSchema = createScheduleSchema.extend({
+  index: z.number().int().min(2).max(3),
+})

@@ -1,4 +1,5 @@
 export {
+  alternativeOptionSchema,
   createDutySchema,
   createScheduleSchema,
   generateScheduleSchema,

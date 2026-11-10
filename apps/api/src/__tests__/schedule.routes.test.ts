@@ -13,9 +13,11 @@ const removeDuty = vi.fn()
 const publish = vi.fn()
 const unpublish = vi.fn()
 const generateOptions = vi.fn()
+const generateAlternative = vi.fn()
 vi.mock('../services/schedule.service.ts', () => ({
   preview: (...a: unknown[]) => preview(...a),
   generateOptions: (...a: unknown[]) => generateOptions(...a),
+  generateAlternative: (...a: unknown[]) => generateAlternative(...a),
   generate: (...a: unknown[]) => generate(...a),
   list: (...a: unknown[]) => list(...a),
   getById: (...a: unknown[]) => getById(...a),
@@ -37,6 +39,7 @@ vi.mock('../db/client.ts', () => ({
 
 
 import { signAccessToken } from '../lib/jwt.ts'
+import { HttpError } from '../lib/http-error.ts'
 import { errorHandler } from '../middleware/error-handler.ts'
 import { dutyRouter, scheduleRouter } from '../routes/schedule.routes.ts'
 
@@ -78,7 +81,7 @@ const duty = (id: number, doctorId: number) => ({
 })
 
 beforeEach(() => {
-  [preview, generateOptions, generate, list, getById, remove, addDuty, reassignDuty, removeDuty, publish, unpublish].forEach((m) =>
+  [preview, generateOptions, generateAlternative, generate, list, getById, remove, addDuty, reassignDuty, removeDuty, publish, unpublish].forEach((m) =>
     m.mockReset(),
   )
   query.mockReset()
@@ -135,6 +138,65 @@ describe('schedule routes', () => {
     expect(res.status).toBe(200)
     expect(res.body.data.options).toEqual([])
     expect(generateOptions).toHaveBeenCalledWith(2026, 9, expect.objectContaining({ clinicId: 1 }))
+  })
+
+  it('options returns 429 with Retry-After while the solver is busy', async () => {
+    generateOptions.mockRejectedValue(new HttpError(429, 'Solver busy, try again shortly'))
+    const res = await request(build())
+      .post('/schedules/options')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ year: 2026, month: 9 })
+    expect(res.status).toBe(429)
+    expect(res.headers['retry-after']).toBe('10')
+    expect(res.body.error).toBe('Solver busy, try again shortly')
+  })
+
+  it('alternative is admin-only; admin gets 200; invalid index is 400', async () => {
+    const forbidden = await request(build())
+      .post('/schedules/options/alternative')
+      .set('Authorization', `Bearer ${doctorToken()}`)
+      .send({ year: 2026, month: 9, index: 2 })
+    expect(forbidden.status).toBe(403)
+
+    for (const index of [1, 4, undefined]) {
+      const bad = await request(build())
+        .post('/schedules/options/alternative')
+        .set('Authorization', `Bearer ${adminToken()}`)
+        .send({ year: 2026, month: 9, index })
+      expect(bad.status).toBe(400)
+    }
+    expect(generateAlternative).not.toHaveBeenCalled()
+
+    generateAlternative.mockResolvedValue({ option: null, moreAvailable: false })
+    const res = await request(build())
+      .post('/schedules/options/alternative')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ year: 2026, month: 9, index: 2 })
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ option: null, moreAvailable: false })
+    expect(generateAlternative).toHaveBeenCalledWith(2026, 9, 2, expect.objectContaining({ clinicId: 1 }))
+  })
+
+  it('alternative returns 429 with Retry-After while the solver is busy', async () => {
+    generateAlternative.mockRejectedValue(new HttpError(429, 'Solver busy, try again shortly'))
+    const res = await request(build())
+      .post('/schedules/options/alternative')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ year: 2026, month: 9, index: 2 })
+    expect(res.status).toBe(429)
+    expect(res.headers['retry-after']).toBe('10')
+  })
+
+  it('superadmin alternative resolves the clinic from the query', async () => {
+    query.mockResolvedValue({ rows: [{ id: 1 }] })
+    generateAlternative.mockResolvedValue({ option: null, moreAvailable: false })
+    const token = signAccessToken({ sub: 2, role: 'superadmin', clinicId: null })
+    const res = await request(build())
+      .post('/schedules/options/alternative?clinicId=1')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ year: 2026, month: 9, index: 3 })
+    expect(res.status).toBe(200)
+    expect(generateAlternative).toHaveBeenCalledWith(2026, 9, 3, expect.objectContaining({ clinicId: 1 }))
   })
 
   it('admin preview passes optional assignments through to the service', async () => {

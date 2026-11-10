@@ -3,6 +3,8 @@
 Branch: `multiple_Schedules`. The implementing agent commits on this branch (AGENTS.md: never on `main`).
 Status and decisions log: `todos/schedule-options-status.md`. Create it in Task 0 and update it after every task.
 
+> Superseded in part by `2026-11-10-on-demand-options-and-solver-busy-plan.md`: `POST /schedules/options` now returns only option A; options B and C are computed on demand (`POST /schedules/options/alternative`), and every solver run is gated by a single slot (429 when busy). The D6/D8/D11 flow below describes the earlier all-at-once behavior.
+
 ## Goal
 
 When an administrator clicks **Generate** on the Schedules page, the system computes up to **3 different

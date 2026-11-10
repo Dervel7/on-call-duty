@@ -385,9 +385,11 @@ Address the cause, then choose <span class="kbd">Generate</span> again:</p>
 
 <h2>6.4 Step 3 — Compare and use a plan</h2>
 <p>After you choose <span class="kbd">Generate</span> the system refuses to continue if a schedule for that month already exists.
-The system computes up to <strong>three schedule options</strong> for the month and shows them on the
-<strong>Schedule options</strong> page as <strong>Plan A</strong>, <strong>Plan B</strong> and <strong>Plan C</strong>.
-A progress bar shows while the options are computed; this can take up to about 40 seconds.</p>
+The system computes <strong>Plan A</strong> first and shows it on the <strong>Schedule options</strong> page.
+A progress bar shows while it is computed; this can take up to about 30 seconds.
+Open the <strong>Plan B</strong> or <strong>Plan C</strong> tab to compute that plan; each takes up to about 5 seconds.
+Plan C opens after Plan B. If another calculation is running, the page shows a "Solver busy" message; choose
+<span class="kbd">Try again</span> after a few seconds.</p>
 <ul>
   <li><strong>Plan A</strong> is the solver's first choice. Each other plan shows how many days differ from Plan A.</li>
   <li>The calendar uses <strong>green</strong> for a full day, <strong>yellow</strong> for a
@@ -397,7 +399,8 @@ A progress bar shows while the options are computed; this can take up to about 4
 </ul>
 <p>Choose <span class="kbd">Use Plan B</span> (or the plan you picked) and confirm. Only that plan is saved, in
 <strong>Draft</strong> status, and you are taken to its detail page. The other plans are discarded; generating the
-same month again shows the same plans in the same order.</p>
+same month again shows the same plans in the same order. Computed plans are kept for 15 minutes; after that the
+page computes Plan A again.</p>
 <div class="note info"><span class="t">Info</span>Fewer than three plans can appear. Some months have only one or two
 different best schedules, and the system never shows a weaker plan to fill the list. If the solver cannot prove the
 best schedule within its time limit, only Plan A is shown.</div>

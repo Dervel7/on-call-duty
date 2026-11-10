@@ -158,7 +158,7 @@ The algorithm must always:
 3. Produce explainable assignments (every duty persists a `reason`).
 4. Detect conflicts before schedule creation (`POST /schedules/preview`).
 
-Generate returns up to 3 equally optimal schedule options (`POST /schedules/options`, not persisted); the administrator picks one, and only that option is saved as a draft through `POST /schedules`.
+Generate returns option A (`POST /schedules/options`, not persisted); options B and C, up to 3 equally optimal in total, are computed on demand when the administrator opens their tab (`POST /schedules/options/alternative`). Only one solver run executes at a time; a second request gets 429 with `Retry-After`. The administrator picks one option, and only that option is saved as a draft through `POST /schedules`.
 
 Published schedules are locked: duty add/reassign/remove and schedule deletion are rejected (409) at the service layer until reverted to draft.
 

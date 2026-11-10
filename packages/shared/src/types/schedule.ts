@@ -90,7 +90,18 @@ export interface ScheduleOption extends PreviewResult {
 export interface ScheduleOptionsResult {
   year: number
   month: number
+  /** Only option 1 is returned here; the others come from the alternative call. */
   options: ScheduleOption[]
+  /** Most options the administrator can ask for (1 primary + alternatives). */
+  maxOptions: number
+  /** False when option 1 is not proven optimal, so no equally good alternative exists. */
+  moreAvailable: boolean
+}
+
+export interface ScheduleAlternativeResult {
+  /** Null when no other equally good schedule exists. */
+  option: ScheduleOption | null
+  moreAvailable: boolean
 }
 
 export interface ScheduleDetail {

@@ -37,6 +37,7 @@ export type {
   PreviewResult,
   ScheduleOption,
   ScheduleOptionsResult,
+  ScheduleAlternativeResult,
   ScheduleDetail,
   CreateScheduleRequest,
   ScheduleQuery,

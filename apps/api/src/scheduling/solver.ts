@@ -41,6 +41,37 @@ interface StagesResult {
   capacity: Map<number, number>
 }
 
+/** Raised when another solver run holds the single slot; callers never queue. */
+export class SolverBusyError extends Error {
+  constructor() {
+    super('Solver busy')
+    this.name = 'SolverBusyError'
+  }
+}
+
+let busy = false
+
+/** The one gate: every public entry point wraps its private worker in this once. */
+async function runExclusive<T>(fn: () => Promise<T>): Promise<T> {
+  if (busy) throw new SolverBusyError()
+  busy = true
+  try {
+    return await fn()
+  } finally {
+    busy = false
+  }
+}
+
+/** What an alternative option needs from the primary solve. */
+export interface PrimaryState {
+  optima: Map<Stage, number>
+  capacity: Map<number, number>
+  /** Chosen cells of every option so far, primary first. */
+  chosen: Set<string>[]
+  /** True when the primary is proven optimal, so equally good alternatives exist. */
+  optimal: boolean
+}
+
 /**
  * Exact scheduling engine: solves the lexicographic MIP stages of
  * `solver-model.ts` with HiGHS. On a solver error, or when no feasible
@@ -51,21 +82,38 @@ export async function generate(
   ctx: SchedulingContext,
   loader: SolverLoader = loadSolver,
 ): Promise<GenerateResult> {
-  return (await generateOptions(ctx, 1, loader))[0]!
+  return (await generatePrimary(ctx, loader)).result
 }
 
 /**
- * Up to `count` schedule options. The first is the primary option, exactly
- * what generate() returns. The alternatives keep every stage at its optimum
- * (equally good) and differ as much as possible from the earlier options.
- * Alternatives exist only when the primary option is proven optimal; the
- * chain stops early when no other equally good schedule is found.
+ * The primary option plus the state needed to derive alternatives from it.
+ * Alternatives exist only when the primary is proven optimal.
  */
-export async function generateOptions(
+export function generatePrimary(
   ctx: SchedulingContext,
-  count: number,
   loader: SolverLoader = loadSolver,
-): Promise<GenerateResult[]> {
+): Promise<{ result: GenerateResult; state: PrimaryState }> {
+  return runExclusive(() => solvePrimary(ctx, loader))
+}
+
+/**
+ * The next alternative schedule: every stage stays at its optimum (equally
+ * good) and it differs as much as possible from the earlier options. Null
+ * when no other equally good schedule exists (Infeasible), none was found in
+ * time, or the solve failed; the earlier options stay valid.
+ */
+export function generateAlternative(
+  ctx: SchedulingContext,
+  state: PrimaryState,
+  loader: SolverLoader = loadSolver,
+): Promise<{ result: GenerateResult } | null> {
+  return runExclusive(() => solveNext(ctx, state, loader))
+}
+
+async function solvePrimary(
+  ctx: SchedulingContext,
+  loader: SolverLoader,
+): Promise<{ result: GenerateResult; state: PrimaryState }> {
   const deadline = Date.now() + SOLVER_BUDGET_MS
   const index = indexModel(ctx)
   let failure: unknown = 'no feasible schedule within the time budget'
@@ -73,15 +121,10 @@ export async function generateOptions(
     const solver = await loader()
     const { solution, optima, capacity } = await solveStages(solver, index, deadline)
     if (solution) {
-      const options = [solution]
-      // Without proven optima there are no bounds to keep the alternatives equally good.
-      while (solution.status === 'optimal' && options.length < count) {
-        const avoid = options.map((o) => o.chosen)
-        const chosen = await solveAlternative(ctx, solver, index, { optima, capacity, avoid })
-        if (!chosen) break
-        options.push({ chosen, status: 'optimal' })
+      return {
+        result: decode(ctx, index, solution),
+        state: { optima, capacity, chosen: [solution.chosen], optimal: solution.status === 'optimal' },
       }
-      return options.map((o) => decode(ctx, index, o))
     }
   } catch (err) {
     failure = err
@@ -91,19 +134,46 @@ export async function generateOptions(
     'scheduling solver failed; greedy fallback used',
   )
   const greedy = generateGreedy(ctx)
-  return [
-    {
+  return {
+    result: {
       assignments: greedy.assignments.map((a) => ({ ...a, reason: `${a.reason}; fallback` })),
       conflicts: greedy.conflicts,
     },
-  ]
+    state: { optima: new Map(), capacity: new Map(), chosen: [], optimal: false },
+  }
 }
 
-/**
- * One alternative schedule option with its own budget, or null when none
- * exists (Infeasible), none was found in time, or the solve failed. A
- * failure only ends the chain: the earlier options stay valid.
- */
+async function solveNext(
+  ctx: SchedulingContext,
+  state: PrimaryState,
+  loader: SolverLoader,
+): Promise<{ result: GenerateResult } | null> {
+  // Without proven optima there are no bounds to keep the alternatives equally good.
+  if (!state.optimal) return null
+  const index = indexModel(ctx)
+  let chosen: Set<string> | null
+  try {
+    chosen = await solveAlternative(ctx, await loader(), index, {
+      optima: state.optima,
+      capacity: state.capacity,
+      avoid: state.chosen,
+    })
+  } catch (err) {
+    logSolveFailure(ctx, state.chosen.length + 1, err)
+    return null
+  }
+  if (!chosen) return null
+  state.chosen.push(chosen)
+  return { result: decode(ctx, index, { chosen, status: 'optimal' }) }
+}
+
+function logSolveFailure(ctx: SchedulingContext, option: number, err: unknown): void {
+  logger.warn(
+    { clinicId: ctx.clinicId, year: ctx.year, month: ctx.month, option, err },
+    'schedule option solve failed; fewer options returned',
+  )
+}
+
 async function solveAlternative(
   ctx: SchedulingContext,
   solver: Solver,
@@ -120,10 +190,7 @@ async function solveAlternative(
       return Number.isFinite(result.ObjectiveValue) ? chosenCells(index, result.Columns) : null
     throw new Error(`HiGHS returned "${result.Status}" at stage alternative`)
   } catch (err) {
-    logger.warn(
-      { clinicId: ctx.clinicId, year: ctx.year, month: ctx.month, option: (bounds.avoid?.length ?? 0) + 1, err },
-      'schedule option solve failed; fewer options returned',
-    )
+    logSolveFailure(ctx, (bounds.avoid?.length ?? 0) + 1, err)
     return null
   }
 }
