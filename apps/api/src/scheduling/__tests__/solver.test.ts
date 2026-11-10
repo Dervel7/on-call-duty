@@ -236,6 +236,29 @@ describe('solver: budget and fallback', () => {
     expect(result.assignments.every((a) => a.reason.startsWith('solver time limit'))).toBe(true)
   })
 
+  it('keeps the previous solution when a time-limited fill stage returns a worse one', async () => {
+    const worseFill: SolverLoader = async () => {
+      const real = await loadSolver()
+      let call = 0
+      return {
+        async solve(lp, options, deadline) {
+          const result = await real.solve(lp, options, deadline)
+          call++
+          // The fill stage is the last, and the only later one that maximizes.
+          if (!result || call === 1 || !lp.includes('Maximize')) return result
+          const columns = Object.fromEntries(
+            Object.entries(result.Columns).map(([name, col]) => [name, { ...col, Primal: 0 }]),
+          )
+          return { ...result, Status: 'Time limit reached', Columns: columns } as typeof result
+        },
+      }
+    }
+    const full = await generate(c)
+    const result = await generate(c, worseFill)
+    expect(result.assignments.length).toBe(full.assignments.length)
+    expect(result.assignments.every((a) => a.reason.startsWith('solver time limit'))).toBe(true)
+  })
+
   it('falls back when no schedule is found in time', async () => {
     const result = await generate(c, timeLimitedLoader(2, false))
     expect(result.assignments.every((a) => a.reason.endsWith('; fallback'))).toBe(true)

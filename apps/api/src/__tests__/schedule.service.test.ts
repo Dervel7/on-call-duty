@@ -1008,14 +1008,18 @@ describe('publish / unpublish', () => {
       .mockResolvedValueOnce({ rows: [] }) // app_meta: open duty -> seeded defaults
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE matches
       .mockResolvedValueOnce({
-        rows: Array.from({ length: 30 }, (_, i) => ({ duty_date: `2026-09-${String(i + 1).padStart(2, '0')}`, n: 1 })),
+        rows: Array.from({ length: 30 }, (_, i) => ({ duty_date: `2026-09-${String(i + 1).padStart(2, '0')}`, n: 2 })),
       }) // coverage complete
       .mockResolvedValueOnce({ rows: [scheduleRow({ status: 'published' })] }) // re-select
     const published = await publish(1, { id: 2, role: 'administrator', clinicId: 1 })
     expect(published.status).toBe('published')
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ action: 'schedule.published', entityId: 1 }),
+      expect.objectContaining({
+        action: 'schedule.published',
+        entityId: 1,
+        detail: expect.objectContaining({ dutyCount: 60 }),
+      }),
     )
 
     query.mockReset()

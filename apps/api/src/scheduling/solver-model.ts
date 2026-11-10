@@ -5,7 +5,7 @@ import {
   requiresDoubleCoverage,
   slotsForDate,
 } from './dates.ts'
-import { HOLIDAY_DUTY_CAP, OPEN_DUTY_DUTY_CAP, isAvailable } from './constraints.ts'
+import { HOLIDAY_DUTY_CAP, OPEN_DUTY_DUTY_CAP, holidayExcess, isAvailable } from './constraints.ts'
 import { isFriSatSun } from './scoring.ts'
 import type { DaySpec, DoctorSpec, SchedulingContext } from './types.ts'
 
@@ -361,4 +361,76 @@ export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds)
   if (stage === 'fill') return allCells.length > 0 ? lp.render('Maximize', ones(allCells)) : null
   const objective = objectives.get(stage) ?? []
   return objective.length > 0 ? lp.render('Minimize', objective) : null
+}
+
+/**
+ * The objective value `buildModel` would report for `stage`, computed from the
+ * chosen cells. Cover, relax, weekdays, share and holidays are minimized;
+ * `fill` is maximized. Used to compare a time-limited incumbent with the
+ * solution of the previous stage.
+ */
+export function stageObjective(
+  index: ModelIndex,
+  stage: Stage,
+  chosen: ReadonlySet<string>,
+  capacity: ReadonlyMap<number, number>,
+): number {
+  const mine = (doctorId: number): ModelCell[] =>
+    (index.cellsByDoctor.get(doctorId) ?? []).filter((c) => chosen.has(c.name))
+  const sum = (values: Iterable<number>): number => [...values].reduce((a, b) => a + b, 0)
+
+  const cover = /^cover-(critical|regular)-(\d+)$/.exec(stage)
+  if (cover) {
+    const critical = cover[1] === 'critical'
+    const position = Number(cover[2])
+    return index.days.filter((d) => {
+      if (d.critical !== critical || d.minimum < position) return false
+      const assigned = (index.cellsByDate.get(d.day.date) ?? []).filter((c) => chosen.has(c.name)).length
+      return assigned < position
+    }).length
+  }
+
+  switch (stage) {
+    case 'relax':
+      return sum(
+        index.doctors.map((doctor) => {
+          const cells = mine(doctor.id)
+          const nonCritical = cells.filter((c) => c.day.day.isHoliday && !c.day.critical).length
+          const critical = cells.filter((c) => c.day.day.isHoliday && c.day.critical).length
+          const repeats = FRI_SAT_SUN.map((w) => Math.max(0, sameWeekday(cells, w.dayOfWeek).length - 1))
+          return holidayExcess(nonCritical, critical) + sum(repeats)
+        }),
+      )
+    case 'weekdays':
+      return sum(
+        index.doctors.flatMap((doctor) =>
+          FRI_SAT_SUN.map((w) => {
+            const possible = sameWeekday(index.cellsByDoctor.get(doctor.id) ?? [], w.dayOfWeek).length
+            return possible > 0 && sameWeekday(mine(doctor.id), w.dayOfWeek).length === 0 ? 1 : 0
+          }),
+        ),
+      )
+    case 'share': {
+      const shared = index.doctors.filter((d) => (capacity.get(d.id) ?? 0) > 0)
+      if (shared.length < 2) return 0
+      const e = sum(shared.map((d) => capacity.get(d.id) ?? 0))
+      const totals = shared.map((d) => mine(d.id).length)
+      const total = sum(totals)
+      const deviation = Math.max(
+        ...shared.map((d, i) => Math.abs(e * (totals[i] ?? 0) - (capacity.get(d.id) ?? 0) * total)),
+      )
+      return Math.max(0, deviation - (e - 1))
+    }
+    case 'holidays': {
+      const counts = index.doctors
+        .filter((d) => (index.cellsByDoctor.get(d.id) ?? []).some((c) => c.day.day.isHoliday))
+        .map((d) => mine(d.id).filter((c) => c.day.day.isHoliday).length)
+      if (counts.length < 2) return 0
+      return Math.max(0, Math.max(...counts) - Math.min(...counts) - 1)
+    }
+    case 'fill':
+      return sum(index.doctors.map((d) => mine(d.id).length))
+    default:
+      throw new Error(`No objective for stage ${stage}`)
+  }
 }

@@ -29,6 +29,7 @@ import {
   holidayCapAllows,
   isAvailable,
   planHolidayViolation,
+  SOLVER_BUDGET_MS,
   SolverBusyError,
   type PrimaryState,
   underCap,
@@ -430,12 +431,16 @@ function readOptions(key: string): OptionsCacheEntry {
   return entry
 }
 
-/** Maps the solver slot rejection to 429 so callers can retry shortly. */
+/** A busy solver holds the slot for at most its budget; tell callers to retry after that. */
+const SOLVER_BUSY_RETRY_SECONDS = Math.ceil(SOLVER_BUDGET_MS / 1000)
+
+/** Maps the solver slot rejection to 429 so callers can retry later. */
 async function gated<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run()
   } catch (err) {
-    if (err instanceof SolverBusyError) throw new HttpError(429, 'Solver busy, try again shortly')
+    if (err instanceof SolverBusyError)
+      throw new HttpError(429, 'Solver busy, try again shortly', SOLVER_BUSY_RETRY_SECONDS)
     throw err
   }
 }
@@ -999,7 +1004,11 @@ export async function publish(id: number, actor: Actor): Promise<ScheduleSummary
       entityType: 'schedule',
       entityId: id,
       clinicId: existing.clinic_id,
-      detail: { year: existing.year, month: existing.month, dutyCount: byDate.size },
+      detail: {
+        year: existing.year,
+        month: existing.month,
+        dutyCount: duties.rows.reduce((sum, r) => sum + r.n, 0),
+      },
     })
   })
   return toSchedule(await selectScheduleRow(id))

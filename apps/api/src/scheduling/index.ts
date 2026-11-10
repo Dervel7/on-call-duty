@@ -7,6 +7,7 @@ export {
   generate,
   generatePrimary,
   generateAlternative,
+  SOLVER_BUDGET_MS,
   SolverBusyError,
   type PrimaryState,
 } from './solver.ts'

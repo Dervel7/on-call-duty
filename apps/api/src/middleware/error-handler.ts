@@ -3,9 +3,6 @@ import { ZodError } from 'zod'
 import { HttpError } from '../lib/http-error.ts'
 import { logger } from '../logger.ts'
 
-/** Hint for 429 responses such as "Solver busy"; one solve lasts at most one request. */
-const RETRY_AFTER_SECONDS = '10'
-
 export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
   if (res.headersSent) {
     next(err)
@@ -17,7 +14,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
     return
   }
   if (err instanceof HttpError) {
-    if (err.status === 429) res.setHeader('Retry-After', RETRY_AFTER_SECONDS)
+    if (err.retryAfterSeconds !== undefined) res.setHeader('Retry-After', String(err.retryAfterSeconds))
     res.status(err.status).json({ success: false, error: err.message })
     return
   }

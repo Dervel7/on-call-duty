@@ -141,7 +141,7 @@ describe('schedule routes', () => {
   })
 
   it('options returns 429 with Retry-After while the solver is busy', async () => {
-    generateOptions.mockRejectedValue(new HttpError(429, 'Solver busy, try again shortly'))
+    generateOptions.mockRejectedValue(new HttpError(429, 'Solver busy, try again shortly', 10))
     const res = await request(build())
       .post('/schedules/options')
       .set('Authorization', `Bearer ${adminToken()}`)
@@ -178,7 +178,7 @@ describe('schedule routes', () => {
   })
 
   it('alternative returns 429 with Retry-After while the solver is busy', async () => {
-    generateAlternative.mockRejectedValue(new HttpError(429, 'Solver busy, try again shortly'))
+    generateAlternative.mockRejectedValue(new HttpError(429, 'Solver busy, try again shortly', 10))
     const res = await request(build())
       .post('/schedules/options/alternative')
       .set('Authorization', `Bearer ${adminToken()}`)

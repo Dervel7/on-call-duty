@@ -26,7 +26,7 @@ Related plans (do not repeat their items here):
 |---|---|---|---|
 | 1 | Security: accounts and sessions | 8 | Done (ADM-06 merged into CORE-02) |
 | 2 | Scheduling hard rules | 9 | Done (SCH-04 had no decision: manual edits strict, plan saves keep the minimum relaxation) |
-| 3 | Solver and options robustness | 7 | Not started |
+| 3 | Solver and options robustness | 7 | Done except ENG-05 (no decision; skipped). SCH-10 not reproducible: `eligibilityFor` is synchronous now, so no await sits between the solve and `options.push`; no change. SCH-11 merged into CORE-05 (`retryAfterSeconds` = solver budget, 45 s). ENG-11 fixed without a dedicated test (not reachable through `generate` with the fixtures tried) |
 | 4 | Validation and request plumbing | 8 | Not started |
 | 5 | Audit trail and atomic writes | 9 | Not started |
 | 6 | User and doctor account boundaries | 8 | Not started |

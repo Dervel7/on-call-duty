@@ -24,6 +24,18 @@ describe('rateLimit', () => {
     expect(statuses).toEqual([200, 200, 200, 429, 429])
   })
 
+  it('tells the client when the window ends', () => {
+    const mw = rateLimit({ windowMs: 60_000, limit: 1, keyFn: () => 'k' })
+    const next = (() => {}) as NextFunction
+    mw({} as Request, {} as Response, next)
+    try {
+      mw({} as Request, {} as Response, next)
+      expect.unreachable()
+    } catch (err) {
+      expect(err).toMatchObject({ status: 429, retryAfterSeconds: 60 })
+    }
+  })
+
   it('tracks keys independently', () => {
     const mw = rateLimit({ windowMs: 60_000, limit: 1, keyFn: (req) => String((req as { ip?: string }).ip) })
     const next = (() => {}) as NextFunction

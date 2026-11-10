@@ -12,6 +12,7 @@ import {
   type ModelBounds,
   type ModelCell,
   type ModelIndex,
+  stageObjective,
   type Stage,
 } from './solver-model.ts'
 import type { AssignmentPlan, ConflictPlan, GenerateResult, SchedulingContext } from './types.ts'
@@ -224,14 +225,30 @@ async function solveStages(solver: Solver, index: ModelIndex, deadline: number):
       optima.set(stage, Math.round(solved.ObjectiveValue))
       continue
     }
-    // A finite objective at the time limit means HiGHS holds an incumbent.
-    if (solved && Number.isFinite(solved.ObjectiveValue))
-      chosen = chosenCells(index, solved.Columns)
+    // A finite objective at the time limit means HiGHS holds an incumbent. It
+    // meets the earlier bounds but may be worse on this stage than the
+    // previous solution, so it only replaces that one when it is better.
+    if (solved && Number.isFinite(solved.ObjectiveValue)) {
+      const incumbent = chosenCells(index, solved.Columns)
+      if (!chosen || improves(index, stage, incumbent, chosen, capacity)) chosen = incumbent
+    }
     return result(chosen ? { chosen, status: 'time limit' } : null)
   }
   // No stage had anything to optimize: no possible duty and no minimum.
   if (!solvedAny) return result({ chosen: new Set(), status: 'optimal' })
   return result(chosen ? { chosen, status: 'optimal' } : null)
+}
+
+function improves(
+  index: ModelIndex,
+  stage: Stage,
+  candidate: ReadonlySet<string>,
+  current: ReadonlySet<string>,
+  capacity: ReadonlyMap<number, number>,
+): boolean {
+  const next = stageObjective(index, stage, candidate, capacity)
+  const previous = stageObjective(index, stage, current, capacity)
+  return stage === 'fill' ? next > previous : next < previous
 }
 
 /**
@@ -299,7 +316,7 @@ function decode(ctx: SchedulingContext, index: ModelIndex, solution: Solution): 
       const same = sameWeekday(cells, w.dayOfWeek)
       if (same.length === 1) note(same[0]!, `first ${w.name}`)
       // Only the extra duties are repeats: the chronologically last ones.
-      if (same.length > 1) repeats.push(...same.filter(needed).slice(1 - same.length))
+      if (same.length > 1) repeats.push(...same.slice(1).filter(needed))
     }
     const nonCritical = cells.filter((c) => c.day.day.isHoliday && !c.day.critical)
     const critical = cells.filter((c) => c.day.day.isHoliday && c.day.critical)
