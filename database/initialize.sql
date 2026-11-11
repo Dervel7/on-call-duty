@@ -8,6 +8,7 @@
 -- Usage (run against an empty database you created first):
 --   createdb oncall_duty
 --   psql -d oncall_duty -v ON_ERROR_STOP=1 \
+--     -v superadmin_password_hash='<bcrypt hash of the superadmin password>' \
 --     -v admin_password_hash='<bcrypt hash of the administrator password>' \
 --     -f database/initialize.sql
 -- Generate the hash with: node -e "console.log(require('bcrypt').hashSync(process.argv[1], 12))" '<password>'
@@ -197,14 +198,13 @@ INSERT INTO app_meta (key, value) VALUES
 -- column defaults.
 INSERT INTO clinics (name) VALUES ('Main Clinic');
 
--- The superadmin keeps its current password hash (bcrypt, cost 12); the administrator
--- hash comes from the admin_password_hash variable so no known password ships.
+-- Both password hashes (bcrypt, cost 12) come from psql variables so no known password ships.
 -- The superadmin is hospital level, so it has no clinic.
 INSERT INTO users (email, username, password_hash, role, first_name, last_name)
 VALUES (
   'superadmin@oncall.local',
   'superadmin',
-  '$2b$12$ib69wvBRW9XbWWJagExPNe9QrDklUGCvMBlMivRVOAY03LTNsOwSi',
+  :'superadmin_password_hash',
   'superadmin',
   'Vendor',
   'Superadmin'
