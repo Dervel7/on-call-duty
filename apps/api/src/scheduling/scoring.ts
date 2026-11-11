@@ -5,13 +5,9 @@ export const W_WEEKEND = 4
 export const W_FRIDAY = 2
 export const W_FRI_SAT_SUN = 5
 
-/** Fair-share duty budget: total weekend/Friday slots split over the pool. */
-export function weekendBudget(weekendSlots: number, activeDoctors: number): number {
-  return activeDoctors === 0 ? 0 : Math.ceil(weekendSlots / activeDoctors)
-}
-
-export function fridayBudget(fridaySlots: number, activeDoctors: number): number {
-  return activeDoctors === 0 ? 0 : Math.ceil(fridaySlots / activeDoctors)
+/** Fair-share duty budget: total weekend or Friday slots split over the pool. */
+export function fairShareBudget(slots: number, doctors: number): number {
+  return doctors === 0 ? 0 : Math.ceil(slots / doctors)
 }
 
 /**

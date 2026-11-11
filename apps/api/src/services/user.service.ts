@@ -1,10 +1,9 @@
-import bcrypt from 'bcrypt'
 import type { PoolClient } from 'pg'
 import { query, withTransaction } from '../db/client.ts'
 import { HttpError } from '../lib/http-error.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 import type {
-  AuthUser,
+  Actor,
   CreateUserRequest,
   Language,
   ResetUserPasswordRequest,
@@ -12,10 +11,11 @@ import type {
   UpdateUserRequest,
   User,
 } from '@oncall/shared'
+import { assertClinicUsable, assertIdentityFree, diffFields, hashPassword } from './account.ts'
 import { recordActivity } from './activity.service.ts'
 import * as tokenService from './token.service.ts'
 
-type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
+const DIFF_KEYS = ['email', 'username', 'role', 'firstName', 'lastName', 'isActive', 'clinicId'] as const
 
 interface UserRow {
   id: number
@@ -118,16 +118,6 @@ async function assertNotLastHolder(client: PoolClient, existing: User): Promise<
   }
 }
 
-/** Unknown or inactive target clinic → 404/403 (creation into it is blocked, D10). */
-async function assertClinicUsable(clinicId: number): Promise<void> {
-  const res = await query<{ is_active: boolean }>(`SELECT is_active FROM clinics WHERE id = $1`, [
-    clinicId,
-  ])
-  const clinic = res.rows[0]
-  if (!clinic) throw new HttpError(404, 'Clinic not found')
-  if (!clinic.is_active) throw new HttpError(403, 'Clinic is deactivated')
-}
-
 // A clinic's members. Hospital-level accounts carry no clinic, so they never appear here.
 export async function list(scope: ClinicScope): Promise<User[]> {
   const res = await query<UserRow>(
@@ -181,17 +171,8 @@ export async function create(input: CreateUserRequest, actor: Actor): Promise<Us
   const clinicId = resolveCreateClinic(input, actor)
   if (input.role === 'doctor') throw new HttpError(409, DOCTOR_VIA_DOCTORS)
   if (clinicId !== null) await assertClinicUsable(clinicId)
-  const existingEmail = await query(
-    'SELECT id FROM users WHERE lower(email) = lower($1) AND is_deleted = FALSE',
-    [input.email],
-  )
-  if (existingEmail.rows.length > 0) throw new HttpError(409, 'Email already in use')
-  const existingUsername = await query(
-    'SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE',
-    [input.username],
-  )
-  if (existingUsername.rows.length > 0) throw new HttpError(409, 'Username already in use')
-  const passwordHash = await bcrypt.hash(input.password, 12)
+  await assertIdentityFree({ query }, { email: input.email, username: input.username })
+  const passwordHash = await hashPassword(input.password)
   const row = await withTransaction(async (client) => {
     const res = await client.query(
       `INSERT INTO users (email, username, password_hash, role, first_name, last_name, clinic_id)
@@ -259,20 +240,14 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
     }
     await assertClinicUsable(input.clinicId as number)
   }
-  if (input.email !== undefined && input.email !== existing.email) {
-    const dup = await query('SELECT id FROM users WHERE lower(email) = lower($1) AND is_deleted = FALSE AND id <> $2', [
-      input.email,
-      id,
-    ])
-    if (dup.rows.length > 0) throw new HttpError(409, 'Email already in use')
-  }
-  if (input.username !== undefined && input.username !== existing.username) {
-    const dup = await query('SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE AND id <> $2', [
-      input.username,
-      id,
-    ])
-    if (dup.rows.length > 0) throw new HttpError(409, 'Username already in use')
-  }
+  await assertIdentityFree(
+    { query },
+    {
+      email: input.email !== existing.email ? input.email : undefined,
+      username: input.username !== existing.username ? input.username : undefined,
+    },
+    id,
+  )
   const sets: string[] = []
   const params: unknown[] = []
   const map: Array<[string, unknown]> = [
@@ -306,37 +281,8 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
   params.push(new Date())
   sets.push(`updated_at = $${params.length}`)
   params.push(id)
-  const before: Record<string, unknown> = {}
-  const after: Record<string, unknown> = {}
-  if (input.email !== undefined && input.email !== existing.email) {
-    before.email = existing.email
-    after.email = input.email
-  }
-  if (input.username !== undefined && input.username !== existing.username) {
-    before.username = existing.username
-    after.username = input.username
-  }
-  if (input.role !== undefined && input.role !== existing.role) {
-    before.role = existing.role
-    after.role = input.role
-  }
-  if (input.firstName !== undefined && input.firstName !== existing.firstName) {
-    before.firstName = existing.firstName
-    after.firstName = input.firstName
-  }
-  if (input.lastName !== undefined && input.lastName !== existing.lastName) {
-    before.lastName = existing.lastName
-    after.lastName = input.lastName
-  }
+  const { before, after } = diffFields(existing, input, DIFF_KEYS)
   const isActiveChanged = input.isActive !== undefined && input.isActive !== existing.isActive
-  if (isActiveChanged) {
-    before.isActive = existing.isActive
-    after.isActive = input.isActive
-  }
-  if (clinicChanged) {
-    before.clinicId = existing.clinicId
-    after.clinicId = input.clinicId
-  }
   const action = isActiveChanged
     ? input.isActive
       ? 'user.reactivated'
@@ -413,7 +359,7 @@ export async function resetPassword(id: number, input: ResetUserPasswordRequest,
     throw new HttpError(403, 'Managers can only manage administrator accounts')
   }
   assertNotSelf(id, actor)
-  const passwordHash = await bcrypt.hash(input.newPassword, 12)
+  const passwordHash = await hashPassword(input.newPassword)
   await withTransaction(async (client) => {
     const res = await client.query(
       'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',
@@ -465,11 +411,7 @@ export async function updateUsername(userId: number, username: string): Promise<
   const existing = oneRow(res.rows)
   if (!existing) throw new HttpError(404, 'User not found')
   if (username === existing.username) return toUser(existing)
-  const dup = await query('SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE AND id <> $2', [
-    username,
-    userId,
-  ])
-  if (dup.rows.length > 0) throw new HttpError(409, 'Username already in use')
+  await assertIdentityFree({ query }, { username }, userId)
   const row = await withTransaction(async (client) => {
     const res = await client.query(
       'UPDATE users SET username = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',

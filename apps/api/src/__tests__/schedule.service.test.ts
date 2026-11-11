@@ -72,7 +72,7 @@ function dutyRow(overrides: Partial<Record<string, unknown>> = {}) {
     ...overrides,
   }
 }
-const SCOPE = { kind: 'clinic', clinicId: 1 } as const
+const SCOPE = { clinicId: 1 } as const
 
 beforeEach(() => {
   query.mockReset()
@@ -993,7 +993,6 @@ describe('computeEligibility', () => {
     firstName: `D${id}`,
     lastName: `D${id}`,
     maxMonthlyDuties,
-    isActive: true,
   })
 
   it('eligible: active, available, under cap, not on adjacent duty -> included', () => {

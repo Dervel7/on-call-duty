@@ -21,7 +21,7 @@ vi.mock('../services/settings.service.ts', async (importOriginal) => ({
 import { adminStats, meStats } from '../services/stats.service.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 
-const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
+const scope: ClinicScope = { clinicId: 1 }
 
 beforeEach(() => {
   query.mockReset()
@@ -158,7 +158,7 @@ describe('stats.service — adminStats', () => {
 
   it('I16: adminStats scopes schedule and doctor-pool queries to the clinic', async () => {
     query.mockResolvedValue({ rows: [] })
-    await adminStats({ kind: 'clinic', clinicId: 3 }, 2026, 9)
+    await adminStats({ clinicId: 3 }, 2026, 9)
     const scheduleCall = query.mock.calls.find((c) => String(c[0]).includes('FROM schedules s JOIN clinics'))
     expect(String(scheduleCall?.[0])).toContain('s.clinic_id = $3')
     expect(scheduleCall?.[1]).toEqual([2026, 9, 3])

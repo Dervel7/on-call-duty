@@ -78,7 +78,7 @@ describe('activity routes', () => {
         page: 3,
         limit: 25,
       },
-      { kind: 'clinic', clinicId: 1 },
+      { clinicId: 1 },
     )
   })
 
@@ -102,7 +102,7 @@ describe('activity routes', () => {
       .get('/activity?clinicId=2')
       .set('Authorization', `Bearer ${managerToken()}`)
     expect(good.status).toBe(200)
-    expect(list).toHaveBeenCalledWith({ page: 1, limit: 50 }, { kind: 'clinic', clinicId: 2 })
+    expect(list).toHaveBeenCalledWith({ page: 1, limit: 50 }, { clinicId: 2 })
   })
 
   it('administrator passing a foreign clinicId gets 403', async () => {

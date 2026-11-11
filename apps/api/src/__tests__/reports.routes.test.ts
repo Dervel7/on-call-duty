@@ -72,7 +72,7 @@ describe('reports routes', () => {
     await request(build())
       .get('/reports/monthly?year=2025&month=12')
       .set('Authorization', `Bearer ${adminToken()}`)
-    expect(monthlyReport).toHaveBeenCalledWith({ kind: 'clinic', clinicId: 1 }, 2025, 12)
+    expect(monthlyReport).toHaveBeenCalledWith({ clinicId: 1 }, 2025, 12)
   })
 
   it('manager: 400 without clinicId; happy path with clinicId (drill-down)', async () => {
@@ -88,7 +88,7 @@ describe('reports routes', () => {
       .set('Authorization', `Bearer ${managerToken()}`)
     expect(good.status).toBe(200)
     expect(monthlyReport).toHaveBeenCalledTimes(1)
-    expect(monthlyReport.mock.calls[0]?.[0]).toEqual({ kind: 'clinic', clinicId: 2 })
+    expect(monthlyReport.mock.calls[0]?.[0]).toEqual({ clinicId: 2 })
   })
 
   it('administrator passing a foreign clinicId gets 403', async () => {

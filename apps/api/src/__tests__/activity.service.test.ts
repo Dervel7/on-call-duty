@@ -9,7 +9,7 @@ vi.mock('../db/client.ts', () => ({
 import { list, logActivity, recordActivity } from '../services/activity.service.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 
-const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
+const scope: ClinicScope = { clinicId: 1 }
 
 function entryRow(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -116,7 +116,7 @@ describe('activity.service', () => {
 
   it('list always filters on the resolved clinic (I23)', async () => {
     query.mockResolvedValue({ rows: [] })
-    await list({}, { kind: 'clinic', clinicId: 7 })
+    await list({}, { clinicId: 7 })
     const countSql = query.mock.calls[0]?.[0] as string
     const pageSql = query.mock.calls[1]?.[0] as string
     expect(countSql).toContain('a.clinic_id = $1')

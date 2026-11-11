@@ -67,7 +67,7 @@ beforeEach(() => {
 })
 
 describe('doctor.service', () => {
-  const scope = (clinicId: number): ClinicScope => ({ kind: 'clinic', clinicId })
+  const scope = (clinicId: number): ClinicScope => ({ clinicId })
   const actor = { id: 2, role: 'administrator' as const, clinicId: 1 }
   const managerActor = { id: 5, role: 'manager' as const, clinicId: null }
   const superadminActor = { id: 3, role: 'superadmin' as const, clinicId: null }

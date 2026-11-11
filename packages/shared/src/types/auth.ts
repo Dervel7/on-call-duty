@@ -16,6 +16,9 @@ export interface AuthUser {
   clinicName: string | null
 }
 
+/** The request actor: the identity claims the JWT carries. */
+export type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
+
 export interface User extends AuthUser {
   isActive: boolean
   createdAt: string

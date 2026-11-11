@@ -1,14 +1,14 @@
-import { isOpenDutyDate, minimumForDate, requiresDoubleCoverage, slotsForDate } from './dates.ts'
+import { classifyDays } from './dates.ts'
 import { blockingRule, emptyTally } from './conflicts.ts'
-import { scoreCandidate, weekendBudget, fridayBudget } from './scoring.ts'
+import { fairShareBudget, scoreCandidate } from './scoring.ts'
 import type {
   AssignmentPlan,
   CandidateScore,
   ConflictPlan,
   ConflictTally,
-  DaySpec,
   DoctorSpec,
   GenerateResult,
+  ModelDay,
   SchedulingContext,
 } from './types.ts'
 
@@ -58,15 +58,11 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
   }
 
   const activeCount = ctx.doctors.length
-  const weekendSlots = ctx.days.reduce(
-    (sum, d) => sum + (d.isWeekend ? slotsForDate(d.date, ctx.openDuty, ctx.slots) : 0),
-    0,
-  )
-  const fridaySlots = ctx.days
-    .filter((d) => d.dayOfWeek === 5)
-    .reduce((sum, d) => sum + slotsForDate(d.date, ctx.openDuty, ctx.slots), 0)
-  const wBudget = weekendBudget(weekendSlots, activeCount)
-  const fBudget = fridayBudget(fridaySlots, activeCount)
+  const classes = classifyDays(ctx)
+  const weekendSlots = classes.reduce((sum, c) => sum + (c.day.isWeekend ? c.slots : 0), 0)
+  const fridaySlots = classes.reduce((sum, c) => sum + (c.day.dayOfWeek === 5 ? c.slots : 0), 0)
+  const wBudget = fairShareBudget(weekendSlots, activeCount)
+  const fBudget = fairShareBudget(fridaySlots, activeCount)
   const maxDaySlots = Math.max(
     ctx.slots.openDutySlots,
     ctx.slots.postOpenDutySlots,
@@ -82,11 +78,8 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
   // conflict. Slots above the minimum, up to the day's slot count, are filled
   // afterwards on a best-effort basis, so a doctor spent on an optional slot
   // can never cost another day its minimum.
-  const criticalDates = new Set(
-    ctx.days.filter((d) => requiresDoubleCoverage(d.date, ctx.openDuty)).map((d) => d.date),
-  )
-  const criticalDays = ctx.days.filter((d) => criticalDates.has(d.date))
-  const regularDays = ctx.days.filter((d) => !criticalDates.has(d.date))
+  const criticalDays = classes.filter((c) => c.critical)
+  const regularDays = classes.filter((c) => !c.critical)
   const passes = [
     { group: criticalDays, required: true },
     { group: regularDays, required: true },
@@ -95,16 +88,13 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
   ]
   for (const { group, required } of passes) {
     for (let slot = 0; slot < maxDaySlots; slot++) {
-      for (const day of group) {
-        if ((state.byDate.get(day.date)?.size ?? 0) !== slot) continue
-        const minimum = minimumForDate(day.date, ctx.openDuty, ctx.minimums)
+      for (const cls of group) {
+        if ((state.byDate.get(cls.day.date)?.size ?? 0) !== slot) continue
         // Required passes stop at the minimum. Optional passes start there and
         // skip days already short of it — those are reported as conflicts.
-        const skip = required
-          ? slot >= minimum
-          : slot < minimum || slot >= slotsForDate(day.date, ctx.openDuty, ctx.slots)
+        const skip = required ? slot >= cls.minimum : slot < cls.minimum || slot >= cls.slots
         if (skip) continue
-        fillDay(day, criticalDates.has(day.date), required)
+        fillDay(cls, required)
       }
     }
   }
@@ -116,9 +106,7 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
    * qualifies, a `required` slot (below the day's minimum) is recorded as a
    * conflict; an optional slot is simply left empty.
    */
-  function fillDay(day: DaySpec, critical: boolean, required: boolean): void {
-    const openDay = isOpenDutyDate(day.date, ctx.openDuty.anchorDate, ctx.openDuty.intervalDays)
-
+  function fillDay({ day, critical, open: openDay, minimum }: ModelDay, required: boolean): void {
     /** Constraint pass over the doctor pool; `relaxFairness` skips the
      * holiday cap (it yields to the day-fill rule). */
     const collect = (relaxFairness: boolean): { eligible: Eligible[]; tally: ConflictTally } => {
@@ -168,7 +156,7 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
         conflicts.push({
           date: day.date,
           critical,
-          required: minimumForDate(day.date, ctx.openDuty, ctx.minimums),
+          required: minimum,
           assigned: state.byDate.get(day.date)?.size ?? 0,
           activeDoctors: activeCount,
           tally,

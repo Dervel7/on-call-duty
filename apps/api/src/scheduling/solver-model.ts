@@ -1,13 +1,7 @@
-import {
-  isOpenDutyDate,
-  minimumForDate,
-  nextDate,
-  requiresDoubleCoverage,
-  slotsForDate,
-} from './dates.ts'
+import { classifyDays, nextDate } from './dates.ts'
 import { HOLIDAY_DUTY_CAP, OPEN_DUTY_DUTY_CAP, holidayExcess, isAvailable } from './constraints.ts'
 import { isFriSatSun } from './scoring.ts'
-import type { DaySpec, DoctorSpec, SchedulingContext } from './types.ts'
+import type { DoctorSpec, ModelDay, SchedulingContext } from './types.ts'
 
 /**
  * MIP model of the scheduling rules in CPLEX LP text, one text per stage.
@@ -52,15 +46,6 @@ export const FRI_SAT_SUN = [
   { dayOfWeek: 0, code: 'sun', name: 'sunday' },
 ] as const
 
-export interface ModelDay {
-  day: DaySpec
-  /** Open on-call day or the day right after one. */
-  critical: boolean
-  open: boolean
-  slots: number
-  minimum: number
-}
-
 /** One possible duty: a doctor who may be assigned to a day. */
 export interface ModelCell {
   doctorId: number
@@ -97,13 +82,7 @@ export interface ModelBounds {
  */
 export function indexModel(ctx: SchedulingContext): ModelIndex {
   const doctors = [...ctx.doctors].sort((a, b) => a.id - b.id)
-  const days: ModelDay[] = ctx.days.map((day) => ({
-    day,
-    critical: requiresDoubleCoverage(day.date, ctx.openDuty),
-    open: isOpenDutyDate(day.date, ctx.openDuty.anchorDate, ctx.openDuty.intervalDays),
-    slots: slotsForDate(day.date, ctx.openDuty, ctx.slots),
-    minimum: minimumForDate(day.date, ctx.openDuty, ctx.minimums),
-  }))
+  const days = classifyDays(ctx)
   const firstDate = ctx.days[0]?.date
   const lastDate = ctx.days.at(-1)?.date
   const cellsByDoctor = new Map<number, ModelCell[]>()

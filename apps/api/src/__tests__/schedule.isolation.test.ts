@@ -39,7 +39,7 @@ afterAll(async () => {
 })
 
 const adminA = () => ({ id: f!.adminA, role: 'administrator' as const, clinicId: f!.clinicA })
-const scopeA = () => ({ kind: 'clinic' as const, clinicId: f!.clinicA })
+const scopeA = () => ({ clinicId: f!.clinicA })
 
 describe('schedule clinic isolation (live DB)', () => {
   it('two clinics hold a schedule for the same month (D6/I8)', async () => {
@@ -95,7 +95,7 @@ describe('schedule clinic isolation (live DB)', () => {
 
     // The solver pool is clinic-scoped: clinic B options only use B's doctors
     // (the fixture doctor and docB) — never clinic A's.
-    const res = await scheduleService.generateOptions(2031, 4, { kind: 'clinic', clinicId: f!.clinicB })
+    const res = await scheduleService.generateOptions(2031, 4, { clinicId: f!.clinicB })
     const assignments = res.options[0]!.assignments
     const clinicBDoctors = new Set([docB.doctorId, f!.doctorRowB])
     expect(assignments.length).toBeGreaterThan(0)
@@ -109,7 +109,7 @@ describe('schedule clinic isolation (live DB)', () => {
     const b = await scheduleService.list(
       { year: 2031, month: 3 },
       { id: f!.adminB, role: 'administrator', clinicId: f!.clinicB },
-      { kind: 'clinic', clinicId: f!.clinicB },
+      { clinicId: f!.clinicB },
     )
     expect(b).toHaveLength(1)
     expect(b[0]?.clinicId).toBe(f!.clinicB)

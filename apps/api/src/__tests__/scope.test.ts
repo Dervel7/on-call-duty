@@ -17,8 +17,8 @@ beforeEach(() => query.mockReset())
 
 describe('resolveClinicScope', () => {
   it('administrator/doctor are pinned to their JWT clinic without a db lookup', async () => {
-    expect(await resolveClinicScope(admin, undefined)).toEqual({ kind: 'clinic', clinicId: 1 })
-    expect(await resolveClinicScope(doctor, 2)).toEqual({ kind: 'clinic', clinicId: 2 })
+    expect(await resolveClinicScope(admin, undefined)).toEqual({ clinicId: 1 })
+    expect(await resolveClinicScope(doctor, 2)).toEqual({ clinicId: 2 })
     expect(query).not.toHaveBeenCalled()
   })
 
@@ -30,17 +30,17 @@ describe('resolveClinicScope', () => {
   it('manager must name a clinic (400 without, no db lookup)', async () => {
     await expect(resolveClinicScope(manager, undefined)).rejects.toMatchObject({ status: 400 })
     expect(query).not.toHaveBeenCalled()
-    expect(await resolveClinicScope(manager, 5)).toEqual({ kind: 'clinic', clinicId: 5 })
+    expect(await resolveClinicScope(manager, 5)).toEqual({ clinicId: 5 })
   })
 
   it('superadmin naming a clinic wins without a db lookup', async () => {
-    expect(await resolveClinicScope(superadmin, 3)).toEqual({ kind: 'clinic', clinicId: 3 })
+    expect(await resolveClinicScope(superadmin, 3)).toEqual({ clinicId: 3 })
     expect(query).not.toHaveBeenCalled()
   })
 
   it('superadmin defaults to the sole clinic of a single-clinic deployment', async () => {
     query.mockResolvedValue({ rows: [{ id: 7 }] })
-    expect(await resolveClinicScope(superadmin, undefined)).toEqual({ kind: 'clinic', clinicId: 7 })
+    expect(await resolveClinicScope(superadmin, undefined)).toEqual({ clinicId: 7 })
     expect(query.mock.calls[0]?.[0]).toContain('FROM clinics')
     expect(query.mock.calls[0]?.[1]).toBeUndefined()
   })

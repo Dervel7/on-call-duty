@@ -19,7 +19,7 @@ afterAll(async () => {
 
 describe('doctor clinic isolation (live DB)', () => {
   it('admin A lists only clinic A doctors (I4)', async () => {
-    const doctors = await list({ kind: 'clinic', clinicId: f!.clinicA })
+    const doctors = await list({ clinicId: f!.clinicA })
     expect(doctors.length).toBeGreaterThanOrEqual(1)
     expect(doctors.every((d) => d.clinicId === f!.clinicA)).toBe(true)
   })
@@ -33,9 +33,10 @@ describe('doctor clinic isolation (live DB)', () => {
         password: 'secret1',
         firstName: 'New',
         lastName: 'Doc',
+        maxMonthlyDuties: 7,
       },
       { id: f!.adminA, role: 'administrator', clinicId: f!.clinicA },
-      { kind: 'clinic', clinicId: f!.clinicA },
+      { clinicId: f!.clinicA },
     )
     expect(d.clinicId).toBe(f!.clinicA)
     const res = await query<{ users_clinic: number; doctors_clinic: number }>(

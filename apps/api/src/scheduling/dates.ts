@@ -1,3 +1,5 @@
+import type { ModelDay, SchedulingContext } from './types.ts'
+
 export function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
@@ -106,4 +108,15 @@ export function minimumForDate(
     return minimums.openDutyMinimum
   if (isPostOpenDutyDate(date, openDuty)) return minimums.postOpenDutyMinimum
   return minimums.closedDutyMinimum
+}
+
+/** Per-day classification of the month: open/critical flags, slot count and hard minimum. */
+export function classifyDays(ctx: SchedulingContext): ModelDay[] {
+  return ctx.days.map((day) => ({
+    day,
+    critical: requiresDoubleCoverage(day.date, ctx.openDuty),
+    open: isOpenDutyDate(day.date, ctx.openDuty.anchorDate, ctx.openDuty.intervalDays),
+    slots: slotsForDate(day.date, ctx.openDuty, ctx.slots),
+    minimum: minimumForDate(day.date, ctx.openDuty, ctx.minimums),
+  }))
 }

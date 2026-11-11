@@ -37,7 +37,6 @@ export function october2026(): SchedulingContext {
     firstName: `F${i + 1}`,
     lastName: `L${i + 1}`,
     maxMonthlyDuties: 7,
-    isActive: true,
   }))
   const unavailability = new Map(
     Object.entries(EXCLUSIONS).map(([id, ranges]) => [

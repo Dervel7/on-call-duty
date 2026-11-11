@@ -89,7 +89,7 @@ describe('stats routes', () => {
       .set('Authorization', `Bearer ${managerToken()}`)
     expect(good.status).toBe(200)
     expect(adminStats).toHaveBeenCalledTimes(1)
-    expect(adminStats.mock.calls[0]?.[0]).toEqual({ kind: 'clinic', clinicId: 2 })
+    expect(adminStats.mock.calls[0]?.[0]).toEqual({ clinicId: 2 })
   })
 
   it('superadmin without clinicId defaults to the sole clinic', async () => {
@@ -100,7 +100,7 @@ describe('stats routes', () => {
       .set('Authorization', `Bearer ${superadminToken()}`)
     expect(res.status).toBe(200)
     expect(query.mock.calls[0]?.[0]).toContain('FROM clinics')
-    expect(adminStats.mock.calls[0]?.[0]).toEqual({ kind: 'clinic', clinicId: 4 })
+    expect(adminStats.mock.calls[0]?.[0]).toEqual({ clinicId: 4 })
   })
 
 
@@ -114,7 +114,7 @@ describe('stats routes', () => {
     await request(build())
       .get('/stats/admin')
       .set('Authorization', `Bearer ${adminToken()}`)
-    expect(adminStats.mock.calls[0]?.[0]).toEqual({ kind: 'clinic', clinicId: 1 })
+    expect(adminStats.mock.calls[0]?.[0]).toEqual({ clinicId: 1 })
   })
 
   it('me 200 for doctor; 404 for admin (no profile); 401 unauth', async () => {

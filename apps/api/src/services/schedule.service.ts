@@ -1,5 +1,5 @@
 import type {
-  AuthUser,
+  Actor,
   CreateDutyRequest,
   DayInfo,
   Duty,
@@ -22,36 +22,34 @@ import { HttpError } from '../lib/http-error.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 import {
   assignmentViolation,
+  daysInMonth,
+  dayOfWeekISO,
   generateAlternative as runAlternative,
   generatePrimary,
   holidayCapAllows,
-  isAvailable,
-  planHolidayViolation,
-  SOLVER_BUDGET_MS,
-  SolverBusyError,
-  type PrimaryState,
-  underCap,
-  underOpenDutyCap,
-} from '../scheduling/index.ts'
-import {
-  daysInMonth,
-  dayOfWeekISO,
   inMonth,
+  isAvailable,
   isOpenDutyDate,
   isWeekendISO,
   isoDate,
   minimumForDate,
   nextDate,
+  planHolidayViolation,
   prevDate,
   requiresDoubleCoverage,
   slotsForDate,
-} from '../scheduling/dates.ts'
-import type { DoctorSpec, GenerateResult, SchedulingContext } from '../scheduling/types.ts'
+  SOLVER_BUDGET_MS,
+  SolverBusyError,
+  type DoctorSpec,
+  type GenerateResult,
+  type PrimaryState,
+  type SchedulingContext,
+  underCap,
+  underOpenDutyCap,
+} from '../scheduling/index.ts'
 import { recordGeneration } from './usage.service.ts'
 import { recordActivity } from './activity.service.ts'
 import { getDutyMinimums, getDutySlots, getOpenDutySettings } from './settings.service.ts'
-
-type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
 
 interface ScheduleRow {
   id: number
@@ -95,8 +93,8 @@ const SELECT_DUTY = `SELECT du.id, du.schedule_id, du.duty_date, du.doctor_id, d
  * Object-level access: administrator/doctor may only reach schedules of their
  * own clinic (mismatch → 404, existence hidden); manager and superadmin pass.
  */
-function assertScheduleVisible(row: ScheduleRow, actor: Actor): void {
-  if ((actor.role === 'administrator' || actor.role === 'doctor') && row.clinic_id !== actor.clinicId) {
+function assertScheduleVisible(clinicId: number, actor: Actor): void {
+  if ((actor.role === 'administrator' || actor.role === 'doctor') && clinicId !== actor.clinicId) {
     throw new HttpError(404, 'Schedule not found')
   }
 }
@@ -172,7 +170,6 @@ async function buildContext(
     firstName: r.first_name,
     lastName: r.last_name,
     maxMonthlyDuties: r.max_monthly_duties,
-    isActive: true,
   }))
 
   const ures = await query<{ doctor_id: number; start_date: string; end_date: string }>(
@@ -233,7 +230,25 @@ async function buildContext(
   }
 }
 
-export interface EligibilityInput {
+/** Calendar shape of `days` with empty doctor lists: day type, slots and minimum. */
+function calendarDays(
+  days: { date: string; isWeekend: boolean }[],
+  openDuty: OpenDutySettings,
+  slots: DutySlotsSettings,
+  minimums: DutyMinimumSettings,
+): DayInfo[] {
+  return days.map((day) => ({
+    date: day.date,
+    isWeekend: day.isWeekend,
+    dutyType: isOpenDutyDate(day.date, openDuty.anchorDate, openDuty.intervalDays) ? 'open' : 'closed',
+    slotsRequired: slotsForDate(day.date, openDuty, slots),
+    slotsMinimum: minimumForDate(day.date, openDuty, minimums),
+    eligibleDoctorIds: [],
+    availableDoctorIds: [],
+  }))
+}
+
+interface EligibilityInput {
   doctors: DoctorSpec[]
   unavailability: Map<number, Array<{ start: string; end: string }>>
   days: { date: string; dayOfWeek: number; isWeekend: boolean; isHoliday: boolean }[]
@@ -255,11 +270,11 @@ export interface EligibilityInput {
 }
 
 export function computeEligibility(input: EligibilityInput): DayInfo[] {
-  const out: DayInfo[] = []
-  for (const day of input.days) {
-    const eligible: number[] = []
-    const available: number[] = []
-    const isOpen = isOpenDutyDate(day.date, input.openDuty.anchorDate, input.openDuty.intervalDays)
+  const out = calendarDays(input.days, input.openDuty, input.slots, input.minimums)
+  for (const [i, day] of input.days.entries()) {
+    const info = out[i]!
+    const { eligibleDoctorIds: eligible, availableDoctorIds: available } = info
+    const isOpen = info.dutyType === 'open'
     const critical = requiresDoubleCoverage(day.date, input.openDuty)
     const todays = input.dutiesByDate.get(day.date) ?? new Set<number>()
     const yesterdays = input.dutiesByDate.get(prevDate(day.date))
@@ -284,15 +299,6 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
       if ((yesterdays?.has(doc.id) ?? false) || (tomorrows?.has(doc.id) ?? false)) continue
       eligible.push(doc.id)
     }
-    out.push({
-      date: day.date,
-      isWeekend: day.isWeekend,
-      dutyType: isOpen ? 'open' : 'closed',
-      slotsRequired: slotsForDate(day.date, input.openDuty, input.slots),
-      slotsMinimum: minimumForDate(day.date, input.openDuty, input.minimums),
-      eligibleDoctorIds: eligible,
-      availableDoctorIds: available,
-    })
   }
   return out
 }
@@ -351,7 +357,7 @@ async function assertNoSchedule(year: number, month: number, clinicId: number): 
     throw new HttpError(409, 'Schedule already exists for this month; delete it first')
 }
 
-export const SCHEDULE_OPTION_COUNT = 3
+const SCHEDULE_OPTION_COUNT = 3
 
 const OPTIONS_CACHE_TTL_MS = 15 * 60_000
 const OPTIONS_CACHE_MAX = 20
@@ -395,7 +401,7 @@ function readOptions(key: string): OptionsCacheEntry {
 const SOLVER_BUSY_RETRY_SECONDS = Math.ceil(SOLVER_BUDGET_MS / 1000)
 
 /** Maps the solver slot rejection to 429 so callers can retry later. */
-async function gated<T>(run: () => Promise<T>): Promise<T> {
+async function mapSolverBusy<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run()
   } catch (err) {
@@ -451,7 +457,7 @@ export async function generateOptions(
 ): Promise<ScheduleOptionsResult> {
   await assertNoSchedule(year, month, scope.clinicId)
   const ctx = await buildContext(year, month, scope.clinicId)
-  const { result, state } = await gated(() => generatePrimary(ctx))
+  const { result, state } = await mapSolverBusy(() => generatePrimary(ctx))
   const entry: OptionsCacheEntry = {
     ctx,
     state,
@@ -480,7 +486,7 @@ export async function generateAlternative(
   if (entry.exhausted) return { option: null, moreAvailable: false }
   if (index > entry.options.length + 1)
     throw new HttpError(400, 'Generate the previous option first')
-  const next = await gated(() => runAlternative(entry.ctx, entry.state))
+  const next = await mapSolverBusy(() => runAlternative(entry.ctx, entry.state))
   if (!next) {
     entry.exhausted = true
     return { option: null, moreAvailable: false }
@@ -649,7 +655,7 @@ export async function getScheduleDuties(
   actor: Actor,
 ): Promise<{ schedule: ScheduleSummary; duties: Duty[] }> {
   const schedule = await selectScheduleRow(id)
-  assertScheduleVisible(schedule, actor)
+  assertScheduleVisible(schedule.clinic_id, actor)
   return { schedule: toSchedule(schedule), duties: await listDutiesBySchedule(id) }
 }
 
@@ -666,22 +672,15 @@ export async function getById(id: number, actor: Actor): Promise<ScheduleDetail>
       getDutySlots(schedule.clinicId),
       getDutyMinimums(schedule.clinicId),
     ])
-    const total = daysInMonth(schedule.year, schedule.month)
-    const days: DayInfo[] = []
-    for (let d = 1; d <= total; d++) {
-      const date = isoDate(schedule.year, schedule.month, d)
-      days.push({
-        date,
-        isWeekend: isWeekendISO(date),
-        dutyType: isOpenDutyDate(date, openDuty.anchorDate, openDuty.intervalDays)
-          ? 'open'
-          : 'closed',
-        slotsRequired: slotsForDate(date, openDuty, slots),
-        slotsMinimum: minimumForDate(date, openDuty, minimums),
-        eligibleDoctorIds: [],
-        availableDoctorIds: [],
-      })
-    }
+    const dates = Array.from({ length: daysInMonth(schedule.year, schedule.month) }, (_, i) =>
+      isoDate(schedule.year, schedule.month, i + 1),
+    )
+    const days = calendarDays(
+      dates.map((date) => ({ date, isWeekend: isWeekendISO(date) })),
+      openDuty,
+      slots,
+      minimums,
+    )
     return { schedule, duties, days }
   }
   const ctx = await buildContext(schedule.year, schedule.month, schedule.clinicId)
@@ -694,7 +693,7 @@ export async function getById(id: number, actor: Actor): Promise<ScheduleDetail>
 
 export async function remove(id: number, actor: Actor): Promise<void> {
   const existing = await selectScheduleRow(id)
-  assertScheduleVisible(existing, actor)
+  assertScheduleVisible(existing.clinic_id, actor)
   assertEditable(existing.status, 'Schedule is published; revert to draft before deleting')
   await withTransaction(async (client) => {
     // Re-check under lock: a concurrent publish must not be deletable.
@@ -725,8 +724,7 @@ async function getDutyById(id: number): Promise<Duty> {
 /** Assert the duty's schedule is visible to the actor, returning the row. */
 async function getVisibleDuty(dutyId: number, actor: Actor): Promise<DutyRow> {
   const duty = await getDutyRow(dutyId)
-  const schedule = await selectScheduleRow(duty.schedule_id)
-  assertScheduleVisible(schedule, actor)
+  assertScheduleVisible(duty.schedule_clinic_id, actor)
   return duty
 }
 
@@ -790,7 +788,7 @@ export async function addDuty(
   actor: Actor,
 ): Promise<Duty> {
   const schedule = await selectScheduleRow(scheduleId)
-  assertScheduleVisible(schedule, actor)
+  assertScheduleVisible(schedule.clinic_id, actor)
   if (!inMonth(input.date, schedule.year, schedule.month))
     throw new HttpError(400, 'Date is outside this schedule month')
 
@@ -904,7 +902,7 @@ export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
 
 export async function publish(id: number, actor: Actor): Promise<ScheduleSummary> {
   const existing = await selectScheduleRow(id)
-  assertScheduleVisible(existing, actor)
+  assertScheduleVisible(existing.clinic_id, actor)
   // Strict rule gate: every day must hold at least its minimum (open minimum
   // on open on-call days, closed minimum on all others). Settings are read
   // outside the transaction.
@@ -956,7 +954,7 @@ export async function publish(id: number, actor: Actor): Promise<ScheduleSummary
 
 export async function unpublish(id: number, actor: Actor): Promise<ScheduleSummary> {
   const existing = await selectScheduleRow(id)
-  assertScheduleVisible(existing, actor)
+  assertScheduleVisible(existing.clinic_id, actor)
   await withTransaction(async (client) => {
     const upd = await client.query(
       `UPDATE schedules SET status = 'draft', updated_at = NOW()

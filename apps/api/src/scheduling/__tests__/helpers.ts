@@ -41,7 +41,6 @@ export const dr = (id: number, max = 7): DoctorSpec => ({
   firstName: `F${id}`,
   lastName: `L${id}`,
   maxMonthlyDuties: max,
-  isActive: true,
 })
 
 export const day = (d: string, isWeekend = false, isHoliday = isWeekend): DaySpec => ({

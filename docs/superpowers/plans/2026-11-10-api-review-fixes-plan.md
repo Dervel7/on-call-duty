@@ -32,7 +32,7 @@ Related plans (do not repeat their items here):
 | 6 | User and doctor account boundaries | 8 | Done with the recommended decisions: ADM-02/ADM-04 reject doctor accounts on /users (superadmin clinic-only move allowed); CORE-08 case-insensitive email; ADM-08 admin hash is a required psql variable (no flag); ADM-14 allowed, documented as snapshot |
 | 7 | Stats and reports | 5 | Partly done: RPT-11, RPT-04, RPT-09, RPT-10 done. RPT-08 skipped (no decision) |
 | 8 | Schedule API surface | 6 | Done with the recommended decisions: SCH-06 engine-only saves dropped; SCH-07 /schedules/preview retired; SCH-13 managers see published schedules only in the list; SCH-14, SCH-19 done. SCH-16 skipped (tracked as QRY-02). AGENTS.md still names /schedules/preview (batch 13, CORE-24) |
-| 9 | Simplification and dead code | 11 | Not started |
+| 9 | Simplification and dead code | 11 | Done except ENG-06 (no decision; skipped). SCH-05: `calendarDays(days, ...)` takes a day list; `computeEligibility` does not use `classifyDays` (ENG-10 optional part). ADM-16: `maxMonthlyDuties` stays optional in the service type; `doctor.isolation` test passes it explicitly. Billing and settings services still declare a local `Actor` |
 | 10 | Split schedule.service.ts | 1 | Not started |
 | 11 | Test quality | 8 | Not started |
 | 12 | Runtime, config and dependencies | 7 | Not started |

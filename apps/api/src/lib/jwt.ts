@@ -1,5 +1,5 @@
 import jwt, { type SignOptions } from 'jsonwebtoken'
-import type { Role } from '@oncall/shared'
+import { roleSchema, type Role } from '@oncall/shared'
 import { env } from '../config/env.ts'
 
 export interface JwtAccessPayload {
@@ -7,8 +7,6 @@ export interface JwtAccessPayload {
   role: Role
   clinicId: number | null
 }
-
-const ROLES: readonly Role[] = ['superadmin', 'manager', 'administrator', 'doctor']
 
 export function signAccessToken(payload: JwtAccessPayload): string {
   return jwt.sign(payload, env.JWT_ACCESS_SECRET, {
@@ -21,7 +19,7 @@ export function verifyAccessToken(token: string): JwtAccessPayload {
   const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] })
   if (typeof decoded === 'string' || decoded === null) throw new Error('invalid token payload')
   const { sub, role, clinicId } = decoded as Record<string, unknown>
-  if (typeof sub !== 'number' || !ROLES.includes(role as Role)) {
+  if (typeof sub !== 'number' || !roleSchema.safeParse(role).success) {
     throw new Error('invalid token payload')
   }
   // Pre-multi-clinic tokens carry no clinicId claim and must fail verification.

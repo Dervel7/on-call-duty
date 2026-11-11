@@ -3,6 +3,7 @@ export type {
   Role,
   Language,
   AuthUser,
+  Actor,
   User,
   LoginRequest,
   LoginResponse,

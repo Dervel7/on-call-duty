@@ -25,7 +25,7 @@ function expiryDate(): Date {
   return new Date(Date.now() + refreshExpiryMs())
 }
 
-async function insertToken(userId: number): Promise<string> {
+export async function issueRefreshToken(userId: number): Promise<string> {
   const token = generateRefreshToken()
   await query(
     `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
@@ -68,10 +68,6 @@ async function revokeFamily(startId: number): Promise<void> {
      WHERE id = ANY($1::int[]) AND revoked_at IS NULL`,
     [ids],
   )
-}
-
-export async function issueRefreshToken(userId: number): Promise<string> {
-  return insertToken(userId)
 }
 
 export async function rotateRefreshToken(

@@ -13,7 +13,7 @@ vi.mock('../services/schedule.service.ts', () => ({
 import { monthlyReport } from '../services/reports.service.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 
-const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
+const scope: ClinicScope = { clinicId: 1 }
 
 beforeEach(() => {
   adminStats.mockReset()

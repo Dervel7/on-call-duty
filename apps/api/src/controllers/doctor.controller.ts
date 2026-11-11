@@ -1,6 +1,5 @@
 import type { NextFunction, Request, Response } from 'express'
 import { ok } from '../lib/envelope.ts'
-import { HttpError } from '../lib/http-error.ts'
 import { resolveClinicScope } from '../lib/scope.ts'
 import * as doctorService from '../services/doctor.service.ts'
 
@@ -18,8 +17,7 @@ export const doctorController = {
   },
   async getMe(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new HttpError(401, 'Unauthorized')
-      const doctor = await doctorService.getByUserId(req.user.id)
+      const doctor = await doctorService.getByUserId(req.user!.id)
       res.status(200).json(ok({ doctor }))
     } catch (err) {
       next(err)
