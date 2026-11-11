@@ -29,7 +29,7 @@ VALUES (
   'Superadmin',
   TRUE
 )
-ON CONFLICT (email) WHERE is_deleted = FALSE DO NOTHING;
+ON CONFLICT (lower(email)) WHERE is_deleted = FALSE DO NOTHING;
 
 -- Hospital-wide manager (password: changeme123 - change on first login)
 INSERT INTO users (email, username, password_hash, role, first_name, last_name, is_active)
@@ -42,7 +42,7 @@ VALUES (
   'Manager',
   TRUE
 )
-ON CONFLICT (email) WHERE is_deleted = FALSE DO NOTHING;
+ON CONFLICT (lower(email)) WHERE is_deleted = FALSE DO NOTHING;
 
 -- Per-clinic administrators, one per clinic (password: changeme123 - change on
 -- first login)
@@ -108,7 +108,7 @@ VALUES
     TRUE,
     (SELECT id FROM clinics WHERE name = 'Radiology B')
   )
-ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
+ON CONFLICT (lower(email)) WHERE is_deleted = FALSE DO UPDATE SET
   username      = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,
   role          = EXCLUDED.role,
@@ -181,7 +181,7 @@ VALUES
   ('dr58@oncall.local', 'dr58', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Anastasia', 'Kolovou', TRUE, (SELECT id FROM clinics WHERE name = 'Radiology B')),
   ('dr59@oncall.local', 'dr59', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Odysseas', 'Tsekouras', TRUE, (SELECT id FROM clinics WHERE name = 'Radiology B')),
   ('dr60@oncall.local', 'dr60', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Kleio', 'Vrettou', TRUE, (SELECT id FROM clinics WHERE name = 'Radiology B'))
-ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
+ON CONFLICT (lower(email)) WHERE is_deleted = FALSE DO UPDATE SET
   username      = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,
   role          = EXCLUDED.role,

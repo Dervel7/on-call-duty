@@ -6,7 +6,7 @@ Explanatory reference for `database/schema.sql`: every table, column, constraint
 
 - PostgreSQL. One idempotent DDL file: `database/schema.sql` (`CREATE TABLE IF NOT EXISTS` + inline `ALTER TABLE ... IF NOT EXISTS` / `DROP ... IF EXISTS` evolutions appended under the owning table). No migration runner exists — never introduce one.
 - The file is safe to re-run against a database that already has the current shape. It is **not** a migration path for older shapes: breaking baselines (e.g. the multi-clinic baseline of 2026-09-19) require a reset — `pnpm db:seed:single` / `pnpm db:seed:multi` drop and recreate the database.
-- New production installs: `database/initialize.sql` creates the final schema shape (no evolution statements) plus one clinic (`Main Clinic`, default settings), the `superadmin@oncall.local` superadmin and the `admin@oncall.local` administrator. Run it once against an empty database: `psql -d <db> -v ON_ERROR_STOP=1 -f database/initialize.sql`. It must match `schema.sql`: change both in the same change.
+- New production installs: `database/initialize.sql` creates the final schema shape (no evolution statements) plus one clinic (`Main Clinic`, default settings), the `superadmin@oncall.local` superadmin and the `admin@oncall.local` administrator. Run it once against an empty database: `psql -d <db> -v ON_ERROR_STOP=1 -v admin_password_hash='<bcrypt hash>' -f database/initialize.sql`. The administrator password hash is a required variable, so no known password ships. It must match `schema.sql`: change both in the same change.
 - Primary keys: `INTEGER GENERATED ALWAYS AS IDENTITY`.
 - Row timestamps: `TIMESTAMPTZ NOT NULL DEFAULT NOW()` (`created_at`, `updated_at`). Calendar days: `DATE`.
 - Index naming: `idx_<table>_<cols>`. Uniqueness that must ignore soft-deleted rows is enforced by partial unique indexes (`WHERE is_deleted = FALSE`), not plain `UNIQUE` constraints.
@@ -89,7 +89,7 @@ Every login account (superadmin, manager, administrator, doctor).
 | Column | Type | Constraints |
 |---|---|---|
 | `id` | INTEGER | PK, GENERATED ALWAYS AS IDENTITY |
-| `email` | TEXT | NOT NULL; unique among live rows (`idx_users_email_live`) |
+| `email` | TEXT | NOT NULL; stored lowercase; unique among live rows, case-insensitively (`idx_users_lower_email_live`) |
 | `username` | TEXT | NOT NULL; `CHECK (username ~ '^[A-Za-z0-9._-]{3,32}$')`; unique among live rows (`idx_users_username_live`) |
 | `password_hash` | TEXT | NOT NULL (bcrypt, cost 12) |
 | `role` | TEXT | NOT NULL DEFAULT `'doctor'`; CHECK in (`superadmin`, `manager`, `administrator`, `doctor`) |
@@ -106,7 +106,7 @@ Every login account (superadmin, manager, administrator, doctor).
 Constraints and indexes:
 
 - `users_clinic_role_check`: `administrator`/`doctor` must have `clinic_id IS NOT NULL`; `superadmin`/`manager` must have `clinic_id IS NULL` (hospital/vendor level).
-- `idx_users_email_live` — UNIQUE on (`email`) `WHERE is_deleted = FALSE`. The original full-table `users_email_key` constraint is dropped.
+- `idx_users_lower_email_live` — UNIQUE on (`lower(email)`) `WHERE is_deleted = FALSE`. It replaces `idx_users_email_live` and the original full-table `users_email_key` constraint. `schema.sql` lowercases existing emails first; two live accounts that differ only in case must be merged by hand before it runs.
 - `idx_users_username_live` — UNIQUE on (`username`) `WHERE is_deleted = FALSE`. The original full-table index `idx_users_username` is dropped.
 - `idx_users_role` (formerly on `role`) is dropped: no query filters by role without `clinic_id`.
 - `idx_users_clinic` on (`clinic_id`) `WHERE is_deleted = FALSE`.
@@ -114,7 +114,7 @@ Constraints and indexes:
 Behavior:
 
 - Soft delete: deleted accounts get `is_deleted = TRUE` (and always `is_active = FALSE`). The partial unique indexes free their email/username for reuse by a new account.
-- Upserts on this table must target the partial index: `ON CONFLICT (email) WHERE is_deleted = FALSE`.
+- Upserts on this table must target the partial index: `ON CONFLICT (lower(email)) WHERE is_deleted = FALSE`.
 - `dark_mode` is a per-user UI preference applied after sign-in; irrelevant to the API beyond storage.
 - `language` is a per-user UI language preference (`en` English, `el` Greek) applied after sign-in; the sign-in page always renders in English. Irrelevant to the API beyond storage.
 
@@ -211,7 +211,7 @@ One duty schedule per clinic per month.
 
 Constraint: UNIQUE (`clinic_id`, `year`, `month`).
 
-Behavior: `published` schedules are locked — duty add/reassign/remove and schedule deletion are rejected (409) at the service layer until the schedule is reverted to `draft`.
+Behavior: `published` schedules are locked — duty add/reassign/remove and schedule deletion are rejected (409) at the service layer until the schedule is reverted to `draft`. A schedule is a snapshot: later changes to holidays, unavailability or `doctors.max_monthly_duties` are accepted and do not alter or flag existing duties; they apply when the next schedule is generated.
 
 ### `duties`
 

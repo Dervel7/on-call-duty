@@ -48,7 +48,7 @@ function doctorRow(overrides: Partial<Record<string, unknown>> = {}) {
 function installDb(rows: Record<string, unknown>[] = [doctorRow()]) {
   query.mockImplementation(async (...args: unknown[]) => {
     const sql = String(args[0] ?? '')
-    if (sql.includes('WHERE email =')) return { rows: [] }
+    if (sql.includes('WHERE lower(email) =')) return { rows: [] }
     if (sql.includes('WHERE username =')) return { rows: [] }
     if (sql.includes('INSERT INTO users')) return { rows: [{ id: 10 }] }
     if (sql.includes('INSERT INTO doctors')) return { rows: [{ id: 1 }] }
@@ -115,7 +115,7 @@ describe('doctor.service', () => {
     query.mockImplementation(async (...args: unknown[]) => {
       const sql = String(args[0] ?? '')
       if (sql.includes('FROM clinics')) return { rows: [{ is_active: true }] }
-      if (sql.includes('WHERE email =')) return { rows: [{ id: 9 }] }
+      if (sql.includes('WHERE lower(email) =')) return { rows: [{ id: 9 }] }
       return { rows: [] }
     })
     await expect(
@@ -273,7 +273,7 @@ describe('doctor.service', () => {
       actor,
       scope(1),
     )
-    const emailCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE email ='))
+    const emailCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE lower(email) ='))
     const usernameCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE username ='))
     expect(String(emailCheck?.[0])).toContain('AND is_deleted = FALSE')
     expect(String(usernameCheck?.[0])).toContain('AND is_deleted = FALSE')

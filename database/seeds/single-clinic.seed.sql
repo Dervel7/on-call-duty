@@ -22,7 +22,7 @@ VALUES (
   'Superadmin',
   TRUE
 )
-ON CONFLICT (email) WHERE is_deleted = FALSE DO NOTHING;
+ON CONFLICT (lower(email)) WHERE is_deleted = FALSE DO NOTHING;
 
 -- Administrator (password: changeme123 - change on first login)
 INSERT INTO users (email, username, password_hash, role, first_name, last_name, is_active, clinic_id)
@@ -36,7 +36,7 @@ VALUES (
   TRUE,
   (SELECT id FROM clinics WHERE name = 'Main Clinic')
 )
-ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
+ON CONFLICT (lower(email)) WHERE is_deleted = FALSE DO UPDATE SET
   username      = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,
   role          = EXCLUDED.role,
@@ -56,7 +56,7 @@ VALUES
   ('dr7@oncall.local', 'dr7', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Kostas',     'Fanaras',         TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
   ('dr8@oncall.local', 'dr8', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Eleutheria', 'Eleutheriadou',   TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic')),
   ('dr9@oncall.local', 'dr9', '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi', 'doctor', 'Ioanna',     'Plousi',          TRUE, (SELECT id FROM clinics WHERE name = 'Main Clinic'))
-ON CONFLICT (email) WHERE is_deleted = FALSE DO UPDATE SET
+ON CONFLICT (lower(email)) WHERE is_deleted = FALSE DO UPDATE SET
   username      = EXCLUDED.username,
   password_hash = EXCLUDED.password_hash,
   role          = EXCLUDED.role,

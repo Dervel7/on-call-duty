@@ -50,7 +50,7 @@ const row = (overrides: Partial<Record<string, unknown>> = {}) => ({
 function installDb(rows: Record<string, unknown>[] = [row()]) {
   query.mockImplementation(async (...args: unknown[]) => {
     const sql = String(args[0] ?? '')
-    if (sql.includes('WHERE email =')) return { rows: [] }
+    if (sql.includes('WHERE lower(email) =')) return { rows: [] }
     if (sql.includes('WHERE username =')) return { rows: [] }
     if (sql.includes('INSERT INTO users')) return { rows: [{ id: 10 }] }
     if (sql.includes('INSERT INTO doctors')) return { rows: [{ id: 1 }] }

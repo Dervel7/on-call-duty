@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import { passwordSchema } from './common.ts'
-import { usernameSchema } from './auth.ts'
+import { emailSchema, usernameSchema } from './auth.ts'
 
 export const createDoctorSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
   username: usernameSchema,
   password: passwordSchema,
   firstName: z.string().min(1),
@@ -12,7 +12,7 @@ export const createDoctorSchema = z.object({
 })
 
 export const updateDoctorSchema = z.object({
-  email: z.string().email().optional(),
+  email: emailSchema.optional(),
   username: usernameSchema.optional(),
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),

@@ -86,6 +86,8 @@ function assertRowVisible(row: UserRow, actor: Actor): void {
   }
 }
 
+const DOCTOR_VIA_DOCTORS = 'Manage doctor accounts via /doctors'
+
 function assertNotSelf(id: number, actor: Actor): void {
   if (id === actor.id) throw new HttpError(409, 'You cannot change your own account here')
 }
@@ -177,9 +179,10 @@ export async function create(input: CreateUserRequest, actor: Actor): Promise<Us
     throw new HttpError(403, 'Only a superadmin can create superadmin accounts')
   }
   const clinicId = resolveCreateClinic(input, actor)
+  if (input.role === 'doctor') throw new HttpError(409, DOCTOR_VIA_DOCTORS)
   if (clinicId !== null) await assertClinicUsable(clinicId)
   const existingEmail = await query(
-    'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE',
+    'SELECT id FROM users WHERE lower(email) = lower($1) AND is_deleted = FALSE',
     [input.email],
   )
   if (existingEmail.rows.length > 0) throw new HttpError(409, 'Email already in use')
@@ -229,6 +232,16 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
       throw new HttpError(403, 'Managers can only manage administrator accounts')
     }
   }
+  // A doctor account is managed through /doctors (draft-duty checks, doctor.* audit,
+  // doctors row). The one exception is a superadmin clinic move, which /doctors lacks.
+  const onlyClinicMove =
+    actor.role === 'superadmin' &&
+    input.clinicId !== undefined &&
+    Object.entries(input).every(([key, value]) => key === 'clinicId' || value === undefined)
+  if (existing.role === 'doctor' && !onlyClinicMove) throw new HttpError(409, DOCTOR_VIA_DOCTORS)
+  if (input.role === 'doctor' && existing.role !== 'doctor') {
+    throw new HttpError(409, DOCTOR_VIA_DOCTORS)
+  }
   const roleChanged = input.role !== undefined && input.role !== existing.role
   const clinicChanged = input.clinicId !== undefined && input.clinicId !== existing.clinicId
   if (input.role !== undefined) assertMayAssignRole(actor, input.role)
@@ -247,7 +260,7 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
     await assertClinicUsable(input.clinicId as number)
   }
   if (input.email !== undefined && input.email !== existing.email) {
-    const dup = await query('SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE AND id <> $2', [
+    const dup = await query('SELECT id FROM users WHERE lower(email) = lower($1) AND is_deleted = FALSE AND id <> $2', [
       input.email,
       id,
     ])
@@ -368,6 +381,7 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   if (actor.role === 'manager' && existing.role !== 'administrator') {
     throw new HttpError(403, 'Managers can only manage administrator accounts')
   }
+  if (existing.role === 'doctor') throw new HttpError(409, DOCTOR_VIA_DOCTORS)
   assertNotSelf(id, actor)
   // Soft delete: keeps doctor/duty/audit references intact (schema Phase 12).
   await withTransaction(async (client) => {

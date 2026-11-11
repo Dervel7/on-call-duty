@@ -51,7 +51,7 @@ const FROM_USERS = `users u LEFT JOIN clinics c ON c.id = u.clinic_id`
 
 async function findUserByEmail(email: string): Promise<UserRow | undefined> {
   const res = await query<UserRow>(
-    `SELECT ${USER_COLUMNS} FROM ${FROM_USERS} WHERE u.email = $1 AND u.is_deleted = FALSE`,
+    `SELECT ${USER_COLUMNS} FROM ${FROM_USERS} WHERE lower(u.email) = lower($1) AND u.is_deleted = FALSE`,
     [email],
   )
   return res.rows[0]

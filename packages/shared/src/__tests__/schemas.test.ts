@@ -4,6 +4,7 @@ import {
   alternativeOptionSchema,
   changePasswordSchema,
   createClinicSchema,
+
   createDutySchema,
   createScheduleSchema,
   createUserSchema,
@@ -47,6 +48,22 @@ describe('auth schemas', () => {
     expect(loginSchema.safeParse({ identifier: 'a@b.com', password: '12345' }).success).toBe(false)
     expect(loginSchema.safeParse({ identifier: 'a@b.com', password: '123456' }).success).toBe(true)
     expect(loginSchema.safeParse({ identifier: 'admin', password: '123456' }).success).toBe(true)
+  })
+
+  it('lowercases emails and email logins but leaves usernames alone', () => {
+    const login = (identifier: string) => loginSchema.parse({ identifier, password: '123456' }).identifier
+    expect(login('Maria.P@Hospital.GR')).toBe('maria.p@hospital.gr')
+    expect(login('Admin')).toBe('Admin')
+    const user = createUserSchema.parse({
+      email: '  Maria.P@Hospital.GR ',
+      username: 'maria',
+      password: '123456',
+      role: 'administrator',
+      firstName: 'M',
+      lastName: 'P',
+    })
+    expect(user.email).toBe('maria.p@hospital.gr')
+    expect(createDoctorSchema.parse({ email: 'A@B.com', username: 'abc', password: '123456', firstName: 'A', lastName: 'B' }).email).toBe('a@b.com')
   })
 
   it('usernameSchema enforces the 3-32 alnum/._- format', () => {

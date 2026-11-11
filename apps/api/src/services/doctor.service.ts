@@ -109,7 +109,7 @@ export async function create(
   if (!clinicRow.is_active) throw new HttpError(403, 'Clinic is deactivated')
   const doctorId = await withTransaction(async (client) => {
     const dupEmail = await client.query(
-      'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE',
+      'SELECT id FROM users WHERE lower(email) = lower($1) AND is_deleted = FALSE',
       [input.email],
     )
     if (dupEmail.rows.length > 0) throw new HttpError(409, 'Email already in use')
@@ -168,7 +168,7 @@ export async function update(
   await withTransaction(async (client) => {
     if (input.email !== undefined && input.email !== existing.email) {
       const dup = await client.query(
-        'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE AND id <> $2',
+        'SELECT id FROM users WHERE lower(email) = lower($1) AND is_deleted = FALSE AND id <> $2',
         [input.email, userId],
       )
       if (dup.rows.length > 0) throw new HttpError(409, 'Email already in use')
