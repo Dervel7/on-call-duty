@@ -212,8 +212,8 @@
   "conflict": {
     "openRule": "απαιτούνται {required} ιατροί (κανόνας ανοιχτής εφημερίας)",
     "assigned": "ανατέθηκαν μόνο {assigned} από {required} ιατρούς",
-    "pool": "από {active} ενεργούς ιατρούς: {unavailable} μη διαθέσιμοι, {atMonthlyCap} στο μηνιαίο όριο, {atOpenDutyCap} στο όριο ανοιχτής εφημερίας, {atHolidayCap} στο όριο αργιών, {backToBack} σε συνεχόμενες ημέρες",
-    "poolOnDuty": "από {active} ενεργούς ιατρούς: {unavailable} μη διαθέσιμοι, {atMonthlyCap} στο μηνιαίο όριο, {atOpenDutyCap} στο όριο ανοιχτής εφημερίας, {atHolidayCap} στο όριο αργιών, {backToBack} σε συνεχόμενες ημέρες, {alreadyOnDuty} ήδη σε εφημερία"
+    "pool": "από {active} ενεργούς ιατρούς: {unavailable} μη διαθέσιμοι, {atMonthlyCap} στο μηνιαίο όριο, {atOpenDutyCap} στο όριο ανοιχτής εφημερίας, {backToBack} σε συνεχόμενες ημέρες",
+    "poolOnDuty": "από {active} ενεργούς ιατρούς: {unavailable} μη διαθέσιμοι, {atMonthlyCap} στο μηνιαίο όριο, {atOpenDutyCap} στο όριο ανοιχτής εφημερίας, {backToBack} σε συνεχόμενες ημέρες, {alreadyOnDuty} ήδη σε εφημερία"
   },
   "schedules": {
     "subtitle": "Δημιουργία, έλεγχος και δημοσίευση μηνιαίων προγραμμάτων",

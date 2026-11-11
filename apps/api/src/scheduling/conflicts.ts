@@ -3,7 +3,14 @@ import { holidayCapAllows, isAvailable, underCap, underOpenDutyCap } from './con
 import type { ConflictTally, DaySpec, DoctorSpec, SchedulingContext } from './types.ts'
 
 export function emptyTally(): ConflictTally {
-  return { unavailable: 0, atMonthlyCap: 0, atOpenDutyCap: 0, atHolidayCap: 0, backToBack: 0, alreadyOnDuty: 0 }
+  return { unavailable: 0, atMonthlyCap: 0, atOpenDutyCap: 0, backToBack: 0, alreadyOnDuty: 0 }
+}
+
+export type BlockingRule = keyof ConflictTally | 'atHolidayCap'
+
+/** The holiday cap blocks an optional slot only; the conflict report covers required slots, so it has no tally entry. */
+export function countBlock(tally: ConflictTally, rule: BlockingRule): void {
+  if (rule !== 'atHolidayCap') tally[rule]++
 }
 
 /** Duties held so far (greedy) or in the final solution (solver). */
@@ -33,7 +40,7 @@ export function blockingRule(
   critical: boolean,
   relaxFairness: boolean,
   required = true,
-): keyof ConflictTally | null {
+): BlockingRule | null {
   if (counts.byDate.get(day.date)?.has(doctor.id)) return 'alreadyOnDuty'
   if (!isAvailable(day.date, ctx.unavailability.get(doctor.id))) return 'unavailable'
   if (!underCap(counts.total.get(doctor.id) ?? 0, doctor.maxMonthlyDuties)) return 'atMonthlyCap'

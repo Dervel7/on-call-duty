@@ -1,5 +1,5 @@
 import { classifyDays } from './dates.ts'
-import { blockingRule, emptyTally } from './conflicts.ts'
+import { blockingRule, countBlock, emptyTally } from './conflicts.ts'
 import { fairShareBudget, scoreCandidate } from './scoring.ts'
 import type {
   AssignmentPlan,
@@ -115,7 +115,7 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
       for (const doctor of ctx.doctors) {
         const blocked = blockingRule(ctx, state, doctor, day, critical, relaxFairness, required)
         if (blocked) {
-          tally[blocked]++
+          countBlock(tally, blocked)
           continue
         }
         eligible.push({

@@ -1,6 +1,6 @@
 import type { LegacyHighsSolution } from 'highs'
 import { logger } from '../logger.ts'
-import { blockingRule, emptyTally, type DutyCounts } from './conflicts.ts'
+import { blockingRule, countBlock, emptyTally, type DutyCounts } from './conflicts.ts'
 import { holidayExcess } from './constraints.ts'
 import { generateGreedy } from './engine.ts'
 import { loadSolver, type Solver, type SolverLoader } from './highs.ts'
@@ -351,7 +351,7 @@ function decode(ctx: SchedulingContext, index: ModelIndex, solution: Solution): 
     const tally = emptyTally()
     for (const doctor of ctx.doctors) {
       const blocked = blockingRule(ctx, counts, doctor, d.day, d.critical, true)
-      if (blocked) tally[blocked]++
+      if (blocked) countBlock(tally, blocked)
     }
     conflicts.push({
       date: d.day.date,

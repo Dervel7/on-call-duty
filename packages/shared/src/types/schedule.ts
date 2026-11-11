@@ -41,7 +41,6 @@ export interface ConflictTally {
   unavailable: number
   atMonthlyCap: number
   atOpenDutyCap: number
-  atHolidayCap: number
   backToBack: number
   alreadyOnDuty: number
 }

@@ -230,7 +230,7 @@ describe('ScheduleOptionsPage', () => {
         required: 3,
         assigned: 2,
         activeDoctors: 2,
-        tally: { unavailable: 0, atMonthlyCap: 0, atOpenDutyCap: 0, atHolidayCap: 0, backToBack: 0, alreadyOnDuty: 2 },
+        tally: { unavailable: 0, atMonthlyCap: 0, atOpenDutyCap: 0, backToBack: 0, alreadyOnDuty: 2 },
       },
     ]
     options.mockResolvedValue(primary({ options: [option(1, planA.assignments, [], short)] }))
