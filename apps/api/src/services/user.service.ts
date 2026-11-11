@@ -126,15 +126,14 @@ async function assertClinicUsable(clinicId: number): Promise<void> {
   if (!clinic.is_active) throw new HttpError(403, 'Clinic is deactivated')
 }
 
-export async function list(actor: Actor, scope: ClinicScope): Promise<User[]> {
-  // One rule for all roles: a clinic's members. Hospital-level accounts are
-  // invisible to anyone but a superadmin (they carry no clinic anyway).
-  const hideHospitalRoles = actor.role !== 'superadmin'
-  const sql = `SELECT ${COLUMNS} FROM ${FROM_USERS}
-    WHERE u.is_deleted = FALSE AND u.clinic_id = $1
-      ${hideHospitalRoles ? `AND u.role NOT IN ('superadmin', 'manager')` : ''}
-    ORDER BY u.created_at`
-  const res = await query<UserRow>(sql, [scope.clinicId])
+// A clinic's members. Hospital-level accounts carry no clinic, so they never appear here.
+export async function list(scope: ClinicScope): Promise<User[]> {
+  const res = await query<UserRow>(
+    `SELECT ${COLUMNS} FROM ${FROM_USERS}
+     WHERE u.is_deleted = FALSE AND u.clinic_id = $1
+     ORDER BY u.created_at`,
+    [scope.clinicId],
+  )
   return res.rows.map(toUser)
 }
 
@@ -423,29 +422,23 @@ export async function resetPassword(id: number, input: ResetUserPasswordRequest,
 // Self-service UI preference: any authenticated user toggles their own theme.
 // Not part of admin update() — admins never touch another user's dark mode.
 export async function updateTheme(userId: number, darkMode: boolean): Promise<User> {
-  const res = await query<UserRow>(
-    `UPDATE users u SET dark_mode = $1, updated_at = NOW() WHERE u.id = $2 AND u.is_deleted = FALSE
-     RETURNING u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
-       u.is_active, u.dark_mode, u.language, u.clinic_id, NULL AS clinic_name, u.created_at`,
+  const res = await query<{ id: number }>(
+    'UPDATE users SET dark_mode = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',
     [darkMode, userId],
   )
-  const row = oneRow(res.rows)
-  if (!row) throw new HttpError(404, 'User not found')
-  return toUser(row)
+  if (res.rows.length === 0) throw new HttpError(404, 'User not found')
+  return toUser(await selectUserById({ query }, userId))
 }
 
 // Self-service UI preference: any authenticated user picks their own language.
 // Not part of admin update() — admins never touch another user's language.
 export async function updateLanguage(userId: number, language: Language): Promise<User> {
-  const res = await query<UserRow>(
-    `UPDATE users u SET language = $1, updated_at = NOW() WHERE u.id = $2 AND u.is_deleted = FALSE
-     RETURNING u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
-       u.is_active, u.dark_mode, u.language, u.clinic_id, NULL AS clinic_name, u.created_at`,
+  const res = await query<{ id: number }>(
+    'UPDATE users SET language = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',
     [language, userId],
   )
-  const row = oneRow(res.rows)
-  if (!row) throw new HttpError(404, 'User not found')
-  return toUser(row)
+  if (res.rows.length === 0) throw new HttpError(404, 'User not found')
+  return toUser(await selectUserById({ query }, userId))
 }
 
 // Self-service identity: a doctor renames their own login username from the

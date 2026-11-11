@@ -185,7 +185,9 @@ export async function update(
     end_date: string
   }>(
     `SELECT x.doctor_id, d.clinic_id, x.start_date, x.end_date
-     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id WHERE x.id = $1`,
+     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id
+     JOIN users u ON u.id = d.user_id AND u.is_deleted = FALSE
+     WHERE x.id = $1`,
     [id],
   )
   const existingRow = existing.rows[0]
@@ -275,7 +277,9 @@ export async function setDisabled(
     is_disabled: boolean
   }>(
     `SELECT x.doctor_id, d.clinic_id, x.is_disabled
-     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id WHERE x.id = $1`,
+     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id
+     JOIN users u ON u.id = d.user_id AND u.is_deleted = FALSE
+     WHERE x.id = $1`,
     [id],
   )
   const existingRow = existing.rows[0]
@@ -331,7 +335,9 @@ export async function split(
     throw new HttpError(403, 'Forbidden')
   const existing = await query<{ doctor_id: number; clinic_id: number }>(
     `SELECT x.doctor_id, d.clinic_id
-     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id WHERE x.id = $1`,
+     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id
+     JOIN users u ON u.id = d.user_id AND u.is_deleted = FALSE
+     WHERE x.id = $1`,
     [id],
   )
   const existingRow = existing.rows[0]
@@ -432,7 +438,9 @@ export async function remove(id: number, actor: Actor): Promise<void> {
     end_date: string
   }>(
     `SELECT x.doctor_id, d.clinic_id, x.start_date, x.end_date
-     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id WHERE x.id = $1`,
+     FROM unavailability x JOIN doctors d ON d.id = x.doctor_id
+     JOIN users u ON u.id = d.user_id AND u.is_deleted = FALSE
+     WHERE x.id = $1`,
     [id],
   )
   const existingRow = existing.rows[0]

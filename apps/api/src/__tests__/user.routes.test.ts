@@ -217,7 +217,7 @@ describe('PATCH /users/:id/password (admin)', () => {
 
 describe('PATCH /users/me/theme (self-service)', () => {
   it('lets any authenticated role set their own preference', async () => {
-    query.mockResolvedValueOnce({ rows: [row({ dark_mode: true })] })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }).mockResolvedValueOnce({ rows: [row({ dark_mode: true })] })
     const token = signAccessToken({ sub: 1, role: 'doctor', clinicId: 10 })
     const res = await request(app)
       .patch('/users/me/theme')
@@ -245,7 +245,7 @@ describe('PATCH /users/me/theme (self-service)', () => {
 
 describe('PATCH /users/me/language (self-service)', () => {
   it('lets any authenticated role set their own language', async () => {
-    query.mockResolvedValueOnce({ rows: [row({ language: 'el' })] })
+    query.mockResolvedValueOnce({ rows: [{ id: 1 }] }).mockResolvedValueOnce({ rows: [row({ language: 'el' })] })
     const token = signAccessToken({ sub: 1, role: 'doctor', clinicId: 10 })
     const res = await request(app)
       .patch('/users/me/language')

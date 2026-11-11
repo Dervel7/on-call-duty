@@ -8,7 +8,7 @@ export const userController = {
       // req.query is typed by validate(clinicQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
-      const users = await userService.list(req.user!, scope)
+      const users = await userService.list(scope)
       res.status(200).json(ok({ users }))
     } catch (err) {
       next(err)

@@ -228,6 +228,23 @@ describe('unavailability.service', () => {
     expect(recordActivity).not.toHaveBeenCalled()
   })
 
+  it('writes on a a soft-deleted doctor record are 404 and change nothing', async () => {
+    // The lookup only finds the record when it excludes deleted doctors' users.
+    query.mockImplementation(async (...args: unknown[]) => {
+      const sql = String(args[0] ?? '')
+      const hidesDeleted = sql.includes('u.is_deleted = FALSE')
+      if (sql.includes('FROM unavailability x JOIN doctors d')) {
+        return { rows: hidesDeleted ? [] : [{ ...stored(), is_disabled: false }] }
+      }
+      return { rows: [] }
+    })
+    await expect(update(1, { startDate: '2026-09-08' }, superadmin)).rejects.toMatchObject({ status: 404 })
+    await expect(setDisabled(1, true, superadmin)).rejects.toMatchObject({ status: 404 })
+    await expect(split(1, { startDate: '2026-09-08', endDate: '2026-09-09' } as never, superadmin)).rejects.toMatchObject({ status: 404 })
+    await expect(remove(1, superadmin)).rejects.toMatchObject({ status: 404 })
+    expect(transaction).not.toHaveBeenCalled()
+  })
+
   it('update 404 when record missing', async () => {
     query.mockResolvedValue({ rows: [] })
     await expect(update(99, {}, admin)).rejects.toMatchObject({ status: 404 })

@@ -84,28 +84,11 @@ describe('user.service', () => {
 
   it('list maps rows to User', async () => {
     query.mockResolvedValue({ rows: [row(), row({ id: 2, email: 'x@y.z' })] })
-    const users = await list(adminActor, scope(1))
+    const users = await list(scope(1))
     expect(users).toHaveLength(2)
     expect(users[0]?.firstName).toBe('Jane')
     expect(users[0]?.clinicName).toBe('Radiology')
     expect(typeof users[0]?.createdAt).toBe('string')
-  })
-
-  it('list is clinic-scoped and hides hospital roles from non-superadmins', async () => {
-    query.mockResolvedValue({ rows: [row()] })
-    await list(adminActor, scope(1))
-    const sql = query.mock.calls[0]?.[0] as string
-    expect(sql).toContain('u.clinic_id = $1')
-    expect(sql).toContain(`role NOT IN ('superadmin', 'manager')`)
-    expect(query.mock.calls[0]?.[1]).toEqual([1])
-  })
-
-  it('list for a superadmin keeps the clinic scope but shows every role', async () => {
-    query.mockResolvedValue({ rows: [row()] })
-    await list(superadminActor, scope(1))
-    const sql = query.mock.calls[0]?.[0] as string
-    expect(sql).toContain('u.clinic_id = $1')
-    expect(sql).not.toContain('role NOT IN')
   })
 
   it('getById hides a cross-clinic row from an administrator (404)', async () => {
@@ -494,12 +477,12 @@ describe('user.service', () => {
   })
 
   it('updateTheme persists the preference and returns the user', async () => {
-    query.mockResolvedValue({ rows: [row({ dark_mode: true })] })
+    query
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+      .mockResolvedValueOnce({ rows: [row({ dark_mode: true, clinic_name: 'Radiology' })] })
     const user = await updateTheme(1, true)
     expect(user.darkMode).toBe(true)
-    const sql = query.mock.calls[0]?.[0] as string
-    expect(sql).toContain('UPDATE users u SET dark_mode = $1')
-    expect(sql).toContain('RETURNING')
+    expect(user.clinicName).toBe('Radiology')
     expect(query.mock.calls[0]?.[1]).toEqual([true, 1])
   })
 
@@ -509,9 +492,12 @@ describe('user.service', () => {
   })
 
   it('updateLanguage saves the language for that user and returns it', async () => {
-    query.mockResolvedValue({ rows: [row({ language: 'el' })] })
+    query
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+      .mockResolvedValueOnce({ rows: [row({ language: 'el', clinic_name: 'Radiology' })] })
     const user = await updateLanguage(1, 'el')
     expect(user.language).toBe('el')
+    expect(user.clinicName).toBe('Radiology')
     expect(query.mock.calls[0]?.[1]).toEqual(['el', 1])
   })
 
