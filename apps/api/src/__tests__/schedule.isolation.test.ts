@@ -6,6 +6,8 @@ import type { TwoClinicFixture } from './helpers/clinic-fixtures.ts'
 const { seedTwoClinics } = await import('./helpers/clinic-fixtures.ts')
 const { query } = await import('../db/client.ts')
 const scheduleService = await import('../services/schedule.service.ts')
+const dutyService = await import('../services/duty.service.ts')
+const optionsService = await import('../services/schedule-options.service.ts')
 
 let f: TwoClinicFixture | undefined
 const scheduleIds: number[] = []
@@ -73,20 +75,20 @@ describe('schedule clinic isolation (live DB)', () => {
 
     // Cross-clinic doctor cannot be assigned into clinic A's schedule.
     await expect(
-      scheduleService.addDuty(scheduleA, { date: '2031-03-10', doctorId: docB.doctorId }, adminA()),
+      dutyService.addDuty(scheduleA, { date: '2031-03-10', doctorId: docB.doctorId }, adminA()),
     ).rejects.toMatchObject({ status: 404 })
 
     // Doctor A on 03-10 must NOT block doctor A2 on 03-11 in clinic B's eyes...
     // but first prove the block exists within clinic A (same clinic → 409).
-    await scheduleService.addDuty(scheduleA, { date: '2031-03-10', doctorId: docA.doctorId }, adminA())
+    await dutyService.addDuty(scheduleA, { date: '2031-03-10', doctorId: docA.doctorId }, adminA())
     await expect(
-      scheduleService.addDuty(scheduleA, { date: '2031-03-11', doctorId: docA.doctorId }, adminA()),
+      dutyService.addDuty(scheduleA, { date: '2031-03-11', doctorId: docA.doctorId }, adminA()),
     ).rejects.toMatchObject({ status: 409 })
 
     // Same date pair in clinic B: doctor A's 03-10 duty must not block B's
     // doctor on 03-11 (adjacency independence).
     const scheduleB = scheduleIds[1]!
-    const dutyB = await scheduleService.addDuty(
+    const dutyB = await dutyService.addDuty(
       scheduleB,
       { date: '2031-03-11', doctorId: docB.doctorId },
       { id: f!.adminB, role: 'administrator', clinicId: f!.clinicB },
@@ -95,7 +97,7 @@ describe('schedule clinic isolation (live DB)', () => {
 
     // The solver pool is clinic-scoped: clinic B options only use B's doctors
     // (the fixture doctor and docB) — never clinic A's.
-    const res = await scheduleService.generateOptions(2031, 4, { clinicId: f!.clinicB })
+    const res = await optionsService.generateOptions(2031, 4, { clinicId: f!.clinicB })
     const assignments = res.options[0]!.assignments
     const clinicBDoctors = new Set([docB.doctorId, f!.doctorRowB])
     expect(assignments.length).toBeGreaterThan(0)

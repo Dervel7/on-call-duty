@@ -33,7 +33,7 @@ Related plans (do not repeat their items here):
 | 7 | Stats and reports | 5 | Partly done: RPT-11, RPT-04, RPT-09, RPT-10 done. RPT-08 skipped (no decision) |
 | 8 | Schedule API surface | 6 | Done with the recommended decisions: SCH-06 engine-only saves dropped; SCH-07 /schedules/preview retired; SCH-13 managers see published schedules only in the list; SCH-14, SCH-19 done. SCH-16 skipped (tracked as QRY-02). AGENTS.md still names /schedules/preview (batch 13, CORE-24) |
 | 9 | Simplification and dead code | 11 | Done (ENG-06 decided: option A, field dropped from shared type and web text). SCH-05: `calendarDays(days, ...)` takes a day list; `computeEligibility` does not use `classifyDays` (ENG-10 optional part). ADM-16: `maxMonthlyDuties` stays optional in the service type; `doctor.isolation` test passes it explicitly. Billing and settings services still declare a local `Actor` |
-| 10 | Split schedule.service.ts | 1 | Not started |
+| 10 | Split schedule.service.ts | 1 | Done (extra file `schedule-rows.ts` for shared row types and mappers; no `schedule-rules.test.ts`, since no test calls `validatePlan` directly) |
 | 11 | Test quality | 8 | Not started |
 | 12 | Runtime, config and dependencies | 7 | Not started |
 | 13 | Docs and ASCII cleanup | 7 | Not started |

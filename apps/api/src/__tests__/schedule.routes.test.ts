@@ -13,16 +13,20 @@ const publish = vi.fn()
 const unpublish = vi.fn()
 const generateOptions = vi.fn()
 const generateAlternative = vi.fn()
-vi.mock('../services/schedule.service.ts', () => ({
+vi.mock('../services/schedule-options.service.ts', () => ({
   generateOptions: (...a: unknown[]) => generateOptions(...a),
   generateAlternative: (...a: unknown[]) => generateAlternative(...a),
+}))
+vi.mock('../services/duty.service.ts', () => ({
+  addDuty: (...a: unknown[]) => addDuty(...a),
+  reassignDuty: (...a: unknown[]) => reassignDuty(...a),
+  removeDuty: (...a: unknown[]) => removeDuty(...a),
+}))
+vi.mock('../services/schedule.service.ts', () => ({
   generate: (...a: unknown[]) => generate(...a),
   list: (...a: unknown[]) => list(...a),
   getById: (...a: unknown[]) => getById(...a),
   remove: (...a: unknown[]) => remove(...a),
-  addDuty: (...a: unknown[]) => addDuty(...a),
-  reassignDuty: (...a: unknown[]) => reassignDuty(...a),
-  removeDuty: (...a: unknown[]) => removeDuty(...a),
   publish: (...a: unknown[]) => publish(...a),
   unpublish: (...a: unknown[]) => unpublish(...a),
 }))
