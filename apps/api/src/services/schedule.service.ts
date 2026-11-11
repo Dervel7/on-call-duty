@@ -700,17 +700,21 @@ export async function list(
   return res.rows.map(toSchedule)
 }
 
+export async function listDutiesBySchedule(scheduleId: number): Promise<Duty[]> {
+  const res = await query<DutyRow>(
+    `${SELECT_DUTY} WHERE du.schedule_id = $1 ORDER BY du.duty_date, du.id`,
+    [scheduleId],
+  )
+  return res.rows.map(toDuty)
+}
+
 export async function getScheduleDuties(
   id: number,
   actor?: Actor,
 ): Promise<{ schedule: ScheduleSummary; duties: Duty[] }> {
   const schedule = await selectScheduleRow(id)
   assertScheduleVisible(schedule, actor)
-  const dres = await query<DutyRow>(
-    `${SELECT_DUTY} WHERE du.schedule_id = $1 ORDER BY du.duty_date, du.id`,
-    [id],
-  )
-  return { schedule: toSchedule(schedule), duties: dres.rows.map(toDuty) }
+  return { schedule: toSchedule(schedule), duties: await listDutiesBySchedule(id) }
 }
 
 export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail> {

@@ -60,7 +60,14 @@ function spread(values: number[]): number | null {
   return Math.max(...values) - Math.min(...values)
 }
 
-export async function adminStats(year: number, month: number, scope: ClinicScope): Promise<AdminStats> {
+export async function adminStats(
+  scope: ClinicScope,
+  year?: number,
+  month?: number,
+): Promise<AdminStats> {
+  const current = currentYearMonth()
+  year ??= current.year
+  month ??= current.month
   const sres = await query<ScheduleRow>(
     `SELECT s.id, s.year, s.month, s.status, s.clinic_id, c.name AS clinic_name,
        s.created_by, s.created_at, s.updated_at
@@ -136,25 +143,29 @@ export async function adminStats(year: number, month: number, scope: ClinicScope
     })
   }
   if (scheduleRow) {
-    const inactiveRes = await query<{
+    // Every doctor with duties in this schedule: deactivated ones and ones moved to
+    // another clinic would otherwise vanish from the workload.
+    const dutyDoctorsRes = await query<{
       id: number
       first_name: string
       last_name: string
       max_monthly_duties: number
+      active: boolean
     }>(
-      `SELECT DISTINCT d.id, u.first_name, u.last_name, d.max_monthly_duties
-       FROM doctors d JOIN users u ON u.id = d.user_id
-       JOIN duties du ON du.doctor_id = d.id
-       WHERE u.is_active = FALSE AND du.schedule_id = $1 AND d.clinic_id = $2`,
+      `SELECT DISTINCT d.id, u.first_name, u.last_name, d.max_monthly_duties,
+         (u.is_active AND d.clinic_id = $2) AS active
+       FROM duties du JOIN doctors d ON d.id = du.doctor_id
+       JOIN users u ON u.id = d.user_id
+       WHERE du.schedule_id = $1`,
       [scheduleRow.id, scope.clinicId],
     )
-    for (const r of inactiveRes.rows) {
+    for (const r of dutyDoctorsRes.rows) {
       if (!byId.has(r.id))
         byId.set(r.id, {
           doctorId: r.id,
           firstName: r.first_name,
           lastName: r.last_name,
-          isActive: false,
+          isActive: r.active,
           maxMonthly: r.max_monthly_duties,
           duties: 0,
           weekday: 0,
@@ -203,8 +214,9 @@ export async function meStats(userId: number): Promise<MeStats> {
     `SELECT COUNT(*)::int AS total,
             COUNT(*) FILTER (WHERE du.is_weekend)::int AS weekend
      FROM duties du JOIN schedules s ON s.id = du.schedule_id
-     WHERE s.status = 'published' AND s.year = $1 AND s.month = $2 AND du.doctor_id = $3`,
-    [year, month, doctor.id],
+     WHERE s.status = 'published' AND s.year = $1 AND s.month = $2 AND du.doctor_id = $3
+       AND s.clinic_id = $4`,
+    [year, month, doctor.id, clinicId],
   )
   const c = countsRes.rows[0] ?? { total: 0, weekend: 0 }
   const upcomingRes = await query<{ duty_date: string; is_weekend: boolean }>(
@@ -261,6 +273,3 @@ export async function meStats(userId: number): Promise<MeStats> {
     onCall,
   }
 }
-
-// Re-exported so the controller can build the default year/month without duplicating logic.
-export { currentYearMonth as currentYearMonthUTC }

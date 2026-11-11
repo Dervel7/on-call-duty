@@ -30,7 +30,7 @@ Related plans (do not repeat their items here):
 | 4 | Validation and request plumbing | 8 | Done (RPT-15 superseded by CORE-12) |
 | 5 | Audit trail and atomic writes | 9 | Partly done: RPT-02, ADM-17, RPT-14, RPT-03 done; RPT-13 done except the RPT-05 resolve tests. RPT-01, ADM-07, RPT-06, RPT-05 skipped (no decision) |
 | 6 | User and doctor account boundaries | 8 | Done with the recommended decisions: ADM-02/ADM-04 reject doctor accounts on /users (superadmin clinic-only move allowed); CORE-08 case-insensitive email; ADM-08 admin hash is a required psql variable (no flag); ADM-14 allowed, documented as snapshot |
-| 7 | Stats and reports | 5 | Not started |
+| 7 | Stats and reports | 5 | Partly done: RPT-11, RPT-04, RPT-09, RPT-10 done. RPT-08 skipped (no decision) |
 | 8 | Schedule API surface | 6 | Not started |
 | 9 | Simplification and dead code | 11 | Not started |
 | 10 | Split schedule.service.ts | 1 | Not started |

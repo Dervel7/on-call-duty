@@ -29,8 +29,7 @@ export {
   generateScheduleSchema,
   alternativeOptionSchema,
 } from './schedule.ts'
-export { statsQuerySchema } from './stats.ts'
-export { reportQuerySchema } from './reports.ts'
+export { monthQuerySchema } from './stats.ts'
 export { ACTIVITY_ACTIONS, activityQuerySchema } from './audit.ts'
 export { createClinicSchema, updateClinicSchema } from './clinic.ts'
 export { holidayQuerySchema, setMonthHolidaysSchema } from './holiday.ts'

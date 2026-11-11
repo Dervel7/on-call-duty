@@ -5,41 +5,42 @@ vi.mock('../services/stats.service.ts', () => ({
   adminStats: (...a: unknown[]) => adminStats(...a),
 }))
 
-const getScheduleDuties = vi.fn()
+const listDutiesBySchedule = vi.fn()
 vi.mock('../services/schedule.service.ts', () => ({
-  getScheduleDuties: (...a: unknown[]) => getScheduleDuties(...a),
+  listDutiesBySchedule: (...a: unknown[]) => listDutiesBySchedule(...a),
 }))
 
 import { monthlyReport } from '../services/reports.service.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 
 const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
-const actor = { id: 1, role: 'administrator' as const, clinicId: 1 }
 
 beforeEach(() => {
   adminStats.mockReset()
-  getScheduleDuties.mockReset()
+  listDutiesBySchedule.mockReset()
 })
 
 describe('reports.service — monthlyReport', () => {
-  it('empty state: schedule null -> roster empty and getScheduleDuties not called', async () => {
+  it('empty state: schedule null -> roster empty and listDutiesBySchedule not called', async () => {
     adminStats.mockResolvedValue({
+      year: 2026,
+      month: 8,
       schedule: null,
       coverage: { daysInMonth: 31, filled: 0, gaps: [] },
       workload: [],
       fairness: { dutySpread: null, weekendSpread: null },
     })
 
-    const report = await monthlyReport(2026, 8, actor, scope)
+    const report = await monthlyReport(scope, 2026, 8)
 
     expect(report.schedule).toBeNull()
-    expect(report.clinicName).toBeNull()
+    expect(report.year).toBe(2026)
     expect(report.roster).toEqual([])
-    expect(getScheduleDuties).not.toHaveBeenCalled()
+    expect(listDutiesBySchedule).not.toHaveBeenCalled()
     expect(report.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
 
-  it('with schedule: composes roster from getScheduleDuties and forwards stats fields', async () => {
+  it('with schedule: composes roster from listDutiesBySchedule and forwards stats fields', async () => {
     const schedule = {
       id: 7,
       year: 2026,
@@ -52,6 +53,8 @@ describe('reports.service — monthlyReport', () => {
       clinicName: 'Radiology',
     }
     adminStats.mockResolvedValue({
+      year: 2026,
+      month: 9,
       schedule,
       coverage: { daysInMonth: 30, filled: 30, gaps: [] },
       workload: [
@@ -81,27 +84,15 @@ describe('reports.service — monthlyReport', () => {
         createdAt: '',
       },
     ]
-    getScheduleDuties.mockResolvedValue({ schedule, duties })
+    listDutiesBySchedule.mockResolvedValue(duties)
 
-    const report = await monthlyReport(2026, 9, actor, scope)
+    const report = await monthlyReport(scope, 2026, 9)
 
-    expect(getScheduleDuties).toHaveBeenCalledWith(7, actor)
+    expect(adminStats).toHaveBeenCalledWith(scope, 2026, 9)
+    expect(listDutiesBySchedule).toHaveBeenCalledWith(7)
     expect(report.roster).toEqual(duties)
-    expect(report.clinicName).toBe('Radiology')
     expect(report.coverage.filled).toBe(30)
     expect(report.workload).toHaveLength(1)
     expect(report.fairness.dutySpread).toBe(0)
-  })
-
-  it('propagates the cross-clinic 404 from the roster read', async () => {
-    adminStats.mockResolvedValue({
-      schedule: { id: 7, clinicId: 2, clinicName: 'Cardiology' },
-      coverage: { daysInMonth: 30, filled: 0, gaps: [] },
-      workload: [],
-      fairness: { dutySpread: null, weekendSpread: null },
-    })
-    getScheduleDuties.mockRejectedValue(Object.assign(new Error('Schedule not found'), { status: 404 }))
-
-    await expect(monthlyReport(2026, 9, actor, scope)).rejects.toMatchObject({ status: 404 })
   })
 })

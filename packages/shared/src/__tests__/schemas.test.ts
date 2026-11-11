@@ -15,8 +15,7 @@ import {
   resetUserPasswordSchema,
   roleSchema,
   scheduleQuerySchema,
-  statsQuerySchema,
-  reportQuerySchema,
+  monthQuerySchema,
   updateClinicSchema,
   updateUserSchema,
   updateLanguageSchema,
@@ -362,8 +361,8 @@ describe('clinic schemas and clinicId query params', () => {
     expect(scheduleQuerySchema.safeParse({ clinicId: 'abc' }).success).toBe(false)
   })
 
-  it('activityQuerySchema, statsQuerySchema and reportQuerySchema accept clinicId', () => {
-    for (const schema of [activityQuerySchema, statsQuerySchema, reportQuerySchema]) {
+  it('activityQuerySchema and monthQuerySchema accept clinicId', () => {
+    for (const schema of [activityQuerySchema, monthQuerySchema]) {
       expect(schema.safeParse({ clinicId: '2' }).success).toBe(true)
       expect(schema.safeParse({ clinicId: -1 }).success).toBe(false)
     }
