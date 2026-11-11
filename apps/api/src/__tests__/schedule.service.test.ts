@@ -32,7 +32,6 @@ import {
   generateOptions,
   getById,
   list,
-  preview,
   publish,
   reassignDuty,
   remove,
@@ -131,162 +130,37 @@ function mockEditDb(o: EditDb = {}) {
 describe('schedule.service', () => {
   it('generate 409 when the month already exists', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
-    await expect(generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE)).rejects.toMatchObject({
-      status: 409,
-    })
-  })
-
-  it('generate 422 when a day is unfillable (no doctors) and persists nothing', async () => {
-    query.mockResolvedValue({ rows: [] })
-    await expect(generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE)).rejects.toMatchObject({
-      status: 422,
-    })
-    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO schedules'))).toBe(false)
-  })
-
-  it('generate persists a schedule + duties when every day is fillable', async () => {
-    const doctors = Array.from({ length: 12 }, (_, i) => ({
-      id: i + 1,
-      max_monthly_duties: 7,
-      first_name: `D${i + 1}`,
-      last_name: `D${i + 1}`,
-      is_active: true,
-    }))
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FROM schedules') && sql.includes('year =')) return { rows: [] }
-      if (sql.includes('FROM doctors d JOIN users')) return { rows: doctors }
-      if (sql.includes('FROM unavailability')) return { rows: [] }
-      if (sql.includes('FROM duties WHERE duty_date =')) return { rows: [] }
-      if (sql.includes('INSERT INTO schedules')) return { rows: [{ id: 42 }] }
-      if (sql.includes('INSERT INTO duties')) return { rows: [] }
-      if (sql.includes('FROM schedules') && sql.includes('WHERE s.id =')) {
-        return { rows: [scheduleRow({ id: 42 })] }
-      }
-      if (sql.includes('FROM duties du')) return { rows: [] }
-      return { rows: [] }
-    })
-    const detail = await generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE)
-    expect(detail.schedule.id).toBe(42)
-    expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO schedules'))).toBe(true)
-    expect(query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties')).length).toBeGreaterThan(0)
-    const unavail = query.mock.calls.find((c) => String(c[0]).includes('FROM unavailability'))
-    expect(String(unavail?.[0])).toContain('is_disabled = FALSE')
-    expect(recordActivity).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ action: 'schedule.generated', entityId: 42 }),
-    )
-  })
-
-  it('preview returns assignments + conflicts without persisting', async () => {
-    query.mockResolvedValue({ rows: [] })
-    const res = await preview(2026, 9, SCOPE)
-    expect(Array.isArray(res.assignments)).toBe(true)
-    expect(Array.isArray(res.conflicts)).toBe(true)
-    expect(query.mock.calls.some((c) => String(c[0]).startsWith('INSERT'))).toBe(false)
-    const unavail = query.mock.calls.find((c) => String(c[0]).includes('FROM unavailability'))
-    expect(String(unavail?.[0])).toContain('is_disabled = FALSE')
-  })
-
-  it('preview returns per-day eligible doctors and boundary adjacency data', async () => {
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FROM doctors d JOIN users')) {
-        return {
-          rows: Array.from({ length: 12 }, (_, i) => ({
-            id: i + 1,
-            max_monthly_duties: 7,
-            first_name: 'D',
-            last_name: 'D',
-            is_active: true,
-          })),
-        }
-      }
-      return { rows: [] }
-    })
-    const res = await preview(2026, 9, SCOPE)
-    expect(res.days).toHaveLength(30)
-    // Preview is admin-only; the computed eligibility is returned, not blanked.
-    expect(res.days.some((d) => d.eligibleDoctorIds.length > 0)).toBe(true)
-    expect(res.days.every((d) => Array.isArray(d.availableDoctorIds))).toBe(true)
-  })
-
-  it('preview with a plan computes eligibility against the sent plan', async () => {
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FROM doctors d JOIN users')) {
-        return {
-          rows: [
-            { id: 1, max_monthly_duties: 7, first_name: 'Ann', last_name: 'One', is_active: true },
-            { id: 2, max_monthly_duties: 7, first_name: 'Bob', last_name: 'Two', is_active: true },
-          ],
-        }
-      }
-      return { rows: [] }
-    })
-    const res = await preview(2026, 9, SCOPE, [
-      { date: '2026-09-01', doctorId: 1, reason: 'manual override' },
-      { date: '2026-09-03', doctorId: 1 },
-    ])
-    expect(res.assignments).toEqual([
-      { date: '2026-09-01', doctorId: 1, doctorFirstName: 'Ann', doctorLastName: 'One', isWeekend: false, reason: 'manual override' },
-      { date: '2026-09-03', doctorId: 1, doctorFirstName: 'Ann', doctorLastName: 'One', isWeekend: false, reason: 'plan' },
-    ])
-    expect(res.conflicts).toEqual([])
-    const byDate = new Map(res.days.map((d) => [d.date, d]))
-    expect(byDate.get('2026-09-01')?.eligibleDoctorIds).toEqual([1, 2])
-    // Doctor 1 is on duty on the 1st and the 3rd, so the 2nd is back-to-back.
-    expect(byDate.get('2026-09-02')?.eligibleDoctorIds).toEqual([2])
-    expect(query.mock.calls.some((c) => String(c[0]).startsWith('INSERT'))).toBe(false)
-  })
-
-  it('buildContext loads clinic-marked holidays within the month bounds', async () => {
-    query.mockResolvedValue({ rows: [] })
-    await preview(2026, 9, SCOPE)
-    const hol = query.mock.calls.find((c) => String(c[0]).includes('FROM holidays'))
-    expect(String(hol?.[0])).toContain('clinic_id = $1')
-    expect(String(hol?.[0])).toContain('holiday_date >= $2')
-    expect(String(hol?.[0])).toContain('holiday_date <= $3')
-    expect(hol?.[1]).toEqual([1, '2026-09-01', '2026-09-30'])
-  })
-
-  it('preview with a plan applies monthly caps with own-day swap semantics', async () => {
-    query.mockImplementation(async (text: unknown) => {
-      const sql = String(text)
-      if (sql.includes('FROM doctors d JOIN users')) {
-        return {
-          rows: [
-            { id: 1, max_monthly_duties: 7, first_name: 'Ann', last_name: 'One', is_active: true },
-            { id: 2, max_monthly_duties: 7, first_name: 'Bob', last_name: 'Two', is_active: true },
-          ],
-        }
-      }
-      return { rows: [] }
-    })
-    // Seven weekday duties (no two adjacent) put doctor 1 at the 7/month cap.
-    const plan = ['01', '03', '07', '09', '11', '15', '17'].map((d) => ({
-      date: `2026-09-${d}`,
-      doctorId: 1,
- }))
-    const res = await preview(2026, 9, SCOPE, plan)
-    const byDate = new Map(res.days.map((d) => [d.date, d]))
-    // At cap everywhere except…
-    expect(byDate.get('2026-09-21')?.eligibleDoctorIds).toEqual([2])
-    // …his own days, where the duty being swapped is subtracted from the count.
-    expect(byDate.get('2026-09-15')?.eligibleDoctorIds).toEqual([1, 2])
+    await expect(
+      generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, [{ date: '2026-09-01', doctorId: 1 }]),
+    ).rejects.toMatchObject({ status: 409 })
   })
 
   it('list applies optional year/month filters', async () => {
     query.mockResolvedValue({ rows: [scheduleRow()] })
-    await list({ year: 2026, month: 9 })
+    await list({ year: 2026, month: 9 }, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE)
     const sql = query.mock.calls[0]?.[0] as string
     expect(sql).toContain('year =')
     expect(sql).toContain('month =')
+    expect(query.mock.calls[0]?.[1]).toEqual([1, 2026, 9])
+  })
+
+  it.each([
+    ['doctor', 1],
+    ['manager', null],
+  ] as const)('list shows only published schedules to a %s', async (role, clinicId) => {
+    query.mockResolvedValue({ rows: [] })
+    await list({}, { id: 5, role, clinicId }, SCOPE)
+    expect(query.mock.calls[0]?.[1]).toEqual([1, 'published'])
+  })
+
+  it('getById refuses a draft to a manager (403), like the list hides it', async () => {
+    query.mockResolvedValue({ rows: [scheduleRow({ status: 'draft' })] })
+    await expect(getById(1, { id: 5, role: 'manager', clinicId: null })).rejects.toMatchObject({ status: 403 })
   })
 
   it('getById 404 when missing', async () => {
     query.mockResolvedValue({ rows: [] })
-    await expect(getById(99)).rejects.toMatchObject({ status: 404 })
+    await expect(getById(99, { id: 2, role: 'administrator', clinicId: 1 })).rejects.toMatchObject({ status: 404 })
   })
 
   it('getById blanks eligibility for a doctor viewing a published schedule', async () => {
@@ -548,6 +422,15 @@ describe('generate plan path', () => {
     expect(detail.schedule.id).toBe(7)
     const inserts = query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties'))
     expect(inserts.length).toBe(30)
+    const hol = query.mock.calls.find((c) => String(c[0]).includes('FROM holidays'))
+    expect(String(hol?.[0])).toContain('clinic_id = $1')
+    expect(hol?.[1]).toEqual([1, '2026-09-01', '2026-09-30'])
+    const unavail = query.mock.calls.find((c) => String(c[0]).includes('FROM unavailability'))
+    expect(String(unavail?.[0])).toContain('is_disabled = FALSE')
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'schedule.generated', entityId: 7 }),
+    )
   })
 
   it('422 when any day has no doctor', async () => {
@@ -861,31 +744,6 @@ describe('generate plan path', () => {
         generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, ordered),
       ).rejects.toMatchObject({ status: 409, message: expect.stringContaining('holiday cap') })
     }
-  })
-
-  it('treats an empty assignments array as the engine path (not plan path)', async () => {
-    mockContext()
-    const detail = await generate(2026, 9, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE, [])
-    expect(detail.schedule.id).toBe(7)
-    expect(
-      query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties')).length,
-    ).toBeGreaterThan(0)
-  })
-})
-
-describe('generateOptions', () => {
-  const doctors = Array.from({ length: 12 }, (_, i) => ({
-    id: i + 1,
-    max_monthly_duties: 7,
-    first_name: `D${i + 1}`,
-    last_name: `D${i + 1}`,
-    is_active: true,
-  }))
-
-  it('409 when the month already exists, before any context load or solve', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
-    await expect(generateOptions(2026, 9, SCOPE)).rejects.toMatchObject({ status: 409 })
-    expect(query).toHaveBeenCalledTimes(1)
   })
 
   function mockClinicData() {

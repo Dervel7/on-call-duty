@@ -3,7 +3,7 @@ import {
   alternativeOptionSchema,
   createDutySchema,
   createScheduleSchema,
-  generateScheduleSchema,
+  saveScheduleSchema,
   idParamsSchema,
   reassignDutySchema,
   scheduleQuerySchema,
@@ -31,15 +31,8 @@ scheduleRouter.get(
   validate(idParamsSchema, 'params'),
   scheduleController.getById,
 )
-// Writes (preview/generate included) stay administrator-only; the clinic
+// Writes stay administrator-only; the clinic
 // comes from ?clinicId= (superadmin) or the JWT (administrator).
-scheduleRouter.post(
-  '/preview',
-  authorize('administrator'),
-  validate(scheduleQuerySchema, 'query'),
-  validate(generateScheduleSchema, 'body'),
-  scheduleController.preview,
-)
 scheduleRouter.post(
   '/options',
   authorize('administrator'),
@@ -58,7 +51,7 @@ scheduleRouter.post(
   '/',
   authorize('administrator'),
   validate(scheduleQuerySchema, 'query'),
-  validate(generateScheduleSchema, 'body'),
+  validate(saveScheduleSchema, 'body'),
   scheduleController.generate,
 )
 scheduleRouter.post('/:id/publish', authorize('administrator'), validate(idParamsSchema, 'params'), scheduleController.publish)

@@ -93,13 +93,14 @@ describe('schedule clinic isolation (live DB)', () => {
     )
     expect(dutyB.doctorId).toBe(docB.doctorId)
 
-    // preview pool is clinic-scoped: clinic B preview only uses B's doctors
+    // The solver pool is clinic-scoped: clinic B options only use B's doctors
     // (the fixture doctor and docB) — never clinic A's.
-    const res = await scheduleService.preview(2031, 4, { kind: 'clinic', clinicId: f!.clinicB })
+    const res = await scheduleService.generateOptions(2031, 4, { kind: 'clinic', clinicId: f!.clinicB })
+    const assignments = res.options[0]!.assignments
     const clinicBDoctors = new Set([docB.doctorId, f!.doctorRowB])
-    expect(res.assignments.length).toBeGreaterThan(0)
-    expect(res.assignments.every((a) => clinicBDoctors.has(a.doctorId))).toBe(true)
-  })
+    expect(assignments.length).toBeGreaterThan(0)
+    expect(assignments.every((a) => clinicBDoctors.has(a.doctorId))).toBe(true)
+  }, 30_000) // runs the real solver
 
   it('list is clinic-scoped (I6)', async () => {
     const a = await scheduleService.list({ year: 2031, month: 3 }, adminA(), scopeA())

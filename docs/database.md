@@ -224,7 +224,7 @@ Individual on-call assignments within a schedule.
 | `duty_date` | DATE | NOT NULL |
 | `doctor_id` | INTEGER | NOT NULL, FK → `doctors(id)` ON DELETE RESTRICT |
 | `is_weekend` | BOOLEAN | NOT NULL (computed by the writer; no default) |
-| `reason` | TEXT | NOT NULL (engine's explanation for the assignment) |
+| `reason` | TEXT | NOT NULL. Why the duty exists: the engine's explanation on a saved plan, the client-sent `reason` or `plan` for edited plans, and `manual override by admin #<id>` for manual add/reassign |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
 
 Constraints and indexes:

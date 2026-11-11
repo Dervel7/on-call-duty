@@ -8,7 +8,7 @@ import {
   createDutySchema,
   createScheduleSchema,
   createUserSchema,
-  generateScheduleSchema,
+  saveScheduleSchema,
   isoDateSchema,
   loginSchema,
   reassignDutySchema,
@@ -269,24 +269,25 @@ describe('schedule schemas', () => {
     expect(alternativeOptionSchema.safeParse({ year: 2026, month: 9 }).success).toBe(false)
   })
 
-  it('generateScheduleSchema accepts with/without assignments and validates items', () => {
-    expect(generateScheduleSchema.safeParse({ year: 2026, month: 9 }).success).toBe(true)
+  it('saveScheduleSchema requires a non-empty plan and validates items', () => {
+    expect(saveScheduleSchema.safeParse({ year: 2026, month: 9 }).success).toBe(false)
+    expect(saveScheduleSchema.safeParse({ year: 2026, month: 9, assignments: [] }).success).toBe(false)
     expect(
-      generateScheduleSchema.safeParse({
+      saveScheduleSchema.safeParse({
         year: 2026,
         month: 9,
         assignments: [{ date: '2026-09-01', doctorId: 5 }],
       }).success,
     ).toBe(true)
     expect(
-      generateScheduleSchema.safeParse({
+      saveScheduleSchema.safeParse({
         year: 2026,
         month: 9,
         assignments: [{ date: '2026-9-1', doctorId: 5 }],
       }).success,
     ).toBe(false)
     expect(
-      generateScheduleSchema.safeParse({
+      saveScheduleSchema.safeParse({
         year: 2026,
         month: 9,
         assignments: [{ date: '2026-09-01', doctorId: 0 }],

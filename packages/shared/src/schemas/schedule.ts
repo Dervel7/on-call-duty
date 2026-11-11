@@ -20,7 +20,8 @@ export const reassignDutySchema = z.object({
   doctorId: z.number().int().positive(),
 })
 
-export const generateScheduleSchema = createScheduleSchema.extend({
+// Only a plan the administrator picked from the options is saved; the server never solves on save.
+export const saveScheduleSchema = createScheduleSchema.extend({
   assignments: z
     .array(
       z.object({
@@ -29,7 +30,7 @@ export const generateScheduleSchema = createScheduleSchema.extend({
         reason: z.string().max(500).optional(),
       }),
     )
-    .optional(),
+    .min(1),
 })
 
 export const alternativeOptionSchema = createScheduleSchema.extend({

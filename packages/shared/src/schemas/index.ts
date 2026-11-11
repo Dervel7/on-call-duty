@@ -26,7 +26,7 @@ export {
   scheduleQuerySchema,
   createDutySchema,
   reassignDutySchema,
-  generateScheduleSchema,
+  saveScheduleSchema,
   alternativeOptionSchema,
 } from './schedule.ts'
 export { monthQuerySchema } from './stats.ts'

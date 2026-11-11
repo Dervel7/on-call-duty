@@ -11,7 +11,7 @@ export const scheduleController = {
       // req.query is typed by validate(scheduleQuerySchema) upstream.
       const { clinicId, ...filters } = req.query as ScheduleQuery & { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
-      const schedules = await scheduleService.list(filters, req.user, scope)
+      const schedules = await scheduleService.list(filters, req.user!, scope)
       res.status(200).json(ok({ schedules }))
     } catch (err) {
       next(err)
@@ -19,24 +19,8 @@ export const scheduleController = {
   },
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const detail = await scheduleService.getById(Number(req.params.id), req.user)
+      const detail = await scheduleService.getById(Number(req.params.id), req.user!)
       res.status(200).json(ok(detail))
-    } catch (err) {
-      next(err)
-    }
-  },
-  async preview(req: Request, res: Response, next: NextFunction) {
-    try {
-      // req.query is typed by validate(scheduleQuerySchema) upstream.
-      const { clinicId } = req.query as { clinicId?: number }
-      const scope = await resolveClinicScope(req.user!, clinicId)
-      const result = await scheduleService.preview(
-        req.body.year,
-        req.body.month,
-        scope,
-        req.body.assignments,
-      )
-      res.status(200).json(ok(result))
     } catch (err) {
       next(err)
     }

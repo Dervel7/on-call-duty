@@ -7,7 +7,6 @@ import type {
   DutySlotsSettings,
   GenerateAssignment,
   OpenDutySettings,
-  PreviewResult,
   ReassignDutyRequest,
   ScheduleDetail,
   ScheduleAlternativeResult,
@@ -23,7 +22,6 @@ import { HttpError } from '../lib/http-error.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 import {
   assignmentViolation,
-  generate as runEngineRaw,
   generateAlternative as runAlternative,
   generatePrimary,
   holidayCapAllows,
@@ -97,12 +95,8 @@ const SELECT_DUTY = `SELECT du.id, du.schedule_id, du.duty_date, du.doctor_id, d
  * Object-level access: administrator/doctor may only reach schedules of their
  * own clinic (mismatch → 404, existence hidden); manager and superadmin pass.
  */
-function assertScheduleVisible(row: ScheduleRow, actor: Actor | undefined): void {
-  if (
-    actor &&
-    (actor.role === 'administrator' || actor.role === 'doctor') &&
-    row.clinic_id !== actor.clinicId
-  ) {
+function assertScheduleVisible(row: ScheduleRow, actor: Actor): void {
+  if ((actor.role === 'administrator' || actor.role === 'doctor') && row.clinic_id !== actor.clinicId) {
     throw new HttpError(404, 'Schedule not found')
   }
 }
@@ -357,40 +351,6 @@ async function assertNoSchedule(year: number, month: number, clinicId: number): 
     throw new HttpError(409, 'Schedule already exists for this month; delete it first')
 }
 
-export async function preview(
-  year: number,
-  month: number,
-  scope: ClinicScope,
-  plan?: GenerateAssignment[],
-): Promise<PreviewResult> {
-  const ctx = await buildContext(year, month, scope.clinicId)
-  if (plan) {
-    // WYSIWYG refresh: the admin edited the proposal in the browser, so
-    // eligibility must answer against their plan, not the engine's. Nothing
-    // is persisted; assignments/conflicts are echoed/blanked for shape only.
-    const days = eligibilityFor(ctx, plan)
-    const names = new Map(ctx.doctors.map((d) => [d.id, d]))
-    return {
-      assignments: plan.map((a) => {
-        const doc = names.get(a.doctorId)
-        return {
-          date: a.date,
-          doctorId: a.doctorId,
-          doctorFirstName: doc?.firstName ?? '',
-          doctorLastName: doc?.lastName ?? '',
-          isWeekend: isWeekendISO(a.date),
-          reason: a.reason ?? 'plan',
-        }
-      }),
-      conflicts: [],
-      days,
-    }
-  }
-  const result = await runEngine(ctx)
-  const days = eligibilityFor(ctx, result.assignments)
-  return { assignments: result.assignments, conflicts: result.conflicts, days }
-}
-
 export const SCHEDULE_OPTION_COUNT = 3
 
 const OPTIONS_CACHE_TTL_MS = 15 * 60_000
@@ -444,8 +404,6 @@ async function gated<T>(run: () => Promise<T>): Promise<T> {
     throw err
   }
 }
-
-const runEngine = (ctx: SchedulingContext): Promise<GenerateResult> => gated(() => runEngineRaw(ctx))
 
 function doctorSetsByDate(assignments: { date: string; doctorId: number }[]): Map<string, Set<number>> {
   const byDate = new Map<string, Set<number>>()
@@ -544,16 +502,13 @@ export async function generate(
   month: number,
   actor: Actor,
   scope: ClinicScope,
-  assignments?: GenerateAssignment[],
+  assignments: GenerateAssignment[],
 ): Promise<ScheduleDetail> {
   await assertNoSchedule(year, month, scope.clinicId)
 
   const ctx = await buildContext(year, month, scope.clinicId)
 
-  const planDuties =
-    assignments && assignments.length > 0
-      ? validatePlan(ctx, assignments)
-      : enginePlanToDuties(await runEngine(ctx))
+  const planDuties = validatePlan(ctx, assignments)
 
   const scheduleId = await withTransaction(async (client) => {
     const ins = await client.query<{ id: number }>(
@@ -583,26 +538,11 @@ export async function generate(
         month,
         dutyCount: planDuties.length,
         doctorCount: doctorIds.length,
-        mode: assignments && assignments.length > 0 ? 'manual' : 'engine',
       },
     })
     return id
   })
   return getById(scheduleId, actor)
-}
-
-function enginePlanToDuties(result: GenerateResult): PlanDuty[] {
-  if (result.conflicts.length > 0)
-    throw new HttpError(
-      422,
-      `Schedule has ${result.conflicts.length} unfillable day(s); Preview the schedule and resolve conflicts before generating a plan`,
-    )
-  return result.assignments.map((a) => ({
-    date: a.date,
-    doctorId: a.doctorId,
-    isWeekend: a.isWeekend,
-    reason: a.reason,
-  }))
 }
 
 function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[]): PlanDuty[] {
@@ -670,17 +610,14 @@ function validatePlan(ctx: SchedulingContext, assignments: GenerateAssignment[])
 }
 
 export async function list(
-  filters: ScheduleQuery = {},
-  actor?: Actor,
-  scope?: ClinicScope,
+  filters: ScheduleQuery,
+  actor: Actor,
+  scope: ClinicScope,
 ): Promise<ScheduleSummary[]> {
-  const where: string[] = []
-  const params: unknown[] = []
-  if (scope !== undefined) {
-    params.push(scope.clinicId)
-    where.push(`s.clinic_id = $${params.length}`)
-  }
-  if (actor && actor.role === 'doctor') {
+  const params: unknown[] = [scope.clinicId]
+  const where: string[] = ['s.clinic_id = $1']
+  // Only administrators and superadmins see drafts; getById enforces the same rule.
+  if (actor.role !== 'administrator' && actor.role !== 'superadmin') {
     params.push('published')
     where.push(`s.status = $${params.length}`)
   }
@@ -692,11 +629,10 @@ export async function list(
     params.push(filters.month)
     where.push(`s.month = $${params.length}`)
   }
-  const sql =
-    where.length > 0
-      ? `${SELECT_SCHEDULE} WHERE ${where.join(' AND ')} ORDER BY s.year DESC, s.month DESC`
-      : `${SELECT_SCHEDULE} ORDER BY s.year DESC, s.month DESC`
-  const res = await query<ScheduleRow>(sql, params)
+  const res = await query<ScheduleRow>(
+    `${SELECT_SCHEDULE} WHERE ${where.join(' AND ')} ORDER BY s.year DESC, s.month DESC`,
+    params,
+  )
   return res.rows.map(toSchedule)
 }
 
@@ -710,17 +646,17 @@ export async function listDutiesBySchedule(scheduleId: number): Promise<Duty[]> 
 
 export async function getScheduleDuties(
   id: number,
-  actor?: Actor,
+  actor: Actor,
 ): Promise<{ schedule: ScheduleSummary; duties: Duty[] }> {
   const schedule = await selectScheduleRow(id)
   assertScheduleVisible(schedule, actor)
   return { schedule: toSchedule(schedule), duties: await listDutiesBySchedule(id) }
 }
 
-export async function getById(id: number, actor?: Actor): Promise<ScheduleDetail> {
+export async function getById(id: number, actor: Actor): Promise<ScheduleDetail> {
   const { schedule, duties } = await getScheduleDuties(id, actor)
-  const isAdmin = actor?.role === 'administrator' || actor?.role === 'superadmin'
-  if (actor && !isAdmin && schedule.status !== 'published') {
+  const isAdmin = actor.role === 'administrator' || actor.role === 'superadmin'
+  if (!isAdmin && schedule.status !== 'published') {
     throw new HttpError(403, 'Schedule not published')
   }
   if (!isAdmin) {
