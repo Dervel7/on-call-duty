@@ -120,7 +120,7 @@ describe('doctor.service', () => {
     })
     await expect(
       create(
-        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' },
+        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R', maxMonthlyDuties: 7 },
         actor,
         scope(1),
       ),
@@ -131,7 +131,7 @@ describe('doctor.service', () => {
     query.mockImplementation(async () => ({ rows: [] }))
     await expect(
       create(
-        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' },
+        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R', maxMonthlyDuties: 7 },
         actor,
         scope(99),
       ),
@@ -144,7 +144,7 @@ describe('doctor.service', () => {
     })
     await expect(
       create(
-        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' },
+        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R', maxMonthlyDuties: 7 },
         actor,
         scope(1),
       ),
@@ -269,7 +269,7 @@ describe('doctor.service', () => {
   it('create duplicate checks ignore deleted accounts', async () => {
     installDb()
     await create(
-      { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' },
+      { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R', maxMonthlyDuties: 7 },
       actor,
       scope(1),
     )

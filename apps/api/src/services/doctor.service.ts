@@ -89,7 +89,7 @@ export async function getByUserId(userId: number): Promise<Doctor> {
 }
 
 export async function create(
-  input: CreateDoctorRequest,
+  input: CreateDoctorRequest & { maxMonthlyDuties: number },
   actor: Actor,
   scope: ClinicScope,
 ): Promise<Doctor> {
