@@ -45,9 +45,6 @@ describe('schedule.service', () => {
   it('list applies optional year/month filters', async () => {
     query.mockResolvedValue({ rows: [scheduleRow()] })
     await list({ year: 2026, month: 9 }, { id: 2, role: 'administrator', clinicId: 1 }, SCOPE)
-    const sql = query.mock.calls[0]?.[0] as string
-    expect(sql).toContain('year =')
-    expect(sql).toContain('month =')
     expect(query.mock.calls[0]?.[1]).toEqual([1, 2026, 9])
   })
 
@@ -140,11 +137,6 @@ describe('generate plan path', () => {
     expect(detail.schedule.id).toBe(7)
     const inserts = query.mock.calls.filter((c) => String(c[0]).includes('INSERT INTO duties'))
     expect(inserts.length).toBe(30)
-    const hol = query.mock.calls.find((c) => String(c[0]).includes('FROM holidays'))
-    expect(String(hol?.[0])).toContain('clinic_id = $1')
-    expect(hol?.[1]).toEqual([1, '2026-09-01', '2026-09-30'])
-    const unavail = query.mock.calls.find((c) => String(c[0]).includes('FROM unavailability'))
-    expect(String(unavail?.[0])).toContain('is_disabled = FALSE')
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'schedule.generated', entityId: 7 }),

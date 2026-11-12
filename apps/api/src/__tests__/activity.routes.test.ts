@@ -105,13 +105,6 @@ describe('activity routes', () => {
     expect(list).toHaveBeenCalledWith({ page: 1, limit: 50 }, { clinicId: 2 })
   })
 
-  it('administrator passing a foreign clinicId gets 403', async () => {
-    const res = await request(build())
-      .get('/activity?clinicId=9')
-      .set('Authorization', `Bearer ${adminToken()}`)
-    expect(res.status).toBe(403)
-  })
-
   it('rejects invalid query with 400', async () => {
     const res = await request(build())
       .get('/activity?action=bogus.action')

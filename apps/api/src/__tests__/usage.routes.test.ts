@@ -65,11 +65,4 @@ describe('usage routes', () => {
       .set('Authorization', `Bearer ${superadminToken()}`)
     expect(res.status).toBe(404)
   })
-
-  it('usage summary no longer exists (404)', async () => {
-    const res = await request(build())
-      .get('/usage/summary')
-      .set('Authorization', `Bearer ${superadminToken()}`)
-    expect(res.status).toBe(404)
-  })
 })

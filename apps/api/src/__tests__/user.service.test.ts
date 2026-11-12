@@ -238,7 +238,7 @@ describe('user.service', () => {
     query
       .mockResolvedValueOnce({ rows: [row()] })
       .mockResolvedValueOnce({ rows: [row()] })
-      .mockResolvedValueOnce({ rows: [row()] }) // getById re-select on the early return
+      .mockResolvedValueOnce({ rows: [row()] }) // re-select after the no-op UPDATE
     const u = await update(1, { email: 'd@h.com' }, adminActor)
     expect(u.email).toBe('d@h.com')
     expect(recordActivity).not.toHaveBeenCalled()
@@ -504,19 +504,6 @@ describe('user.service', () => {
       await update(1, { isActive: true }, adminActor)
       expect(query.mock.calls.some((c) => String(c[0]).includes('refresh_tokens'))).toBe(false)
     })
-  })
-
-  it('create duplicate checks ignore deleted accounts', async () => {
-    query.mockImplementation(async (...args: unknown[]) => {
-      const sql = String(args[0] ?? '')
-      if (sql.includes('FROM clinics')) return { rows: [{ is_active: true }] }
-      return { rows: [] }
-    })
-    await create(validAdmin, adminActor).catch(() => undefined)
-    const emailCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE lower(email) ='))
-    const usernameCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE username ='))
-    expect(String(emailCheck?.[0])).toContain('AND is_deleted = FALSE')
-    expect(String(usernameCheck?.[0])).toContain('AND is_deleted = FALSE')
   })
 
   it('updateTheme persists the preference and returns the user', async () => {

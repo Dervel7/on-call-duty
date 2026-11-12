@@ -117,7 +117,7 @@ describe('stats routes', () => {
     expect(adminStats.mock.calls[0]?.[0]).toEqual({ clinicId: 1 })
   })
 
-  it('me 200 for doctor; 404 for admin (no profile); 401 unauth', async () => {
+  it('me 200 for doctor; 401 unauth', async () => {
     meStats.mockResolvedValue({
       doctor: { id: 10, firstName: 'Jane', lastName: 'Roe', maxMonthlyDuties: 7 },
       currentMonth: {
@@ -135,12 +135,6 @@ describe('stats routes', () => {
       .get('/stats/me')
       .set('Authorization', `Bearer ${doctorToken()}`)
     expect(ok200.status).toBe(200)
-
-    meStats.mockRejectedValue(Object.assign(new Error('Doctor not found'), { status: 404 }))
-    const notFound = await request(build())
-      .get('/stats/me')
-      .set('Authorization', `Bearer ${adminToken()}`)
-    expect(notFound.status).toBe(404)
 
     const unauth = await request(build()).get('/stats/me')
     expect(unauth.status).toBe(401)

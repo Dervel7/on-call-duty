@@ -6,7 +6,7 @@ vi.mock('../db/client.ts', () => ({
   withTransaction: (work: (c: { query: typeof query }) => Promise<unknown>) => work({ query }),
 }))
 
-import { list, logActivity, recordActivity } from '../services/activity.service.ts'
+import { list, recordActivity } from '../services/activity.service.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 
 const scope: ClinicScope = { clinicId: 1 }
@@ -70,11 +70,6 @@ describe('activity.service', () => {
     ])
   })
 
-  it('logActivity wraps recordActivity in a transaction', async () => {
-    await logActivity({ userId: 1, action: 'auth.login', entityType: 'auth', entityId: null })
-    expect(query.mock.calls[0]?.[0]).toContain('INSERT INTO activity_log')
-  })
-
   it('list runs count then page, ordered newest first', async () => {
     query.mockResolvedValueOnce({ rows: [{ n: 51 }] })
     query.mockResolvedValueOnce({ rows: [entryRow()] })
@@ -85,16 +80,6 @@ describe('activity.service', () => {
     const pageSql = query.mock.calls[1]?.[0] as string
     expect(pageSql).toContain('ORDER BY a.created_at DESC, a.id DESC')
     expect(pageSql).toContain('LEFT JOIN users u')
-  })
-
-  it('list emits one WHERE clause per filter', async () => {
-    query.mockResolvedValue({ rows: [] })
-    await list({ action: 'auth.login', userId: 5, from: '2026-08-01', to: '2026-08-31' }, scope)
-    const countSql = query.mock.calls[0]?.[0] as string
-    expect(countSql).toContain('a.action')
-    expect(countSql).toContain('a.user_id')
-    expect(countSql).toContain('a.created_at >=')
-    expect(countSql).toContain('a.created_at <')
   })
 
   it('list maps a deleted actor to null', async () => {

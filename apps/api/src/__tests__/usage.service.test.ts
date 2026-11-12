@@ -1,12 +1,6 @@
-import { resolve } from 'node:path'
-import { config } from 'dotenv'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-
-const { parsed } = config({ path: resolve(import.meta.dirname, '../../.env') })
-if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL
-
-const { query, withTransaction } = await import('../db/client.ts')
-const { generations, listAlerts, overlapPercent, recordGeneration } = await import('../services/usage.service.ts')
+import { query, withTransaction } from '../db/client.ts'
+import { generations, listAlerts, overlapPercent, recordGeneration } from '../services/usage.service.ts'
 
 describe('overlapPercent', () => {
   it('returns 100 for identical sets', () => {

@@ -152,8 +152,6 @@ describe('unavailability.service', () => {
       scope(1),
     )
     expect(x.id).toBe(1)
-    const insert = query.mock.calls.find((c) => String(c[0]).includes('INSERT INTO unavailability'))
-    expect(String(insert?.[0])).toContain('INSERT INTO unavailability')
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'availability.created', entityId: 7, clinicId: 1 }),
@@ -171,9 +169,7 @@ describe('unavailability.service', () => {
     const x = await update(1, { endDate: '2026-09-12' }, admin)
     expect(x.id).toBe(1)
     const overlap = query.mock.calls.find((c) => String(c[0]).includes('AND id <>'))
-    expect(String(overlap?.[0])).toContain('AND id <>')
-    const updateSql = query.mock.calls.find((c) => String(c[0]).includes('UPDATE unavailability'))
-    expect(String(updateSql?.[0])).toContain('UPDATE unavailability')
+    expect(overlap?.[1]).toEqual([5, '2026-09-12', '2026-09-07', 1])
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'availability.updated', entityId: 1 }),
@@ -319,8 +315,6 @@ describe('unavailability.service', () => {
   it('remove deletes the row; 404 when missing; 403 for non-owner; 404 cross-clinic', async () => {
     installDb()
     await remove(1, admin)
-    const del = query.mock.calls.find((c) => String(c[0]).includes('DELETE FROM unavailability'))
-    expect(String(del?.[0])).toContain('DELETE FROM unavailability')
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'availability.deleted', entityId: 1 }),
