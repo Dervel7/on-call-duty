@@ -1,8 +1,8 @@
-import type { AdminStats, MeStats, StatsQuery } from '@oncall/shared'
+import type { AdminStats, MeStats, MonthQuery } from '@oncall/shared'
 import { apiGet } from '@/lib/http'
 import { toQuery } from './query'
 
-export async function admin(query?: StatsQuery): Promise<AdminStats> {
+export async function admin(query?: MonthQuery): Promise<AdminStats> {
   const { stats } = await apiGet<{ stats: AdminStats }>(`/stats/admin${toQuery({ ...query })}`)
   return stats
 }

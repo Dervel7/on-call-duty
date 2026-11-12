@@ -32,7 +32,7 @@ export async function alternative(
 export async function generate(
   year: number,
   month: number,
-  assignments?: GenerateAssignment[],
+  assignments: GenerateAssignment[],
 ): Promise<ScheduleDetail> {
   return apiPost<ScheduleDetail>('/schedules', { year, month, assignments })
 }

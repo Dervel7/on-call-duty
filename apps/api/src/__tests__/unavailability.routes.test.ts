@@ -52,6 +52,19 @@ beforeEach(() => {
   recordActivity.mockReset()
 })
 
+// Routes the SQL a create issues, so each test states the scenario, not the call order.
+function installCreateDb(o: { doctorFound?: boolean; overlap?: boolean } = {}) {
+  query.mockReset()
+  query.mockImplementation(async (text: unknown) => {
+    const sql = String(text)
+    if (sql.includes('FROM doctors WHERE user_id')) return { rows: [{ id: 5 }] }
+    if (sql.includes('FOR UPDATE OF d')) return { rows: o.doctorFound === false ? [] : [{ clinic_id: 1 }] }
+    if (sql.includes('SELECT id FROM unavailability WHERE doctor_id')) return { rows: o.overlap ? [{ id: 2 }] : [] }
+    if (sql.includes('INSERT INTO unavailability')) return { rows: [{ id: 9 }] }
+    return { rows: [row()] }
+  })
+}
+
 describe('unavailability routes', () => {
   it('admin lists all (200)', async () => {
     query.mockResolvedValue({ rows: [] })
@@ -122,14 +135,7 @@ describe('unavailability routes', () => {
   })
 
   it('admin creates for a doctor (201); overlap is 409; unknown doctor 404; inverted range 400', async () => {
-    let n = 0
-    query.mockImplementation(async () => {
-      n++
-      if (n === 1) return { rows: [{ id: 1 }] }
-      if (n === 2) return { rows: [] }
-      if (n === 3) return { rows: [{ id: 9 }] }
-      return { rows: [row()] }
-    })
+    installCreateDb()
     const res = await request(build())
       .post('/unavailability')
       .set('Authorization', `Bearer ${adminToken()}`)
@@ -137,17 +143,14 @@ describe('unavailability routes', () => {
     expect(res.status).toBe(201)
     expect(res.body.data.unavailability).toBeDefined()
 
-    query.mockReset()
-    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
-    query.mockResolvedValueOnce({ rows: [{ id: 2 }] })
+    installCreateDb({ overlap: true })
     const overlapRes = await request(build())
       .post('/unavailability')
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ doctorId: 5, startDate: '2026-09-08', endDate: '2026-09-09' })
     expect(overlapRes.status).toBe(409)
 
-    query.mockReset()
-    query.mockResolvedValueOnce({ rows: [] })
+    installCreateDb({ doctorFound: false })
     const notFoundRes = await request(build())
       .post('/unavailability')
       .set('Authorization', `Bearer ${adminToken()}`)
@@ -161,12 +164,25 @@ describe('unavailability routes', () => {
     expect(invertedRes.status).toBe(400)
   })
 
+  it('admin create accepts the own clinicId query (201); a non-numeric clinicId is 400', async () => {
+    installCreateDb()
+    const res = await request(build())
+      .post('/unavailability?clinicId=1')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ doctorId: 5, startDate: '2026-09-20', endDate: '2026-09-21' })
+    expect(res.status).toBe(201)
+
+    query.mockReset()
+    const bad = await request(build())
+      .post('/unavailability?clinicId=abc')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+      .send({ doctorId: 5, startDate: '2026-09-20', endDate: '2026-09-21' })
+    expect(bad.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
+
   it('doctor creates own via /me (201)', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id: 5 }] })
-    query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
-    query.mockResolvedValueOnce({ rows: [] })
-    query.mockResolvedValueOnce({ rows: [{ id: 9 }] })
-    query.mockResolvedValueOnce({ rows: [row()] })
+    installCreateDb()
     const res = await request(build())
       .post('/unavailability/me')
       .set('Authorization', `Bearer ${doctorToken()}`)

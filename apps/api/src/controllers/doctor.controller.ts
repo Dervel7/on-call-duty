@@ -1,13 +1,12 @@
 import type { NextFunction, Request, Response } from 'express'
 import { ok } from '../lib/envelope.ts'
-import { HttpError } from '../lib/http-error.ts'
 import { resolveClinicScope } from '../lib/scope.ts'
 import * as doctorService from '../services/doctor.service.ts'
 
 export const doctorController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      // req.query is typed by validate(doctorQuerySchema) upstream.
+      // req.query is typed by validate(clinicQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
       const doctors = await doctorService.list(scope)
@@ -18,8 +17,7 @@ export const doctorController = {
   },
   async getMe(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new HttpError(401, 'Unauthorized')
-      const doctor = await doctorService.getByUserId(req.user.id)
+      const doctor = await doctorService.getByUserId(req.user!.id)
       res.status(200).json(ok({ doctor }))
     } catch (err) {
       next(err)
@@ -35,7 +33,7 @@ export const doctorController = {
   },
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      // req.query is typed by validate(doctorQuerySchema) upstream.
+      // req.query is typed by validate(clinicQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
       const doctor = await doctorService.create(req.body, req.user!, scope)

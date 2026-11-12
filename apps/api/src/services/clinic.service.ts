@@ -1,6 +1,7 @@
 import type { Clinic, CreateClinicRequest, UpdateClinicRequest } from '@oncall/shared'
-import { query } from '../db/client.ts'
+import { query, withTransaction } from '../db/client.ts'
 import { HttpError } from '../lib/http-error.ts'
+import { revokeAllForClinic } from './token.service.ts'
 
 interface ClinicRow {
   id: number
@@ -65,13 +66,17 @@ export async function update(id: number, input: UpdateClinicRequest): Promise<Cl
   if (input.name !== undefined && (await nameTaken(input.name, id))) {
     throw new HttpError(409, 'Clinic name already exists')
   }
-  await query(
-    `UPDATE clinics SET
-       name       = COALESCE($2, name),
-       is_active  = COALESCE($3, is_active),
-       updated_at = NOW()
-     WHERE id = $1`,
-    [id, input.name ?? null, input.isActive ?? null],
-  )
+  await withTransaction(async (client) => {
+    await client.query(
+      `UPDATE clinics SET
+         name       = COALESCE($2, name),
+         is_active  = COALESCE($3, is_active),
+         updated_at = NOW()
+       WHERE id = $1`,
+      [id, input.name ?? null, input.isActive ?? null],
+    )
+    // A deactivated clinic must lose its open sessions, not only new logins (D10).
+    if (input.isActive === false) await revokeAllForClinic(id, client)
+  })
   return getById(id)
 }

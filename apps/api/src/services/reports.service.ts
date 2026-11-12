@@ -1,33 +1,21 @@
-import type { AuthUser, MonthlyReport } from '@oncall/shared'
+import type { MonthlyReport } from '@oncall/shared'
 import type { ClinicScope } from '../lib/scope.ts'
-import * as scheduleService from './schedule.service.ts'
+import { listDutiesBySchedule } from './schedule.service.ts'
 import * as statsService from './stats.service.ts'
 
-type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
-
 export async function monthlyReport(
-  year: number,
-  month: number,
-  actor: Actor,
   scope: ClinicScope,
+  year?: number,
+  month?: number,
 ): Promise<MonthlyReport> {
-  // 1. Reuse the Phase 7 aggregation: schedule (or null) + coverage + workload + fairness.
-  const stats = await statsService.adminStats(year, month, scope)
-
-  // 2. Roster: only when a schedule exists. stats.schedule is non-null iff the row exists,
-  //    so getById cannot throw 404 here. The actor is forwarded so the object-level
-  //    clinic check (cross-clinic 404) applies to the roster read too.
-  let roster: MonthlyReport['roster'] = []
-  if (stats.schedule) {
-    const detail = await scheduleService.getScheduleDuties(stats.schedule.id, actor)
-    roster = detail.duties
-  }
+  // adminStats selects the schedule by the caller's clinic scope, so the roster needs no second check.
+  const stats = await statsService.adminStats(scope, year, month)
+  const roster = stats.schedule ? await listDutiesBySchedule(stats.schedule.id) : []
 
   return {
-    year,
-    month,
+    year: stats.year,
+    month: stats.month,
     generatedAt: new Date().toISOString(),
-    clinicName: stats.schedule?.clinicName ?? null,
     schedule: stats.schedule,
     roster,
     coverage: stats.coverage,

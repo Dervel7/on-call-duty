@@ -1,17 +1,12 @@
-import bcrypt from 'bcrypt'
 import { query, withTransaction } from '../db/client.ts'
 import { HttpError } from '../lib/http-error.ts'
 import type { ClinicScope } from '../lib/scope.ts'
-import type {
-  AuthUser,
-  CreateDoctorRequest,
-  Doctor,
-  UpdateDoctorRequest,
-} from '@oncall/shared'
+import type { Actor, CreateDoctorRequest, Doctor, UpdateDoctorRequest } from '@oncall/shared'
+import { assertClinicUsable, assertIdentityFree, diffFields, hashPassword } from './account.ts'
 import { recordActivity } from './activity.service.ts'
 import * as tokenService from './token.service.ts'
 
-type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
+const DIFF_KEYS = ['email', 'username', 'firstName', 'lastName', 'isActive', 'maxMonthlyDuties'] as const
 
 interface DoctorRow {
   id: number
@@ -55,7 +50,7 @@ function oneRow(rows: DoctorRow[]): DoctorRow | undefined {
 
 /**
  * Object-level access: administrator/doctor may only see rows of their own
- * clinic (mismatch → 404, existence hidden); manager and superadmin pass.
+ * clinic (mismatch -> 404, existence hidden); manager and superadmin pass.
  */
 function assertRowVisible(row: DoctorRow, actor: Actor): void {
   if (
@@ -94,31 +89,15 @@ export async function getByUserId(userId: number): Promise<Doctor> {
 }
 
 export async function create(
-  input: CreateDoctorRequest,
+  input: CreateDoctorRequest & { maxMonthlyDuties: number },
   actor: Actor,
   scope: ClinicScope,
 ): Promise<Doctor> {
   const clinicId = scope.clinicId
-  // Unknown clinic → 404; deactivated clinic blocks user creation (D10, §2.2).
-  const clinic = await query<{ is_active: boolean }>(
-    `SELECT is_active FROM clinics WHERE id = $1`,
-    [clinicId],
-  )
-  const clinicRow = clinic.rows[0]
-  if (!clinicRow) throw new HttpError(404, 'Clinic not found')
-  if (!clinicRow.is_active) throw new HttpError(403, 'Clinic is deactivated')
+  await assertClinicUsable(clinicId)
   const doctorId = await withTransaction(async (client) => {
-    const dupEmail = await client.query(
-      'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE',
-      [input.email],
-    )
-    if (dupEmail.rows.length > 0) throw new HttpError(409, 'Email already in use')
-    const dupUser = await client.query(
-      'SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE',
-      [input.username],
-    )
-    if (dupUser.rows.length > 0) throw new HttpError(409, 'Username already in use')
-    const passwordHash = await bcrypt.hash(input.password, 12)
+    await assertIdentityFree(client, { email: input.email, username: input.username })
+    const passwordHash = await hashPassword(input.password)
     const ins = await client.query(
       `INSERT INTO users (email, username, password_hash, role, first_name, last_name, clinic_id)
        VALUES ($1, $2, $3, 'doctor', $4, $5, $6) RETURNING id`,
@@ -128,7 +107,7 @@ export async function create(
     if (userId === undefined) throw new HttpError(500, 'Failed to create user')
     const docIns = await client.query<{ id: number }>(
       'INSERT INTO doctors (user_id, clinic_id, max_monthly_duties) VALUES ($1, $2, $3) RETURNING id',
-      [userId, clinicId, input.maxMonthlyDuties ?? 7],
+      [userId, clinicId, input.maxMonthlyDuties],
     )
     const docId = docIns.rows[0]?.id
     if (docId === undefined) throw new HttpError(500, 'Failed to create doctor')
@@ -143,7 +122,7 @@ export async function create(
         username: input.username,
         firstName: input.firstName,
         lastName: input.lastName,
-        maxMonthlyDuties: input.maxMonthlyDuties ?? 7,
+        maxMonthlyDuties: input.maxMonthlyDuties,
       },
     })
     return docId
@@ -166,20 +145,14 @@ export async function update(
   const userId = existing.userId
 
   await withTransaction(async (client) => {
-    if (input.email !== undefined && input.email !== existing.email) {
-      const dup = await client.query(
-        'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE AND id <> $2',
-        [input.email, userId],
-      )
-      if (dup.rows.length > 0) throw new HttpError(409, 'Email already in use')
-    }
-    if (input.username !== undefined && input.username !== existing.username) {
-      const dup = await client.query(
-        'SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE AND id <> $2',
-        [input.username, userId],
-      )
-      if (dup.rows.length > 0) throw new HttpError(409, 'Username already in use')
-    }
+    await assertIdentityFree(
+      client,
+      {
+        email: input.email !== existing.email ? input.email : undefined,
+        username: input.username !== existing.username ? input.username : undefined,
+      },
+      userId,
+    )
     const sets: string[] = []
     const params: unknown[] = []
     const map: Array<[string, unknown]> = [
@@ -210,32 +183,7 @@ export async function update(
         [input.maxMonthlyDuties, id],
       )
     }
-    const before: Record<string, unknown> = {}
-    const after: Record<string, unknown> = {}
-    if (input.email !== undefined && input.email !== existing.email) {
-      before.email = existing.email
-      after.email = input.email
-    }
-    if (input.username !== undefined && input.username !== existing.username) {
-      before.username = existing.username
-      after.username = input.username
-    }
-    if (input.firstName !== undefined && input.firstName !== existing.firstName) {
-      before.firstName = existing.firstName
-      after.firstName = input.firstName
-    }
-    if (input.lastName !== undefined && input.lastName !== existing.lastName) {
-      before.lastName = existing.lastName
-      after.lastName = input.lastName
-    }
-    if (input.isActive !== undefined && input.isActive !== existing.isActive) {
-      before.isActive = existing.isActive
-      after.isActive = input.isActive
-    }
-    if (input.maxMonthlyDuties !== undefined && input.maxMonthlyDuties !== existing.maxMonthlyDuties) {
-      before.maxMonthlyDuties = existing.maxMonthlyDuties
-      after.maxMonthlyDuties = input.maxMonthlyDuties
-    }
+    const { before, after } = diffFields(existing, input, DIFF_KEYS)
     const isActiveChanged = input.isActive !== undefined && input.isActive !== existing.isActive
     const action = isActiveChanged
       ? input.isActive
@@ -253,6 +201,7 @@ export async function update(
       })
     }
   })
+  if (input.isActive === false && existing.isActive) await tokenService.revokeAllForUser(userId)
   return getById(id, actor)
 }
 

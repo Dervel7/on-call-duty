@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateSchema } from './common.ts'
+import { isoDateSchema, idSchema } from './common.ts'
 
 const yearMonth = {
   year: z.number().int().min(1970).max(2100),
@@ -10,7 +10,7 @@ export const createScheduleSchema = z.object(yearMonth)
 export const scheduleQuerySchema = z.object({
   year: z.coerce.number().int().min(1970).max(2100).optional(),
   month: z.coerce.number().int().min(1).max(12).optional(),
-  clinicId: z.coerce.number().int().positive().optional(),
+  clinicId: idSchema.optional(),
 })
 export const createDutySchema = z.object({
   date: isoDateSchema,
@@ -20,7 +20,8 @@ export const reassignDutySchema = z.object({
   doctorId: z.number().int().positive(),
 })
 
-export const generateScheduleSchema = createScheduleSchema.extend({
+// Only a plan the administrator picked from the options is saved; the server never solves on save.
+export const saveScheduleSchema = createScheduleSchema.extend({
   assignments: z
     .array(
       z.object({
@@ -29,7 +30,7 @@ export const generateScheduleSchema = createScheduleSchema.extend({
         reason: z.string().max(500).optional(),
       }),
     )
-    .optional(),
+    .min(1),
 })
 
 export const alternativeOptionSchema = createScheduleSchema.extend({

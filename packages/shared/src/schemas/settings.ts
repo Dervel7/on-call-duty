@@ -22,11 +22,6 @@ export const updateDutySlotsSchema = z.object({
   closedDutySlots: z.coerce.number().int().min(1),
 })
 
-/** Optional target clinic for the per-clinic duty slot and minimum settings. */
-export const dutySlotsQuerySchema = z.object({
-  clinicId: z.coerce.number().int().positive().optional(),
-})
-
 /**
  * Minimum on-call doctors per day type (hard rule). Each value must not exceed
  * the matching slot count of the clinic; the server checks that against the

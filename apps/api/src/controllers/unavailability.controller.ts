@@ -1,7 +1,6 @@
 import type { NextFunction, Request, Response } from 'express'
 import type { UnavailabilityQuery } from '@oncall/shared'
 import { ok } from '../lib/envelope.ts'
-import { HttpError } from '../lib/http-error.ts'
 import { resolveClinicScope } from '../lib/scope.ts'
 import * as unavailabilityService from '../services/unavailability.service.ts'
 
@@ -19,8 +18,7 @@ export const unavailabilityController = {
   },
   async listMe(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new HttpError(401, 'Unauthorized')
-      const unavailability = await unavailabilityService.listOwn(req.user.id)
+      const unavailability = await unavailabilityService.listOwn(req.user!.id)
       res.status(200).json(ok({ unavailability }))
     } catch (err) {
       next(err)
@@ -28,7 +26,6 @@ export const unavailabilityController = {
   },
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      // req.query is typed by validate(unavailabilityQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
       const unavailability = await unavailabilityService.create(
@@ -44,8 +41,7 @@ export const unavailabilityController = {
   },
   async createMe(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new HttpError(401, 'Unauthorized')
-      const unavailability = await unavailabilityService.createOwn(req.user.id, req.body)
+      const unavailability = await unavailabilityService.createOwn(req.user!.id, req.body)
       res.status(201).json(ok({ unavailability }))
     } catch (err) {
       next(err)
@@ -53,11 +49,10 @@ export const unavailabilityController = {
   },
   async update(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new HttpError(401, 'Unauthorized')
       const unavailability = await unavailabilityService.update(
         Number(req.params.id),
         req.body,
-        req.user,
+        req.user!,
       )
       res.status(200).json(ok({ unavailability }))
     } catch (err) {
@@ -66,11 +61,10 @@ export const unavailabilityController = {
   },
   async setDisabled(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new HttpError(401, 'Unauthorized')
       const unavailability = await unavailabilityService.setDisabled(
         Number(req.params.id),
         req.body.isDisabled,
-        req.user,
+        req.user!,
       )
       res.status(200).json(ok({ unavailability }))
     } catch (err) {
@@ -79,11 +73,10 @@ export const unavailabilityController = {
   },
   async split(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new HttpError(401, 'Unauthorized')
       const unavailability = await unavailabilityService.split(
         Number(req.params.id),
         req.body,
-        req.user,
+        req.user!,
       )
       res.status(200).json(ok({ unavailability }))
     } catch (err) {
@@ -92,8 +85,7 @@ export const unavailabilityController = {
   },
   async remove(req: Request, res: Response, next: NextFunction) {
     try {
-      if (!req.user) throw new HttpError(401, 'Unauthorized')
-      await unavailabilityService.remove(Number(req.params.id), req.user)
+      await unavailabilityService.remove(Number(req.params.id), req.user!)
       res.status(204).end()
     } catch (err) {
       next(err)

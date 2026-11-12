@@ -4,18 +4,18 @@ import {
   alternativeOptionSchema,
   changePasswordSchema,
   createClinicSchema,
+
   createDutySchema,
   createScheduleSchema,
   createUserSchema,
-  generateScheduleSchema,
+  saveScheduleSchema,
   isoDateSchema,
   loginSchema,
   reassignDutySchema,
   resetUserPasswordSchema,
   roleSchema,
   scheduleQuerySchema,
-  statsQuerySchema,
-  reportQuerySchema,
+  monthQuerySchema,
   updateClinicSchema,
   updateUserSchema,
   updateLanguageSchema,
@@ -47,6 +47,22 @@ describe('auth schemas', () => {
     expect(loginSchema.safeParse({ identifier: 'a@b.com', password: '12345' }).success).toBe(false)
     expect(loginSchema.safeParse({ identifier: 'a@b.com', password: '123456' }).success).toBe(true)
     expect(loginSchema.safeParse({ identifier: 'admin', password: '123456' }).success).toBe(true)
+  })
+
+  it('lowercases emails and email logins but leaves usernames alone', () => {
+    const login = (identifier: string) => loginSchema.parse({ identifier, password: '123456' }).identifier
+    expect(login('Maria.P@Hospital.GR')).toBe('maria.p@hospital.gr')
+    expect(login('Admin')).toBe('Admin')
+    const user = createUserSchema.parse({
+      email: '  Maria.P@Hospital.GR ',
+      username: 'maria',
+      password: '123456',
+      role: 'administrator',
+      firstName: 'M',
+      lastName: 'P',
+    })
+    expect(user.email).toBe('maria.p@hospital.gr')
+    expect(createDoctorSchema.parse({ email: 'A@B.com', username: 'abc', password: '123456', firstName: 'A', lastName: 'B' }).email).toBe('a@b.com')
   })
 
   it('usernameSchema enforces the 3-32 alnum/._- format', () => {
@@ -253,24 +269,25 @@ describe('schedule schemas', () => {
     expect(alternativeOptionSchema.safeParse({ year: 2026, month: 9 }).success).toBe(false)
   })
 
-  it('generateScheduleSchema accepts with/without assignments and validates items', () => {
-    expect(generateScheduleSchema.safeParse({ year: 2026, month: 9 }).success).toBe(true)
+  it('saveScheduleSchema requires a non-empty plan and validates items', () => {
+    expect(saveScheduleSchema.safeParse({ year: 2026, month: 9 }).success).toBe(false)
+    expect(saveScheduleSchema.safeParse({ year: 2026, month: 9, assignments: [] }).success).toBe(false)
     expect(
-      generateScheduleSchema.safeParse({
+      saveScheduleSchema.safeParse({
         year: 2026,
         month: 9,
         assignments: [{ date: '2026-09-01', doctorId: 5 }],
       }).success,
     ).toBe(true)
     expect(
-      generateScheduleSchema.safeParse({
+      saveScheduleSchema.safeParse({
         year: 2026,
         month: 9,
         assignments: [{ date: '2026-9-1', doctorId: 5 }],
       }).success,
     ).toBe(false)
     expect(
-      generateScheduleSchema.safeParse({
+      saveScheduleSchema.safeParse({
         year: 2026,
         month: 9,
         assignments: [{ date: '2026-09-01', doctorId: 0 }],
@@ -345,8 +362,8 @@ describe('clinic schemas and clinicId query params', () => {
     expect(scheduleQuerySchema.safeParse({ clinicId: 'abc' }).success).toBe(false)
   })
 
-  it('activityQuerySchema, statsQuerySchema and reportQuerySchema accept clinicId', () => {
-    for (const schema of [activityQuerySchema, statsQuerySchema, reportQuerySchema]) {
+  it('activityQuerySchema and monthQuerySchema accept clinicId', () => {
+    for (const schema of [activityQuerySchema, monthQuerySchema]) {
       expect(schema.safeParse({ clinicId: '2' }).success).toBe(true)
       expect(schema.safeParse({ clinicId: -1 }).success).toBe(false)
     }
@@ -369,7 +386,7 @@ describe('clinic schemas and clinicId query params', () => {
   })
 })
 
-import { holidayQuerySchema, setMonthHolidaysSchema } from '../index.ts'
+import { holidayQuerySchema, idSchema, setMonthHolidaysSchema } from '../index.ts'
 
 describe('holiday schemas', () => {
   it('holidayQuerySchema requires a year in range and coerces it', () => {
@@ -390,6 +407,22 @@ describe('holiday schemas', () => {
       setMonthHolidaysSchema.safeParse({ year: 2026, month: 3, dates: ['2026-3-25'] }).success,
     ).toBe(false)
     expect(setMonthHolidaysSchema.safeParse({ year: 2026, month: 3, dates: [] }).success).toBe(
+      true,
+    )
+  })
+
+  it('idSchema accepts ids up to the Postgres INTEGER range', () => {
+    expect(idSchema.safeParse('5').success).toBe(true)
+    expect(idSchema.safeParse('2147483647').success).toBe(true)
+    expect(idSchema.safeParse('2147483648').success).toBe(false)
+    expect(idSchema.safeParse('0').success).toBe(false)
+  })
+
+  it('activityQuerySchema rejects from after to', () => {
+    expect(activityQuerySchema.safeParse({ from: '2026-09-30', to: '2026-09-01' }).success).toBe(
+      false,
+    )
+    expect(activityQuerySchema.safeParse({ from: '2026-09-01', to: '2026-09-01' }).success).toBe(
       true,
     )
   })

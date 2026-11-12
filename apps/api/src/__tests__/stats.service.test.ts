@@ -21,17 +21,17 @@ vi.mock('../services/settings.service.ts', async (importOriginal) => ({
 import { adminStats, meStats } from '../services/stats.service.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 
-const scope: ClinicScope = { kind: 'clinic', clinicId: 1 }
+const scope: ClinicScope = { clinicId: 1 }
 
 beforeEach(() => {
   query.mockReset()
   getByUserId.mockReset()
 })
 
-describe('stats.service — adminStats', () => {
+describe('stats.service - adminStats', () => {
   it('empty state when no schedule exists', async () => {
     query.mockResolvedValue({ rows: [] })
-    const stats = await adminStats(2026, 8, scope)
+    const stats = await adminStats(scope, 2026, 8)
     expect(stats.schedule).toBeNull()
     expect(stats.coverage.filled).toBe(0)
     expect(stats.coverage.daysInMonth).toBe(31)
@@ -68,10 +68,10 @@ describe('stats.service — adminStats', () => {
         return { rows: [{ id: 5, first_name: 'Jane', last_name: 'Roe', max_monthly_duties: 7 }] }
       if (sql.includes('GROUP BY doctor_id'))
         return { rows: [{ doctor_id: 5, total: 29, weekend: 8 }] }
-      if (sql.includes('u.is_active = FALSE')) return { rows: [] }
+      if (sql.includes('AS active')) return { rows: [] }
       return { rows: [] }
     })
-    const stats = await adminStats(2026, 9, scope)
+    const stats = await adminStats(scope, 2026, 9)
     expect(stats.coverage.daysInMonth).toBe(30)
     expect(stats.coverage.filled).toBe(29)
     expect(stats.coverage.gaps).toEqual(['2026-09-30'])
@@ -103,11 +103,11 @@ describe('stats.service — adminStats', () => {
         return { rows: [{ id: 5, first_name: 'Jane', last_name: 'Roe', max_monthly_duties: 7 }] }
       if (sql.includes('GROUP BY doctor_id'))
         return { rows: [{ doctor_id: 6, total: 1, weekend: 0 }] }
-      if (sql.includes('u.is_active = FALSE'))
-        return { rows: [{ id: 6, first_name: 'Old', last_name: 'Doc', max_monthly_duties: 7 }] }
+      if (sql.includes('AS active'))
+        return { rows: [{ id: 6, first_name: 'Old', last_name: 'Doc', max_monthly_duties: 7, active: false }] }
       return { rows: [] }
     })
-    const stats = await adminStats(2026, 9, scope)
+    const stats = await adminStats(scope, 2026, 9)
     const inactive = stats.workload.find((w) => w.doctorId === 6)
     expect(inactive).toBeDefined()
     expect(inactive!.isActive).toBe(false)
@@ -147,10 +147,10 @@ describe('stats.service — adminStats', () => {
             { doctor_id: 2, total: 7, weekend: 1 },
           ],
         }
-      if (sql.includes('u.is_active = FALSE')) return { rows: [] }
+      if (sql.includes('AS active')) return { rows: [] }
       return { rows: [] }
     })
-    const stats = await adminStats(2026, 9, scope)
+    const stats = await adminStats(scope, 2026, 9)
     expect(stats.fairness.dutySpread).toBe(2)
     expect(stats.fairness.weekendSpread).toBe(1)
   })
@@ -158,7 +158,7 @@ describe('stats.service — adminStats', () => {
 
   it('I16: adminStats scopes schedule and doctor-pool queries to the clinic', async () => {
     query.mockResolvedValue({ rows: [] })
-    await adminStats(2026, 9, { kind: 'clinic', clinicId: 3 })
+    await adminStats({ clinicId: 3 }, 2026, 9)
     const scheduleCall = query.mock.calls.find((c) => String(c[0]).includes('FROM schedules s JOIN clinics'))
     expect(String(scheduleCall?.[0])).toContain('s.clinic_id = $3')
     expect(scheduleCall?.[1]).toEqual([2026, 9, 3])
@@ -167,7 +167,17 @@ describe('stats.service — adminStats', () => {
     expect(activeCall?.[1]).toEqual([3])
   })
 })
-describe('stats.service — meStats', () => {
+describe('stats.service - adminStats default month', () => {
+  it('without year and month it queries the current UTC month', async () => {
+    query.mockResolvedValue({ rows: [] })
+    await adminStats(scope)
+    const now = new Date()
+    const scheduleCall = query.mock.calls.find((c) => String(c[0]).includes('FROM schedules s JOIN clinics'))
+    expect(scheduleCall?.[1]).toEqual([now.getUTCFullYear(), now.getUTCMonth() + 1, 1])
+  })
+})
+
+describe('stats.service - meStats', () => {
   it('404 when no doctor profile (admin case)', async () => {
     getByUserId.mockRejectedValue(Object.assign(new Error('Doctor not found'), { status: 404 }))
     await expect(meStats(99)).rejects.toMatchObject({ status: 404 })
@@ -241,6 +251,9 @@ describe('stats.service — meStats', () => {
     query.mockResolvedValue({ rows: [] })
     await meStats(5)
     const sqls = query.mock.calls.map((c) => String(c[0]))
+    const counts = query.mock.calls.find((c) => String(c[0]).includes('FILTER (WHERE du.is_weekend)'))
+    expect(String(counts?.[0])).toContain('s.clinic_id = $4')
+    expect(counts?.[1]).toEqual([expect.any(Number), expect.any(Number), 5, 4])
     const published = sqls.find((s) => s.includes('FROM schedules WHERE status'))
     expect(published).toContain('clinic_id = $3')
     const upcoming = sqls.find((s) => s.includes('du.duty_date >= $2'))

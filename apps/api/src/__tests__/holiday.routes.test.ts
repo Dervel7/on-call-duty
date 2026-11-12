@@ -90,6 +90,7 @@ describe('holiday routes', () => {
 
 
   it('admin replaces a month (200): DELETE + INSERT inside the transaction, audited', async () => {
+    query.mockResolvedValueOnce({ rows: [{ is_active: true }] }) // clinic row lock
     query.mockResolvedValueOnce({ rows: [] }) // DELETE
     query.mockResolvedValueOnce({ rows: [] }) // INSERT
     query.mockResolvedValue({ rows: [{ id: 7, clinic_id: 1, holiday_date: '2026-03-25' }] })
@@ -117,6 +118,46 @@ describe('holiday routes', () => {
     )
   })
 
+  it('PUT accepts the own clinicId query of an administrator (200)', async () => {
+    query.mockResolvedValueOnce({ rows: [{ is_active: true }] })
+    query.mockResolvedValue({ rows: [] })
+    const res = await request(build())
+      .put('/holidays/month?clinicId=1')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ year: 2026, month: 3, dates: [] })
+    expect(res.status).toBe(200)
+  })
+
+  it('PUT with a non-numeric clinicId is 400', async () => {
+    const res = await request(build())
+      .put('/holidays/month?clinicId=abc')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+      .send({ year: 2026, month: 3, dates: [] })
+    expect(res.status).toBe(400)
+    expect(query).not.toHaveBeenCalled()
+  })
+
+  it('PUT for an unknown clinic is 404 and writes nothing', async () => {
+    query.mockResolvedValue({ rows: [] })
+    const res = await request(build())
+      .put('/holidays/month?clinicId=999')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+      .send({ year: 2026, month: 3, dates: ['2026-03-25'] })
+    expect(res.status).toBe(404)
+    expect(query.mock.calls.map((c) => c[0]).join('\n')).not.toContain('DELETE FROM holidays')
+    expect(recordActivity).not.toHaveBeenCalled()
+  })
+
+  it('PUT for a deactivated clinic is 403 and writes nothing', async () => {
+    query.mockResolvedValue({ rows: [{ is_active: false }] })
+    const res = await request(build())
+      .put('/holidays/month?clinicId=3')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+      .send({ year: 2026, month: 3, dates: ['2026-03-25'] })
+    expect(res.status).toBe(403)
+    expect(recordActivity).not.toHaveBeenCalled()
+  })
+
   it('PUT with a date outside the month is 400 (schema refine)', async () => {
     const res = await request(build())
       .put('/holidays/month')
@@ -128,6 +169,7 @@ describe('holiday routes', () => {
 
   it('superadmin PUT defaults to the sole clinic', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] }) // sole-clinic scope lookup
+    query.mockResolvedValueOnce({ rows: [{ is_active: true }] }) // clinic row lock
     query.mockResolvedValueOnce({ rows: [] }) // DELETE
     query.mockResolvedValueOnce({ rows: [] }) // INSERT
     query.mockResolvedValue({ rows: [{ id: 7, clinic_id: 1, holiday_date: '2026-03-25' }] })

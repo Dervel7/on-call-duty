@@ -6,8 +6,11 @@ export const languageSchema = z.enum(['en', 'el'])
 
 export const usernameSchema = z.string().regex(/^[A-Za-z0-9._-]{3,32}$/, 'Invalid username')
 
+// Emails are matched case-insensitively, so they are stored lowercase.
+export const emailSchema = z.string().trim().toLowerCase().email()
+
 export const loginSchema = z.object({
-  identifier: z.string().min(1),
+  identifier: z.string().min(1).transform((v) => (v.includes('@') ? v.trim().toLowerCase() : v)),
   password: passwordSchema,
 })
 
@@ -24,7 +27,7 @@ export const resetUserPasswordSchema = z.object({
 })
 
 export const createUserSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
   username: usernameSchema,
   password: passwordSchema,
   role: roleSchema,
@@ -34,7 +37,7 @@ export const createUserSchema = z.object({
 })
 
 export const updateUserSchema = z.object({
-  email: z.string().email().optional(),
+  email: emailSchema.optional(),
   username: usernameSchema.optional(),
   role: roleSchema.optional(),
   firstName: z.string().min(1).optional(),

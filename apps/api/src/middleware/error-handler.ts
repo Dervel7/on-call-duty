@@ -1,10 +1,8 @@
 import type { ErrorRequestHandler } from 'express'
 import { ZodError } from 'zod'
 import { HttpError } from '../lib/http-error.ts'
+import { fail } from '../lib/envelope.ts'
 import { logger } from '../logger.ts'
-
-/** Hint for 429 responses such as "Solver busy"; one solve lasts at most one request. */
-const RETRY_AFTER_SECONDS = '10'
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
   if (res.headersSent) {
@@ -13,17 +11,17 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
   }
   if (err instanceof ZodError) {
     const message = err.issues[0]?.message ?? 'Validation failed'
-    res.status(400).json({ success: false, error: message })
+    res.status(400).json(fail(message))
     return
   }
   if (err instanceof HttpError) {
-    if (err.status === 429) res.setHeader('Retry-After', RETRY_AFTER_SECONDS)
+    if (err.retryAfterSeconds !== undefined) res.setHeader('Retry-After', String(err.retryAfterSeconds))
     res.status(err.status).json({ success: false, error: err.message })
     return
   }
   // Postgres unique-constraint violation: report a conflict instead of a 500 leak.
   if (err instanceof Error && 'code' in err && err.code === '23505') {
-    res.status(409).json({ success: false, error: 'Resource already exists' })
+    res.status(409).json(fail('Resource already exists'))
     return
   }
   // Trusted sub-500 statuses from framework errors (body-parser 413, etc.).
@@ -31,8 +29,8 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
     err instanceof Error && 'status' in err && typeof err.status === 'number' ? err.status : 500
   if (status >= 500) {
     logger.error({ err }, 'request failed')
-    res.status(500).json({ success: false, error: 'Internal server error' })
+    res.status(500).json(fail('Internal server error'))
     return
   }
-  res.status(status).json({ success: false, error: err instanceof Error ? err.message : 'Request failed' })
+  res.status(status).json(fail(err instanceof Error ? err.message : 'Request failed'))
 }

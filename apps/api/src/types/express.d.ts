@@ -1,9 +1,9 @@
-import type { Role } from '@oncall/shared'
+import type { Actor } from '@oncall/shared'
 
 declare global {
   namespace Express {
     interface Request {
-      user?: { id: number; role: Role; clinicId: number | null }
+      user?: Actor
     }
   }
 }

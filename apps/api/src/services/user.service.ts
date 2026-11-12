@@ -1,9 +1,9 @@
-import bcrypt from 'bcrypt'
+import type { PoolClient } from 'pg'
 import { query, withTransaction } from '../db/client.ts'
 import { HttpError } from '../lib/http-error.ts'
 import type { ClinicScope } from '../lib/scope.ts'
 import type {
-  AuthUser,
+  Actor,
   CreateUserRequest,
   Language,
   ResetUserPasswordRequest,
@@ -11,10 +11,11 @@ import type {
   UpdateUserRequest,
   User,
 } from '@oncall/shared'
+import { assertClinicUsable, assertIdentityFree, diffFields, hashPassword } from './account.ts'
 import { recordActivity } from './activity.service.ts'
 import * as tokenService from './token.service.ts'
 
-type Actor = Pick<AuthUser, 'id' | 'role' | 'clinicId'>
+const DIFF_KEYS = ['email', 'username', 'role', 'firstName', 'lastName', 'isActive', 'clinicId'] as const
 
 interface UserRow {
   id: number
@@ -85,25 +86,46 @@ function assertRowVisible(row: UserRow, actor: Actor): void {
   }
 }
 
-/** Unknown or inactive target clinic → 404/403 (creation into it is blocked, D10). */
-async function assertClinicUsable(clinicId: number): Promise<void> {
-  const res = await query<{ is_active: boolean }>(`SELECT is_active FROM clinics WHERE id = $1`, [
-    clinicId,
-  ])
-  const clinic = res.rows[0]
-  if (!clinic) throw new HttpError(404, 'Clinic not found')
-  if (!clinic.is_active) throw new HttpError(403, 'Clinic is deactivated')
+const DOCTOR_VIA_DOCTORS = 'Manage doctor accounts via /doctors'
+
+function assertNotSelf(id: number, actor: Actor): void {
+  if (id === actor.id) throw new HttpError(409, 'You cannot change your own account here')
 }
 
-export async function list(actor: Actor, scope: ClinicScope): Promise<User[]> {
-  // One rule for all roles: a clinic's members. Hospital-level accounts are
-  // invisible to anyone but a superadmin (they carry no clinic anyway).
-  const hideHospitalRoles = actor.role !== 'superadmin'
-  const sql = `SELECT ${COLUMNS} FROM ${FROM_USERS}
-    WHERE u.is_deleted = FALSE AND u.clinic_id = $1
-      ${hideHospitalRoles ? `AND u.role NOT IN ('superadmin', 'manager')` : ''}
-    ORDER BY u.created_at`
-  const res = await query<UserRow>(sql, [scope.clinicId])
+function assertMayAssignRole(actor: Actor, role: Role): void {
+  if (actor.role === 'administrator' && (role === 'superadmin' || role === 'manager')) {
+    throw new HttpError(403, 'Administrators can only manage clinic accounts')
+  }
+}
+
+// FOR UPDATE serialises two concurrent removals of the last two holders.
+async function assertNotLastHolder(client: PoolClient, existing: User): Promise<void> {
+  if (!existing.isActive || (existing.role !== 'administrator' && existing.role !== 'superadmin')) return
+  const res = await client.query(
+    `SELECT id FROM users
+     WHERE role = $1 AND is_deleted = FALSE AND is_active = TRUE
+       AND clinic_id IS NOT DISTINCT FROM $2 AND id <> $3
+     FOR UPDATE`,
+    [existing.role, existing.clinicId, existing.id],
+  )
+  if (res.rows.length === 0) {
+    throw new HttpError(
+      409,
+      existing.role === 'superadmin'
+        ? 'Cannot remove the last superadmin'
+        : 'Cannot remove the last administrator of a clinic',
+    )
+  }
+}
+
+// A clinic's members. Hospital-level accounts carry no clinic, so they never appear here.
+export async function list(scope: ClinicScope): Promise<User[]> {
+  const res = await query<UserRow>(
+    `SELECT ${COLUMNS} FROM ${FROM_USERS}
+     WHERE u.is_deleted = FALSE AND u.clinic_id = $1
+     ORDER BY u.created_at`,
+    [scope.clinicId],
+  )
   return res.rows.map(toUser)
 }
 
@@ -118,12 +140,10 @@ export async function getById(id: number, actor: Actor): Promise<User> {
   return toUser(row)
 }
 
-/** Resolves the target clinic of a new account per §2.5 POST /users rules. */
+/** Resolves the target clinic of a new account per section 2.5 POST /users rules. */
 function resolveCreateClinic(input: CreateUserRequest, actor: Actor): number | null {
   if (actor.role === 'administrator') {
-    if (input.role === 'superadmin' || input.role === 'manager') {
-      throw new HttpError(403, 'Administrators can only create clinic accounts')
-    }
+    assertMayAssignRole(actor, input.role)
     if (actor.clinicId === null) throw new HttpError(403, 'Forbidden')
     return actor.clinicId // payload clinicId is never trusted (isolation I3)
   }
@@ -149,18 +169,10 @@ export async function create(input: CreateUserRequest, actor: Actor): Promise<Us
     throw new HttpError(403, 'Only a superadmin can create superadmin accounts')
   }
   const clinicId = resolveCreateClinic(input, actor)
+  if (input.role === 'doctor') throw new HttpError(409, DOCTOR_VIA_DOCTORS)
   if (clinicId !== null) await assertClinicUsable(clinicId)
-  const existingEmail = await query(
-    'SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE',
-    [input.email],
-  )
-  if (existingEmail.rows.length > 0) throw new HttpError(409, 'Email already in use')
-  const existingUsername = await query(
-    'SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE',
-    [input.username],
-  )
-  if (existingUsername.rows.length > 0) throw new HttpError(409, 'Username already in use')
-  const passwordHash = await bcrypt.hash(input.password, 12)
+  await assertIdentityFree({ query }, { email: input.email, username: input.username })
+  const passwordHash = await hashPassword(input.password)
   const row = await withTransaction(async (client) => {
     const res = await client.query(
       `INSERT INTO users (email, username, password_hash, role, first_name, last_name, clinic_id)
@@ -201,7 +213,24 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
       throw new HttpError(403, 'Managers can only manage administrator accounts')
     }
   }
+  // A doctor account is managed through /doctors (draft-duty checks, doctor.* audit,
+  // doctors row). The one exception is a superadmin clinic move, which /doctors lacks.
+  const onlyClinicMove =
+    actor.role === 'superadmin' &&
+    input.clinicId !== undefined &&
+    Object.entries(input).every(([key, value]) => key === 'clinicId' || value === undefined)
+  if (existing.role === 'doctor' && !onlyClinicMove) throw new HttpError(409, DOCTOR_VIA_DOCTORS)
+  if (input.role === 'doctor' && existing.role !== 'doctor') {
+    throw new HttpError(409, DOCTOR_VIA_DOCTORS)
+  }
+  const roleChanged = input.role !== undefined && input.role !== existing.role
   const clinicChanged = input.clinicId !== undefined && input.clinicId !== existing.clinicId
+  if (input.role !== undefined) assertMayAssignRole(actor, input.role)
+  if (input.isActive === false || roleChanged || clinicChanged) assertNotSelf(id, actor)
+  const targetRole = input.role ?? existing.role
+  if ((targetRole === 'manager' || targetRole === 'superadmin') && input.clinicId !== undefined) {
+    throw new HttpError(400, 'Hospital roles carry no clinic')
+  }
   if (clinicChanged) {
     if (actor.role !== 'superadmin' && actor.role !== 'manager') {
       throw new HttpError(403, 'Clinic reassignment is not allowed for this role')
@@ -211,20 +240,14 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
     }
     await assertClinicUsable(input.clinicId as number)
   }
-  if (input.email !== undefined && input.email !== existing.email) {
-    const dup = await query('SELECT id FROM users WHERE email = $1 AND is_deleted = FALSE AND id <> $2', [
-      input.email,
-      id,
-    ])
-    if (dup.rows.length > 0) throw new HttpError(409, 'Email already in use')
-  }
-  if (input.username !== undefined && input.username !== existing.username) {
-    const dup = await query('SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE AND id <> $2', [
-      input.username,
-      id,
-    ])
-    if (dup.rows.length > 0) throw new HttpError(409, 'Username already in use')
-  }
+  await assertIdentityFree(
+    { query },
+    {
+      email: input.email !== existing.email ? input.email : undefined,
+      username: input.username !== existing.username ? input.username : undefined,
+    },
+    id,
+  )
   const sets: string[] = []
   const params: unknown[] = []
   const map: Array<[string, unknown]> = [
@@ -244,7 +267,6 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
   }
   // Keep users_clinic_role_check satisfiable: hospital roles carry no clinic;
   // clinic roles need one (payload clinicId or the row's existing clinic).
-  const targetRole = input.role ?? existing.role
   if ((targetRole === 'manager' || targetRole === 'superadmin') && input.clinicId === undefined) {
     params.push(null)
     sets.push(`clinic_id = $${params.length}`)
@@ -259,49 +281,22 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
   params.push(new Date())
   sets.push(`updated_at = $${params.length}`)
   params.push(id)
-  const before: Record<string, unknown> = {}
-  const after: Record<string, unknown> = {}
-  if (input.email !== undefined && input.email !== existing.email) {
-    before.email = existing.email
-    after.email = input.email
-  }
-  if (input.username !== undefined && input.username !== existing.username) {
-    before.username = existing.username
-    after.username = input.username
-  }
-  if (input.role !== undefined && input.role !== existing.role) {
-    before.role = existing.role
-    after.role = input.role
-  }
-  if (input.firstName !== undefined && input.firstName !== existing.firstName) {
-    before.firstName = existing.firstName
-    after.firstName = input.firstName
-  }
-  if (input.lastName !== undefined && input.lastName !== existing.lastName) {
-    before.lastName = existing.lastName
-    after.lastName = input.lastName
-  }
+  const { before, after } = diffFields(existing, input, DIFF_KEYS)
   const isActiveChanged = input.isActive !== undefined && input.isActive !== existing.isActive
-  if (isActiveChanged) {
-    before.isActive = existing.isActive
-    after.isActive = input.isActive
-  }
-  if (clinicChanged) {
-    before.clinicId = existing.clinicId
-    after.clinicId = input.clinicId
-  }
   const action = isActiveChanged
     ? input.isActive
       ? 'user.reactivated'
       : 'user.deactivated'
     : 'user.updated'
+  const leavesRole = input.isActive === false || roleChanged || clinicChanged
   const row = await withTransaction(async (client) => {
+    if (leavesRole) await assertNotLastHolder(client, existing)
     const res = await client.query(
       `UPDATE users SET ${sets.join(', ')} WHERE id = $${params.length} AND is_deleted = FALSE RETURNING id`,
       params,
     )
     if (res.rows.length === 0) throw new HttpError(404, 'User not found')
-    // A doctor's clinic must stay in lockstep with the user row (§1.1).
+    // A doctor's clinic must stay in lockstep with the user row (section 1.1).
     if (existing.role === 'doctor' && clinicChanged) {
       await client.query(`UPDATE doctors SET clinic_id = $1, updated_at = NOW() WHERE user_id = $2`, [
         input.clinicId,
@@ -320,6 +315,7 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
     }
     return selectUserById(client, id)
   })
+  if (isActiveChanged && input.isActive === false) await tokenService.revokeAllForUser(id)
   return toUser(row)
 }
 
@@ -331,8 +327,11 @@ export async function remove(id: number, actor: Actor): Promise<void> {
   if (actor.role === 'manager' && existing.role !== 'administrator') {
     throw new HttpError(403, 'Managers can only manage administrator accounts')
   }
+  if (existing.role === 'doctor') throw new HttpError(409, DOCTOR_VIA_DOCTORS)
+  assertNotSelf(id, actor)
   // Soft delete: keeps doctor/duty/audit references intact (schema Phase 12).
   await withTransaction(async (client) => {
+    await assertNotLastHolder(client, existing)
     const res = await client.query(
       'UPDATE users SET is_deleted = TRUE, is_active = FALSE, updated_at = NOW() WHERE id = $1 AND is_deleted = FALSE RETURNING id',
       [id],
@@ -359,13 +358,15 @@ export async function resetPassword(id: number, input: ResetUserPasswordRequest,
   if (actor.role === 'manager' && existing.role !== 'administrator') {
     throw new HttpError(403, 'Managers can only manage administrator accounts')
   }
-  const passwordHash = await bcrypt.hash(input.newPassword, 12)
+  assertNotSelf(id, actor)
+  const passwordHash = await hashPassword(input.newPassword)
   await withTransaction(async (client) => {
     const res = await client.query(
       'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',
       [passwordHash, id],
     )
     if (res.rows.length === 0) throw new HttpError(404, 'User not found')
+    await tokenService.revokeAllForUser(id, client)
     await recordActivity(client, {
       userId: actor.id,
       action: 'user.password_reset',
@@ -375,36 +376,29 @@ export async function resetPassword(id: number, input: ResetUserPasswordRequest,
       detail: { email: existing.email, username: existing.username },
     })
   })
-  await tokenService.revokeAllForUser(id)
   return getById(id, actor)
 }
 
 // Self-service UI preference: any authenticated user toggles their own theme.
-// Not part of admin update() — admins never touch another user's dark mode.
+// Not part of admin update() - admins never touch another user's dark mode.
 export async function updateTheme(userId: number, darkMode: boolean): Promise<User> {
-  const res = await query<UserRow>(
-    `UPDATE users u SET dark_mode = $1, updated_at = NOW() WHERE u.id = $2 AND u.is_deleted = FALSE
-     RETURNING u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
-       u.is_active, u.dark_mode, u.language, u.clinic_id, NULL AS clinic_name, u.created_at`,
+  const res = await query<{ id: number }>(
+    'UPDATE users SET dark_mode = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',
     [darkMode, userId],
   )
-  const row = oneRow(res.rows)
-  if (!row) throw new HttpError(404, 'User not found')
-  return toUser(row)
+  if (res.rows.length === 0) throw new HttpError(404, 'User not found')
+  return toUser(await selectUserById({ query }, userId))
 }
 
 // Self-service UI preference: any authenticated user picks their own language.
-// Not part of admin update() — admins never touch another user's language.
+// Not part of admin update() - admins never touch another user's language.
 export async function updateLanguage(userId: number, language: Language): Promise<User> {
-  const res = await query<UserRow>(
-    `UPDATE users u SET language = $1, updated_at = NOW() WHERE u.id = $2 AND u.is_deleted = FALSE
-     RETURNING u.id, u.email, u.username, u.password_hash, u.role, u.first_name, u.last_name,
-       u.is_active, u.dark_mode, u.language, u.clinic_id, NULL AS clinic_name, u.created_at`,
+  const res = await query<{ id: number }>(
+    'UPDATE users SET language = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',
     [language, userId],
   )
-  const row = oneRow(res.rows)
-  if (!row) throw new HttpError(404, 'User not found')
-  return toUser(row)
+  if (res.rows.length === 0) throw new HttpError(404, 'User not found')
+  return toUser(await selectUserById({ query }, userId))
 }
 
 // Self-service identity: a doctor renames their own login username from the
@@ -417,11 +411,7 @@ export async function updateUsername(userId: number, username: string): Promise<
   const existing = oneRow(res.rows)
   if (!existing) throw new HttpError(404, 'User not found')
   if (username === existing.username) return toUser(existing)
-  const dup = await query('SELECT id FROM users WHERE username = $1 AND is_deleted = FALSE AND id <> $2', [
-    username,
-    userId,
-  ])
-  if (dup.rows.length > 0) throw new HttpError(409, 'Username already in use')
+  await assertIdentityFree({ query }, { username }, userId)
   const row = await withTransaction(async (client) => {
     const res = await client.query(
       'UPDATE users SET username = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',

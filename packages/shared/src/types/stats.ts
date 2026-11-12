@@ -1,6 +1,6 @@
 import type { ScheduleSummary } from './schedule.ts'
 
-export interface StatsQuery {
+export interface MonthQuery {
   year?: number
   month?: number
   clinicId?: number

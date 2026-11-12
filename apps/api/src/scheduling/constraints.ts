@@ -1,47 +1,33 @@
-export interface ConstraintResult {
-  ok: boolean
-  reason: string
-}
-
-/** On-call slots per day are per clinic (clinics.open/closed_duty_slots); no fixed constant. */
-
 export function isAvailable(
-  _doctorId: number,
   date: string,
   ranges: Array<{ start: string; end: string }> | undefined,
-): ConstraintResult {
-  if (!ranges || ranges.length === 0) return { ok: true, reason: '' }
-  for (const r of ranges) {
-    if (r.start <= date && date <= r.end) return { ok: false, reason: 'unavailable' }
-  }
-  return { ok: true, reason: '' }
+): boolean {
+  return !ranges?.some((r) => r.start <= date && date <= r.end)
 }
 
-export function underCap(count: number, maxMonthlyDuties: number): ConstraintResult {
+export function underCap(count: number, maxMonthlyDuties: number): boolean {
   return count < maxMonthlyDuties
-    ? { ok: true, reason: '' }
-    : { ok: false, reason: 'at cap' }
 }
 
 /** Max duties per doctor on open on-call days per schedule (strict rule). */
 export const OPEN_DUTY_DUTY_CAP = 1
 
-export function underOpenDutyCap(count: number): ConstraintResult {
+export function underOpenDutyCap(count: number): boolean {
   return count < OPEN_DUTY_DUTY_CAP
-    ? { ok: true, reason: '' }
-    : { ok: false, reason: 'at open on-call cap' }
 }
-
 
 /** Max on-call duties per doctor on holiday days (weekends + marked dates) per month. */
 export const HOLIDAY_DUTY_CAP = 2
 
-export function underHolidayCap(count: number): ConstraintResult {
-  return count < HOLIDAY_DUTY_CAP
-    ? { ok: true, reason: '' }
-    : { ok: false, reason: 'at holiday cap' }
+/**
+ * Holiday duties above the cap. Critical holiday duties (open on-call days
+ * and the day after) are exempt from the cap but use up room first, so the
+ * regular ones may number at most `max(0, cap - critical)`.
+ */
+export function holidayExcess(regular: number, critical: number): number {
+  return Math.max(0, regular - Math.max(0, HOLIDAY_DUTY_CAP - critical))
 }
 
-export function notConsecutive(onDutyYesterday: boolean): ConstraintResult {
-  return onDutyYesterday ? { ok: false, reason: 'back-to-back' } : { ok: true, reason: '' }
+export function holidayCapAllows(regular: number, critical: number): boolean {
+  return holidayExcess(regular, critical) === 0
 }

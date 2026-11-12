@@ -1,12 +1,6 @@
-import { resolve } from 'node:path'
-import { config } from 'dotenv'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-
-const { parsed } = config({ path: resolve(import.meta.dirname, '../../.env') })
-if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL
-
-const { query, withTransaction } = await import('../db/client.ts')
-const { generations, overlapPercent, recordGeneration } = await import('../services/usage.service.ts')
+import { query, withTransaction } from '../db/client.ts'
+import { generations, listAlerts, overlapPercent, recordGeneration } from '../services/usage.service.ts'
 
 describe('overlapPercent', () => {
   it('returns 100 for identical sets', () => {
@@ -199,5 +193,20 @@ describe('per-clinic partitioning (I22, real database)', () => {
     )
     expect(alert.rows[0]?.clinicId).toBe(String(clinicB))
     expect(alert.rows[0]?.clinicName).toBe(clinicBName)
+
+    const clinicBEvents = (await generations())
+      .filter((e) => e.clinicId === clinicB && e.year === YEAR2 && e.month === MONTH2)
+      .sort((x, y) => y.generatedAt.localeCompare(x.generatedAt))
+    expect(clinicBEvents.map((e) => e.overlapPercent)).toEqual([0, null])
+  })
+
+  it('listAlerts puts unresolved alerts before resolved ones, even when the resolved one is newer', async () => {
+    await query(
+      `INSERT INTO operator_alerts (type, detail, created_at, resolved_at)
+       VALUES ('disjoint_regeneration', jsonb_build_object('year', $1::int, 'month', 1), NOW() + INTERVAL '1 hour', NOW())`,
+      [YEAR2],
+    )
+    const mine = (await listAlerts()).filter((a) => a.detail.year === YEAR2)
+    expect(mine.map((a) => a.resolvedAt === null)).toEqual([true, false])
   })
 })

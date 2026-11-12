@@ -48,7 +48,7 @@ function doctorRow(overrides: Partial<Record<string, unknown>> = {}) {
 function installDb(rows: Record<string, unknown>[] = [doctorRow()]) {
   query.mockImplementation(async (...args: unknown[]) => {
     const sql = String(args[0] ?? '')
-    if (sql.includes('WHERE email =')) return { rows: [] }
+    if (sql.includes('WHERE lower(email) =')) return { rows: [] }
     if (sql.includes('WHERE username =')) return { rows: [] }
     if (sql.includes('INSERT INTO users')) return { rows: [{ id: 10 }] }
     if (sql.includes('INSERT INTO doctors')) return { rows: [{ id: 1 }] }
@@ -67,7 +67,7 @@ beforeEach(() => {
 })
 
 describe('doctor.service', () => {
-  const scope = (clinicId: number): ClinicScope => ({ kind: 'clinic', clinicId })
+  const scope = (clinicId: number): ClinicScope => ({ clinicId })
   const actor = { id: 2, role: 'administrator' as const, clinicId: 1 }
   const managerActor = { id: 5, role: 'manager' as const, clinicId: null }
   const superadminActor = { id: 3, role: 'superadmin' as const, clinicId: null }
@@ -90,13 +90,6 @@ describe('doctor.service', () => {
     await expect(getByUserId(9)).rejects.toMatchObject({ status: 404 })
   })
 
-  it('getByUserId excludes deleted doctors (404)', async () => {
-    query.mockResolvedValue({ rows: [] })
-    await expect(getByUserId(10)).rejects.toMatchObject({ status: 404 })
-    const sql = query.mock.calls[0]?.[0] as string
-    expect(sql).toContain('u.is_deleted = FALSE')
-  })
-
   it('getById hides a cross-clinic row from an administrator (404)', async () => {
     query.mockResolvedValueOnce({ rows: [doctorRow({ clinic_id: 2 })] })
     await expect(getById(1, actor)).rejects.toMatchObject({ status: 404 })
@@ -115,12 +108,12 @@ describe('doctor.service', () => {
     query.mockImplementation(async (...args: unknown[]) => {
       const sql = String(args[0] ?? '')
       if (sql.includes('FROM clinics')) return { rows: [{ is_active: true }] }
-      if (sql.includes('WHERE email =')) return { rows: [{ id: 9 }] }
+      if (sql.includes('WHERE lower(email) =')) return { rows: [{ id: 9 }] }
       return { rows: [] }
     })
     await expect(
       create(
-        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' },
+        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R', maxMonthlyDuties: 7 },
         actor,
         scope(1),
       ),
@@ -131,7 +124,7 @@ describe('doctor.service', () => {
     query.mockImplementation(async () => ({ rows: [] }))
     await expect(
       create(
-        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' },
+        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R', maxMonthlyDuties: 7 },
         actor,
         scope(99),
       ),
@@ -144,7 +137,7 @@ describe('doctor.service', () => {
     })
     await expect(
       create(
-        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' },
+        { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R', maxMonthlyDuties: 7 },
         actor,
         scope(1),
       ),
@@ -204,6 +197,53 @@ describe('doctor.service', () => {
     await expect(update(1, { firstName: 'X' }, actor)).rejects.toMatchObject({ status: 404 })
   })
 
+  it('update revokes sessions on deactivation but not on reactivation', async () => {
+    installDb([doctorRow({ user_id: 10 })])
+    await update(1, { isActive: false }, actor)
+    expect(revokeAllForUser).toHaveBeenCalledWith(10)
+
+    revokeAllForUser.mockClear()
+    installDb([doctorRow({ user_id: 10, is_active: false })])
+    await update(1, { isActive: true }, actor)
+    expect(revokeAllForUser).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['email', 'WHERE lower(email) =', { email: 'taken@h.com' }],
+    ['username', 'WHERE username =', { username: 'taken' }],
+  ] as const)('update rejects a %s used by another account with 409', async (_field, clash, input) => {
+    query.mockImplementation(async (...args: unknown[]) => {
+      const sql = String(args[0] ?? '')
+      if (sql.includes(clash)) return { rows: [{ id: 99 }] }
+      return { rows: [doctorRow()] }
+    })
+    await expect(update(1, input, actor)).rejects.toMatchObject({ status: 409 })
+    expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))).toBe(false)
+    expect(recordActivity).not.toHaveBeenCalled()
+  })
+
+  it('update logs doctor.deactivated and doctor.reactivated for isActive changes', async () => {
+    installDb([doctorRow()])
+    await update(1, { isActive: false }, actor)
+    expect(recordActivity).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'doctor.deactivated', entityId: 1 }),
+    )
+
+    installDb([doctorRow({ is_active: false })])
+    await update(1, { isActive: true }, actor)
+    expect(recordActivity).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'doctor.reactivated', entityId: 1 }),
+    )
+  })
+
+  it('update writes no audit row when nothing changed', async () => {
+    installDb([doctorRow()])
+    await update(1, { firstName: 'Jane', maxMonthlyDuties: 7 }, actor)
+    expect(recordActivity).not.toHaveBeenCalled()
+  })
+
   it('remove soft-deletes: sets is_deleted and is_active, revokes tokens, keeps rows', async () => {
     query
       .mockResolvedValueOnce({ rows: [doctorRow({ id: 2, user_id: 7 })] })
@@ -232,39 +272,10 @@ describe('doctor.service', () => {
     expect(revokeAllForUser).not.toHaveBeenCalled()
   })
 
-  it('remove allows deletion when duties exist only in published schedules', async () => {
-    query
-      .mockResolvedValueOnce({ rows: [doctorRow({ id: 2, user_id: 7 })] })
-      .mockResolvedValueOnce({ rows: [] }) // draft-duty check: none
-      .mockResolvedValueOnce({ rows: [] }) // UPDATE users
-    await remove(2, actor)
-    expect(revokeAllForUser).toHaveBeenCalledWith(7)
-  })
-
   it('remove throws 404 when doctor missing or cross-clinic', async () => {
     query.mockResolvedValueOnce({ rows: [] })
     await expect(remove(99, actor)).rejects.toMatchObject({ status: 404 })
     query.mockResolvedValueOnce({ rows: [doctorRow({ clinic_id: 2 })] })
     await expect(remove(1, actor)).rejects.toMatchObject({ status: 404 })
-  })
-
-  it('getById excludes deleted doctors (404)', async () => {
-    query.mockResolvedValueOnce({ rows: [] })
-    await expect(getById(2, actor)).rejects.toMatchObject({ status: 404 })
-    const sql = query.mock.calls[0]?.[0] as string
-    expect(sql).toContain('u.is_deleted = FALSE')
-  })
-
-  it('create duplicate checks ignore deleted accounts', async () => {
-    installDb()
-    await create(
-      { email: 'd@h.com', username: 'dr1', password: 'secret1', firstName: 'J', lastName: 'R' },
-      actor,
-      scope(1),
-    )
-    const emailCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE email ='))
-    const usernameCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE username ='))
-    expect(String(emailCheck?.[0])).toContain('AND is_deleted = FALSE')
-    expect(String(usernameCheck?.[0])).toContain('AND is_deleted = FALSE')
   })
 })

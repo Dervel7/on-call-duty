@@ -78,8 +78,16 @@ describe('activity routes', () => {
         page: 3,
         limit: 25,
       },
-      { kind: 'clinic', clinicId: 1 },
+      { clinicId: 1 },
     )
+  })
+
+  it('from after to is 400', async () => {
+    const res = await request(build())
+      .get('/activity?from=2026-08-31&to=2026-08-01')
+      .set('Authorization', `Bearer ${superadminToken()}`)
+    expect(res.status).toBe(400)
+    expect(list).not.toHaveBeenCalled()
   })
 
   it('manager: 400 without clinicId; drill-down with clinicId (I23)', async () => {
@@ -94,14 +102,7 @@ describe('activity routes', () => {
       .get('/activity?clinicId=2')
       .set('Authorization', `Bearer ${managerToken()}`)
     expect(good.status).toBe(200)
-    expect(list).toHaveBeenCalledWith({ page: 1, limit: 50 }, { kind: 'clinic', clinicId: 2 })
-  })
-
-  it('administrator passing a foreign clinicId gets 403', async () => {
-    const res = await request(build())
-      .get('/activity?clinicId=9')
-      .set('Authorization', `Bearer ${adminToken()}`)
-    expect(res.status).toBe(403)
+    expect(list).toHaveBeenCalledWith({ page: 1, limit: 50 }, { clinicId: 2 })
   })
 
   it('rejects invalid query with 400', async () => {

@@ -25,7 +25,7 @@ function expiryDate(): Date {
   return new Date(Date.now() + refreshExpiryMs())
 }
 
-async function insertToken(userId: number): Promise<string> {
+export async function issueRefreshToken(userId: number): Promise<string> {
   const token = generateRefreshToken()
   await query(
     `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
@@ -70,10 +70,6 @@ async function revokeFamily(startId: number): Promise<void> {
   )
 }
 
-export async function issueRefreshToken(userId: number): Promise<string> {
-  return insertToken(userId)
-}
-
 export async function rotateRefreshToken(
   oldToken: string,
 ): Promise<{ token: string; userId: number }> {
@@ -95,7 +91,7 @@ export async function rotateRefreshToken(
       )
       const newId = ins.rows[0]?.id
       // Atomic claim: zero rows means a concurrent rotation already consumed
-      // this token — treat as reuse and revoke the whole family.
+      // this token - treat as reuse and revoke the whole family.
       const claim = await client.query(
         `UPDATE refresh_tokens SET revoked_at = NOW(), replaced_by = $1
          WHERE id = $2 AND revoked_at IS NULL RETURNING id`,
@@ -122,10 +118,17 @@ export async function revokeRefreshToken(token: string): Promise<number | null> 
   return res.rows[0]?.user_id ?? null
 }
 
-export async function revokeAllForUser(userId: number): Promise<void> {
-  await query(
+export async function revokeAllForUser(userId: number, client?: PoolClient): Promise<void> {
+  const sql = `UPDATE refresh_tokens SET revoked_at = NOW()
+     WHERE user_id = $1 AND revoked_at IS NULL`
+  if (client) await client.query(sql, [userId])
+  else await query(sql, [userId])
+}
+
+export async function revokeAllForClinic(clinicId: number, client: PoolClient): Promise<void> {
+  await client.query(
     `UPDATE refresh_tokens SET revoked_at = NOW()
-     WHERE user_id = $1 AND revoked_at IS NULL`,
-    [userId],
+     WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE clinic_id = $1)`,
+    [clinicId],
   )
 }

@@ -8,13 +8,6 @@ vi.mock('../services/reports.service.ts', () => ({
 }))
 vi.mock('../services/billing.service.ts', () => ({ isLocked: async () => false }))
 
-vi.mock('../services/stats.service.ts', () => ({
-  currentYearMonthUTC: () => {
-    const now = new Date()
-    return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }
-  },
-}))
-
 import { errorHandler } from '../middleware/error-handler.ts'
 import { signAccessToken } from '../lib/jwt.ts'
 import { reportsRouter } from '../routes/reports.routes.ts'
@@ -74,28 +67,12 @@ describe('reports routes', () => {
     expect(res.status).toBe(400)
   })
 
-  it('without query resolves to the current UTC month', async () => {
-    monthlyReport.mockResolvedValue(emptyReport())
-    await request(build())
-      .get('/reports/monthly')
-      .set('Authorization', `Bearer ${adminToken()}`)
-    expect(monthlyReport).toHaveBeenCalledTimes(1)
-    const now = new Date()
-    expect(monthlyReport.mock.calls[0]?.[0]).toBe(now.getUTCFullYear())
-    expect(monthlyReport.mock.calls[0]?.[1]).toBe(now.getUTCMonth() + 1)
-  })
-
   it('passes explicit year/month through', async () => {
     monthlyReport.mockResolvedValue(emptyReport({ year: 2025, month: 12 }))
     await request(build())
       .get('/reports/monthly?year=2025&month=12')
       .set('Authorization', `Bearer ${adminToken()}`)
-    expect(monthlyReport).toHaveBeenCalledWith(
-      2025,
-      12,
-      { id: 1, role: 'administrator', clinicId: 1 },
-      { kind: 'clinic', clinicId: 1 },
-    )
+    expect(monthlyReport).toHaveBeenCalledWith({ clinicId: 1 }, 2025, 12)
   })
 
   it('manager: 400 without clinicId; happy path with clinicId (drill-down)', async () => {
@@ -111,7 +88,7 @@ describe('reports routes', () => {
       .set('Authorization', `Bearer ${managerToken()}`)
     expect(good.status).toBe(200)
     expect(monthlyReport).toHaveBeenCalledTimes(1)
-    expect(monthlyReport.mock.calls[0]?.[3]).toEqual({ kind: 'clinic', clinicId: 2 })
+    expect(monthlyReport.mock.calls[0]?.[0]).toEqual({ clinicId: 2 })
   })
 
   it('administrator passing a foreign clinicId gets 403', async () => {

@@ -40,7 +40,9 @@ export function rateLimit({ windowMs, limit, keyFn }: Options) {
       return
     }
     entry.count += 1
-    if (entry.count > limit) throw new HttpError(429, 'Too many requests; try again later')
+    if (entry.count > limit) {
+      throw new HttpError(429, 'Too many requests; try again later', Math.ceil((entry.resetAt - now) / 1000))
+    }
     next()
   }
 }

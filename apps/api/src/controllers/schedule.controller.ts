@@ -3,6 +3,8 @@ import type { ScheduleQuery } from '@oncall/shared'
 import { ok } from '../lib/envelope.ts'
 import { HttpError } from '../lib/http-error.ts'
 import { resolveClinicScope } from '../lib/scope.ts'
+import { addDuty, reassignDuty, removeDuty } from '../services/duty.service.ts'
+import { generateAlternative, generateOptions } from '../services/schedule-options.service.ts'
 import * as scheduleService from '../services/schedule.service.ts'
 
 export const scheduleController = {
@@ -11,7 +13,7 @@ export const scheduleController = {
       // req.query is typed by validate(scheduleQuerySchema) upstream.
       const { clinicId, ...filters } = req.query as ScheduleQuery & { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
-      const schedules = await scheduleService.list(filters, req.user, scope)
+      const schedules = await scheduleService.list(filters, req.user!, scope)
       res.status(200).json(ok({ schedules }))
     } catch (err) {
       next(err)
@@ -19,24 +21,8 @@ export const scheduleController = {
   },
   async getById(req: Request, res: Response, next: NextFunction) {
     try {
-      const detail = await scheduleService.getById(Number(req.params.id), req.user)
+      const detail = await scheduleService.getById(Number(req.params.id), req.user!)
       res.status(200).json(ok(detail))
-    } catch (err) {
-      next(err)
-    }
-  },
-  async preview(req: Request, res: Response, next: NextFunction) {
-    try {
-      // req.query is typed by validate(scheduleQuerySchema) upstream.
-      const { clinicId } = req.query as { clinicId?: number }
-      const scope = await resolveClinicScope(req.user!, clinicId)
-      const result = await scheduleService.preview(
-        req.body.year,
-        req.body.month,
-        scope,
-        req.body.assignments,
-      )
-      res.status(200).json(ok(result))
     } catch (err) {
       next(err)
     }
@@ -46,7 +32,7 @@ export const scheduleController = {
       // req.query is typed by validate(scheduleQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
-      const result = await scheduleService.generateOptions(req.body.year, req.body.month, scope)
+      const result = await generateOptions(req.body.year, req.body.month, scope)
       res.status(200).json(ok(result))
     } catch (err) {
       next(err)
@@ -57,7 +43,7 @@ export const scheduleController = {
       // req.query is typed by validate(scheduleQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
-      const result = await scheduleService.generateAlternative(
+      const result = await generateAlternative(
         req.body.year,
         req.body.month,
         req.body.index,
@@ -98,7 +84,7 @@ export const scheduleController = {
   async addDuty(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new HttpError(401, 'Unauthorized')
-      const duty = await scheduleService.addDuty(Number(req.params.id), req.body, req.user)
+      const duty = await addDuty(Number(req.params.id), req.body, req.user)
       res.status(201).json(ok({ duty }))
     } catch (err) {
       next(err)
@@ -107,7 +93,7 @@ export const scheduleController = {
   async reassignDuty(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new HttpError(401, 'Unauthorized')
-      const duty = await scheduleService.reassignDuty(Number(req.params.id), req.body, req.user)
+      const duty = await reassignDuty(Number(req.params.id), req.body, req.user)
       res.status(200).json(ok({ duty }))
     } catch (err) {
       next(err)
@@ -116,7 +102,7 @@ export const scheduleController = {
   async removeDuty(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw new HttpError(401, 'Unauthorized')
-      await scheduleService.removeDuty(Number(req.params.id), req.user)
+      await removeDuty(Number(req.params.id), req.user)
       res.status(204).end()
     } catch (err) {
       next(err)

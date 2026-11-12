@@ -1,21 +1,36 @@
-import type { ConflictPlan, ConflictTally, DutyMinimumSettings, DutySlotsSettings, OpenDutySettings } from '@oncall/shared'
+import type {
+  AssignmentPlan,
+  ConflictPlan,
+  ConflictTally,
+  DutyMinimumSettings,
+  DutySlotsSettings,
+  OpenDutySettings,
+} from '@oncall/shared'
 
-export type { ConflictPlan, ConflictTally }
+export type { AssignmentPlan, ConflictPlan, ConflictTally }
 
 export interface DoctorSpec {
   id: number
   firstName: string
   lastName: string
   maxMonthlyDuties: number
-  isActive: boolean
 }
 
 export interface DaySpec {
   date: string
-  dayOfWeek: number // 0=Sun … 6=Sat
+  dayOfWeek: number // 0=Sun ... 6=Sat
   isWeekend: boolean
   /** Weekend or admin-marked holiday for the clinic; holiday-duty cap applies. */
   isHoliday: boolean
+}
+
+export interface ModelDay {
+  day: DaySpec
+  /** Open on-call day or the day right after one. */
+  critical: boolean
+  open: boolean
+  slots: number
+  minimum: number
 }
 
 export interface SchedulingContext {
@@ -27,6 +42,8 @@ export interface SchedulingContext {
    doctors: DoctorSpec[]
    unavailability: Map<number, Array<{ start: string; end: string }>>
    priorDayDoctorIds: Set<number>
+  /** Doctors on duty the day after the month's last day (next month's first day). */
+  nextDayDoctorIds: Set<number>
   /** Open on-call cycle; open days and the day after them are critical. */
   openDuty: OpenDutySettings
   /** Per-day on-call capacity: open, post-open (day after open), or closed slots. */
@@ -41,15 +58,6 @@ export interface CandidateScore {
   weekend: number
   friday: number
   friSatSun: number
-}
-
-export interface AssignmentPlan {
-  date: string
-  doctorId: number
-  doctorFirstName: string
-  doctorLastName: string
-  isWeekend: boolean
-  reason: string
 }
 
 export interface GenerateResult {

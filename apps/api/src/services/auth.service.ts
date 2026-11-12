@@ -1,9 +1,10 @@
 import bcrypt from 'bcrypt'
-import { query } from '../db/client.ts'
+import { query, withTransaction } from '../db/client.ts'
 import { HttpError } from '../lib/http-error.ts'
 import { signAccessToken } from '../lib/jwt.ts'
 import type { AuthUser, ChangePasswordRequest, Language, LoginRequest, Role } from '@oncall/shared'
 import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
+import { hashPassword } from './account.ts'
 import * as billingService from './billing.service.ts'
 import { logActivity } from './activity.service.ts'
 import * as tokenService from './token.service.ts'
@@ -49,26 +50,14 @@ const USER_COLUMNS = `u.id, u.email, u.username, u.password_hash, u.role, u.firs
   u.created_at`
 const FROM_USERS = `users u LEFT JOIN clinics c ON c.id = u.clinic_id`
 
-async function findUserByEmail(email: string): Promise<UserRow | undefined> {
+async function findUser(
+  column: 'email' | 'username' | 'id',
+  value: string | number,
+): Promise<UserRow | undefined> {
+  const where = column === 'email' ? 'lower(u.email) = lower($1)' : `u.${column} = $1`
   const res = await query<UserRow>(
-    `SELECT ${USER_COLUMNS} FROM ${FROM_USERS} WHERE u.email = $1 AND u.is_deleted = FALSE`,
-    [email],
-  )
-  return res.rows[0]
-}
-
-async function findUserByUsername(username: string): Promise<UserRow | undefined> {
-  const res = await query<UserRow>(
-    `SELECT ${USER_COLUMNS} FROM ${FROM_USERS} WHERE u.username = $1 AND u.is_deleted = FALSE`,
-    [username],
-  )
-  return res.rows[0]
-}
-
-async function findUserById(id: number): Promise<UserRow | undefined> {
-  const res = await query<UserRow>(
-    `SELECT ${USER_COLUMNS} FROM ${FROM_USERS} WHERE u.id = $1 AND u.is_deleted = FALSE`,
-    [id],
+    `SELECT ${USER_COLUMNS} FROM ${FROM_USERS} WHERE ${where} AND u.is_deleted = FALSE`,
+    [value],
   )
   return res.rows[0]
 }
@@ -78,8 +67,8 @@ export async function login(
   input: LoginRequest,
 ): Promise<{ user: AuthUser; accessToken: string; refreshToken: string }> {
   const row = input.identifier.includes('@')
-    ? await findUserByEmail(input.identifier)
-    : await findUserByUsername(input.identifier)
+    ? await findUser('email', input.identifier)
+    : await findUser('username', input.identifier)
   const hash = row?.password_hash ?? DUMMY_PASSWORD_HASH
   const ok = await bcrypt.compare(input.password, hash)
   if (!row || !ok) throw new HttpError(401, 'Invalid credentials')
@@ -108,9 +97,10 @@ export async function refresh(
   oldToken: string,
 ): Promise<{ user: AuthUser; accessToken: string; refreshToken: string }> {
   const { token: newToken, userId } = await tokenService.rotateRefreshToken(oldToken)
-  const row = await findUserById(userId)
+  const row = await findUser('id', userId)
   if (!row) throw new HttpError(401, 'Invalid refresh token')
   if (!row.is_active) throw new HttpError(403, 'Account disabled')
+  if (row.clinic_is_active === false) throw new HttpError(403, 'Clinic is deactivated')
   if (row.role !== 'superadmin' && (await billingService.isLocked())) {
     throw new HttpError(403, SYSTEM_LOCKED_MESSAGE)
   }
@@ -121,7 +111,7 @@ export async function refresh(
 export async function logout(token: string): Promise<void> {
   const userId = await tokenService.revokeRefreshToken(token)
   if (userId === null) return
-  const row = await findUserById(userId)
+  const row = await findUser('id', userId)
   await logActivity({
     userId,
     clinicId: row?.clinic_id ?? null,
@@ -132,7 +122,7 @@ export async function logout(token: string): Promise<void> {
 }
 
 export async function getUser(id: number): Promise<AuthUser> {
-  const row = await findUserById(id)
+  const row = await findUser('id', id)
   if (!row) throw new HttpError(404, 'User not found')
   return toAuthUser(row)
 }
@@ -141,16 +131,18 @@ export async function changePassword(
   userId: number,
   input: ChangePasswordRequest,
 ): Promise<AuthUser> {
-  const row = await findUserById(userId)
+  const row = await findUser('id', userId)
   if (!row) throw new HttpError(404, 'User not found')
   const ok = await bcrypt.compare(input.currentPassword, row.password_hash)
   if (!ok) throw new HttpError(400, 'Current password is incorrect')
-  const newHash = await bcrypt.hash(input.newPassword, 12)
-  await query(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [
-    newHash,
-    row.id,
-  ])
-  await tokenService.revokeAllForUser(userId)
+  const newHash = await hashPassword(input.newPassword)
+  await withTransaction(async (client) => {
+    await client.query(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [
+      newHash,
+      row.id,
+    ])
+    await tokenService.revokeAllForUser(userId, client)
+  })
   await logActivity({
     userId,
     clinicId: row.clinic_id,

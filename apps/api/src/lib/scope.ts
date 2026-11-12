@@ -1,10 +1,9 @@
-import type { AuthUser } from '@oncall/shared'
+import type { Actor } from '@oncall/shared'
 import { query } from '../db/client.ts'
 import { HttpError } from './http-error.ts'
 
 /** Fixed to one clinic (from the JWT) for administrator/doctor. */
 export interface ClinicScope {
-  kind: 'clinic'
   clinicId: number
 }
 
@@ -17,27 +16,27 @@ export interface ClinicScope {
  * clinic explicitly when more than one exists.
  */
 export async function resolveClinicScope(
-  user: Pick<AuthUser, 'id' | 'role' | 'clinicId'>,
+  user: Actor,
   requestedClinicId: number | undefined,
 ): Promise<ClinicScope> {
   if (user.role === 'administrator' || user.role === 'doctor') {
     if (requestedClinicId !== undefined && requestedClinicId !== user.clinicId) {
       throw new HttpError(403, 'Forbidden')
     }
-    return { kind: 'clinic', clinicId: user.clinicId as number }
+    return { clinicId: user.clinicId as number }
   }
   if (user.role === 'manager') {
     if (requestedClinicId === undefined) {
       throw new HttpError(400, 'clinicId query parameter is required')
     }
-    return { kind: 'clinic', clinicId: requestedClinicId }
+    return { clinicId: requestedClinicId }
   }
   if (user.role === 'superadmin') {
     const clinicId = requestedClinicId ?? (await soleClinicId())
     if (clinicId === undefined) {
       throw new HttpError(400, 'clinicId query parameter is required')
     }
-    return { kind: 'clinic', clinicId }
+    return { clinicId }
   }
   throw new HttpError(403, 'Forbidden')
 }

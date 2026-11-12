@@ -1,7 +1,7 @@
 import type { LegacyHighsSolution } from 'highs'
 import { logger } from '../logger.ts'
-import { blockingRule, emptyTally, type DutyCounts } from './conflicts.ts'
-import { HOLIDAY_DUTY_CAP } from './constraints.ts'
+import { blockingRule, countBlock, emptyTally, type DutyCounts } from './conflicts.ts'
+import { holidayExcess } from './constraints.ts'
 import { generateGreedy } from './engine.ts'
 import { loadSolver, type Solver, type SolverLoader } from './highs.ts'
 import {
@@ -12,11 +12,12 @@ import {
   type ModelBounds,
   type ModelCell,
   type ModelIndex,
+  stageObjective,
   type Stage,
 } from './solver-model.ts'
 import type { AssignmentPlan, ConflictPlan, GenerateResult, SchedulingContext } from './types.ts'
 
-/** Wall-clock budget for all solves of one generate() call (D4). */
+/** Wall-clock budget for all solves of one generate() call (options design D6). */
 export const SOLVER_BUDGET_MS = 45_000
 
 /** Wall-clock budget of each alternative schedule option, on top of the primary solve. */
@@ -224,14 +225,30 @@ async function solveStages(solver: Solver, index: ModelIndex, deadline: number):
       optima.set(stage, Math.round(solved.ObjectiveValue))
       continue
     }
-    // A finite objective at the time limit means HiGHS holds an incumbent.
-    if (solved && Number.isFinite(solved.ObjectiveValue))
-      chosen = chosenCells(index, solved.Columns)
+    // A finite objective at the time limit means HiGHS holds an incumbent. It
+    // meets the earlier bounds but may be worse on this stage than the
+    // previous solution, so it only replaces that one when it is better.
+    if (solved && Number.isFinite(solved.ObjectiveValue)) {
+      const incumbent = chosenCells(index, solved.Columns)
+      if (!chosen || improves(index, stage, incumbent, chosen, capacity)) chosen = incumbent
+    }
     return result(chosen ? { chosen, status: 'time limit' } : null)
   }
   // No stage had anything to optimize: no possible duty and no minimum.
   if (!solvedAny) return result({ chosen: new Set(), status: 'optimal' })
   return result(chosen ? { chosen, status: 'optimal' } : null)
+}
+
+function improves(
+  index: ModelIndex,
+  stage: Stage,
+  candidate: ReadonlySet<string>,
+  current: ReadonlySet<string>,
+  capacity: ReadonlyMap<number, number>,
+): boolean {
+  const next = stageObjective(index, stage, candidate, capacity)
+  const previous = stageObjective(index, stage, current, capacity)
+  return stage === 'fill' ? next > previous : next < previous
 }
 
 /**
@@ -263,7 +280,13 @@ function chosenCells(index: ModelIndex, columns: LegacyHighsSolution['Columns'])
 
 /** Assignments with explainable reasons, plus a conflict for every short day. */
 function decode(ctx: SchedulingContext, index: ModelIndex, solution: Solution): GenerateResult {
-  const counts: DutyCounts = { byDate: new Map(), total: new Map(), openDays: new Map(), holiday: new Map() }
+  const counts: DutyCounts = {
+    byDate: new Map(),
+    total: new Map(),
+    openDays: new Map(),
+    holiday: new Map(),
+    criticalHoliday: new Map(),
+  }
   const bump = (map: Map<number, number>, id: number): void => {
     map.set(id, (map.get(id) ?? 0) + 1)
   }
@@ -274,7 +297,7 @@ function decode(ctx: SchedulingContext, index: ModelIndex, solution: Solution): 
       ids.add(cell.doctorId)
       bump(counts.total, cell.doctorId)
       if (d.open) bump(counts.openDays, cell.doctorId)
-      if (d.day.isHoliday) bump(counts.holiday, cell.doctorId)
+      if (d.day.isHoliday) bump(d.critical ? counts.criticalHoliday : counts.holiday, cell.doctorId)
     }
     counts.byDate.set(d.day.date, ids)
   }
@@ -293,11 +316,11 @@ function decode(ctx: SchedulingContext, index: ModelIndex, solution: Solution): 
       const same = sameWeekday(cells, w.dayOfWeek)
       if (same.length === 1) note(same[0]!, `first ${w.name}`)
       // Only the extra duties are repeats: the chronologically last ones.
-      if (same.length > 1) repeats.push(...same.filter(needed).slice(1 - same.length))
+      if (same.length > 1) repeats.push(...same.slice(1).filter(needed))
     }
     const nonCritical = cells.filter((c) => c.day.day.isHoliday && !c.day.critical)
     const critical = cells.filter((c) => c.day.day.isHoliday && c.day.critical)
-    const excess = nonCritical.length - Math.max(0, HOLIDAY_DUTY_CAP - critical.length)
+    const excess = holidayExcess(nonCritical.length, critical.length)
     if (excess > 0) {
       for (const c of nonCritical.filter(needed).slice(-excess))
         note(c, 'day-fill guarantee overrode fairness caps')
@@ -328,7 +351,7 @@ function decode(ctx: SchedulingContext, index: ModelIndex, solution: Solution): 
     const tally = emptyTally()
     for (const doctor of ctx.doctors) {
       const blocked = blockingRule(ctx, counts, doctor, d.day, d.critical, true)
-      if (blocked) tally[blocked]++
+      if (blocked) countBlock(tally, blocked)
     }
     conflicts.push({
       date: d.day.date,

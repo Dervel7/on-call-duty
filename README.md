@@ -151,7 +151,7 @@ Root scripts (run from the repository root):
 | Script | Description |
 |---|---|
 | `pnpm dev` | Start API and web in parallel (watch mode) |
-| `pnpm build` | Build all packages |
+| `pnpm build` | Build the web app |
 | `pnpm typecheck` | Typecheck all packages |
 | `pnpm lint` | Lint all packages |
 | `pnpm test` | Run all tests |
@@ -222,7 +222,7 @@ The database setup scripts read `DATABASE_URL` from `apps/api/.env`, so credenti
 
 - `pnpm install`, `pnpm db:seed:single`, and `pnpm dev` succeed from a clean clone (no schedule seed — schedules are produced via the API).
 - The engine respects every hard constraint: no doctor over `max_monthly_duties`, no duty during unavailability, no back-to-back (including the cross-month boundary), inactive doctors excluded.
-- Admin can `POST /schedules/preview` (200 `{assignments, conflicts}`), `POST /schedules` (201; 409 if the month exists; 422 if unfillable and nothing persisted), `GET /schedules` / `GET /schedules/:id`, `DELETE /schedules/:id`, and override duties via `POST /schedules/:id/duties` / `PATCH /duties/:id` / `DELETE /duties/:id` with 409 on any constraint violation. Doctors get 403 on all schedule/duty routes.
+- Admin can `POST /schedules/options` (option A, not persisted) and `POST /schedules/options/alternative`, and `POST /schedules` with the chosen plan in `assignments` (201; 400 without a plan; 409 if the month exists), `GET /schedules` / `GET /schedules/:id`, `DELETE /schedules/:id`, and override duties via `POST /schedules/:id/duties` / `PATCH /duties/:id` / `DELETE /duties/:id` with 409 on any constraint violation. Doctors get 403 on all schedule/duty routes.
 - For solvable months, weekend/holiday duties stay within the holiday cap (max 2 per doctor per month); every duty carries a persisted `reason`.
 - Deleting a doctor with duties → 409 (disable instead); deleting a schedule cascades its duties.
 - `pnpm typecheck`, `pnpm lint`, and `pnpm test` all pass across the monorepo.

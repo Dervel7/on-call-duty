@@ -34,11 +34,12 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
     email: 'd@h.com',
     username: 'dr1',
     password_hash: 'HASH',
-    role: 'doctor',
+    role: 'administrator',
     first_name: 'Jane',
     last_name: 'Roe',
     dark_mode: false,
     language: 'en',
+    is_active: true,
     clinic_id: 1,
     clinic_name: 'Radiology',
     created_at: new Date('2026-01-01'),
@@ -52,17 +53,17 @@ function installDb(rows: Record<string, unknown>[] = [row()]) {
   query.mockImplementation(async (...args: unknown[]) => {
     const sql = String(args[0] ?? '')
     if (sql.includes('FROM clinics')) return { rows: [{ is_active: true }] }
-    if (sql.includes('WHERE email =')) return { rows: [] }
+    if (sql.includes('WHERE lower(email) =')) return { rows: [] }
     if (sql.includes('WHERE username =')) return { rows: [] }
     return { rows }
   })
 }
 
-const validDoctor = {
+const validAdmin = {
   email: 'd@h.com',
   username: 'dr1',
   password: 'secret1',
-  role: 'doctor' as const,
+  role: 'administrator' as const,
   firstName: 'J',
   lastName: 'R',
 }
@@ -76,35 +77,18 @@ beforeEach(() => {
 })
 
 describe('user.service', () => {
-  const scope = (clinicId: number): ClinicScope => ({ kind: 'clinic', clinicId })
+  const scope = (clinicId: number): ClinicScope => ({ clinicId })
   const adminActor = { id: 2, role: 'administrator' as const, clinicId: 1 }
   const superadminActor = { id: 3, role: 'superadmin' as const, clinicId: null }
   const managerActor = { id: 4, role: 'manager' as const, clinicId: null }
 
   it('list maps rows to User', async () => {
     query.mockResolvedValue({ rows: [row(), row({ id: 2, email: 'x@y.z' })] })
-    const users = await list(adminActor, scope(1))
+    const users = await list(scope(1))
     expect(users).toHaveLength(2)
     expect(users[0]?.firstName).toBe('Jane')
     expect(users[0]?.clinicName).toBe('Radiology')
     expect(typeof users[0]?.createdAt).toBe('string')
-  })
-
-  it('list is clinic-scoped and hides hospital roles from non-superadmins', async () => {
-    query.mockResolvedValue({ rows: [row()] })
-    await list(adminActor, scope(1))
-    const sql = query.mock.calls[0]?.[0] as string
-    expect(sql).toContain('u.clinic_id = $1')
-    expect(sql).toContain(`role NOT IN ('superadmin', 'manager')`)
-    expect(query.mock.calls[0]?.[1]).toEqual([1])
-  })
-
-  it('list for a superadmin keeps the clinic scope but shows every role', async () => {
-    query.mockResolvedValue({ rows: [row()] })
-    await list(superadminActor, scope(1))
-    const sql = query.mock.calls[0]?.[0] as string
-    expect(sql).toContain('u.clinic_id = $1')
-    expect(sql).not.toContain('role NOT IN')
   })
 
   it('getById hides a cross-clinic row from an administrator (404)', async () => {
@@ -132,10 +116,10 @@ describe('user.service', () => {
     query.mockImplementation(async (...args: unknown[]) => {
       const sql = String(args[0] ?? '')
       if (sql.includes('FROM clinics')) return { rows: [{ is_active: true }] }
-      if (sql.includes('WHERE email =')) return { rows: [{ id: 9 }] }
+      if (sql.includes('WHERE lower(email) =')) return { rows: [{ id: 9 }] }
       return { rows: [] }
     })
-    await expect(create(validDoctor, adminActor)).rejects.toMatchObject({ status: 409 })
+    await expect(create(validAdmin, adminActor)).rejects.toMatchObject({ status: 409 })
   })
 
   it('create rejects duplicate username with 409', async () => {
@@ -145,13 +129,13 @@ describe('user.service', () => {
       if (sql.includes('WHERE username =')) return { rows: [{ id: 9 }] }
       return { rows: [] }
     })
-    await expect(create(validDoctor, adminActor)).rejects.toMatchObject({ status: 409 })
+    await expect(create(validAdmin, adminActor)).rejects.toMatchObject({ status: 409 })
   })
 
   it('create hashes the password, forces the actor clinic and audits with it (I3)', async () => {
     installDb()
     const u = await create(
-      { ...validDoctor, firstName: 'Jane', lastName: 'Roe', clinicId: 2 }, // payload clinic ignored
+      { ...validAdmin, firstName: 'Jane', lastName: 'Roe', clinicId: 2 }, // payload clinic ignored
       adminActor,
     )
     expect(hash).toHaveBeenCalledWith('secret1', 12)
@@ -167,14 +151,14 @@ describe('user.service', () => {
   it('create rejects superadmin/manager roles from an administrator actor with 403', async () => {
     for (const role of ['superadmin', 'manager'] as const) {
       await expect(
-        create({ ...validDoctor, role, username: `u-${role}` }, adminActor),
+        create({ ...validAdmin, role, username: `u-${role}` }, adminActor),
       ).rejects.toMatchObject({ status: 403 })
     }
     expect(query).not.toHaveBeenCalled()
   })
 
   it('create by a manager only allows administrator accounts into a named clinic (I17/I18)', async () => {
-    await expect(create(validDoctor, managerActor)).rejects.toMatchObject({ status: 403 })
+    await expect(create({ ...validAdmin, role: 'doctor' }, managerActor)).rejects.toMatchObject({ status: 403 })
 
     await expect(
       create(
@@ -235,11 +219,12 @@ describe('user.service', () => {
   it('update builds a partial SET clause', async () => {
     query
       .mockResolvedValueOnce({ rows: [row()] })
+      .mockResolvedValueOnce({ rows: [{ id: 9 }] }) // another active administrator remains
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE ... RETURNING id
       .mockResolvedValueOnce({ rows: [row({ is_active: false })] }) // re-select
     const u = await update(1, { isActive: false }, adminActor)
     expect(u.isActive).toBe(false)
-    const sql = query.mock.calls[1]?.[0] as string
+    const sql = query.mock.calls[2]?.[0] as string
     const setClause = sql.split('WHERE')[0] as string
     expect(setClause).toContain('is_active = $1')
     expect(setClause).not.toContain('email')
@@ -253,7 +238,7 @@ describe('user.service', () => {
     query
       .mockResolvedValueOnce({ rows: [row()] })
       .mockResolvedValueOnce({ rows: [row()] })
-      .mockResolvedValueOnce({ rows: [row()] }) // getById re-select on the early return
+      .mockResolvedValueOnce({ rows: [row()] }) // re-select after the no-op UPDATE
     const u = await update(1, { email: 'd@h.com' }, adminActor)
     expect(u.email).toBe('d@h.com')
     expect(recordActivity).not.toHaveBeenCalled()
@@ -310,6 +295,7 @@ describe('user.service', () => {
   it('update allows a superadmin actor to manage superadmin accounts', async () => {
     query
       .mockResolvedValueOnce({ rows: [row({ role: 'superadmin', clinic_id: null })] })
+      .mockResolvedValueOnce({ rows: [{ id: 5 }] }) // another active superadmin
       .mockResolvedValueOnce({ rows: [{ id: 1 }] })
       .mockResolvedValueOnce({ rows: [row({ role: 'superadmin', is_active: false, clinic_id: null })] })
     const u = await update(1, { isActive: false }, superadminActor)
@@ -323,7 +309,7 @@ describe('user.service', () => {
 
   it('update by a superadmin moving a doctor syncs doctors.clinic_id in-transaction', async () => {
     query
-      .mockResolvedValueOnce({ rows: [row()] }) // existing
+      .mockResolvedValueOnce({ rows: [row({ role: 'doctor' })] }) // existing
       .mockResolvedValueOnce({ rows: [{ is_active: true }] }) // clinic check
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE users RETURNING id
       .mockResolvedValueOnce({ rows: [] }) // UPDATE doctors
@@ -335,7 +321,7 @@ describe('user.service', () => {
   })
 
   it('update by a manager cannot touch doctor accounts (403)', async () => {
-    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [row({ role: 'doctor' })] })
     await expect(update(1, { isActive: false }, managerActor)).rejects.toMatchObject({ status: 403 })
   })
 
@@ -345,15 +331,16 @@ describe('user.service', () => {
   })
 
   it('remove rejects a manager deleting a doctor with 403', async () => {
-    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [row({ role: 'doctor' })] })
     await expect(remove(1, managerActor)).rejects.toMatchObject({ status: 403 })
   })
 
   it('remove soft-deletes the user and records the audit row in-transaction', async () => {
     query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [{ id: 9 }] }) // another active administrator remains
     query.mockResolvedValueOnce({ rows: [{ id: 1 }] })
     await remove(1, adminActor)
-    const upd = query.mock.calls[1]?.[0] as string
+    const upd = query.mock.calls[2]?.[0] as string
     expect(upd).toContain('UPDATE users')
     expect(upd).toContain('is_deleted = TRUE')
     expect(query.mock.calls.some((c) => String(c[0]).includes('DELETE FROM users'))).toBe(false)
@@ -392,7 +379,7 @@ describe('user.service', () => {
   })
 
   it('resetPassword rejects a manager resetting a doctor password with 403', async () => {
-    query.mockResolvedValueOnce({ rows: [row()] })
+    query.mockResolvedValueOnce({ rows: [row({ role: 'doctor' })] })
     await expect(resetPassword(1, { newPassword: 'secret1' }, managerActor)).rejects.toMatchObject({ status: 403 })
   })
 
@@ -401,26 +388,131 @@ describe('user.service', () => {
     await expect(resetPassword(99, { newPassword: 'secret1' }, adminActor)).rejects.toMatchObject({ status: 404 })
   })
 
-  it('create duplicate checks ignore deleted accounts', async () => {
-    query.mockImplementation(async (...args: unknown[]) => {
-      const sql = String(args[0] ?? '')
-      if (sql.includes('FROM clinics')) return { rows: [{ is_active: true }] }
-      return { rows: [] }
+  describe('role escalation (ADM-01)', () => {
+    it.each([
+      ['another user', 1],
+      ['themselves', 2],
+    ])('administrator promoting %s to manager is 403 and writes nothing', async (_who, targetId) => {
+      query.mockResolvedValueOnce({ rows: [row({ id: targetId, role: 'administrator' })] })
+      await expect(update(targetId, { role: 'manager' }, adminActor)).rejects.toMatchObject({ status: 403 })
+      expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))).toBe(false)
     })
-    await create(validDoctor, adminActor).catch(() => undefined)
-    const emailCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE email ='))
-    const usernameCheck = query.mock.calls.find((c) => String(c[0]).includes('WHERE username ='))
-    expect(String(emailCheck?.[0])).toContain('AND is_deleted = FALSE')
-    expect(String(usernameCheck?.[0])).toContain('AND is_deleted = FALSE')
+  })
+
+  describe('self and last-holder protection (ADM-03)', () => {
+    const selfRow = row({ id: 2, role: 'administrator' })
+
+    it('rejects self-delete, self-deactivate, self-demote and self-reset with 409', async () => {
+      query.mockResolvedValue({ rows: [selfRow] })
+      await expect(remove(2, adminActor)).rejects.toMatchObject({ status: 409 })
+      await expect(update(2, { isActive: false }, adminActor)).rejects.toMatchObject({ status: 409 })
+      await expect(update(2, { role: 'doctor' }, adminActor)).rejects.toMatchObject({ status: 409 })
+      await expect(resetPassword(2, { newPassword: 'secret1' }, adminActor)).rejects.toMatchObject({ status: 409 })
+      expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))).toBe(false)
+    })
+
+    it('refuses to delete the last superadmin', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [row({ role: 'superadmin', clinic_id: null })] })
+        .mockResolvedValueOnce({ rows: [] }) // no other active superadmin
+      await expect(remove(1, superadminActor)).rejects.toMatchObject({
+        status: 409,
+        message: 'Cannot remove the last superadmin',
+      })
+    })
+
+    it('refuses to deactivate the last administrator of a clinic', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [row({ role: 'administrator' })] })
+        .mockResolvedValueOnce({ rows: [] })
+      await expect(update(1, { isActive: false }, superadminActor)).rejects.toMatchObject({ status: 409 })
+      expect(query.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))).toBe(false)
+    })
+
+    it('deletes one of two administrators', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [row({ role: 'administrator' })] })
+        .mockResolvedValueOnce({ rows: [{ id: 5 }] }) // another active administrator in the clinic
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // UPDATE ... RETURNING id
+      await expect(remove(1, superadminActor)).resolves.toBeUndefined()
+    })
+  })
+
+  it('update rejects a clinicId for a hospital role with 400 instead of a constraint 500 (ADM-10)', async () => {
+    query.mockResolvedValueOnce({ rows: [row()] })
+    await expect(update(1, { role: 'manager', clinicId: 2 }, superadminActor)).rejects.toMatchObject({
+      status: 400,
+      message: 'Hospital roles carry no clinic',
+    })
+  })
+
+  describe('doctor accounts live under /doctors (ADM-02, ADM-04)', () => {
+    const noWrites = () => query.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))
+
+    it.each([adminActor, superadminActor])('create refuses role doctor (409) and writes nothing', async (actor) => {
+      installDb()
+      await expect(create({ ...validAdmin, role: 'doctor', clinicId: 1 }, actor)).rejects.toMatchObject({
+        status: 409,
+      })
+      expect(query.mock.calls.some((c) => String(c[0]).includes('INSERT INTO users'))).toBe(false)
+    })
+
+    it('update refuses a role change into doctor (409)', async () => {
+      query.mockResolvedValueOnce({ rows: [row({ role: 'administrator', id: 7 })] })
+      await expect(update(7, { role: 'doctor' }, adminActor)).rejects.toMatchObject({ status: 409 })
+      expect(noWrites()).toBe(false)
+    })
+
+    it.each([{ role: 'administrator' as const }, { isActive: false }, { email: 'x@h.com' }])(
+      'update refuses %o on a doctor (409) and writes nothing',
+      async (input) => {
+        query.mockResolvedValueOnce({ rows: [row({ role: 'doctor', id: 7 })] })
+        await expect(update(7, input, adminActor)).rejects.toMatchObject({ status: 409 })
+        expect(noWrites()).toBe(false)
+      },
+    )
+
+    it('remove refuses a doctor (409) and writes nothing', async () => {
+      query.mockResolvedValueOnce({ rows: [row({ role: 'doctor', id: 7 })] })
+      await expect(remove(7, adminActor)).rejects.toMatchObject({ status: 409 })
+      expect(noWrites()).toBe(false)
+    })
+
+    it('a superadmin clinic move together with another field is refused', async () => {
+      query.mockResolvedValueOnce({ rows: [row({ role: 'doctor', id: 7 })] })
+      await expect(update(7, { clinicId: 2, firstName: 'X' }, superadminActor)).rejects.toMatchObject({
+        status: 409,
+      })
+    })
+  })
+
+  describe('session revocation on deactivation (ADM-09)', () => {
+    it('deactivating revokes refresh tokens; reactivating does not', async () => {
+      query
+        .mockResolvedValueOnce({ rows: [row()] })
+        .mockResolvedValueOnce({ rows: [{ id: 9 }] }) // another active administrator remains
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [row({ is_active: false })] })
+      await update(1, { isActive: false }, adminActor)
+      expect(query.mock.calls.some((c) => String(c[0]).includes('refresh_tokens'))).toBe(true)
+
+      query.mockReset()
+      query
+        .mockResolvedValueOnce({ rows: [row({ is_active: false })] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+        .mockResolvedValueOnce({ rows: [row()] })
+      await update(1, { isActive: true }, adminActor)
+      expect(query.mock.calls.some((c) => String(c[0]).includes('refresh_tokens'))).toBe(false)
+    })
   })
 
   it('updateTheme persists the preference and returns the user', async () => {
-    query.mockResolvedValue({ rows: [row({ dark_mode: true })] })
+    query
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+      .mockResolvedValueOnce({ rows: [row({ dark_mode: true, clinic_name: 'Radiology' })] })
     const user = await updateTheme(1, true)
     expect(user.darkMode).toBe(true)
-    const sql = query.mock.calls[0]?.[0] as string
-    expect(sql).toContain('UPDATE users u SET dark_mode = $1')
-    expect(sql).toContain('RETURNING')
+    expect(user.clinicName).toBe('Radiology')
     expect(query.mock.calls[0]?.[1]).toEqual([true, 1])
   })
 
@@ -430,9 +522,12 @@ describe('user.service', () => {
   })
 
   it('updateLanguage saves the language for that user and returns it', async () => {
-    query.mockResolvedValue({ rows: [row({ language: 'el' })] })
+    query
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+      .mockResolvedValueOnce({ rows: [row({ language: 'el', clinic_name: 'Radiology' })] })
     const user = await updateLanguage(1, 'el')
     expect(user.language).toBe('el')
+    expect(user.clinicName).toBe('Radiology')
     expect(query.mock.calls[0]?.[1]).toEqual(['el', 1])
   })
 

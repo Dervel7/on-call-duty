@@ -1,9 +1,13 @@
 import { Router } from 'express'
+import {
+  clinicQuerySchema,
+  holidayQuerySchema,
+  setMonthHolidaysSchema,
+} from '@oncall/shared'
 import { holidayController } from '../controllers/holiday.controller.ts'
 import { authenticate } from '../middleware/authenticate.ts'
 import { authorize } from '../middleware/authorize.ts'
 import { validate } from '../middleware/validate.ts'
-import { holidayQuerySchema, setMonthHolidaysSchema } from '../validators/holiday.ts'
 
 export const holidayRouter = Router()
 
@@ -17,6 +21,7 @@ holidayRouter.get(
 holidayRouter.put(
   '/month',
   authorize('administrator'),
+  validate(clinicQuerySchema, 'query'),
   validate(setMonthHolidaysSchema, 'body'),
   holidayController.setMonth,
 )

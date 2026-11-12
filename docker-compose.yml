@@ -1,4 +1,4 @@
-# On-Call Duty — full stack deployment.
+# On-Call Duty - full stack deployment.
 #
 # Three services: PostgreSQL (with auto-initialized schema/seed), the Express
 # API, and the Vue SPA served by nginx (which also reverse-proxies /api to the

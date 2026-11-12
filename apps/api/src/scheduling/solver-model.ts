@@ -1,13 +1,7 @@
-import {
-  isOpenDutyDate,
-  minimumForDate,
-  nextDate,
-  requiresDoubleCoverage,
-  slotsForDate,
-} from './dates.ts'
-import { HOLIDAY_DUTY_CAP, OPEN_DUTY_DUTY_CAP, isAvailable } from './constraints.ts'
+import { classifyDays, nextDate } from './dates.ts'
+import { HOLIDAY_DUTY_CAP, OPEN_DUTY_DUTY_CAP, holidayExcess, isAvailable } from './constraints.ts'
 import { isFriSatSun } from './scoring.ts'
-import type { DaySpec, DoctorSpec, SchedulingContext } from './types.ts'
+import type { DoctorSpec, ModelDay, SchedulingContext } from './types.ts'
 
 /**
  * MIP model of the scheduling rules in CPLEX LP text, one text per stage.
@@ -52,15 +46,6 @@ export const FRI_SAT_SUN = [
   { dayOfWeek: 0, code: 'sun', name: 'sunday' },
 ] as const
 
-export interface ModelDay {
-  day: DaySpec
-  /** Open on-call day or the day right after one. */
-  critical: boolean
-  open: boolean
-  slots: number
-  minimum: number
-}
-
 /** One possible duty: a doctor who may be assigned to a day. */
 export interface ModelCell {
   doctorId: number
@@ -92,26 +77,22 @@ export interface ModelBounds {
 
 /**
  * Classifies the days and lists every possible duty. Days the doctor is
- * unavailable, and the first day when they held the previous month's last
- * day, get no variable at all.
+ * unavailable, and the first or last day when they hold the neighbouring
+ * month's adjacent day, get no variable at all.
  */
 export function indexModel(ctx: SchedulingContext): ModelIndex {
   const doctors = [...ctx.doctors].sort((a, b) => a.id - b.id)
-  const days: ModelDay[] = ctx.days.map((day) => ({
-    day,
-    critical: requiresDoubleCoverage(day.date, ctx.openDuty),
-    open: isOpenDutyDate(day.date, ctx.openDuty.anchorDate, ctx.openDuty.intervalDays),
-    slots: slotsForDate(day.date, ctx.openDuty, ctx.slots),
-    minimum: minimumForDate(day.date, ctx.openDuty, ctx.minimums),
-  }))
+  const days = classifyDays(ctx)
   const firstDate = ctx.days[0]?.date
+  const lastDate = ctx.days.at(-1)?.date
   const cellsByDoctor = new Map<number, ModelCell[]>()
   const cellsByDate = new Map<string, ModelCell[]>(days.map((d) => [d.day.date, []]))
   for (const doctor of doctors) {
     const cells: ModelCell[] = []
     for (const d of days) {
-      if (!isAvailable(doctor.id, d.day.date, ctx.unavailability.get(doctor.id)).ok) continue
+      if (!isAvailable(d.day.date, ctx.unavailability.get(doctor.id))) continue
       if (d.day.date === firstDate && ctx.priorDayDoctorIds.has(doctor.id)) continue
+      if (d.day.date === lastDate && ctx.nextDayDoctorIds.has(doctor.id)) continue
       const cell = { doctorId: doctor.id, day: d, name: `x_${doctor.id}_${d.day.date.replaceAll('-', '')}` }
       cells.push(cell)
       cellsByDate.get(d.day.date)?.push(cell)
@@ -359,4 +340,76 @@ export function buildModel(index: ModelIndex, stage: Stage, bounds: ModelBounds)
   if (stage === 'fill') return allCells.length > 0 ? lp.render('Maximize', ones(allCells)) : null
   const objective = objectives.get(stage) ?? []
   return objective.length > 0 ? lp.render('Minimize', objective) : null
+}
+
+/**
+ * The objective value `buildModel` would report for `stage`, computed from the
+ * chosen cells. Cover, relax, weekdays, share and holidays are minimized;
+ * `fill` is maximized. Used to compare a time-limited incumbent with the
+ * solution of the previous stage.
+ */
+export function stageObjective(
+  index: ModelIndex,
+  stage: Stage,
+  chosen: ReadonlySet<string>,
+  capacity: ReadonlyMap<number, number>,
+): number {
+  const mine = (doctorId: number): ModelCell[] =>
+    (index.cellsByDoctor.get(doctorId) ?? []).filter((c) => chosen.has(c.name))
+  const sum = (values: Iterable<number>): number => [...values].reduce((a, b) => a + b, 0)
+
+  const cover = /^cover-(critical|regular)-(\d+)$/.exec(stage)
+  if (cover) {
+    const critical = cover[1] === 'critical'
+    const position = Number(cover[2])
+    return index.days.filter((d) => {
+      if (d.critical !== critical || d.minimum < position) return false
+      const assigned = (index.cellsByDate.get(d.day.date) ?? []).filter((c) => chosen.has(c.name)).length
+      return assigned < position
+    }).length
+  }
+
+  switch (stage) {
+    case 'relax':
+      return sum(
+        index.doctors.map((doctor) => {
+          const cells = mine(doctor.id)
+          const nonCritical = cells.filter((c) => c.day.day.isHoliday && !c.day.critical).length
+          const critical = cells.filter((c) => c.day.day.isHoliday && c.day.critical).length
+          const repeats = FRI_SAT_SUN.map((w) => Math.max(0, sameWeekday(cells, w.dayOfWeek).length - 1))
+          return holidayExcess(nonCritical, critical) + sum(repeats)
+        }),
+      )
+    case 'weekdays':
+      return sum(
+        index.doctors.flatMap((doctor) =>
+          FRI_SAT_SUN.map((w) => {
+            const possible = sameWeekday(index.cellsByDoctor.get(doctor.id) ?? [], w.dayOfWeek).length
+            return possible > 0 && sameWeekday(mine(doctor.id), w.dayOfWeek).length === 0 ? 1 : 0
+          }),
+        ),
+      )
+    case 'share': {
+      const shared = index.doctors.filter((d) => (capacity.get(d.id) ?? 0) > 0)
+      if (shared.length < 2) return 0
+      const e = sum(shared.map((d) => capacity.get(d.id) ?? 0))
+      const totals = shared.map((d) => mine(d.id).length)
+      const total = sum(totals)
+      const deviation = Math.max(
+        ...shared.map((d, i) => Math.abs(e * (totals[i] ?? 0) - (capacity.get(d.id) ?? 0) * total)),
+      )
+      return Math.max(0, deviation - (e - 1))
+    }
+    case 'holidays': {
+      const counts = index.doctors
+        .filter((d) => (index.cellsByDoctor.get(d.id) ?? []).some((c) => c.day.day.isHoliday))
+        .map((d) => mine(d.id).filter((c) => c.day.day.isHoliday).length)
+      if (counts.length < 2) return 0
+      return Math.max(0, Math.max(...counts) - Math.min(...counts) - 1)
+    }
+    case 'fill':
+      return sum(index.doctors.map((d) => mine(d.id).length))
+    default:
+      throw new Error(`No objective for stage ${stage}`)
+  }
 }

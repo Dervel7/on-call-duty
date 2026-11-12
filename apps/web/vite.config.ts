@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5174,
-      strictPort: true,
+      strictPort: false,
       // Listen on all interfaces so other devices on the LAN (e.g. a phone) can open the app.
       host: true,
       // Mirrors the production nginx /api proxy: same-origin API calls work from any host

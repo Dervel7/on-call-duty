@@ -1,13 +1,5 @@
-import { resolve } from 'node:path'
-import { config } from 'dotenv'
-
-const { parsed } = config({ path: resolve(import.meta.dirname, '../../../.env') })
-if (parsed?.DATABASE_URL) process.env.DATABASE_URL = parsed.DATABASE_URL
-
-// db/client builds its Pool at import time, so it must load after DATABASE_URL
-// is set — a static import would hoist above the config() call.
-const { default: bcrypt } = await import('bcrypt')
-const { query } = await import('../../db/client.ts')
+import bcrypt from 'bcrypt'
+import { query } from '../../db/client.ts'
 
 export interface TwoClinicFixture {
   clinicA: number
@@ -25,7 +17,7 @@ export interface TwoClinicFixture {
 const PASSWORD_HASH = bcrypt.hashSync('test-pass-123', 4)
 
 /**
- * Live-DB fixture for cross-tenant isolation tests (§5 matrix): two clinics,
+ * Live-DB fixture for cross-tenant isolation tests (section 5 matrix): two clinics,
  * each with one administrator and one doctor. Names/emails are unique per run
  * so parallel suites never collide. Call dispose() in afterAll.
  */

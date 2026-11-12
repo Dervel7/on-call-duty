@@ -7,10 +7,6 @@ const meStats = vi.fn()
 vi.mock('../services/stats.service.ts', () => ({
   adminStats: (...a: unknown[]) => adminStats(...a),
   meStats: (...a: unknown[]) => meStats(...a),
-  currentYearMonthUTC: () => {
-    const now = new Date()
-    return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }
-  },
 }))
 vi.mock('../services/billing.service.ts', () => ({ isLocked: async () => false }))
 // The superadmin scope default resolves the sole clinic through the db pool.
@@ -80,16 +76,6 @@ describe('stats routes', () => {
     expect(res.status).toBe(400)
   })
 
-  it('admin without query resolves to the current month', async () => {
-    adminStats.mockResolvedValue(emptyStats())
-    await request(build())
-      .get('/stats/admin')
-      .set('Authorization', `Bearer ${adminToken()}`)
-    expect(adminStats).toHaveBeenCalledTimes(1)
-    const now = new Date()
-    expect(adminStats.mock.calls[0]?.[0]).toBe(now.getUTCFullYear())
-  })
-
   it('I15: manager without clinicId gets 400; with clinicId sees that clinic (I16)', async () => {
     adminStats.mockResolvedValue(emptyStats())
     const bad = await request(build())
@@ -103,7 +89,7 @@ describe('stats routes', () => {
       .set('Authorization', `Bearer ${managerToken()}`)
     expect(good.status).toBe(200)
     expect(adminStats).toHaveBeenCalledTimes(1)
-    expect(adminStats.mock.calls[0]?.[2]).toEqual({ kind: 'clinic', clinicId: 2 })
+    expect(adminStats.mock.calls[0]?.[0]).toEqual({ clinicId: 2 })
   })
 
   it('superadmin without clinicId defaults to the sole clinic', async () => {
@@ -114,7 +100,7 @@ describe('stats routes', () => {
       .set('Authorization', `Bearer ${superadminToken()}`)
     expect(res.status).toBe(200)
     expect(query.mock.calls[0]?.[0]).toContain('FROM clinics')
-    expect(adminStats.mock.calls[0]?.[2]).toEqual({ kind: 'clinic', clinicId: 4 })
+    expect(adminStats.mock.calls[0]?.[0]).toEqual({ clinicId: 4 })
   })
 
 
@@ -128,10 +114,10 @@ describe('stats routes', () => {
     await request(build())
       .get('/stats/admin')
       .set('Authorization', `Bearer ${adminToken()}`)
-    expect(adminStats.mock.calls[0]?.[2]).toEqual({ kind: 'clinic', clinicId: 1 })
+    expect(adminStats.mock.calls[0]?.[0]).toEqual({ clinicId: 1 })
   })
 
-  it('me 200 for doctor; 404 for admin (no profile); 401 unauth', async () => {
+  it('me 200 for doctor; 401 unauth', async () => {
     meStats.mockResolvedValue({
       doctor: { id: 10, firstName: 'Jane', lastName: 'Roe', maxMonthlyDuties: 7 },
       currentMonth: {
@@ -149,12 +135,6 @@ describe('stats routes', () => {
       .get('/stats/me')
       .set('Authorization', `Bearer ${doctorToken()}`)
     expect(ok200.status).toBe(200)
-
-    meStats.mockRejectedValue(Object.assign(new Error('Doctor not found'), { status: 404 }))
-    const notFound = await request(build())
-      .get('/stats/me')
-      .set('Authorization', `Bearer ${adminToken()}`)
-    expect(notFound.status).toBe(404)
 
     const unauth = await request(build()).get('/stats/me')
     expect(unauth.status).toBe(401)

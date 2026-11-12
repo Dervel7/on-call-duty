@@ -13,13 +13,13 @@ vi.mock('../services/activity.service.ts', () => ({
   recordActivity: (...a: unknown[]) => recordActivity(...a),
 }))
 
-import bcrypt from 'bcrypt'
 import request from 'supertest'
 import { SYSTEM_LOCKED_MESSAGE } from '@oncall/shared'
 import cookieParser from 'cookie-parser'
 import express from 'express'
 import { authRouter } from '../routes/auth.routes.ts'
 import { errorHandler } from '../middleware/error-handler.ts'
+import { signAccessToken } from '../lib/jwt.ts'
 
 const SEED_HASH = '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi'
 
@@ -85,42 +85,87 @@ describe('GET /auth/me', () => {
   })
 })
 
-describe('bcrypt sanity', () => {
-  it('the seed hash matches changeme123 at cost 12', async () => {
-    await expect(bcrypt.compare('changeme123', SEED_HASH)).resolves.toBe(true)
+// Rows served to billingService.isLocked; [] means the app_meta row is missing
+// (unlocked) so no deadline leaks between tests.
+let lockRows: Array<Record<string, unknown>> = []
+
+// Routes every SQL the auth flow issues: user/token reads, rotation writes,
+// and the app_meta lock check.
+function installDb(userOverrides: Partial<Record<string, unknown>> = {}) {
+  query.mockImplementation(async (...args: unknown[]) => {
+    const sql = String(args[0] ?? '')
+    if (sql.includes('app_meta')) return { rows: lockRows }
+    if (sql.includes('FROM refresh_tokens WHERE token_hash')) {
+      return {
+        rows: [
+          {
+            id: 1,
+            user_id: 1,
+            expires_at: new Date(Date.now() + 3600_000),
+            revoked_at: null,
+            replaced_by: null,
+          },
+        ],
+      }
+    }
+    if (sql.includes('INSERT INTO refresh_tokens')) return { rows: [{ id: 2 }] }
+    if (sql.includes('replaced_by')) return { rows: [{ id: 1 }] }
+    return { rows: [userRow(userOverrides)] }
+  })
+}
+
+const EXPIRED_COOKIE = /refresh_token=;.*Expires=Thu, 01 Jan 1970/
+
+describe('POST /auth/refresh', () => {
+  it('rotates the cookie on the /auth path', async () => {
+    installDb()
+    const res = await request(buildApp()).post('/auth/refresh').set('Cookie', 'refresh_token=t')
+    expect(res.status).toBe(200)
+    const setCookie = res.headers['set-cookie']?.[0] ?? ''
+    expect(setCookie).toContain('refresh_token=')
+    expect(setCookie).toContain('Path=/auth')
+    expect(setCookie).toContain('HttpOnly')
+    expect(setCookie).toContain('SameSite=Lax')
+  })
+
+  it('returns 401 and clears the cookie when none is sent', async () => {
+    installDb()
+    const res = await request(buildApp()).post('/auth/refresh')
+    expect(res.status).toBe(401)
+    expect(res.headers['set-cookie']?.[0] ?? '').toMatch(EXPIRED_COOKIE)
+  })
+})
+
+describe('POST /auth/logout', () => {
+  it('returns 204 and expires the cookie', async () => {
+    installDb()
+    const res = await request(buildApp()).post('/auth/logout').set('Cookie', 'refresh_token=t')
+    expect(res.status).toBe(204)
+    expect(res.headers['set-cookie']?.[0] ?? '').toMatch(EXPIRED_COOKIE)
+  })
+})
+
+describe('POST /auth/change-password', () => {
+  it('returns 400 when the current password is wrong', async () => {
+    installDb()
+    const token = signAccessToken({ sub: 1, role: 'administrator', clinicId: 1 })
+    const res = await request(buildApp())
+      .post('/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'wrongpass123', newPassword: 'brandnewpass123' })
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ success: false, error: 'Current password is incorrect' })
+  })
+
+  it('returns 401 without a bearer token', async () => {
+    const res = await request(buildApp())
+      .post('/auth/change-password')
+      .send({ currentPassword: 'changeme123', newPassword: 'brandnewpass123' })
+    expect(res.status).toBe(401)
   })
 })
 
 describe('billing lockdown', () => {
-  // Rows served to billingService.isLocked; [] restores the missing app_meta
-  // row (unlocked) so no deadline leaks into other tests.
-  let lockRows: Array<Record<string, unknown>>
-
-  // Routes every SQL the auth flow issues: user/token reads, rotation writes,
-  // and the app_meta lock check.
-  function installDb(userOverrides: Partial<Record<string, unknown>> = {}) {
-    query.mockImplementation(async (...args: unknown[]) => {
-      const sql = String(args[0] ?? '')
-      if (sql.includes('app_meta')) return { rows: lockRows }
-      if (sql.includes('FROM refresh_tokens WHERE token_hash')) {
-        return {
-          rows: [
-            {
-              id: 1,
-              user_id: 1,
-              expires_at: new Date(Date.now() + 3600_000),
-              revoked_at: null,
-              replaced_by: null,
-            },
-          ],
-        }
-      }
-      if (sql.includes('INSERT INTO refresh_tokens')) return { rows: [{ id: 2 }] }
-      if (sql.includes('replaced_by')) return { rows: [{ id: 1 }] }
-      return { rows: [userRow(userOverrides)] }
-    })
-  }
-
   beforeEach(() => {
     lockRows = [{ locked: true }]
   })

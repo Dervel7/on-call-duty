@@ -20,6 +20,12 @@ export function query<T extends QueryResultRow = QueryResultRow>(
   return pool.query(text, params) as Promise<QueryResult<T>>
 }
 
+/** A query runner: the pool by default, or a transaction client. */
+export type Run = <T extends QueryResultRow = QueryResultRow>(
+  text: string,
+  params?: unknown[],
+) => Promise<QueryResult<T>>
+
 export async function withTransaction<T>(
   work: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
@@ -33,7 +39,7 @@ export async function withTransaction<T>(
     try {
       await client.query('ROLLBACK')
     } catch {
-      // Connection already broken — never mask the original error.
+      // Connection already broken - never mask the original error.
     }
     throw err
   } finally {

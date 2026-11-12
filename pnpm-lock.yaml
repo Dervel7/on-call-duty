@@ -53,9 +53,6 @@ importers:
       '@oncall/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@oncall/utils':
-        specifier: workspace:*
-        version: link:../../packages/utils
       bcrypt:
         specifier: ^5.1.0
         version: 5.1.1

@@ -7,7 +7,11 @@
 --
 -- Usage (run against an empty database you created first):
 --   createdb oncall_duty
---   psql -d oncall_duty -v ON_ERROR_STOP=1 -f database/initialize.sql
+--   psql -d oncall_duty -v ON_ERROR_STOP=1 \
+--     -v superadmin_password_hash='<bcrypt hash of the superadmin password>' \
+--     -v admin_password_hash='<bcrypt hash of the administrator password>' \
+--     -f database/initialize.sql
+-- Generate the hash with: node -e "console.log(require('bcrypt').hashSync(process.argv[1], 12))" '<password>'
 --
 -- schema.sql stays the source of truth: when it changes, update this file in
 -- the same change so the two shapes never drift.
@@ -154,7 +158,7 @@ CREATE TABLE activity_log (
 -- Indexes ------------------------------------------------------------------
 
 -- Email and username are unique among live (not soft-deleted) accounts only.
-CREATE UNIQUE INDEX idx_users_email_live ON users (email) WHERE is_deleted = FALSE;
+CREATE UNIQUE INDEX idx_users_lower_email_live ON users (lower(email)) WHERE is_deleted = FALSE;
 CREATE UNIQUE INDEX idx_users_username_live ON users (username) WHERE is_deleted = FALSE;
 CREATE INDEX idx_users_clinic ON users (clinic_id) WHERE is_deleted = FALSE;
 
@@ -194,13 +198,13 @@ INSERT INTO app_meta (key, value) VALUES
 -- column defaults.
 INSERT INTO clinics (name) VALUES ('Main Clinic');
 
--- Both accounts keep their current password hashes (bcrypt, cost 12).
+-- Both password hashes (bcrypt, cost 12) come from psql variables so no known password ships.
 -- The superadmin is hospital level, so it has no clinic.
 INSERT INTO users (email, username, password_hash, role, first_name, last_name)
 VALUES (
   'superadmin@oncall.local',
   'superadmin',
-  '$2b$12$ib69wvBRW9XbWWJagExPNe9QrDklUGCvMBlMivRVOAY03LTNsOwSi',
+  :'superadmin_password_hash',
   'superadmin',
   'Vendor',
   'Superadmin'
@@ -210,7 +214,7 @@ INSERT INTO users (email, username, password_hash, role, first_name, last_name, 
 VALUES (
   'admin@oncall.local',
   'admin',
-  '$2b$12$6ufrbl6wF.cRx1QOTSCMmeaNFAew0mYaNFYUDanmm50HhdhHXRvJi',
+  :'admin_password_hash',
   'administrator',
   'System',
   'Administrator',

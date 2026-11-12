@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { loadSolver } from '../highs.ts'
 import { buildModel, indexModel, type Stage } from '../solver-model.ts'
 import { ctx, day, dr } from './helpers.ts'
 
@@ -15,6 +16,18 @@ const model = indexModel(
 const lp = buildModel(model, 'fill', { optima: new Map(), capacity: new Map() }) ?? ''
 const variables = new Set(lp.match(/\bx_\d+_\d{8}\b/g))
 
+/** Solves LP text and returns the objective value plus the cells set to 1. */
+async function solve(text: string): Promise<{ objective: number; chosen: Set<string> }> {
+  const solver = await loadSolver()
+  const result = await solver.solve(text, { output_flag: false }, Date.now() + 10_000)
+  expect(result?.Status).toBe('Optimal')
+  const chosen = new Set<string>()
+  for (const [name, column] of Object.entries(result?.Columns ?? {})) {
+    if ('Primal' in column && column.Primal > 0.5 && variables.has(name)) chosen.add(name)
+  }
+  return { objective: result?.ObjectiveValue ?? NaN, chosen }
+}
+
 describe('solver model', () => {
   it('has a variable only where the doctor may be assigned', () => {
     expect([...variables].sort()).toEqual([
@@ -28,13 +41,22 @@ describe('solver model', () => {
     ])
   })
 
-  it('forbids back-to-back days and a second open on-call day', () => {
-    expect(lp).toMatch(/^ b2b_1_20260901: x_1_20260901 \+ x_1_20260902 <= 1$/m)
-    expect(lp).toMatch(/^ b2b_1_20260902: x_1_20260902 \+ x_1_20260903 <= 1$/m)
-    // Doctor 2 has no duty possible on the 2nd, so no pair to forbid.
-    expect(lp).not.toMatch(/^ b2b_2_/m)
-    expect(lp).toMatch(/^ open_1: x_1_20260901 \+ x_1_20260903 <= 1$/m)
-    expect(lp).toMatch(/^ open_2: x_2_20260901 \+ x_2_20260903 <= 1$/m)
+  it('gives no last-day variable to a doctor who holds the next month first day', () => {
+    const edge = indexModel(
+      ctx([day('2026-09-29'), day('2026-09-30')], [dr(1), dr(2)], { nextDayDoctorIds: new Set([1]) }),
+    )
+    expect((edge.cellsByDate.get('2026-09-30') ?? []).map((c) => c.doctorId)).toEqual([2])
+  })
+
+  it('never lets one doctor hold back-to-back days or two open on-call days', async () => {
+    const { chosen } = await solve(buildModel(model, 'capacity', { optima: new Map(), capacity: new Map() }) ?? '')
+    const both = (a: string, b: string): boolean => chosen.has(a) && chosen.has(b)
+    expect(both('x_1_20260901', 'x_1_20260902')).toBe(false)
+    expect(both('x_1_20260902', 'x_1_20260903')).toBe(false)
+    expect(both('x_1_20260901', 'x_1_20260903')).toBe(false)
+    expect(both('x_2_20260901', 'x_2_20260903')).toBe(false)
+    // Without the rules every cell would be chosen; with them some must be dropped.
+    expect(chosen.size).toBeLessThan(variables.size)
   })
 
   it('skips a stage with nothing to optimize', () => {
@@ -43,43 +65,51 @@ describe('solver model', () => {
   })
 
   describe('alternative stage', () => {
-    // Every day is critical (open or after open): two cover stages, and
-    // `relax`, `weekdays` and `holidays` have no terms in this month.
-    const optima = new Map<Stage, number>([
-      ['cover-critical-1', 0],
-      ['cover-critical-2', 1],
-      ['share', 2],
-      ['fill', 5],
-    ])
-    const capacity = new Map([[1, 2], [2, 1], [3, 1]])
-    const first = new Set(['x_3_20260902', 'x_1_20260901', 'x_2_20260903'])
-    const alternative = (avoid: ReadonlySet<string>[]): string =>
-      buildModel(model, 'alternative', { optima, capacity, avoid }) ?? ''
+    // Runs the capacity stage and every objective stage the way the solver
+    // does, so the bounds the alternative keeps are the real optima.
+    async function primary(): Promise<{ optima: Map<Stage, number>; capacity: Map<number, number>; first: Set<string> }> {
+      const optima = new Map<Stage, number>()
+      const capacity = new Map<number, number>()
+      let first = new Set<string>()
+      for (const stage of model.stages) {
+        const text = buildModel(model, stage, { optima, capacity })
+        if (!text) continue
+        const { objective, chosen } = await solve(text)
+        if (stage === 'capacity') {
+          for (const [id, cells] of model.cellsByDoctor) {
+            capacity.set(id, cells.filter((c) => chosen.has(c.name)).length)
+          }
+          continue
+        }
+        optima.set(stage, Math.round(objective))
+        first = chosen
+      }
+      return { optima, capacity, first }
+    }
 
-    it('keeps every stage optimum and excludes the earlier option', () => {
-      const text = alternative([first])
-      expect(text.match(/^ bound_\w+(?=:)/gm)?.map((r) => r.trim()).sort()).toEqual([
-        'bound_cover_critical_1',
-        'bound_cover_critical_2',
-        'bound_fill',
-        'bound_share',
-      ])
-      expect(text).toMatch(/^ bound_cover_critical_2: .* <= 1$/m)
-      expect(text).toMatch(/^ bound_fill: x_1_20260901 \+ [^\n]* >= 5$/m)
-      expect(text.match(/^ nogood_\d+:/gm)).toHaveLength(1)
-      expect(text).toMatch(/^ nogood_1: x_1_20260901 \+ x_2_20260903 \+ x_3_20260902 <= 2$/m)
-      expect(text).toMatch(/^Minimize\n obj: x_1_20260901 \+ x_2_20260903 \+ x_3_20260902\n/)
+    it('keeps the fill optimum and excludes the earlier option', async () => {
+      const { optima, capacity, first } = await primary()
+      const text = buildModel(model, 'alternative', { optima, capacity, avoid: [first] }) ?? ''
+      const { chosen } = await solve(text)
+      expect(chosen.size).toBeGreaterThanOrEqual(optima.get('fill') ?? Infinity)
+      expect([...first].every((name) => chosen.has(name))).toBe(false)
     })
 
-    it('counts a duty once per earlier option that holds it', () => {
-      const second = new Set(['x_1_20260901', 'x_1_20260903', 'x_3_20260902'])
-      const text = alternative([first, second])
-      expect(text).toMatch(/^ nogood_2: x_1_20260901 \+ x_1_20260903 \+ x_3_20260902 <= 2$/m)
-      expect(text).toMatch(/^ obj: 2 x_1_20260901 \+ x_2_20260903 \+ 2 x_3_20260902 \+ x_1_20260903$/m)
+    it('counts a duty once per earlier option that holds it', async () => {
+      const { optima, capacity, first } = await primary()
+      const secondText = buildModel(model, 'alternative', { optima, capacity, avoid: [first] }) ?? ''
+      const second = (await solve(secondText)).chosen
+      const text = buildModel(model, 'alternative', { optima, capacity, avoid: [first, second] }) ?? ''
+      const { objective, chosen } = await solve(text)
+      let shared = 0
+      for (const name of chosen) shared += Number(first.has(name)) + Number(second.has(name))
+      expect(objective).toBe(shared)
+      expect([...first].every((name) => chosen.has(name))).toBe(false)
+      expect([...second].every((name) => chosen.has(name))).toBe(false)
     })
 
     it('has nothing to optimize without an earlier option', () => {
-      expect(buildModel(model, 'alternative', { optima, capacity })).toBeNull()
+      expect(buildModel(model, 'alternative', { optima: new Map(), capacity: new Map() })).toBeNull()
     })
   })
 })

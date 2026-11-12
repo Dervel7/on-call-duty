@@ -1,6 +1,0 @@
-export * from './auth.ts'
-export * from './clinic.ts'
-export * from './doctor.ts'
-export * from './schedule.ts'
-export * from './unavailability.ts'
-export * from './user.ts'

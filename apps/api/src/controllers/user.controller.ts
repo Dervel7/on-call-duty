@@ -5,10 +5,10 @@ import * as userService from '../services/user.service.ts'
 export const userController = {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      // req.query is typed by validate(userQuerySchema) upstream.
+      // req.query is typed by validate(clinicQuerySchema) upstream.
       const { clinicId } = req.query as { clinicId?: number }
       const scope = await resolveClinicScope(req.user!, clinicId)
-      const users = await userService.list(req.user!, scope)
+      const users = await userService.list(scope)
       res.status(200).json(ok({ users }))
     } catch (err) {
       next(err)

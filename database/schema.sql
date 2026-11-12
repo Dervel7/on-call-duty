@@ -228,8 +228,12 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT F
 
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
 DROP INDEX IF EXISTS idx_users_username;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_live
-  ON users (email) WHERE is_deleted = FALSE;
+-- Email is matched case-insensitively. Lowercasing fails on the old index if two live
+-- accounts differ only in case: merge them by hand first.
+UPDATE users SET email = lower(email) WHERE email <> lower(email);
+DROP INDEX IF EXISTS idx_users_email_live;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lower_email_live
+  ON users (lower(email)) WHERE is_deleted = FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_live
   ON users (username) WHERE is_deleted = FALSE;
 CREATE INDEX IF NOT EXISTS idx_users_clinic ON users (clinic_id) WHERE is_deleted = FALSE;

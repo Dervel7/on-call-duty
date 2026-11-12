@@ -1,4 +1,4 @@
-export { isoDateSchema, passwordSchema } from './common.ts'
+export { clinicQuerySchema, idParamsSchema, idSchema, isoDateSchema, passwordSchema } from './common.ts'
 export {
   roleSchema,
   languageSchema,
@@ -26,11 +26,10 @@ export {
   scheduleQuerySchema,
   createDutySchema,
   reassignDutySchema,
-  generateScheduleSchema,
+  saveScheduleSchema,
   alternativeOptionSchema,
 } from './schedule.ts'
-export { statsQuerySchema } from './stats.ts'
-export { reportQuerySchema } from './reports.ts'
+export { monthQuerySchema } from './stats.ts'
 export { ACTIVITY_ACTIONS, activityQuerySchema } from './audit.ts'
 export { createClinicSchema, updateClinicSchema } from './clinic.ts'
 export { holidayQuerySchema, setMonthHolidaysSchema } from './holiday.ts'
@@ -41,7 +40,6 @@ export {
   DEFAULT_OPEN_DUTY_ANCHOR_DATE,
   DEFAULT_OPEN_DUTY_INTERVAL_DAYS,
   updateDutySlotsSchema,
-  dutySlotsQuerySchema,
   updateDutyMinimumsSchema,
 } from './settings.ts'
 export type { ActivityAction } from './audit.ts'

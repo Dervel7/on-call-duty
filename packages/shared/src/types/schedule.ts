@@ -41,7 +41,6 @@ export interface ConflictTally {
   unavailable: number
   atMonthlyCap: number
   atOpenDutyCap: number
-  atHolidayCap: number
   backToBack: number
   alreadyOnDuty: number
 }
@@ -124,7 +123,7 @@ export interface GenerateAssignment {
 export interface GenerateScheduleRequest {
   year: number
   month: number
-  assignments?: GenerateAssignment[]
+  assignments: GenerateAssignment[]
 }
 
 export interface ScheduleQuery {

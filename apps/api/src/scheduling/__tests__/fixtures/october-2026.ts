@@ -37,7 +37,6 @@ export function october2026(): SchedulingContext {
     firstName: `F${i + 1}`,
     lastName: `L${i + 1}`,
     maxMonthlyDuties: 7,
-    isActive: true,
   }))
   const unavailability = new Map(
     Object.entries(EXCLUSIONS).map(([id, ranges]) => [
@@ -53,6 +52,7 @@ export function october2026(): SchedulingContext {
     doctors,
     unavailability,
     priorDayDoctorIds: new Set(),
+    nextDayDoctorIds: new Set(),
     openDuty: { anchorDate: '2026-10-02', intervalDays: 8 },
     slots: { openDutySlots: 2, postOpenDutySlots: 2, closedDutySlots: 2 },
     minimums: { openDutyMinimum: 2, postOpenDutyMinimum: 2, closedDutyMinimum: 1 },

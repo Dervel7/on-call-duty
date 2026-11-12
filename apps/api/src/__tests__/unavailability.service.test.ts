@@ -75,7 +75,7 @@ beforeEach(() => {
 })
 
 describe('unavailability.service', () => {
-  const scope = (clinicId: number): ClinicScope => ({ kind: 'clinic', clinicId })
+  const scope = (clinicId: number): ClinicScope => ({ clinicId })
   const admin = { id: 2, role: 'administrator' as const, clinicId: 1 }
   const manager = { id: 5, role: 'manager' as const, clinicId: null }
   const superadmin = { id: 3, role: 'superadmin' as const, clinicId: null }
@@ -152,8 +152,6 @@ describe('unavailability.service', () => {
       scope(1),
     )
     expect(x.id).toBe(1)
-    const insert = query.mock.calls.find((c) => String(c[0]).includes('INSERT INTO unavailability'))
-    expect(String(insert?.[0])).toContain('INSERT INTO unavailability')
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'availability.created', entityId: 7, clinicId: 1 }),
@@ -171,9 +169,7 @@ describe('unavailability.service', () => {
     const x = await update(1, { endDate: '2026-09-12' }, admin)
     expect(x.id).toBe(1)
     const overlap = query.mock.calls.find((c) => String(c[0]).includes('AND id <>'))
-    expect(String(overlap?.[0])).toContain('AND id <>')
-    const updateSql = query.mock.calls.find((c) => String(c[0]).includes('UPDATE unavailability'))
-    expect(String(updateSql?.[0])).toContain('UPDATE unavailability')
+    expect(overlap?.[1]).toEqual([5, '2026-09-12', '2026-09-07', 1])
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'availability.updated', entityId: 1 }),
@@ -226,6 +222,23 @@ describe('unavailability.service', () => {
     const x = await update(1, {}, admin)
     expect(x.id).toBe(1)
     expect(recordActivity).not.toHaveBeenCalled()
+  })
+
+  it('writes on a a soft-deleted doctor record are 404 and change nothing', async () => {
+    // The lookup only finds the record when it excludes deleted doctors' users.
+    query.mockImplementation(async (...args: unknown[]) => {
+      const sql = String(args[0] ?? '')
+      const hidesDeleted = sql.includes('u.is_deleted = FALSE')
+      if (sql.includes('FROM unavailability x JOIN doctors d')) {
+        return { rows: hidesDeleted ? [] : [{ ...stored(), is_disabled: false }] }
+      }
+      return { rows: [] }
+    })
+    await expect(update(1, { startDate: '2026-09-08' }, superadmin)).rejects.toMatchObject({ status: 404 })
+    await expect(setDisabled(1, true, superadmin)).rejects.toMatchObject({ status: 404 })
+    await expect(split(1, { startDate: '2026-09-08', endDate: '2026-09-09' } as never, superadmin)).rejects.toMatchObject({ status: 404 })
+    await expect(remove(1, superadmin)).rejects.toMatchObject({ status: 404 })
+    expect(transaction).not.toHaveBeenCalled()
   })
 
   it('update 404 when record missing', async () => {
@@ -302,8 +315,6 @@ describe('unavailability.service', () => {
   it('remove deletes the row; 404 when missing; 403 for non-owner; 404 cross-clinic', async () => {
     installDb()
     await remove(1, admin)
-    const del = query.mock.calls.find((c) => String(c[0]).includes('DELETE FROM unavailability'))
-    expect(String(del?.[0])).toContain('DELETE FROM unavailability')
     expect(recordActivity).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ action: 'availability.deleted', entityId: 1 }),

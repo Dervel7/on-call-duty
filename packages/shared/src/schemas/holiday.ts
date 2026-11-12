@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import { isoDateSchema } from './common.ts'
+import { isoDateSchema, idSchema } from './common.ts'
 
 export const holidayQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100),
-  clinicId: z.coerce.number().int().positive().optional(),
+  clinicId: idSchema.optional(),
 })
 
 export const setMonthHolidaysSchema = z

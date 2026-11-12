@@ -4,9 +4,8 @@ import {
   W_FRIDAY,
   W_WEEKEND,
   W_WORKLOAD,
-  fridayBudget,
+  fairShareBudget,
   scoreCandidate,
-  weekendBudget,
 } from '../scoring.ts'
 import type { DaySpec, DoctorSpec } from '../types.ts'
 
@@ -15,19 +14,18 @@ const doctor = (id: number, max: number): DoctorSpec => ({
   firstName: 'A',
   lastName: 'B',
   maxMonthlyDuties: max,
-  isActive: true,
 })
 const weekday = (d: string): DaySpec => ({ date: d, dayOfWeek: 3, isWeekend: false, isHoliday: false })
 const weekend = (d: string): DaySpec => ({ date: d, dayOfWeek: 6, isWeekend: true, isHoliday: true })
 const friday = (d: string): DaySpec => ({ date: d, dayOfWeek: 5, isWeekend: false, isHoliday: false })
 
 describe('scoring', () => {
-  it('budgets ceiling-divide total slots and 0 on no doctors', () => {
-    expect(weekendBudget(16, 3)).toBe(6) // ceil(16/3)
-    expect(weekendBudget(18, 3)).toBe(6) // ceil(18/3)
-    expect(weekendBudget(16, 0)).toBe(0)
-    expect(fridayBudget(8, 8)).toBe(1) // ceil(8/8)
-    expect(fridayBudget(0, 8)).toBe(0)
+  it('budget ceiling-divides total slots and is 0 on no doctors', () => {
+    expect(fairShareBudget(16, 3)).toBe(6) // ceil(16/3)
+    expect(fairShareBudget(18, 3)).toBe(6) // ceil(18/3)
+    expect(fairShareBudget(16, 0)).toBe(0)
+    expect(fairShareBudget(8, 8)).toBe(1) // ceil(8/8)
+    expect(fairShareBudget(0, 8)).toBe(0)
   })
 
   it('workload term favors doctors with more remaining slots', () => {

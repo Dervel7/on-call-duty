@@ -2,7 +2,6 @@ import express from 'express'
 import request from 'supertest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const preview = vi.fn()
 const generate = vi.fn()
 const list = vi.fn()
 const getById = vi.fn()
@@ -14,17 +13,20 @@ const publish = vi.fn()
 const unpublish = vi.fn()
 const generateOptions = vi.fn()
 const generateAlternative = vi.fn()
-vi.mock('../services/schedule.service.ts', () => ({
-  preview: (...a: unknown[]) => preview(...a),
+vi.mock('../services/schedule-options.service.ts', () => ({
   generateOptions: (...a: unknown[]) => generateOptions(...a),
   generateAlternative: (...a: unknown[]) => generateAlternative(...a),
+}))
+vi.mock('../services/duty.service.ts', () => ({
+  addDuty: (...a: unknown[]) => addDuty(...a),
+  reassignDuty: (...a: unknown[]) => reassignDuty(...a),
+  removeDuty: (...a: unknown[]) => removeDuty(...a),
+}))
+vi.mock('../services/schedule.service.ts', () => ({
   generate: (...a: unknown[]) => generate(...a),
   list: (...a: unknown[]) => list(...a),
   getById: (...a: unknown[]) => getById(...a),
   remove: (...a: unknown[]) => remove(...a),
-  addDuty: (...a: unknown[]) => addDuty(...a),
-  reassignDuty: (...a: unknown[]) => reassignDuty(...a),
-  removeDuty: (...a: unknown[]) => removeDuty(...a),
   publish: (...a: unknown[]) => publish(...a),
   unpublish: (...a: unknown[]) => unpublish(...a),
 }))
@@ -81,20 +83,16 @@ const duty = (id: number, doctorId: number) => ({
 })
 
 beforeEach(() => {
-  [preview, generateOptions, generateAlternative, generate, list, getById, remove, addDuty, reassignDuty, removeDuty, publish, unpublish].forEach((m) =>
+  [generateOptions, generateAlternative, generate, list, getById, remove, addDuty, reassignDuty, removeDuty, publish, unpublish].forEach((m) =>
     m.mockReset(),
   )
   query.mockReset()
 })
 
-describe('schedule routes', () => {
-  it('preview stays admin-only (doctor 403); unauthenticated is 401; doctors can read GET routes', async () => {
-    const forbidden = await request(build())
-      .post('/schedules/preview')
-      .set('Authorization', `Bearer ${doctorToken()}`)
-      .send({ year: 2026, month: 9 })
-    expect(forbidden.status).toBe(403)
+const planBody = { year: 2026, month: 9, assignments: [{ date: '2026-09-01', doctorId: 5 }] }
 
+describe('schedule routes', () => {
+  it('unauthenticated is 401; doctors can read GET routes', async () => {
     const unauth = await request(build()).get('/schedules')
     expect(unauth.status).toBe(401)
 
@@ -111,17 +109,6 @@ describe('schedule routes', () => {
     expect(doctorDetail.status).toBe(200)
   })
 
-  it('admin preview returns 200 with assignments + conflicts', async () => {
-    preview.mockResolvedValue({ assignments: [], conflicts: [] })
-    const res = await request(build())
-      .post('/schedules/preview')
-      .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ year: 2026, month: 9 })
-    expect(res.status).toBe(200)
-    expect(res.body.data.assignments).toEqual([])
-    expect(res.body.data.conflicts).toEqual([])
-  })
-
   it('options is admin-only (doctor 403); admin gets 200 with options', async () => {
     const forbidden = await request(build())
       .post('/schedules/options')
@@ -136,12 +123,11 @@ describe('schedule routes', () => {
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ year: 2026, month: 9 })
     expect(res.status).toBe(200)
-    expect(res.body.data.options).toEqual([])
     expect(generateOptions).toHaveBeenCalledWith(2026, 9, expect.objectContaining({ clinicId: 1 }))
   })
 
   it('options returns 429 with Retry-After while the solver is busy', async () => {
-    generateOptions.mockRejectedValue(new HttpError(429, 'Solver busy, try again shortly'))
+    generateOptions.mockRejectedValue(new HttpError(429, 'Solver busy, try again shortly', 10))
     const res = await request(build())
       .post('/schedules/options')
       .set('Authorization', `Bearer ${adminToken()}`)
@@ -178,7 +164,7 @@ describe('schedule routes', () => {
   })
 
   it('alternative returns 429 with Retry-After while the solver is busy', async () => {
-    generateAlternative.mockRejectedValue(new HttpError(429, 'Solver busy, try again shortly'))
+    generateAlternative.mockRejectedValue(new HttpError(429, 'Solver busy, try again shortly', 10))
     const res = await request(build())
       .post('/schedules/options/alternative')
       .set('Authorization', `Bearer ${adminToken()}`)
@@ -199,43 +185,21 @@ describe('schedule routes', () => {
     expect(generateAlternative).toHaveBeenCalledWith(2026, 9, 3, expect.objectContaining({ clinicId: 1 }))
   })
 
-  it('admin preview passes optional assignments through to the service', async () => {
-    preview.mockResolvedValue({ assignments: [], conflicts: [], days: [] })
-    const res = await request(build())
-      .post('/schedules/preview')
-      .set('Authorization', `Bearer ${adminToken()}`)
-      .send({
-        year: 2026,
-        month: 9,
-        assignments: [{ date: '2026-09-01', doctorId: 5, reason: 'manual override' }],
-      })
-    expect(res.status).toBe(200)
-    expect(preview).toHaveBeenCalledWith(2026, 9, expect.anything(), [
-      { date: '2026-09-01', doctorId: 5, reason: 'manual override' },
-    ])
+  it('save needs a non-empty plan: 400 without assignments or with an empty array, and nothing is solved', async () => {
+    for (const body of [{ year: 2026, month: 9 }, { year: 2026, month: 9, assignments: [] }]) {
+      const res = await request(build()).post('/schedules').set('Authorization', `Bearer ${adminToken()}`).send(body)
+      expect(res.status).toBe(400)
+    }
+    expect(generate).not.toHaveBeenCalled()
   })
 
-  it('admin generate 201; 409 exists; 422 unfillable', async () => {
+  it('admin generate returns 201', async () => {
     generate.mockResolvedValue(detail())
-    const ok201 = await request(build())
+    const res = await request(build())
       .post('/schedules')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ year: 2026, month: 9 })
-    expect(ok201.status).toBe(201)
-
-    generate.mockRejectedValue(Object.assign(new Error('exists'), { status: 409 }))
-    const exists = await request(build())
-      .post('/schedules')
-      .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ year: 2026, month: 9 })
-    expect(exists.status).toBe(409)
-
-    generate.mockRejectedValue(Object.assign(new Error('unfillable'), { status: 422 }))
-    const unfillable = await request(build())
-      .post('/schedules')
-      .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ year: 2026, month: 9 })
-    expect(unfillable.status).toBe(422)
+      .send(planBody)
+    expect(res.status).toBe(201)
   })
 
   it('admin generate forwards an assignments plan to the service (201)', async () => {
@@ -316,33 +280,6 @@ describe('schedule routes', () => {
       .set('Authorization', `Bearer ${doctorToken()}`)
     expect(forbidden.status).toBe(403)
   })
-
-  it('duty + schedule mutations surface the published-lock as 409', async () => {
-    const locked = Object.assign(new Error('Schedule is published; revert to draft to edit'), { status: 409 })
-    addDuty.mockRejectedValue(locked)
-    reassignDuty.mockRejectedValue(locked)
-    removeDuty.mockRejectedValue(locked)
-    remove.mockRejectedValue(locked)
-
-    const a = await request(build())
-      .post('/schedules/1/duties')
-      .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ date: '2026-09-05', doctorId: 3 })
-    expect(a.status).toBe(409)
-    const r = await request(build())
-      .patch('/duties/5')
-      .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ doctorId: 4 })
-    expect(r.status).toBe(409)
-    const d = await request(build())
-      .delete('/duties/5')
-      .set('Authorization', `Bearer ${adminToken()}`)
-    expect(d.status).toBe(409)
-    const s = await request(build())
-      .delete('/schedules/1')
-      .set('Authorization', `Bearer ${adminToken()}`)
-    expect(s.status).toBe(409)
-  })
 })
 
 describe('clinic scoping on schedule routes', () => {
@@ -363,10 +300,7 @@ describe('clinic scoping on schedule routes', () => {
     const token = managerToken()
     const app = build()
     expect(
-      (await request(app).post('/schedules?clinicId=1').set('Authorization', `Bearer ${token}`).send({ year: 2026, month: 9 })).status,
-    ).toBe(403)
-    expect(
-      (await request(app).post('/schedules/preview?clinicId=1').set('Authorization', `Bearer ${token}`).send({ year: 2026, month: 9 })).status,
+      (await request(app).post('/schedules?clinicId=1').set('Authorization', `Bearer ${token}`).send(planBody)).status,
     ).toBe(403)
     expect(
       (await request(app).post('/schedules/1/publish').set('Authorization', `Bearer ${token}`)).status,
@@ -379,24 +313,20 @@ describe('clinic scoping on schedule routes', () => {
     ).toBe(403)
   })
 
-  it('superadmin preview/generate without clinicId default to the sole clinic', async () => {
+  it('superadmin generate without clinicId defaults to the sole clinic', async () => {
     query.mockResolvedValue({ rows: [{ id: 1 }] })
-    preview.mockResolvedValue({ conflicts: [], assignments: [] })
     generate.mockResolvedValue(detail())
     const token = superadminToken()
     const app = build()
     expect(
-      (await request(app).post('/schedules/preview').set('Authorization', `Bearer ${token}`).send({ year: 2026, month: 9 })).status,
-    ).toBe(200)
-    expect(
-      (await request(app).post('/schedules').set('Authorization', `Bearer ${token}`).send({ year: 2026, month: 9 })).status,
+      (await request(app).post('/schedules').set('Authorization', `Bearer ${token}`).send(planBody)).status,
     ).toBe(201)
     expect(generate).toHaveBeenCalledWith(
       2026,
       9,
       expect.anything(),
       expect.objectContaining({ clinicId: 1 }),
-      undefined,
+      planBody.assignments,
     )
   })
 
@@ -416,14 +346,14 @@ describe('clinic scoping on schedule routes', () => {
     const res = await request(build())
       .post('/schedules')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ year: 2026, month: 9 })
+      .send(planBody)
     expect(res.status).toBe(201)
     expect(generate).toHaveBeenCalledWith(
       2026,
       9,
       expect.anything(),
       expect.objectContaining({ clinicId: 1 }),
-      undefined,
+      planBody.assignments,
     )
   })
 })

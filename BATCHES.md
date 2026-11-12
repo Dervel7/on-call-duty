@@ -30,7 +30,7 @@ Batch 1 note: when I read `apps/web/nginx.conf`, the CORE-01 line (`proxy_cookie
   - CORE-02: a lock found during token refresh sent the user to /login instead of /locked.
   - CORE-09: the access token was managed in two places (services and store). Make the store the only owner.
 - **CORE-03** two tabs refreshing at once signed all tabs out.
-- **CORE-05** (web half only) a wrong password on login triggered an extra refresh and replay.
+- **CORE-05** (web half only) a wrong password on login triggered an extra refresh and replay. The API half (change-password returns 400) is already done.
 - **CORE-04** unknown URLs showed a blank page.
 - **CORE-06** stale lazy chunks after a deploy made navigation silently fail.
 - **CORE-07** network failures showed raw English browser text.
@@ -73,7 +73,7 @@ Batch 1 note: when I read `apps/web/nginx.conf`, the CORE-01 line (`proxy_cookie
 - **ADM-09** Holidays: unsaved marks were lost when leaving the page.
 - **ADM-11** Login: spaces around the identifier caused "Invalid credentials".
 - **ADM-13** Usage: generation history had no clinic column.
-- **ADM-04** Activity: some filters could never match, and logins were invisible. The web part is first. The API part needs a decision.
+- **ADM-04** Activity: some filters could never match, and logins were invisible. The web part is first. The API part is now RPT-01 in `docs/superpowers/plans/2026-11-10-api-review-fixes-plan.md` (logins are already logged).
 
 ## Batch 7: i18n
 
@@ -125,4 +125,5 @@ Not run for batch 10: `pnpm typecheck`, `pnpm lint`, `pnpm test`, Docker build. 
 | SCH-05 | Delete the unreachable Schedule Preview page, or restore a link to it? |
 | SCH-10 | Merge the doctor "Duty roster" page into `/schedules`? |
 | ADM-01 | Should admins type each new doctor's initial password? |
-| ADM-04, CORE-05 | Are `apps/api` changes in scope? |
+| ADM-04 | API part moved to RPT-01 in `docs/superpowers/plans/2026-11-10-api-review-fixes-plan.md` (the auth events are already logged). The question is now: should hospital-wide events (`billing.updated`, `open_duty_settings.updated`) show in every clinic's activity log? |
+| CORE-05 | No decision needed. API part is done: `/auth/change-password` returns 400 for a wrong current password. |

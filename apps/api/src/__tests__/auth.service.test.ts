@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const query = vi.fn()
-vi.mock('../db/client.ts', () => ({ query: (...a: unknown[]) => query(...a) }))
+const txQuery = vi.fn()
+vi.mock('../db/client.ts', () => ({
+  query: (...a: unknown[]) => query(...a),
+  withTransaction: (work: (c: { query: typeof txQuery }) => Promise<unknown>) => work({ query: txQuery }),
+}))
 
 const logActivity = vi.fn()
 const recordActivity = vi.fn()
@@ -54,6 +58,7 @@ function userRow(overrides: Partial<Record<string, unknown>> = {}) {
 
 beforeEach(() => {
   query.mockReset()
+  txQuery.mockReset()
   compare.mockReset()
   hash.mockReset()
   compare.mockResolvedValue(true)
@@ -148,6 +153,11 @@ describe('auth.service', () => {
     ).rejects.toMatchObject({ status: 401 })
   })
 
+  it('refresh throws 403 "Clinic is deactivated" for a user of a deactivated clinic', async () => {
+    query.mockResolvedValue({ rows: [userRow({ clinic_is_active: false })] })
+    await expect(refresh('old')).rejects.toMatchObject({ status: 403, message: 'Clinic is deactivated' })
+  })
+
   it('refresh returns a new access token from the rotated token', async () => {
     query.mockResolvedValue({ rows: [userRow()] })
     const r = await refresh('old')
@@ -191,8 +201,9 @@ describe('auth.service', () => {
     const u = await changePassword(1, { currentPassword: 'changeme123', newPassword: 'newpass123' })
     expect(u.id).toBe(1)
     expect(hash).toHaveBeenCalledWith('newpass123', 12)
-    const updateSql = query.mock.calls.find((c) => String(c[0]).includes('UPDATE users'))
+    const updateSql = txQuery.mock.calls.find((c) => String(c[0]).includes('UPDATE users'))
     expect(updateSql?.[1]).toEqual(['NEWHASH', 1])
+    expect(tokenService.revokeAllForUser).toHaveBeenCalledWith(1, { query: txQuery })
     expect(logActivity).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'auth.password_changed', userId: 1, clinicId: 1 }),
     )
@@ -204,5 +215,17 @@ describe('auth.service', () => {
     await expect(
       changePassword(1, { currentPassword: 'wrong', newPassword: 'newpass123' }),
     ).rejects.toMatchObject({ status: 400 })
+  })
+})
+
+describe('auth.service changePassword failure', () => {
+  it('rejects when the session revoke fails, after the update ran on the transaction client', async () => {
+    query.mockResolvedValue({ rows: [userRow()] })
+    vi.mocked(tokenService.revokeAllForUser).mockRejectedValueOnce(new Error('db down'))
+    await expect(
+      changePassword(1, { currentPassword: 'changeme123', newPassword: 'newpass123' }),
+    ).rejects.toThrow('db down')
+    expect(txQuery.mock.calls.some((c) => String(c[0]).includes('UPDATE users'))).toBe(true)
+    expect(logActivity).not.toHaveBeenCalled()
   })
 })

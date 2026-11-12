@@ -1,17 +1,17 @@
 import { Router } from 'express'
-import { scheduleController } from '../controllers/schedule.controller.ts'
-import { authenticate } from '../middleware/authenticate.ts'
-import { authorize } from '../middleware/authorize.ts'
-import { validate } from '../middleware/validate.ts'
 import {
   alternativeOptionSchema,
   createDutySchema,
   createScheduleSchema,
-  generateScheduleSchema,
-  idParams,
+  saveScheduleSchema,
+  idParamsSchema,
   reassignDutySchema,
   scheduleQuerySchema,
-} from '../validators/schedule.ts'
+} from '@oncall/shared'
+import { scheduleController } from '../controllers/schedule.controller.ts'
+import { authenticate } from '../middleware/authenticate.ts'
+import { authorize } from '../middleware/authorize.ts'
+import { validate } from '../middleware/validate.ts'
 
 export const scheduleRouter = Router()
 
@@ -28,18 +28,11 @@ scheduleRouter.get(
 scheduleRouter.get(
   '/:id',
   authorize('administrator', 'doctor', 'manager'),
-  validate(idParams, 'params'),
+  validate(idParamsSchema, 'params'),
   scheduleController.getById,
 )
-// Writes (preview/generate included) stay administrator-only; the clinic
+// Writes stay administrator-only; the clinic
 // comes from ?clinicId= (superadmin) or the JWT (administrator).
-scheduleRouter.post(
-  '/preview',
-  authorize('administrator'),
-  validate(scheduleQuerySchema, 'query'),
-  validate(generateScheduleSchema, 'body'),
-  scheduleController.preview,
-)
 scheduleRouter.post(
   '/options',
   authorize('administrator'),
@@ -58,17 +51,17 @@ scheduleRouter.post(
   '/',
   authorize('administrator'),
   validate(scheduleQuerySchema, 'query'),
-  validate(generateScheduleSchema, 'body'),
+  validate(saveScheduleSchema, 'body'),
   scheduleController.generate,
 )
-scheduleRouter.post('/:id/publish', authorize('administrator'), validate(idParams, 'params'), scheduleController.publish)
-scheduleRouter.post('/:id/unpublish', authorize('administrator'), validate(idParams, 'params'), scheduleController.unpublish)
-scheduleRouter.delete('/:id', authorize('administrator'), validate(idParams, 'params'), scheduleController.remove)
-scheduleRouter.post('/:id/duties', authorize('administrator'), validate(idParams, 'params'), validate(createDutySchema, 'body'), scheduleController.addDuty)
+scheduleRouter.post('/:id/publish', authorize('administrator'), validate(idParamsSchema, 'params'), scheduleController.publish)
+scheduleRouter.post('/:id/unpublish', authorize('administrator'), validate(idParamsSchema, 'params'), scheduleController.unpublish)
+scheduleRouter.delete('/:id', authorize('administrator'), validate(idParamsSchema, 'params'), scheduleController.remove)
+scheduleRouter.post('/:id/duties', authorize('administrator'), validate(idParamsSchema, 'params'), validate(createDutySchema, 'body'), scheduleController.addDuty)
 
 export const dutyRouter = Router()
 
 dutyRouter.use(authenticate)
 dutyRouter.use(authorize('administrator'))
-dutyRouter.patch('/:id', validate(idParams, 'params'), validate(reassignDutySchema, 'body'), scheduleController.reassignDuty)
-dutyRouter.delete('/:id', validate(idParams, 'params'), scheduleController.removeDuty)
+dutyRouter.patch('/:id', validate(idParamsSchema, 'params'), validate(reassignDutySchema, 'body'), scheduleController.reassignDuty)
+dutyRouter.delete('/:id', validate(idParamsSchema, 'params'), scheduleController.removeDuty)

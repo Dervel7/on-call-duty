@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { TwoClinicFixture } from './helpers/clinic-fixtures.ts'
 
-// Live-DB isolation matrix for schedules (§5 I7-I11). Env bootstrap must run
+// Live-DB isolation matrix for schedules (section 5 I7-I11). Env bootstrap must run
 // before the service loads db/client, hence the ordered dynamic imports.
 const { seedTwoClinics } = await import('./helpers/clinic-fixtures.ts')
 const { query } = await import('../db/client.ts')
 const scheduleService = await import('../services/schedule.service.ts')
+const dutyService = await import('../services/duty.service.ts')
+const optionsService = await import('../services/schedule-options.service.ts')
 
 let f: TwoClinicFixture | undefined
 const scheduleIds: number[] = []
@@ -39,7 +41,7 @@ afterAll(async () => {
 })
 
 const adminA = () => ({ id: f!.adminA, role: 'administrator' as const, clinicId: f!.clinicA })
-const scopeA = () => ({ kind: 'clinic' as const, clinicId: f!.clinicA })
+const scopeA = () => ({ clinicId: f!.clinicA })
 
 describe('schedule clinic isolation (live DB)', () => {
   it('two clinics hold a schedule for the same month (D6/I8)', async () => {
@@ -73,33 +75,34 @@ describe('schedule clinic isolation (live DB)', () => {
 
     // Cross-clinic doctor cannot be assigned into clinic A's schedule.
     await expect(
-      scheduleService.addDuty(scheduleA, { date: '2031-03-10', doctorId: docB.doctorId }, adminA()),
+      dutyService.addDuty(scheduleA, { date: '2031-03-10', doctorId: docB.doctorId }, adminA()),
     ).rejects.toMatchObject({ status: 404 })
 
     // Doctor A on 03-10 must NOT block doctor A2 on 03-11 in clinic B's eyes...
-    // but first prove the block exists within clinic A (same clinic → 409).
-    await scheduleService.addDuty(scheduleA, { date: '2031-03-10', doctorId: docA.doctorId }, adminA())
+    // but first prove the block exists within clinic A (same clinic -> 409).
+    await dutyService.addDuty(scheduleA, { date: '2031-03-10', doctorId: docA.doctorId }, adminA())
     await expect(
-      scheduleService.addDuty(scheduleA, { date: '2031-03-11', doctorId: docA.doctorId }, adminA()),
+      dutyService.addDuty(scheduleA, { date: '2031-03-11', doctorId: docA.doctorId }, adminA()),
     ).rejects.toMatchObject({ status: 409 })
 
     // Same date pair in clinic B: doctor A's 03-10 duty must not block B's
     // doctor on 03-11 (adjacency independence).
     const scheduleB = scheduleIds[1]!
-    const dutyB = await scheduleService.addDuty(
+    const dutyB = await dutyService.addDuty(
       scheduleB,
       { date: '2031-03-11', doctorId: docB.doctorId },
       { id: f!.adminB, role: 'administrator', clinicId: f!.clinicB },
     )
     expect(dutyB.doctorId).toBe(docB.doctorId)
 
-    // preview pool is clinic-scoped: clinic B preview only uses B's doctors
-    // (the fixture doctor and docB) — never clinic A's.
-    const res = await scheduleService.preview(2031, 4, { kind: 'clinic', clinicId: f!.clinicB })
+    // The solver pool is clinic-scoped: clinic B options only use B's doctors
+    // (the fixture doctor and docB) - never clinic A's.
+    const res = await optionsService.generateOptions(2031, 4, { clinicId: f!.clinicB })
+    const assignments = res.options[0]!.assignments
     const clinicBDoctors = new Set([docB.doctorId, f!.doctorRowB])
-    expect(res.assignments.length).toBeGreaterThan(0)
-    expect(res.assignments.every((a) => clinicBDoctors.has(a.doctorId))).toBe(true)
-  })
+    expect(assignments.length).toBeGreaterThan(0)
+    expect(assignments.every((a) => clinicBDoctors.has(a.doctorId))).toBe(true)
+  }, 30_000) // runs the real solver
 
   it('list is clinic-scoped (I6)', async () => {
     const a = await scheduleService.list({ year: 2031, month: 3 }, adminA(), scopeA())
@@ -108,7 +111,7 @@ describe('schedule clinic isolation (live DB)', () => {
     const b = await scheduleService.list(
       { year: 2031, month: 3 },
       { id: f!.adminB, role: 'administrator', clinicId: f!.clinicB },
-      { kind: 'clinic', clinicId: f!.clinicB },
+      { clinicId: f!.clinicB },
     )
     expect(b).toHaveLength(1)
     expect(b[0]?.clinicId).toBe(f!.clinicB)

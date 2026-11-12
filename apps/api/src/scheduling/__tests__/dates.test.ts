@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { isOpenDutyDate, isPostOpenDutyDate } from '../dates.ts'
+import {
+  daysInMonth,
+  isOpenDutyDate,
+  isPostOpenDutyDate,
+  minimumForDate,
+  nextDate,
+  prevDate,
+  isCriticalDate,
+  slotsForDate,
+} from '../dates.ts'
 
 const ANCHOR = '2026-10-02'
 
@@ -54,5 +63,47 @@ describe('isPostOpenDutyDate', () => {
 
   it('interval 1 makes every day open, so none is post-open', () => {
     expect(isPostOpenDutyDate('2026-10-03', { anchorDate: ANCHOR, intervalDays: 1 })).toBe(false)
+  })
+})
+
+describe('daysInMonth', () => {
+  it('handles leap and non-leap February and 30/31-day months', () => {
+    expect(daysInMonth(2028, 2)).toBe(29)
+    expect(daysInMonth(2026, 2)).toBe(28)
+    expect(daysInMonth(2026, 4)).toBe(30)
+    expect(daysInMonth(2026, 12)).toBe(31)
+  })
+})
+
+describe('prevDate / nextDate', () => {
+  it('cross year and month boundaries', () => {
+    expect(prevDate('2027-01-01')).toBe('2026-12-31')
+    expect(nextDate('2026-12-31')).toBe('2027-01-01')
+    expect(nextDate('2028-02-28')).toBe('2028-02-29')
+    expect(nextDate('2026-02-28')).toBe('2026-03-01')
+  })
+})
+
+describe('day-type tiers', () => {
+  const openDuty = { anchorDate: '2026-10-31', intervalDays: 8 }
+  const slots = { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 1 }
+  const minimums = { openDutyMinimum: 3, postOpenDutyMinimum: 2, closedDutyMinimum: 1 }
+
+  it('isCriticalDate covers the open day and the day after it across a month boundary', () => {
+    expect(isCriticalDate('2026-10-31', openDuty)).toBe(true)
+    expect(isCriticalDate('2026-11-01', openDuty)).toBe(true)
+    expect(isCriticalDate('2026-11-02', openDuty)).toBe(false)
+  })
+
+  it('slotsForDate picks the open, post-open and closed tier', () => {
+    expect(slotsForDate('2026-10-31', openDuty, slots)).toBe(3)
+    expect(slotsForDate('2026-11-01', openDuty, slots)).toBe(2)
+    expect(slotsForDate('2026-11-02', openDuty, slots)).toBe(1)
+  })
+
+  it('minimumForDate picks the open, post-open and closed tier', () => {
+    expect(minimumForDate('2026-10-31', openDuty, minimums)).toBe(3)
+    expect(minimumForDate('2026-11-01', openDuty, minimums)).toBe(2)
+    expect(minimumForDate('2026-11-02', openDuty, minimums)).toBe(1)
   })
 })

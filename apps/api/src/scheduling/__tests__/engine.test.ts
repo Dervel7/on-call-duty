@@ -29,7 +29,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
   it('a single doctor short-fills a day (1 assigned, conflict emitted)', async () => {
     const days = [day('2026-09-01'), day('2026-09-03'), day('2026-09-05')]
     const { assignments, conflicts } = await run(ctx(days, [dr(1)]))
-    // one doctor can only hold one slot per day → each day short-fills
+    // one doctor can only hold one slot per day -> each day short-fills
     expect(assignments).toHaveLength(3)
     expect(conflicts).toHaveLength(3)
     expect(conflicts[0]).toMatchObject({ assigned: 1, required: 2 })
@@ -100,8 +100,8 @@ describe.each(engines)('%s engine', (_name, engine) => {
   })
 
   it('fills five Saturdays with eight doctors (holiday cap allows two each)', async () => {
-    // 5 Saturdays * 2 slots = 10 slots over 8 doctors: the holiday cap —
-    // two weekend/holiday duties per doctor — is the only weekend limit.
+    // 5 Saturdays * 2 slots = 10 slots over 8 doctors: the holiday cap -
+    // two weekend/holiday duties per doctor - is the only weekend limit.
     const sats = ['2026-10-03', '2026-10-10', '2026-10-17', '2026-10-24', '2026-10-31'].map((d) =>
       day(d, true),
     )
@@ -123,7 +123,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
 
   it('holiday cap yields to the day-fill guarantee: a sole doctor still covers the day', async () => {
     // Marked weekdays (Tue/Thu, non-adjacent): the doctor is at the holiday
-    // cap (2/2) on the third day, but the strict ≥1-doctor-per-day rule
+    // cap (2/2) on the third day, but the strict >=1-doctor-per-day rule
     // overrides the fairness cap instead of leaving the day empty. Only the
     // first slot relaxes: the second slot still short-fills.
     const days = [
@@ -171,7 +171,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
   it('open on-call rule: open days and the day after reach their minimum before regular days', async () => {
     const days = [day('2026-09-01'), day('2026-09-02'), day('2026-09-03')]
     // Anchor 09-01 with a long interval: 09-01 is open, 09-02 is the day
-    // after an open day — both critical. Four doctors with one duty each.
+    // after an open day - both critical. Four doctors with one duty each.
     const { assignments, conflicts } = await run(
       ctx(days, [dr(1, 1), dr(2, 1), dr(3, 1), dr(4, 1)], {
         openDuty: { anchorDate: '2026-09-01', intervalDays: 30 },
@@ -195,16 +195,42 @@ describe.each(engines)('%s engine', (_name, engine) => {
       }),
     )
     // Doctor 1 held the previous month's last day, so back-to-back still
-    // excludes them from the critical day 1 — hard rules never bend.
+    // excludes them from the critical day 1 - hard rules never bend.
     expect(assignments.filter((a) => a.date === '2026-09-01').map((a) => a.doctorId).sort()).toEqual([2, 3])
     expect(conflicts.map((c) => c.date)).toEqual(['2026-09-02'])
   })
 
+  it('respects next-month first-day duty via nextDayDoctorIds', async () => {
+    const days = [day('2026-09-29'), day('2026-09-30')]
+    const { assignments } = await run(ctx(days, [dr(1), dr(2), dr(3)], { nextDayDoctorIds: new Set([1]) }))
+    expect(assignments.filter((a) => a.date === '2026-09-30').map((a) => a.doctorId)).not.toContain(1)
+  })
+
+  it('an optional slot on a critical holiday never takes a doctor over the holiday cap', async () => {
+    // Doctor 3 is the only one free on Saturdays 5 and 12, so they hold two
+    // regular holiday duties. The open Saturday 19 has a third, optional slot:
+    // a critical duty would be their third holiday duty, which no coverage needs.
+    const away = new Map([
+      [1, [{ start: '2026-09-05', end: '2026-09-12' }]],
+      [2, [{ start: '2026-09-05', end: '2026-09-12' }]],
+    ])
+    const { assignments, conflicts } = await run(
+      ctx(['2026-09-05', '2026-09-12', '2026-09-19'].map((d) => day(d, true)), [dr(1), dr(2), dr(3)], {
+        unavailability: away,
+        openDuty: { anchorDate: '2026-09-19', intervalDays: 90 },
+        slots: { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 1 },
+        minimums: { openDutyMinimum: 1, postOpenDutyMinimum: 1, closedDutyMinimum: 1 },
+      }),
+    )
+    expect(conflicts).toEqual([])
+    expect(assignments.filter((a) => a.doctorId === 3).map((a) => a.date)).toEqual(['2026-09-05', '2026-09-12'])
+  })
+
   it('open on-call rule: the holiday cap never blocks a critical day', async () => {
     // Anchor 09-05, interval 7: every Saturday is open and every Sunday is
-    // the day after an open day — all critical. Doctor 1 is available only
+    // the day after an open day - all critical. Doctor 1 is available only
     // on Sundays (blocked from the open Saturdays), so they take three
-    // Sunday duties — over the holiday cap of 2 — because the strict rule
+    // Sunday duties - over the holiday cap of 2 - because the strict rule
     // outranks fairness. The open Saturdays themselves spread at most one
     // duty per doctor: the open on-call cap is a hard rule.
     const days = [
@@ -260,7 +286,7 @@ describe.each(engines)('%s engine', (_name, engine) => {
 
   it('open on-call rule: a doctor never takes a second open on-call day', async () => {
     // Anchor 09-05, interval 7: all four Saturdays are open (8 slots). Eight
-    // doctors cover them exactly once each — the cap never bends.
+    // doctors cover them exactly once each - the cap never bends.
     const sats = ['2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26'].map((d) => day(d, true))
     const doctors = Array.from({ length: 8 }, (_, i) => dr(i + 1))
     const { assignments, conflicts } = await run(

@@ -3,6 +3,7 @@ export type {
   Role,
   Language,
   AuthUser,
+  Actor,
   User,
   LoginRequest,
   LoginResponse,
@@ -47,7 +48,7 @@ export type {
   GenerateScheduleRequest,
 } from './schedule.ts'
 export type {
-  StatsQuery,
+  MonthQuery,
   AdminWorkloadItem,
   AdminCoverage,
   AdminFairness,
@@ -57,7 +58,7 @@ export type {
   OnCallEntry,
   MeStats,
 } from './stats.ts'
-export type { ReportQuery, MonthlyReport } from './reports.ts'
+export type { MonthlyReport } from './reports.ts'
 export type { Clinic, CreateClinicRequest, UpdateClinicRequest } from './clinic.ts'
 export type { Holiday, HolidayQuery, SetMonthHolidaysRequest } from './holiday.ts'
 export type {
