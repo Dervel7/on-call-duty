@@ -35,8 +35,8 @@ Related plans (do not repeat their items here):
 | 9 | Simplification and dead code | 11 | Done (ENG-06 decided: option A, field dropped from shared type and web text). SCH-05: `calendarDays(days, ...)` takes a day list; `computeEligibility` does not use `classifyDays` (ENG-10 optional part). ADM-16: `maxMonthlyDuties` stays optional in the service type; `doctor.isolation` test passes it explicitly. Billing and settings services still declare a local `Actor` |
 | 10 | Split schedule.service.ts | 1 | Done (extra file `schedule-rows.ts` for shared row types and mappers; no `schedule-rules.test.ts`, since no test calls `validatePlan` directly) |
 | 11 | Test quality | 8 | Done. New live-DB tests `scheduling-context.db.test.ts` (holiday + disabled unavailability) and `activity.service.db.test.ts` (date range) replace the SQL-substring pins; `doctor.isolation` gained a soft-delete/reuse case. ENG-14: solver-model tests solve the LP and check outcomes. ADM-19: only the `doctor.update` tests were missing; the rest existed from batches 1-6 |
-| 12 | Runtime, config and dependencies | 7 | Not started |
-| 13 | Docs and ASCII cleanup | 7 | Not started |
+| 12 | Runtime, config and dependencies | 7 | Done except CORE-15 (`@types/express` 4; skipped by decision: registry access fails with `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`, so the lockfile cannot be regenerated). CORE-16 lockfile regenerated with `pnpm install --lockfile-only --offline`. CORE-09 only adds `USER node` (INF-05 not done; `COPY packages/utils/package.json` kept). CORE-11 documents `TRUST_PROXY=2` as a commented, unverified line in `render.env.example` |
+| 13 | Docs and ASCII cleanup | 7 | Done. CORE-24 had no decision: 400 kept (matches code and web), AGENTS.md updated. ENG-12: `requiresDoubleCoverage` renamed `isCriticalDate`. SCH-18 indentation was already fixed. Non-ASCII removed from `apps/api` and `docker-compose.yml`; AGENTS.md itself still has em-dashes (not in scope) |
 
 ## Summary
 

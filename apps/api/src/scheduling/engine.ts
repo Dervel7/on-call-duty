@@ -21,7 +21,7 @@ interface RunState {
   total: Map<number, number>
   weekend: Map<number, number>
   friday: Map<number, number>
-  /** Duties per doctor per day of week (index 0=Sun … 6=Sat). */
+  /** Duties per doctor per day of week (index 0=Sun ... 6=Sat). */
   weekday: Map<number, number[]>
   holiday: Map<number, number>
   criticalHoliday: Map<number, number>
@@ -91,7 +91,7 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
       for (const cls of group) {
         if ((state.byDate.get(cls.day.date)?.size ?? 0) !== slot) continue
         // Required passes stop at the minimum. Optional passes start there and
-        // skip days already short of it — those are reported as conflicts.
+        // skip days already short of it - those are reported as conflicts.
         const skip = required ? slot >= cls.minimum : slot < cls.minimum || slot >= cls.slots
         if (skip) continue
         fillDay(cls, required)
@@ -137,7 +137,7 @@ export function generateGreedy(ctx: SchedulingContext): GenerateResult {
 
     let { eligible, tally } = collect(false)
     let relaxedFill = false
-    // Strict rule — minimum-coverage guarantee: every day reaches its
+    // Strict rule - minimum-coverage guarantee: every day reaches its
     // minimum, the same tier as the no-back-to-back rule. Before a regular
     // day is left below its minimum, the fairness caps above give way; the
     // hard constraints (availability, monthly cap, open on-call cap, no

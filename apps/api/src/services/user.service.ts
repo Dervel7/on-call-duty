@@ -140,7 +140,7 @@ export async function getById(id: number, actor: Actor): Promise<User> {
   return toUser(row)
 }
 
-/** Resolves the target clinic of a new account per §2.5 POST /users rules. */
+/** Resolves the target clinic of a new account per section 2.5 POST /users rules. */
 function resolveCreateClinic(input: CreateUserRequest, actor: Actor): number | null {
   if (actor.role === 'administrator') {
     assertMayAssignRole(actor, input.role)
@@ -296,7 +296,7 @@ export async function update(id: number, input: UpdateUserRequest, actor: Actor)
       params,
     )
     if (res.rows.length === 0) throw new HttpError(404, 'User not found')
-    // A doctor's clinic must stay in lockstep with the user row (§1.1).
+    // A doctor's clinic must stay in lockstep with the user row (section 1.1).
     if (existing.role === 'doctor' && clinicChanged) {
       await client.query(`UPDATE doctors SET clinic_id = $1, updated_at = NOW() WHERE user_id = $2`, [
         input.clinicId,
@@ -380,7 +380,7 @@ export async function resetPassword(id: number, input: ResetUserPasswordRequest,
 }
 
 // Self-service UI preference: any authenticated user toggles their own theme.
-// Not part of admin update() — admins never touch another user's dark mode.
+// Not part of admin update() - admins never touch another user's dark mode.
 export async function updateTheme(userId: number, darkMode: boolean): Promise<User> {
   const res = await query<{ id: number }>(
     'UPDATE users SET dark_mode = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',
@@ -391,7 +391,7 @@ export async function updateTheme(userId: number, darkMode: boolean): Promise<Us
 }
 
 // Self-service UI preference: any authenticated user picks their own language.
-// Not part of admin update() — admins never touch another user's language.
+// Not part of admin update() - admins never touch another user's language.
 export async function updateLanguage(userId: number, language: Language): Promise<User> {
   const res = await query<{ id: number }>(
     'UPDATE users SET language = $1, updated_at = NOW() WHERE id = $2 AND is_deleted = FALSE RETURNING id',

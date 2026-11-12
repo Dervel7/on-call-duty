@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { TwoClinicFixture } from './helpers/clinic-fixtures.ts'
 
-// Live-DB isolation matrix for schedules (§5 I7-I11). Env bootstrap must run
+// Live-DB isolation matrix for schedules (section 5 I7-I11). Env bootstrap must run
 // before the service loads db/client, hence the ordered dynamic imports.
 const { seedTwoClinics } = await import('./helpers/clinic-fixtures.ts')
 const { query } = await import('../db/client.ts')
@@ -79,7 +79,7 @@ describe('schedule clinic isolation (live DB)', () => {
     ).rejects.toMatchObject({ status: 404 })
 
     // Doctor A on 03-10 must NOT block doctor A2 on 03-11 in clinic B's eyes...
-    // but first prove the block exists within clinic A (same clinic → 409).
+    // but first prove the block exists within clinic A (same clinic -> 409).
     await dutyService.addDuty(scheduleA, { date: '2031-03-10', doctorId: docA.doctorId }, adminA())
     await expect(
       dutyService.addDuty(scheduleA, { date: '2031-03-11', doctorId: docA.doctorId }, adminA()),
@@ -96,7 +96,7 @@ describe('schedule clinic isolation (live DB)', () => {
     expect(dutyB.doctorId).toBe(docB.doctorId)
 
     // The solver pool is clinic-scoped: clinic B options only use B's doctors
-    // (the fixture doctor and docB) — never clinic A's.
+    // (the fixture doctor and docB) - never clinic A's.
     const res = await optionsService.generateOptions(2031, 4, { clinicId: f!.clinicB })
     const assignments = res.options[0]!.assignments
     const clinicBDoctors = new Set([docB.doctorId, f!.doctorRowB])

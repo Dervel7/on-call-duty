@@ -1,4 +1,4 @@
-import { isOpenDutyDate, minimumForDate, nextDate, prevDate, requiresDoubleCoverage } from './dates.ts'
+import { isOpenDutyDate, minimumForDate, nextDate, prevDate, isCriticalDate } from './dates.ts'
 import {
   HOLIDAY_DUTY_CAP,
   OPEN_DUTY_DUTY_CAP,
@@ -26,8 +26,8 @@ function holidaySplit(
   const holidays = new Set(ctx.days.filter((d) => d.isHoliday).map((d) => d.date))
   const onHoliday = dates.filter((date) => holidays.has(date))
   return {
-    regular: onHoliday.filter((date) => !requiresDoubleCoverage(date, ctx.openDuty)),
-    critical: onHoliday.filter((date) => requiresDoubleCoverage(date, ctx.openDuty)),
+    regular: onHoliday.filter((date) => !isCriticalDate(date, ctx.openDuty)),
+    critical: onHoliday.filter((date) => isCriticalDate(date, ctx.openDuty)),
   }
 }
 

@@ -50,7 +50,7 @@ function oneRow(rows: DoctorRow[]): DoctorRow | undefined {
 
 /**
  * Object-level access: administrator/doctor may only see rows of their own
- * clinic (mismatch → 404, existence hidden); manager and superadmin pass.
+ * clinic (mismatch -> 404, existence hidden); manager and superadmin pass.
  */
 function assertRowVisible(row: DoctorRow, actor: Actor): void {
   if (

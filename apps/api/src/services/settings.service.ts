@@ -201,7 +201,7 @@ export async function setDutySlots(
 /**
  * Hard minimum of on-call doctors per day type for one clinic. A stored value
  * above the slot count is clamped to it, so consumers always see
- * 1 ≤ minimum ≤ slots.
+ * 1 <= minimum <= slots.
  */
 export async function getDutyMinimums(
   clinicId: number,

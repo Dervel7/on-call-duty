@@ -20,7 +20,7 @@ beforeEach(() => {
   listDutiesBySchedule.mockReset()
 })
 
-describe('reports.service — monthlyReport', () => {
+describe('reports.service - monthlyReport', () => {
   it('empty state: schedule null -> roster empty and listDutiesBySchedule not called', async () => {
     adminStats.mockResolvedValue({
       year: 2026,

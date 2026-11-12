@@ -7,7 +7,7 @@ type Actor = Pick<AuthUser, 'id' | 'role'>
 const KEY = 'billing_paid_through'
 
 /**
- * The lock comparison runs in SQL against the database's CURRENT_DATE — a
+ * The lock comparison runs in SQL against the database's CURRENT_DATE - a
  * client-supplied clock is never trusted. A missing row means unlocked.
  */
 export async function isLocked(run: Run = query): Promise<boolean> {

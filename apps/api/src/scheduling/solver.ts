@@ -17,7 +17,7 @@ import {
 } from './solver-model.ts'
 import type { AssignmentPlan, ConflictPlan, GenerateResult, SchedulingContext } from './types.ts'
 
-/** Wall-clock budget for all solves of one generate() call (D4). */
+/** Wall-clock budget for all solves of one generate() call (options design D6). */
 export const SOLVER_BUDGET_MS = 45_000
 
 /** Wall-clock budget of each alternative schedule option, on top of the primary solve. */

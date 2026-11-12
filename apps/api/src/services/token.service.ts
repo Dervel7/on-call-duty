@@ -91,7 +91,7 @@ export async function rotateRefreshToken(
       )
       const newId = ins.rows[0]?.id
       // Atomic claim: zero rows means a concurrent rotation already consumed
-      // this token — treat as reuse and revoke the whole family.
+      // this token - treat as reuse and revoke the whole family.
       const claim = await client.query(
         `UPDATE refresh_tokens SET revoked_at = NOW(), replaced_by = $1
          WHERE id = $2 AND revoked_at IS NULL RETURNING id`,

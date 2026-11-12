@@ -42,7 +42,7 @@ export const SELECT_DUTY = `SELECT du.id, du.schedule_id, du.duty_date, du.docto
 
 /**
  * Object-level access: administrator/doctor may only reach schedules of their
- * own clinic (mismatch → 404, existence hidden); manager and superadmin pass.
+ * own clinic (mismatch -> 404, existence hidden); manager and superadmin pass.
  */
 export function assertScheduleVisible(clinicId: number, actor: Actor): void {
   if ((actor.role === 'administrator' || actor.role === 'doctor') && clinicId !== actor.clinicId) {

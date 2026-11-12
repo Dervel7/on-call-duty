@@ -189,8 +189,8 @@ describe('generate plan path', () => {
 
   it('accepts over-cap holiday duties on critical days (strict rules outrank fairness)', async () => {
     // Anchor 2026-09-05, interval 7: every Saturday is open and every Sunday
-    // the day after one — all critical. Doctor 3 takes three Sunday duties —
-    // over the holiday cap of 2 — and the plan still persists. The open
+    // the day after one - all critical. Doctor 3 takes three Sunday duties -
+    // over the holiday cap of 2 - and the plan still persists. The open
     // Saturdays use distinct doctors: one open on-call duty per doctor is a
     // hard rule now.
     const manyDoctors = Array.from({ length: 16 }, (_, i) => ({
@@ -257,7 +257,7 @@ describe('generate plan path', () => {
 
   it('accepts a third weekend duty when its day has a single doctor (day-fill guarantee)', async () => {
     // Doctor 6 takes Sundays 06 and 20, then Sunday 2026-09-27 as the day's
-    // only doctor — a third weekend duty, over the holiday cap of 2.
+    // only doctor - a third weekend duty, over the holiday cap of 2.
     // Removing the duty would drop the day below its minimum of 1: the
     // minimum-coverage rule outranks fairness and the plan persists.
     mockContext()
@@ -293,7 +293,7 @@ describe('generate plan path', () => {
 
   it('409 when a doctor is assigned a second open on-call day (one per doctor)', async () => {
     // Same month as the test above, but doctor 1 holds BOTH open Saturdays
-    // 05 and 12 — the strict open on-call cap must refuse the plan.
+    // 05 and 12 - the strict open on-call cap must refuse the plan.
     const manyDoctors = Array.from({ length: 16 }, (_, i) => ({
       id: i + 1,
       max_monthly_duties: 7,

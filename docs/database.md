@@ -272,7 +272,7 @@ Index: `idx_operator_alerts_open` (`type`, `resolved_at`).
 
 Behavior:
 
-- `disjoint_regeneration` — raised when the same clinic regenerates the same month with < 50% doctor-pool overlap versus the most recent prior generation of that month. `detail` carries `year`, `month`, `clinicId`, `clinicName`, `previousGeneratedAt`, `previousDoctors`, `overlapPercent`. Deduplicated: at most one unresolved alert per (clinic, month). Two different clinics generating the same month never alert.
+- `disjoint_regeneration` — raised when the same clinic regenerates the same month with < 50% doctor-pool overlap versus the most recent prior generation of that month. `detail` carries `year`, `month`, `clinicId`, `clinicName`, `previousGeneratedAt`, `previousDoctors`, `currentDoctors`, `overlapPercent`. Deduplicated: at most one unresolved alert per (clinic, month). Two different clinics generating the same month never alert.
 - Legacy `allowance_exceeded` rows are deleted by the schema and the type is not in the CHECK — do not reintroduce it.
 
 ### `activity_log`

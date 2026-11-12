@@ -17,7 +17,7 @@ export interface TwoClinicFixture {
 const PASSWORD_HASH = bcrypt.hashSync('test-pass-123', 4)
 
 /**
- * Live-DB fixture for cross-tenant isolation tests (§5 matrix): two clinics,
+ * Live-DB fixture for cross-tenant isolation tests (section 5 matrix): two clinics,
  * each with one administrator and one doctor. Names/emails are unique per run
  * so parallel suites never collide. Call dispose() in afterAll.
  */

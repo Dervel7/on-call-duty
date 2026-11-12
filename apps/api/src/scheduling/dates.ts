@@ -40,7 +40,7 @@ export function dayOfWeekISO(date: string): number {
 /**
  * Open on-call classification: the anchor is the first open on-call day and
  * every intervalDays-th day after it is open too. Days before the anchor are
- * always closed — the cycle starts there.
+ * always closed - the cycle starts there.
  */
 export function isOpenDutyDate(date: string, anchorDate: string, intervalDays: number): boolean {
   if (date < anchorDate) return false
@@ -50,11 +50,12 @@ export function isOpenDutyDate(date: string, anchorDate: string, intervalDays: n
 }
 
 /**
- * Strict double-coverage rule: an open on-call day and the calendar day
- * right after it must always carry 2 on-call doctors. Pure date math, so the
- * rule holds across month boundaries without extra state.
+ * Critical days: an open on-call day and the calendar day right after it.
+ * They take the clinic's open/closed minimums and slots instead of the
+ * regular ones, and cannot be left short. Pure date math, so the rule holds
+ * across month boundaries without extra state.
  */
-export function requiresDoubleCoverage(
+export function isCriticalDate(
   date: string,
   openDuty: { anchorDate: string; intervalDays: number },
 ): boolean {
@@ -114,7 +115,7 @@ export function minimumForDate(
 export function classifyDays(ctx: SchedulingContext): ModelDay[] {
   return ctx.days.map((day) => ({
     day,
-    critical: requiresDoubleCoverage(day.date, ctx.openDuty),
+    critical: isCriticalDate(day.date, ctx.openDuty),
     open: isOpenDutyDate(day.date, ctx.openDuty.anchorDate, ctx.openDuty.intervalDays),
     slots: slotsForDate(day.date, ctx.openDuty, ctx.slots),
     minimum: minimumForDate(day.date, ctx.openDuty, ctx.minimums),

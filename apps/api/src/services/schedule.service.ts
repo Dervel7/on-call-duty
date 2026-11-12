@@ -127,7 +127,7 @@ export async function getById(id: number, actor: Actor): Promise<ScheduleDetail>
     throw new HttpError(403, 'Schedule not published')
   }
   if (!isAdmin) {
-    // Calendar shape only — skip the eligibility work that gets blanked anyway.
+    // Calendar shape only - skip the eligibility work that gets blanked anyway.
     const [openDuty, slots, minimums] = await Promise.all([
       getOpenDutySettings(),
       getDutySlots(schedule.clinicId),

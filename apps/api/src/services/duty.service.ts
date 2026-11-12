@@ -7,7 +7,7 @@ import {
   inMonth,
   isWeekendISO,
   minimumForDate,
-  requiresDoubleCoverage,
+  isCriticalDate,
   slotsForDate,
 } from '../scheduling/index.ts'
 import { recordActivity } from './activity.service.ts'
@@ -178,7 +178,7 @@ export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
   const duty = await getVisibleDuty(dutyId, actor)
   assertEditable(duty.schedule_status)
   // Strict rule: an open on-call day and the day after it never drop below
-  // their minimum through a removal — such a duty must be reassigned instead.
+  // their minimum through a removal - such a duty must be reassigned instead.
   // The count is read under the schedule lock so concurrent removals cannot
   // both pass.
   const [openDuty, minimums] = await Promise.all([
@@ -188,7 +188,7 @@ export async function removeDuty(dutyId: number, actor: Actor): Promise<void> {
   const minimum = minimumForDate(duty.duty_date, openDuty, minimums)
   await withTransaction(async (client) => {
     await lockScheduleForEdit(client, duty.schedule_id)
-    if (requiresDoubleCoverage(duty.duty_date, openDuty)) {
+    if (isCriticalDate(duty.duty_date, openDuty)) {
       const res = await client.query<{ n: number }>(
         'SELECT COUNT(*)::int AS n FROM duties WHERE schedule_id = $1 AND duty_date = $2',
         [duty.schedule_id, duty.duty_date],

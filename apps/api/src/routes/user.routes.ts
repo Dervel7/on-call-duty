@@ -16,7 +16,7 @@ import { validate } from '../middleware/validate.ts'
 
 export const userRouter = Router()
 
-// Self-service preference — registered before the admin-only guard below so
+// Self-service preference - registered before the admin-only guard below so
 // every authenticated role (doctor included) can set their own theme.
 userRouter.patch(
   '/me/theme',
@@ -25,7 +25,7 @@ userRouter.patch(
   userController.updateTheme,
 )
 
-// Self-service preference — same placement reason as /me/theme: every
+// Self-service preference - same placement reason as /me/theme: every
 // authenticated role sets their own UI language.
 userRouter.patch(
   '/me/language',

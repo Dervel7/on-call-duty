@@ -1,5 +1,3 @@
-/** On-call slots per day are per clinic (clinics.open/closed_duty_slots); no fixed constant. */
-
 export function isAvailable(
   date: string,
   ranges: Array<{ start: string; end: string }> | undefined,

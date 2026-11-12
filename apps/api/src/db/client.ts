@@ -39,7 +39,7 @@ export async function withTransaction<T>(
     try {
       await client.query('ROLLBACK')
     } catch {
-      // Connection already broken — never mask the original error.
+      // Connection already broken - never mask the original error.
     }
     throw err
   } finally {

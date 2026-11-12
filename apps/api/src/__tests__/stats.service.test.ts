@@ -28,7 +28,7 @@ beforeEach(() => {
   getByUserId.mockReset()
 })
 
-describe('stats.service — adminStats', () => {
+describe('stats.service - adminStats', () => {
   it('empty state when no schedule exists', async () => {
     query.mockResolvedValue({ rows: [] })
     const stats = await adminStats(scope, 2026, 8)
@@ -167,7 +167,7 @@ describe('stats.service — adminStats', () => {
     expect(activeCall?.[1]).toEqual([3])
   })
 })
-describe('stats.service — adminStats default month', () => {
+describe('stats.service - adminStats default month', () => {
   it('without year and month it queries the current UTC month', async () => {
     query.mockResolvedValue({ rows: [] })
     await adminStats(scope)
@@ -177,7 +177,7 @@ describe('stats.service — adminStats default month', () => {
   })
 })
 
-describe('stats.service — meStats', () => {
+describe('stats.service - meStats', () => {
   it('404 when no doctor profile (admin case)', async () => {
     getByUserId.mockRejectedValue(Object.assign(new Error('Doctor not found'), { status: 404 }))
     await expect(meStats(99)).rejects.toMatchObject({ status: 404 })

@@ -128,6 +128,7 @@ Implement:
 
 Roles:
 - Superadmin
+- Manager (hospital-level, `clinic_id` NULL; names a clinic via `?clinicId`)
 - Administrator
 - Doctor
 
@@ -180,7 +181,7 @@ Error:
 }
 ```
 
-Status codes: 200 (GET/PUT), 201 (create), 204 (delete), 400 (bad input), 401 (unauthenticated), 403 (unauthorized), 404 (not found), 409 (conflict/constraint violation), 422 (validation/unfillable), 429 (rate limit), 500 (internal).
+Status codes: 200 (GET/PUT), 201 (create), 204 (delete), 400 (bad input / validation), 401 (unauthenticated), 403 (unauthorized), 404 (not found), 409 (conflict/constraint violation), 422 (unfillable), 429 (rate limit), 500 (internal).
 
 ## Testing Rules
 

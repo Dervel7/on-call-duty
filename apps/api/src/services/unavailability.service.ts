@@ -265,7 +265,7 @@ export async function setDisabled(
   isDisabled: boolean,
   actor: Actor,
 ): Promise<Unavailability> {
-  // Only administrators (and superadmins) may toggle the flag — doctors
+  // Only administrators (and superadmins) may toggle the flag - doctors
   // never, not even on their own records.
   if (actor.role !== 'administrator' && actor.role !== 'superadmin')
     throw new HttpError(403, 'Forbidden')

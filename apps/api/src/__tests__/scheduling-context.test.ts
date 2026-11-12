@@ -143,7 +143,7 @@ describe('computeEligibility', () => {
   })
 
   it('open on-call cap: a doctor holding an open-day duty -> excluded from other open days', () => {
-    // Defaults: anchor 2026-10-02, interval 8 — 10-02 and 10-10 are open.
+    // Defaults: anchor 2026-10-02, interval 8 - 10-02 and 10-10 are open.
     const result = computeEligibility({
       doctors: [doctor(1)],
       unavailability: new Map(),
@@ -154,7 +154,7 @@ describe('computeEligibility', () => {
       openByDoctor: new Map([[1, 1]]),
     })
     // On their own open day the doctor stays eligible (swap semantics);
-    // on another open day they are excluded — never a second open duty.
+    // on another open day they are excluded - never a second open duty.
     expect(result[0]?.eligibleDoctorIds).toEqual([1])
     expect(result[1]?.eligibleDoctorIds).toEqual([])
   })

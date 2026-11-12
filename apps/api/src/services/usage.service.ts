@@ -17,7 +17,7 @@ export const DISJOINT_MIN_SET_SIZE = 4
 /**
  * Append-only record of one schedule generation plus alert-only metering.
  * Must run INSIDE the schedule-creation transaction: a failed log write fails
- * the generation. Never throws for alert conditions — alerts do not block.
+ * the generation. Never throws for alert conditions - alerts do not block.
  */
 export async function recordGeneration(
   client: PoolClient,
@@ -34,8 +34,8 @@ export async function recordGeneration(
   }
 
   // Rule 2: disjoint regeneration vs the most recent prior generation of this
-  // month **in the same clinic** — two clinics generating the same month with
-  // disjoint pools must not read as a regeneration (§2.6.4).
+  // month **in the same clinic** - two clinics generating the same month with
+  // disjoint pools must not read as a regeneration (section 2.6.4).
   // Rows written by this transaction share NOW(), so `created_at < NOW()` cleanly
   // selects only prior generations. The batch timestamp travels as text because
   // node-postgres truncates timestamptz microseconds when parsing to a JS Date,
@@ -123,7 +123,7 @@ export async function generations(): Promise<GenerationEvent[]> {
   // Batch timestamps travel as text for the same reason as in recordGeneration:
   // node-postgres truncates timestamptz microseconds when parsing to a JS Date,
   // which would break the exact equality match on each batch. Batches are
-  // partitioned per clinic (§2.6.4): two clinics generating the same month are
+  // partitioned per clinic (section 2.6.4): two clinics generating the same month are
   // separate events with separate overlap chains.
   const batches = await query<{
     clinic_id: number

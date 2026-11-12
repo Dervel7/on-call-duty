@@ -3,7 +3,7 @@ import { query } from '../db/client.ts'
 import { create, getById, list, remove } from '../services/doctor.service.ts'
 import { seedTwoClinics, type TwoClinicFixture } from './helpers/clinic-fixtures.ts'
 
-// Live-DB isolation matrix (§5 I4/I5).
+// Live-DB isolation matrix (section 5 I4/I5).
 let f: TwoClinicFixture | undefined
 
 beforeAll(async () => {

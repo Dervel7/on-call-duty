@@ -6,7 +6,7 @@ import {
   minimumForDate,
   nextDate,
   prevDate,
-  requiresDoubleCoverage,
+  isCriticalDate,
   slotsForDate,
 } from '../dates.ts'
 
@@ -89,10 +89,10 @@ describe('day-type tiers', () => {
   const slots = { openDutySlots: 3, postOpenDutySlots: 2, closedDutySlots: 1 }
   const minimums = { openDutyMinimum: 3, postOpenDutyMinimum: 2, closedDutyMinimum: 1 }
 
-  it('requiresDoubleCoverage covers the open day and the day after it across a month boundary', () => {
-    expect(requiresDoubleCoverage('2026-10-31', openDuty)).toBe(true)
-    expect(requiresDoubleCoverage('2026-11-01', openDuty)).toBe(true)
-    expect(requiresDoubleCoverage('2026-11-02', openDuty)).toBe(false)
+  it('isCriticalDate covers the open day and the day after it across a month boundary', () => {
+    expect(isCriticalDate('2026-10-31', openDuty)).toBe(true)
+    expect(isCriticalDate('2026-11-01', openDuty)).toBe(true)
+    expect(isCriticalDate('2026-11-02', openDuty)).toBe(false)
   })
 
   it('slotsForDate picks the open, post-open and closed tier', () => {

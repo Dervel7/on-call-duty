@@ -5,7 +5,7 @@ import { verifyAccessToken } from '../lib/jwt.ts'
 import * as billingService from '../services/billing.service.ts'
 
 // Express 4 does not catch rejected promises from middleware, so every
-// failure path — including the async lock check — must reach the error
+// failure path - including the async lock check - must reach the error
 // handler through next(err).
 export async function authenticate(req: Request, _res: Response, next: NextFunction) {
   try {

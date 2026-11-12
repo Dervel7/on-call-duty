@@ -11,7 +11,7 @@ import {
   minimumForDate,
   nextDate,
   prevDate,
-  requiresDoubleCoverage,
+  isCriticalDate,
   slotsForDate,
   type DoctorSpec,
   type SchedulingContext,
@@ -25,8 +25,8 @@ function monthBounds(year: number, month: number): { first: string; last: string
 }
 
 /**
- * Doctor pool, unavailability and adjacency seeds are all clinic-scoped (§2.6):
- * clinics never interact — a duty in one clinic must not constrain another.
+ * Doctor pool, unavailability and adjacency seeds are all clinic-scoped (section 2.6):
+ * clinics never interact - a duty in one clinic must not constrain another.
  */
 export async function buildContext(
   year: number,
@@ -89,7 +89,7 @@ export async function buildContext(
     })
    }
 
-  // Adjacent months' duties are read through the schedule's clinic (§2.6.1).
+  // Adjacent months' duties are read through the schedule's clinic (section 2.6.1).
   const dayBefore = prevDate(first)
   const dayAfter = nextDate(last)
   const adjacent = await query<{ duty_date: string; doctor_id: number }>(
@@ -161,7 +161,7 @@ export function computeEligibility(input: EligibilityInput): DayInfo[] {
     const info = out[i]!
     const { eligibleDoctorIds: eligible, availableDoctorIds: available } = info
     const isOpen = info.dutyType === 'open'
-    const critical = requiresDoubleCoverage(day.date, input.openDuty)
+    const critical = isCriticalDate(day.date, input.openDuty)
     const todays = input.dutiesByDate.get(day.date) ?? new Set<number>()
     const yesterdays = input.dutiesByDate.get(prevDate(day.date))
     const tomorrows = input.dutiesByDate.get(nextDate(day.date))
@@ -209,7 +209,7 @@ function buildDutyMaps(ctx: SchedulingContext, assignments: { date: string; doct
     dutiesByDate.set(a.date, (dutiesByDate.get(a.date) ?? new Set<number>()).add(a.doctorId))
     bump(dutyCountByDoctor, a.doctorId)
     if (holidays.has(a.date))
-      bump(requiresDoubleCoverage(a.date, ctx.openDuty) ? criticalHolidayByDoctor : regularHolidayByDoctor, a.doctorId)
+      bump(isCriticalDate(a.date, ctx.openDuty) ? criticalHolidayByDoctor : regularHolidayByDoctor, a.doctorId)
     if (isOpenDutyDate(a.date, ctx.openDuty.anchorDate, ctx.openDuty.intervalDays))
       bump(openByDoctor, a.doctorId)
   }
