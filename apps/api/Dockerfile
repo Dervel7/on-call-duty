@@ -42,5 +42,6 @@ COPY packages ./packages
 
 WORKDIR /repo/apps/api
 EXPOSE 3000
+USER node
 
 CMD ["node", "src/server.ts"]

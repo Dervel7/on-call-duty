@@ -62,7 +62,7 @@ Run from the repository root:
 |---|---|
 | `pnpm install` | Install dependencies |
 | `pnpm dev` | Start API + web in parallel (watch mode) |
-| `pnpm build` | Build all packages |
+| `pnpm build` | Build the web app |
 | `pnpm typecheck` | Typecheck all packages |
 | `pnpm lint` | Lint all packages |
 | `pnpm test` | Run all tests |
